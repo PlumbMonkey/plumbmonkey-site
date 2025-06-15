@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plumbmonkey | Audio + Motion</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom font imports or additional CSS can go here */
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 font-sans leading-relaxed">
+  <!-- Hero Section -->
+  <section class="relative h-screen w-full overflow-hidden">
+    <video autoplay muted loop playsinline class="absolute inset-0 w-full h-full object-cover">
+      <source src="hero-placeholder.mp4" type="video/mp4" />
+    </video>
+    <div class="relative z-10 flex h-full items-center justify-center bg-zinc-900/60">
+      <h1 class="text-5xl md:text-7xl font-bold tracking-wide text-center px-4">
+        Plumbmonkey Studio Services
+      </h1>
+    </div>
+  </section>
+
+  <!-- About Section -->
+  <section id="about" class="py-24 container mx-auto px-6">
+    <h2 class="text-3xl font-semibold mb-6">About</h2>
+    <p class="max-w-3xl">
+      We craft music videos, animation, and audio production that hit like thunder—
+      fusing human craft with cutting‑edge AI to deliver visuals and sound that stand out
+      in the algorithmic din.
+    </p>
+  </section>
+
+  <!-- Services Section -->
+  <section id="services" class="py-24 bg-zinc-900">
+    <div class="container mx-auto px-6">
+      <h2 class="text-3xl font-semibold mb-12">Services</h2>
+      <div class="grid md:grid-cols-3 gap-8">
+        <div class="p-6 bg-zinc-800 rounded-2xl shadow">
+          <h3 class="text-xl font-medium mb-2">Audio Production</h3>
+          <p>Mixing, mastering, and sound design to elevate your tracks.</p>
+        </div>
+        <div class="p-6 bg-zinc-800 rounded-2xl shadow">
+          <h3 class="text-xl font-medium mb-2">Video Editing &amp; FX</h3>
+          <p>Story‑driven cuts, AI‑assisted visuals, cinematic polish.</p>
+        </div>
+        <div class="p-6 bg-zinc-800 rounded-2xl shadow">
+          <h3 class="text-xl font-medium mb-2">Animation &amp; Motion</h3>
+          <p>2D/3D animation, lyric videos, live visuals synced to your music.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Portfolio Section -->
+  <section id="work" class="py-24 container mx-auto px-6">
+    <h2 class="text-3xl font-semibold mb-12">Work Samples</h2>
+    <div class="grid md:grid-cols-3 gap-8">
+      <!-- Replace # with actual links and thumbnails -->
+      <a href="#" target="_blank" class="block group">
+        <img src="thumb1.jpg" alt="Project 1" class="rounded-2xl group-hover:opacity-80 transition" />
+        <p class="mt-2 text-lg">Time Quake I – Music Video</p>
+      </a>
+      <a href="#" target="_blank" class="block group">
+        <img src="thumb2.jpg" alt="Project 2" class="rounded-2xl group-hover:opacity-80 transition" />
+        <p class="mt-2 text-lg">Hellcraft – Lyric Video</p>
+      </a>
+      <a href="#" target="_blank" class="block group">
+        <img src="thumb3.jpg" alt="Project 3" class="rounded-2xl group-hover:opacity-80 transition" />
+        <p class="mt-2 text-lg">Crown of Thorns – Promo Cut</p>
+      </a>
+    </div>
+  </section>
+
+  <!-- Contact Section -->
+  <section id="contact" class="py-24 bg-zinc-900">
+    <div class="container mx-auto px-6">
+      <h2 class="text-3xl font-semibold mb-6">Hire Me</h2>
+      <form action="https://formspree.io/f/yourcode" method="POST" class="max-w-xl">
+        <div class="mb-4">
+          <label class="block mb-1">Name</label>
+          <input type="text" name="name" required class="w-full p-3 rounded bg-zinc-800 border border-zinc-700" />
+        </div>
+        <div class="mb-4">
+          <label class="block mb-1">Email</label>
+          <input type="email" name="email" required class="w-full p-3 rounded bg-zinc-800 border border-zinc-700" />
+        </div>
+        <div class="mb-6">
+          <label class="block mb-1">Project Details</label>
+          <textarea name="message" rows="5" required class="w-full p-3 rounded bg-zinc-800 border border-zinc-700"></textarea>
+        </div>
+        <button type="submit" class="px-6 py-3 rounded-2xl bg-cyan-500 text-zinc-900 font-semibold hover:bg-cyan-400 transition">
+          Send Request
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="py-8 bg-zinc-950 border-t border-zinc-800">
+    <div class="container mx-auto px-6 text-center text-sm">
+      © 2025 Plumbmonkey. All rights reserved.
+    </div>
+  </footer>
+</body>
+</html>
