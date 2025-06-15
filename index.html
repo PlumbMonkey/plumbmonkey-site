@@ -4,16 +4,30 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Plumbmonkey | Audio + Motion</title>
+  <meta name="description" content="Plumbmonkey Studio Services: Music videos, animation, and audio production that hit like thunder." />
+  <link rel="icon" href="assets/favicon.ico" />
+
+  <!-- Preload the hero video for faster paint -->
+  <link rel="preload" as="video" href="assets/hero.mp4" type="video/mp4">
+
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     /* Custom font imports or additional CSS can go here */
   </style>
 </head>
 <body class="bg-zinc-950 text-zinc-100 font-sans leading-relaxed">
+
   <!-- Hero Section -->
   <section class="relative h-screen w-full overflow-hidden">
-    <video autoplay muted loop playsinline class="absolute inset-0 w-full h-full object-cover">
-      <source src="hero-placeholder.mp4" type="video/mp4" />
+    <video
+      poster="assets/hero-still.png"
+      autoplay
+      muted
+      loop
+      playsinline
+      class="absolute inset-0 w-full h-full object-cover"
+    >
+      <source src="assets/hero.mp4" type="video/mp4" />
     </video>
     <div class="relative z-10 flex h-full items-center justify-center bg-zinc-900/60">
       <h1 class="text-5xl md:text-7xl font-bold tracking-wide text-center px-4">
@@ -26,9 +40,7 @@
   <section id="about" class="py-24 container mx-auto px-6">
     <h2 class="text-3xl font-semibold mb-6">About</h2>
     <p class="max-w-3xl">
-      We craft music videos, animation, and audio production that hit like thunder—
-      fusing human craft with cutting‑edge AI to deliver visuals and sound that stand out
-      in the algorithmic din.
+      We craft music videos, animation, and audio production that hit like thunder—fusing human craft with cutting-edge AI to deliver visuals and sound that stand out in the algorithmic din.
     </p>
   </section>
 
@@ -43,7 +55,7 @@
         </div>
         <div class="p-6 bg-zinc-800 rounded-2xl shadow">
           <h3 class="text-xl font-medium mb-2">Video Editing &amp; FX</h3>
-          <p>Story‑driven cuts, AI‑assisted visuals, cinematic polish.</p>
+          <p>Story-driven cuts, AI-assisted visuals, cinematic polish.</p>
         </div>
         <div class="p-6 bg-zinc-800 rounded-2xl shadow">
           <h3 class="text-xl font-medium mb-2">Animation &amp; Motion</h3>
@@ -76,7 +88,7 @@
   <section id="contact" class="py-24 bg-zinc-900">
     <div class="container mx-auto px-6">
       <h2 class="text-3xl font-semibold mb-6">Hire Me</h2>
-      <form action="https://formspree.io/f/yourcode" method="POST" class="max-w-xl">
+      <form action="https://formspree.io/f/xyzabc" method="POST" class="max-w-xl">
         <div class="mb-4">
           <label class="block mb-1">Name</label>
           <input type="text" name="name" required class="w-full p-3 rounded bg-zinc-800 border border-zinc-700" />
@@ -102,5 +114,6 @@
       © 2025 Plumbmonkey. All rights reserved.
     </div>
   </footer>
+
 </body>
 </html>
