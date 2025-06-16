@@ -120,6 +120,8 @@
     </div>
   </section>
 
+  <!-- PREMIUM-CONTENT-START -->
+  <div class="premium-content hidden">
   <section id="music" class="py-24 bg-zinc-950">
     <div class="container mx-auto px-6">
       <h2 class="text-3xl font-semibold mb-6">Discography</h2>
@@ -146,6 +148,8 @@
       </p>
     </div>
   </section>
+  </div>
+  <!-- PREMIUM-CONTENT-END -->
 
   <section id="video" class="py-24">
     <div class="container mx-auto px-6">
@@ -243,6 +247,21 @@
     </div>
   </section>
 
+  <section id="membership" class="py-24 bg-cyan-500 text-zinc-900">
+    <div class="container mx-auto px-6 text-center">
+      <h2 class="text-3xl font-semibold mb-4">Unlock Premium Content</h2>
+      <p class="mb-6 max-w-2xl mx-auto">
+        Subscribe for early access to unreleased tracks, behind-the-scenes streams, and deep-dive tutorials.
+      </p>
+      <button
+        id="subscribe-btn"
+        class="px-8 py-4 rounded-2xl bg-zinc-900 text-cyan-500 font-semibold hover:bg-zinc-800 transition"
+      >
+        Become a Member
+      </button>
+    </div>
+  </section>
+
   <!-- Contact Section -->
   <section id="contact" class="py-24 bg-zinc-900">
     <div class="container mx-auto px-6">
@@ -293,6 +312,10 @@
         if (sec.getBoundingClientRect().top < window.innerHeight*0.8)
           sec.style.opacity = 1;
       });
+    });
+    document.getElementById('subscribe-btn').addEventListener('click', () => {
+      // TODO: integrate Stripe Checkout / Customer Portal here
+      alert("Subscription flow coming soon—here's where you'll integrate Stripe Checkout.");
     });
   </script>
 
