@@ -4,18 +4,29 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Plumbmonkey | Audio + Motion</title>
-  <meta name="description" content="Plumbmonkey Studio Services: Music videos, animation, and audio production that hit like thunder." />
   <link rel="icon" href="assets/favicon.ico" />
 
   <!-- Preload the hero video for faster paint -->
   <link rel="preload" as="video" href="assets/hero.mp4" type="video/mp4">
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    /* Custom font imports or additional CSS can go here */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    section { opacity: 0; animation: fadeIn 0.8s ease-out both; }
+    .font-inter { font-family: 'Inter', sans-serif; }
   </style>
+  <meta name="description" content="Plumbmonkey: Audio production, AI visuals, and animation that hit like thunder.">
+  <meta property="og:title" content="Plumbmonkey Studio Services">
+  <meta property="og:description" content="We fuse human artistry with AI for cinematic audio & motion.">
+  <meta property="og:image" content="https://plumbmonkey.online/assets/og-thumb.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <script defer data-domain="plumbmonkey.online" src="https://plausible.io/js/script.js"></script>
 </head>
-<body class="bg-zinc-950 text-zinc-100 font-sans leading-relaxed">
+<body class="bg-zinc-950 text-zinc-100 font-inter leading-relaxed">
 
   <header class="fixed top-0 inset-x-0 bg-zinc-900/80 backdrop-blur-sm z-50">
     <div class="container mx-auto flex items-center justify-between p-4">
@@ -126,7 +137,23 @@
     <div class="container mx-auto px-6 text-center text-sm">
       © 2025 Plumbmonkey. All rights reserved.
     </div>
-  </footer>
+</footer>
+
+  <script>
+    document.querySelectorAll('a[href^="#"]').forEach(a=>{
+      a.onclick=e=>{
+        e.preventDefault();
+        document.querySelector(a.getAttribute('href'))
+          .scrollIntoView({behavior:'smooth'});
+      };
+    });
+    window.addEventListener('scroll',()=>{
+      document.querySelectorAll('section').forEach(sec=>{
+        if (sec.getBoundingClientRect().top < window.innerHeight*0.8)
+          sec.style.opacity = 1;
+      });
+    });
+  </script>
 
 </body>
 </html>
