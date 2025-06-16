@@ -31,21 +31,21 @@
   <header class="fixed top-0 inset-x-0 bg-zinc-900/80 backdrop-blur-sm z-50">
     <div class="container mx-auto flex items-center justify-between p-4">
       <a href="/" class="text-xl font-bold">Plumbmonkey</a>
-      <button id="nav-toggle" class="md:hidden p-2" aria-expanded="false" aria-controls="main-nav">
+      <button id="nav-toggle" class="md:hidden p-2" aria-expanded="false" aria-controls="nav-menu">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
         <span class="sr-only">Toggle navigation</span>
       </button>
-      <div id="main-nav" class="hidden absolute top-full left-0 w-full bg-zinc-900/90 flex flex-col items-center space-y-6 md:relative md:flex md:flex-row md:space-y-0 md:space-x-6 md:bg-transparent md:w-auto">
-        <nav>
-          <a href="#about" class="block px-2 hover:underline">About</a>
-          <a href="#services" class="block px-2 hover:underline">Services</a>
-          <a href="#work" class="block px-2 hover:underline">Work</a>
-          <a href="#contact" class="block px-2 hover:underline">Hire Me</a>
-          <a href="YOUR_DIRECTORY_URL" target="_blank" rel="noopener" class="block px-2 hover:underline">Directory</a>
-        </nav>
-      </div>
+      <nav class="absolute top-full left-0 w-full bg-zinc-900/90 md:relative md:bg-transparent md:w-auto">
+        <ul id="nav-menu" class="flex-col space-y-2 md:flex md:flex-row md:space-x-6 md:space-y-0 md:items-center hidden">
+          <li><a href="#about" class="block px-2 hover:underline">About</a></li>
+          <li><a href="#services" class="block px-2 hover:underline">Services</a></li>
+          <li><a href="#work" class="block px-2 hover:underline">Work</a></li>
+          <li><a href="#contact" class="block px-2 hover:underline">Hire Me</a></li>
+          <li><a href="YOUR_DIRECTORY_URL" target="_blank" rel="noopener" class="block px-2 hover:underline">Directory</a></li>
+        </ul>
+      </nav>
     </div>
   </header>
 
@@ -295,7 +295,7 @@
 
   <script>
     const btn = document.getElementById('nav-toggle');
-    const nav = document.getElementById('main-nav');
+    const nav = document.getElementById('nav-menu');
     btn.addEventListener('click', () => {
       const isOpen = nav.classList.toggle('hidden');
       btn.setAttribute('aria-expanded', String(!isOpen));
