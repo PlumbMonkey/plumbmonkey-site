@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Everything from meta name="viewport" ... down to the last </head> -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Plumbmonkey | Audio + Motion</title>
   <link rel="icon" href="assets/favicon.ico" />
 
@@ -27,12 +27,11 @@
 <header class="fixed top-0 inset-x-0 bg-zinc-900/80 backdrop-blur-sm z-50 h-10">
   <div class="flex items-center justify-start h-full px-4">
     <nav>
-      <ul class="flex space-x-6 items-center text-sm">
+      <ul class="flex flex-col sm:flex-row sm:space-x-6 space-y-2 sm:space-y-0 items-center text-sm">
         <li><a href="#about" class="block px-2 hover:underline">About</a></li>
         <li><a href="#services" class="block px-2 hover:underline">Services</a></li>
         <li><a href="#work" class="block px-2 hover:underline">Work</a></li>
-        <li><a href="#contact" class="block px-2 hover:underline">Hire Me</a></li>
-        <li><a href="YOUR_DIRECTORY_URL" target="_blank" rel="noopener" class="block px-2 hover:underline">Directory</a></li>
+        <li><a href="#contact" class="block px-2 hover:underline">Contact</a></li>
       </ul>
     </nav>
   </div>
@@ -64,18 +63,89 @@
     </video>
   </section>
 
-  <!-- Placeholder for the rest of your sections (About, Services, etc.) -->
+  <!-- About Section -->
   <section id="about" class="py-24 container mx-auto px-6">
     <h2 class="text-3xl font-semibold mb-6">About</h2>
     <p class="max-w-3xl">
       We craft music videos, animation, and audio production that hit like thunder—fusing human craft with cutting-edge AI to deliver visuals and sound that stand out in the algorithmic din.
     </p>
+    <img src="assets/headshot01.jpg" alt="Studio owner" class="mt-6 w-40 rounded-full">
   </section>
 
-  <!-- ... (Other sections go here) ... -->
+  <!-- Services Section -->
+  <section id="services" class="py-24 bg-zinc-900/40">
+    <div class="container mx-auto px-6">
+      <h2 class="text-3xl font-semibold mb-10">Services</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div>
+          <h3 class="text-xl font-semibold mb-2">Audio Production</h3>
+          <p>Mixing, mastering, and custom sound design.</p>
+        </div>
+        <div>
+          <h3 class="text-xl font-semibold mb-2">AI Visuals</h3>
+          <p>Experimental imagery powered by modern AI tools.</p>
+        </div>
+        <div>
+          <h3 class="text-xl font-semibold mb-2">Motion Graphics</h3>
+          <p>Animated titles and kinetic typography that move with rhythm.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Work Section -->
+  <section id="work" class="py-24 container mx-auto px-6">
+    <h2 class="text-3xl font-semibold mb-10">Work</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <a href="https://vimeo.com/76979871" target="_blank" rel="noopener" class="block group">
+        <img src="assets/hero-loop.jpg" alt="Quantum Beats video thumbnail" class="w-full h-48 object-cover rounded group-hover:opacity-80">
+        <h3 class="mt-2 text-xl font-semibold">Quantum Beats</h3>
+        <p class="text-sm">Surreal audio-visual journey.</p>
+      </a>
+      <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noopener" class="block group">
+        <img src="assets/hero-loop.jpg" alt="Neon Nights video thumbnail" class="w-full h-48 object-cover rounded group-hover:opacity-80">
+        <h3 class="mt-2 text-xl font-semibold">Neon Nights</h3>
+        <p class="text-sm">Retro-inspired motion graphics.</p>
+      </a>
+      <a href="https://www.youtube.com/watch?v=3tmd-ClpJxA" target="_blank" rel="noopener" class="block group">
+        <img src="assets/hero-loop.jpg" alt="AI Dreamscape video thumbnail" class="w-full h-48 object-cover rounded group-hover:opacity-80">
+        <h3 class="mt-2 text-xl font-semibold">AI Dreamscape</h3>
+        <p class="text-sm">AI-assisted animation experiment.</p>
+      </a>
+    </div>
+  </section>
+
+  <!-- Contact Section -->
+  <section id="contact" class="py-24 bg-zinc-900/40">
+    <div class="container mx-auto px-6">
+      <h2 class="text-3xl font-semibold mb-6">Contact</h2>
+      <form action="https://formspree.io/f/xjkrragg" method="POST" class="max-w-lg space-y-4">
+        <div>
+          <label for="name" class="block text-sm mb-1">Name</label>
+          <input id="name" name="name" type="text" required class="w-full p-2 rounded bg-zinc-800 border border-zinc-700">
+        </div>
+        <div>
+          <label for="email" class="block text-sm mb-1">Email</label>
+          <input id="email" name="email" type="email" required class="w-full p-2 rounded bg-zinc-800 border border-zinc-700">
+        </div>
+        <div>
+          <label for="message" class="block text-sm mb-1">Message</label>
+          <textarea id="message" name="message" rows="4" required class="w-full p-2 rounded bg-zinc-800 border border-zinc-700"></textarea>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-teal-500 text-zinc-900 rounded font-semibold hover:bg-teal-400">Send</button>
+      </form>
+    </div>
+  </section>
 
   <!-- JS for hero video transitions -->
   <script src="assets/hero.js"></script>
+</body>
+</html>
+
+
+</head>
+<body class="bg-zinc-950 text-zinc-100 font-inter leading-relaxed">
+  <!-- All your content, sections, scripts -->
 </body>
 </html>
 
