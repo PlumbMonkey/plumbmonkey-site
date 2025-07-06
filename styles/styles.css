@@ -3,6 +3,7 @@
 /* HERO VIDEO: Nudge down for visual balance */
 #hero video {
   object-position: center 10%;
+  object-fit: cover;
 }
 
 /* FIXED NAV BAR: Drop shadow for depth */
@@ -28,7 +29,6 @@ nav a:hover {
 
 /* === SHARED SECTION BACKGROUND OVERLAY UTILITY === */
 .bg-cover-section {
-  background-image: url('../assets/stage_scene.svg');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -47,37 +47,27 @@ nav a:hover {
   z-index: 1;
 }
 
-/* OFFER SECTION: Cinematic still with dark overlay */
-#offer.bg-cover-section {
-  background-image: url('../assets/hero-loop.jpg');
-}
-#offer.bg-cover-section::before {
-  background: rgba(10,10,20,0.65);
-}
-
-/* ABOUT SECTION: SVG starfield + dark overlay */
+/* Specific backgrounds for each section */
 #about.bg-cover-section {
   background-image: url('../assets/starry-night.svg');
 }
 #about.bg-cover-section::before {
   background: rgba(10,10,20,0.7);
 }
-
-/* SERVICES SECTION: Underwater visual + blue overlay */
 #services.bg-cover-section {
   background-image: url('../assets/underwater_scene.svg');
 }
 #services.bg-cover-section::before {
   background: rgba(10,16,30,0.65);
 }
-
-/* WORK/PORTFOLIO SECTION: Stage scene + medium overlay */
 #portfolio.bg-cover-section {
   background-image: url('../assets/stage_scene.svg');
 }
 #portfolio.bg-cover-section::before {
   background: rgba(10,10,20,0.5);
 }
+
+/* Contact Section: Cinematic stage visual */
 .contact-section {
   background-image: url('../assets/empty_stage_cinematic.svg');
   background-size: cover;
@@ -98,15 +88,12 @@ nav a:hover {
   z-index: 1;
 }
 
-
 /* --- End of critical custom styles --- */
 
 /* 
-  Usage in HTML: 
-    <section id="about" class="bg-cover-section ..."> 
-    <section id="offer" class="bg-cover-section ...">
-    <section id="services" class="bg-cover-section ...">
-    <section id="portfolio" class="bg-cover-section ...">
+  Usage: 
+    <section id="about" class="bg-cover-section ...">
+    etc.
 */
 
 /* No dead code, no logo-corner cruft, no accidental PNG references */
