@@ -28,6 +28,7 @@ nav a:hover {
 
 /* === SHARED SECTION BACKGROUND OVERLAY UTILITY === */
 .bg-cover-section {
+  background-image: url('../assets/stage_scene.svg');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -37,10 +38,10 @@ nav a:hover {
   content: '';
   position: absolute;
   inset: 0;
+  background: rgba(10, 10, 20, 0.48);
   z-index: 0;
   pointer-events: none;
 }
-/* Text/content above overlay */
 .bg-cover-section > * {
   position: relative;
   z-index: 1;

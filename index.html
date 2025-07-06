@@ -40,41 +40,33 @@
 
 <!-- Hero Section -->
 <section class="relative h-screen w-full overflow-hidden pt-10" id="hero">
-  <!-- Play-once intro video -->
+  <!-- Fullscreen hero video -->
   <video
-    id="hero-intro"
+    id="hero-video"
     poster="assets/hero-intro.jpg"
     autoplay
     muted
     playsinline
     class="w-full h-full object-fill"
   >
-    <source src="assets/hero-intro.mp4" type="video/mp4" />
+    <source id="hero-source" src="assets/hero-video.mp4" type="video/mp4" />
   </video>
-  <!-- Looping background video, hidden at first -->
-  <video
-    id="hero-loop"
-    poster="assets/hero-loop.jpg"
-    loop
-    muted
-    playsinline
-    class="w-full h-full object-cover hidden"
-  >
-    <source src="assets/hero-loop.mp4" type="video/mp4" />
-  </video>
-</section>
-
-<section id="offer" class="offer-section py-12 text-center">
-  <h2 class="text-4xl font-bold mb-4">
-    Video Editing & Animated Music Videos That Hit Like Thunder
-  </h2>
-  <p class="text-lg max-w-2xl mx-auto mb-6">
-    From high-impact edits to fully-animated visuals and custom soundtracks.  
-    Perfect for artists, storytellers, and creators who want to break through the noise.
-  </p>
-  <a href="#portfolio" class="inline-block px-8 py-4 rounded-2xl bg-teal-400 text-zinc-900 font-semibold shadow hover:bg-teal-300 transition">
-    See My Work
-  </a>
+  <!-- OFFER (text overlay, bottom 20%) -->
+  <div class="absolute inset-x-0 bottom-0 pb-8 px-4 flex flex-col items-center text-center z-10"
+       style="height: 20%; justify-content: flex-end;">
+    <h1 class="text-3xl md:text-5xl font-bold mb-2 text-white drop-shadow-lg">
+      Video Editing & Animated Music Videos<br>
+      That Hit Like Thunder
+    </h1>
+    <p class="text-base md:text-lg max-w-2xl mx-auto mb-4 text-zinc-100 drop-shadow">
+      From high-impact edits to fully-animated visuals and custom soundtracks.<br>
+      For artists, storytellers, creators—break through the noise.
+    </p>
+    <a href="#portfolio"
+      class="inline-block px-8 py-4 rounded-2xl bg-teal-400 text-zinc-900 font-semibold shadow hover:bg-teal-300 transition">
+      See My Work
+    </a>
+  </div>
 </section>
 
 <!-- About Section -->
@@ -126,45 +118,47 @@
   </div>
 </section>
 
-<!-- Portfolio Section -->
-<section id="portfolio" class="bg-cover-section py-24 container mx-auto px-6">
-  <h2 class="text-3xl font-semibold mb-10">Video Editing Portfolio</h2>
-  <p class="max-w-2xl mx-auto mb-8 text-center text-lg">
-    Original music videos, storytelling edits, and custom animation—every cut by Plumbmonkey. Ready to bring this level of polish to your project?
-  </p>
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-    <div class="group">
-      <iframe
-        class="w-full aspect-video rounded group-hover:opacity-80 transition"
-        src="https://www.youtube.com/embed/67yVXAISbZ8"
-        title="Manifestation — Plumbmonkey"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen
-      ></iframe>
-      <h3 class="mt-2 text-xl font-semibold">Manifestation — Music Video</h3>
-      <p class="text-sm">Animated, directed, and performed by Plumbmonkey. Concept to final mix—full creative control.</p>
-    </div>
-    <div class="group">
-      <iframe
-        class="w-full aspect-video rounded group-hover:opacity-80 transition"
-        src="https://www.youtube.com/embed/ussRpdtfcfg"
-        title="Moon Whisper — Plumbmonkey"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen
-      ></iframe>
-      <h3 class="mt-2 text-xl font-semibold">Moon Whisper — Contest Entry</h3>
-      <p class="text-sm">Lyrics, music, animation, and edit all by Plumbmonkey. Handcrafted visuals and sound.</p>
-    </div>
-    <div class="group">
-      <iframe
-        class="w-full aspect-video rounded group-hover:opacity-80 transition"
-        src="https://www.youtube.com/embed/LSKT6ZNlsc0"
-        title="Dream Tunnel 3 — Plumbmonkey"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen
-      ></iframe>
-      <h3 class="mt-2 text-xl font-semibold">Dream Tunnel 3 — Animated Video</h3>
-      <p class="text-sm">Full-length surreal journey. Composed, animated, and edited by Plumbmonkey. 100% original content.</p>
+<!-- Portfolio Section (edge-to-edge background) -->
+<section id="portfolio" class="bg-cover-section py-24 w-full relative">
+  <div class="container mx-auto px-6">
+    <h2 class="text-3xl font-semibold mb-10">Video Editing Portfolio</h2>
+    <p class="max-w-2xl mx-auto mb-8 text-center text-lg">
+      Original music videos, storytelling edits, and custom animation—every cut by Plumbmonkey. Ready to bring this level of polish to your project?
+    </p>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div class="group">
+        <iframe
+          class="w-full aspect-video rounded group-hover:opacity-80 transition"
+          src="https://www.youtube.com/embed/67yVXAISbZ8"
+          title="Manifestation — Plumbmonkey"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+        ></iframe>
+        <h3 class="mt-2 text-xl font-semibold">Manifestation — Music Video</h3>
+        <p class="text-sm">Animated, directed, and performed by Plumbmonkey. Concept to final mix—full creative control.</p>
+      </div>
+      <div class="group">
+        <iframe
+          class="w-full aspect-video rounded group-hover:opacity-80 transition"
+          src="https://www.youtube.com/embed/ussRpdtfcfg"
+          title="Moon Whisper — Plumbmonkey"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+        ></iframe>
+        <h3 class="mt-2 text-xl font-semibold">Moon Whisper — Contest Entry</h3>
+        <p class="text-sm">Lyrics, music, animation, and edit all by Plumbmonkey. Handcrafted visuals and sound.</p>
+      </div>
+      <div class="group">
+        <iframe
+          class="w-full aspect-video rounded group-hover:opacity-80 transition"
+          src="https://www.youtube.com/embed/LSKT6ZNlsc0"
+          title="Dream Tunnel 3 — Plumbmonkey"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+        ></iframe>
+        <h3 class="mt-2 text-xl font-semibold">Dream Tunnel 3 — Animated Video</h3>
+        <p class="text-sm">Full-length surreal journey. Composed, animated, and edited by Plumbmonkey. 100% original content.</p>
+      </div>
     </div>
   </div>
 </section>
