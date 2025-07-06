@@ -31,21 +31,21 @@
   <header class="fixed top-0 inset-x-0 bg-zinc-900/80 backdrop-blur-sm z-50">
     <div class="container mx-auto flex items-center justify-between p-4">
       <a href="/" class="text-xl font-bold">Plumbmonkey</a>
-      <button id="menu-toggle" class="sm:hidden p-2" aria-expanded="false" aria-controls="nav-container">
+      <button id="nav-toggle" class="md:hidden p-2" aria-expanded="false" aria-controls="nav-menu">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
         <span class="sr-only">Toggle navigation</span>
       </button>
-      <div id="nav-container" class="hidden absolute top-full left-0 w-full bg-zinc-900/90 flex flex-col items-center space-y-6 sm:relative sm:flex sm:flex-row sm:space-y-0 sm:space-x-6 sm:bg-transparent sm:w-auto">
-        <nav>
-          <a href="#about" class="block px-2 hover:underline">About</a>
-          <a href="#services" class="block px-2 hover:underline">Services</a>
-          <a href="#work" class="block px-2 hover:underline">Work</a>
-          <a href="#contact" class="block px-2 hover:underline">Hire Me</a>
-          <a href="YOUR_DIRECTORY_URL" target="_blank" rel="noopener" class="block px-2 hover:underline">Directory</a>
-        </nav>
-      </div>
+      <nav class="absolute top-full left-0 w-full bg-zinc-900/90 md:relative md:bg-transparent md:w-auto">
+        <ul id="nav-menu" class="flex-col space-y-2 md:flex md:flex-row md:space-x-6 md:space-y-0 md:items-center hidden">
+          <li><a href="#about" class="block px-2 hover:underline">About</a></li>
+          <li><a href="#services" class="block px-2 hover:underline">Services</a></li>
+          <li><a href="#work" class="block px-2 hover:underline">Work</a></li>
+          <li><a href="#contact" class="block px-2 hover:underline">Hire Me</a></li>
+          <li><a href="YOUR_DIRECTORY_URL" target="_blank" rel="noopener" class="block px-2 hover:underline">Directory</a></li>
+        </ul>
+      </nav>
     </div>
   </header>
 
@@ -81,18 +81,21 @@
   <section id="services" class="py-24 bg-zinc-900">
     <div class="container mx-auto px-6">
       <h2 class="text-3xl font-semibold mb-12">Services</h2>
-      <div class="grid md:grid-cols-3 gap-8">
-        <div class="p-6 bg-zinc-800 rounded-2xl shadow">
-          <h3 class="text-xl font-medium mb-2">Audio Production</h3>
-          <p>Mixing, mastering, and sound design to elevate your tracks.</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="p-6 bg-zinc-800 rounded-2xl shadow group hover:scale-105 transition-transform">
+          <img src="assets/icon-audio.svg" alt="" class="w-12 h-12 mx-auto mb-4" />
+          <h3 class="text-xl font-medium text-center mb-2">Audio Production</h3>
+          <p class="text-center">Mixing, mastering, and sound design to elevate your tracks.</p>
         </div>
-        <div class="p-6 bg-zinc-800 rounded-2xl shadow">
-          <h3 class="text-xl font-medium mb-2">Video Editing &amp; FX</h3>
-          <p>Story-driven cuts, AI-assisted visuals, cinematic polish.</p>
+        <div class="p-6 bg-zinc-800 rounded-2xl shadow group hover:scale-105 transition-transform">
+          <img src="assets/icon-video.svg" alt="" class="w-12 h-12 mx-auto mb-4" />
+          <h3 class="text-xl font-medium text-center mb-2">Video Editing &amp; FX</h3>
+          <p class="text-center">Story-driven cuts, AI-assisted visuals, cinematic polish.</p>
         </div>
-        <div class="p-6 bg-zinc-800 rounded-2xl shadow">
-          <h3 class="text-xl font-medium mb-2">Animation &amp; Motion</h3>
-          <p>2D/3D animation, lyric videos, live visuals synced to your music.</p>
+        <div class="p-6 bg-zinc-800 rounded-2xl shadow group hover:scale-105 transition-transform">
+          <img src="assets/icon-motion.svg" alt="" class="w-12 h-12 mx-auto mb-4" />
+          <h3 class="text-xl font-medium text-center mb-2">Animation &amp; Motion</h3>
+          <p class="text-center">2D/3D animation, lyric videos, live visuals synced to your music.</p>
         </div>
       </div>
     </div>
@@ -114,6 +117,148 @@
         <img src="https://img.youtube.com/vi/Nv7clLmkKfo/hqdefault.jpg" alt="Crown of Thorns – Promo Cut thumbnail" class="rounded-2xl group-hover:opacity-80 transition" />
         <p class="mt-2 text-lg">Crown of Thorns – Promo Cut</p>
       </a>
+    </div>
+  </section>
+
+  <!-- PREMIUM-CONTENT-START -->
+  <div class="premium-content hidden">
+  <section id="music" class="py-24 bg-zinc-950">
+    <div class="container mx-auto px-6">
+      <h2 class="text-3xl font-semibold mb-6">Discography</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="p-6 bg-zinc-800 rounded-2xl shadow">
+          <h3 class="text-xl font-medium mb-2">Latest Release: <em>“[Track Title]”</em></h3>
+          <audio controls class="w-full">
+            <source src="assets/audio/latest-release.mp3" type="audio/mp3">
+            Your browser does not support the audio element.
+          </audio>
+        </div>
+        <div class="p-6 bg-zinc-800 rounded-2xl shadow">
+          <h3 class="text-xl font-medium mb-2">Deep Cut: <em>“[Another Track]”</em></h3>
+          <audio controls class="w-full">
+            <source src="assets/audio/deep-track.mp3" type="audio/mp3">
+            Your browser does not support the audio element.
+          </audio>
+        </div>
+      </div>
+      <p class="mt-6 text-center">
+        <a href="https://open.spotify.com/artist/…" target="_blank" class="underline hover:text-cyan-400">
+          Listen on Spotify &rsaquo;
+        </a>
+      </p>
+    </div>
+  </section>
+  </div>
+  <!-- PREMIUM-CONTENT-END -->
+
+  <section id="video" class="py-24">
+    <div class="container mx-auto px-6">
+      <h2 class="text-3xl font-semibold mb-6">Video Showcase</h2>
+      <!-- Upcoming Stream -->
+      <div class="mb-12 p-6 bg-zinc-800 rounded-2xl shadow text-center">
+        <h3 class="text-xl font-medium mb-4">Upcoming Stream</h3>
+        <!-- Twitch embed or countdown placeholder -->
+        <div id="twitch-embed" class="w-full h-64 bg-zinc-700 flex items-center justify-center">
+          <!-- Replace with actual Twitch embed script later -->
+          <span class="text-zinc-400">Twitch Stream Embed Here</span>
+        </div>
+      </div>
+      <!-- Past Videos Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="group">
+          <iframe 
+            class="w-full h-48 rounded-2xl object-cover group-hover:opacity-80 transition" 
+            src="https://www.youtube.com/embed/qwvi9Dtw8sg" 
+            title="Time Quake I – Music Video" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            allowfullscreen>
+          </iframe>
+          <p class="mt-2 text-lg text-center">Time Quake I – Music Video</p>
+        </div>
+        <div class="group">
+          <iframe 
+            class="w-full h-48 rounded-2xl object-cover group-hover:opacity-80 transition" 
+            src="https://www.youtube.com/embed/9qKR6wpHsEc" 
+            title="Hellcraft – Lyric Video" 
+            allowfullscreen>
+          </iframe>
+          <p class="mt-2 text-lg text-center">Hellcraft – Lyric Video</p>
+        </div>
+        <div class="group">
+          <iframe 
+            class="w-full h-48 rounded-2xl object-cover group-hover:opacity-80 transition" 
+            src="https://www.youtube.com/embed/Nv7clLmkKfo" 
+            title="Crown of Thorns – Promo Cut" 
+            allowfullscreen>
+          </iframe>
+          <p class="mt-2 text-lg text-center">Crown of Thorns – Promo Cut</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="blog" class="py-24 bg-zinc-900">
+    <div class="container mx-auto px-6">
+      <h2 class="text-3xl font-semibold text-center mb-12">Journal &amp; Insights</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <article class="bg-zinc-800 rounded-2xl p-6 shadow">
+          <h3 class="text-xl font-medium mb-2">Post Title One</h3>
+          <time datetime="2025-06-01" class="block text-sm text-zinc-400 mb-4">June 1, 2025</time>
+          <p class="mb-4">A short excerpt of the post goes here, inviting readers into your process and philosophy.</p>
+          <a href="blog/post-one.html" class="underline hover:text-cyan-400">Read More →</a>
+        </article>
+        <article class="bg-zinc-800 rounded-2xl p-6 shadow">
+          <h3 class="text-xl font-medium mb-2">Post Title Two</h3>
+          <time datetime="2025-05-15" class="block text-sm text-zinc-400 mb-4">May 15, 2025</time>
+          <p class="mb-4">Another snippet of wisdom or behind-the-scenes insight into your studio flow.</p>
+          <a href="blog/post-two.html" class="underline hover:text-cyan-400">Read More →</a>
+        </article>
+        <article class="bg-zinc-800 rounded-2xl p-6 shadow">
+          <h3 class="text-xl font-medium mb-2">Post Title Three</h3>
+          <time datetime="2025-04-30" class="block text-sm text-zinc-400 mb-4">April 30, 2025</time>
+          <p class="mb-4">Share reflections, new techniques, or stories from recent collaborations.</p>
+          <a href="blog/post-three.html" class="underline hover:text-cyan-400">Read More →</a>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="subscribe" class="py-24 bg-zinc-800">
+    <div class="container mx-auto px-6 text-center">
+      <h2 class="text-3xl font-semibold mb-4">Stay in the Loop</h2>
+      <p class="mb-6 max-w-xl mx-auto">
+        Sign up for behind-the-scenes updates, exclusive demos, and first listens delivered straight to your inbox.
+      </p>
+      <form action="YOUR_NEWSLETTER_ENDPOINT" method="POST" class="max-w-md mx-auto flex flex-col sm:flex-row gap-4">
+        <input
+          type="email"
+          name="email"
+          required
+          placeholder="Your email address"
+          class="flex-1 p-3 rounded bg-zinc-900 border border-zinc-700 text-zinc-100"
+        />
+        <button
+          type="submit"
+          class="px-6 py-3 rounded-2xl bg-cyan-500 text-zinc-900 font-semibold hover:bg-cyan-400 transition"
+        >
+          Subscribe
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <section id="membership" class="py-24 bg-cyan-500 text-zinc-900">
+    <div class="container mx-auto px-6 text-center">
+      <h2 class="text-3xl font-semibold mb-4">Unlock Premium Content</h2>
+      <p class="mb-6 max-w-2xl mx-auto">
+        Subscribe for early access to unreleased tracks, behind-the-scenes streams, and deep-dive tutorials.
+      </p>
+      <button
+        id="subscribe-btn"
+        class="px-8 py-4 rounded-2xl bg-zinc-900 text-cyan-500 font-semibold hover:bg-zinc-800 transition"
+      >
+        Become a Member
+      </button>
     </div>
   </section>
 
@@ -149,12 +294,11 @@
 </footer>
 
   <script>
-    const menuToggle = document.getElementById('menu-toggle');
-    const navContainer = document.getElementById('nav-container');
-    menuToggle.addEventListener('click', () => {
-      const expanded = menuToggle.getAttribute('aria-expanded') === 'true';
-      menuToggle.setAttribute('aria-expanded', !expanded);
-      navContainer.classList.toggle('hidden');
+    const btn = document.getElementById('nav-toggle');
+    const nav = document.getElementById('nav-menu');
+    btn.addEventListener('click', () => {
+      const isOpen = nav.classList.toggle('hidden');
+      btn.setAttribute('aria-expanded', String(!isOpen));
     });
     document.querySelectorAll('a[href^="#"]').forEach(a=>{
       a.onclick=e=>{
@@ -168,6 +312,10 @@
         if (sec.getBoundingClientRect().top < window.innerHeight*0.8)
           sec.style.opacity = 1;
       });
+    });
+    document.getElementById('subscribe-btn').addEventListener('click', () => {
+      // TODO: integrate Stripe Checkout / Customer Portal here
+      alert("Subscription flow coming soon—here's where you'll integrate Stripe Checkout.");
     });
   </script>
 
