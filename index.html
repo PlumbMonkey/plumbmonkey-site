@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Everything from meta name="viewport" ... down to the last </head> -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Plumbmonkey | Audio + Motion</title>
   <link rel="icon" href="assets/favicon.ico" />
 
@@ -23,6 +23,7 @@
   <script defer data-domain="plumbmonkey.online" src="https://plausible.io/js/script.js"></script>
 </head>
 <body class="bg-zinc-950 text-zinc-100 font-inter leading-relaxed">
+
 <!-- Fixed, minimal Navbar -->
 <header class="fixed top-0 inset-x-0 bg-zinc-900/80 backdrop-blur-sm z-50 h-10">
   <div class="flex items-center justify-start h-full px-4">
@@ -30,38 +31,39 @@
       <ul class="flex flex-col sm:flex-row sm:space-x-6 space-y-2 sm:space-y-0 items-center text-sm">
         <li><a href="#about" class="block px-2 hover:underline">About</a></li>
         <li><a href="#services" class="block px-2 hover:underline">Services</a></li>
-        <li><a href="#work" class="block px-2 hover:underline">Work</a></li>
+        <li><a href="#portfolio" class="block px-2 hover:underline">Portfolio</a></li>
         <li><a href="#contact" class="block px-2 hover:underline">Contact</a></li>
       </ul>
     </nav>
   </div>
 </header>
 
-  <!-- Hero Section -->
-  <section class="relative h-screen w-full overflow-hidden pt-10" id="hero">
-    <!-- Play-once intro video -->
-    <video
-      id="hero-intro"
-      poster="assets/hero-intro.jpg"
-      autoplay
-      muted
-      playsinline
-      class="w-full h-full object-fill"
-    >
-      <source src="assets/hero-intro.mp4" type="video/mp4" />
-    </video>
-    <!-- Looping background video, hidden at first -->
-    <video
-      id="hero-loop"
-      poster="assets/hero-loop.jpg"
-      loop
-      muted
-      playsinline
-      class="w-full h-full object-cover hidden"
-    >
-      <source src="assets/hero-loop.mp4" type="video/mp4" />
-    </video>
-  </section>
+<!-- Hero Section -->
+<section class="relative h-screen w-full overflow-hidden pt-10" id="hero">
+  <!-- Play-once intro video -->
+  <video
+    id="hero-intro"
+    poster="assets/hero-intro.jpg"
+    autoplay
+    muted
+    playsinline
+    class="w-full h-full object-fill"
+  >
+    <source src="assets/hero-intro.mp4" type="video/mp4" />
+  </video>
+  <!-- Looping background video, hidden at first -->
+  <video
+    id="hero-loop"
+    poster="assets/hero-loop.jpg"
+    loop
+    muted
+    playsinline
+    class="w-full h-full object-cover hidden"
+  >
+    <source src="assets/hero-loop.mp4" type="video/mp4" />
+  </video>
+</section>
+
 <section id="offer" class="offer-section py-12 text-center">
   <h2 class="text-4xl font-bold mb-4">
     Video Editing & Animated Music Videos That Hit Like Thunder
@@ -70,13 +72,13 @@
     From high-impact edits to fully-animated visuals and custom soundtracks.  
     Perfect for artists, storytellers, and creators who want to break through the noise.
   </p>
-  <a href="#work" class="inline-block px-8 py-4 rounded-2xl bg-teal-400 text-zinc-900 font-semibold shadow hover:bg-teal-300 transition">
+  <a href="#portfolio" class="inline-block px-8 py-4 rounded-2xl bg-teal-400 text-zinc-900 font-semibold shadow hover:bg-teal-300 transition">
     See My Work
   </a>
 </section>
 
-<!--about me-->
-<section id="about" class="py-24 px-6">
+<!-- About Section -->
+<section id="about" class="bg-cover-section py-24 px-6">
   <div class="flex flex-col md:flex-row items-center md:items-start md:gap-10">
     <img src="assets/headshot01.jpg" alt="G – Studio Owner" class="w-40 rounded-full shadow-lg border-4 border-zinc-800 mb-6 md:mb-0">
     <div>
@@ -88,28 +90,48 @@
   </div>
 </section>
 
-  <!-- Services Section -->
-  <section id="services" class="py-24 bg-zinc-900/40">
-    <div class="container mx-auto px-6">
-      <h2 class="text-3xl font-semibold mb-10">Services</h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div>
-          <h3 class="text-xl font-semibold mb-2">Audio Production</h3>
-          <p>Mixing, mastering, and custom sound design.</p>
-        </div>
-        <div>
-          <h3 class="text-xl font-semibold mb-2">AI Visuals</h3>
-          <p>Experimental imagery powered by modern AI tools.</p>
-        </div>
-        <div>
-          <h3 class="text-xl font-semibold mb-2">Motion Graphics</h3>
-          <p>Animated titles and kinetic typography that move with rhythm.</p>
-        </div>
+<!-- Services Section -->
+<section id="services" class="bg-cover-section py-24">
+  <div class="container mx-auto px-6">
+    <h2 class="text-3xl font-semibold mb-10">Video Editing & Creative Services</h2>
+    <p class="text-lg text-center max-w-2xl mx-auto mb-12">
+      <b>For YouTubers, creators, musicians, brands, and anyone with a story to tell.</b><br>
+      Quick-turnaround, pro results, and a creative partner who gets what matters—whether it’s a viral short, a music video, or your one-shot wedding footage.
+    </p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div>
+        <h3 class="text-xl font-semibold mb-2">YouTube & Content Editing</h3>
+        <p>
+          Hook viewers fast. I edit for retention, clarity, and punch—<b>thumbnails, titles, shorts, full episodes</b>—whatever your channel needs.
+        </p>
+      </div>
+      <div>
+        <h3 class="text-xl font-semibold mb-2">Music & Story Videos</h3>
+        <p>
+          Full-scale animated or live-action music videos, lyric videos, performance cuts, and narrative edits for bands, artists, and directors.
+        </p>
+      </div>
+      <div>
+        <h3 class="text-xl font-semibold mb-2">Events & Custom Projects</h3>
+        <p>
+          Weddings, performances, business promos, school plays—no project too unusual or ambitious. <b>I deliver.</b>
+        </p>
       </div>
     </div>
-  </section>
-<section id="work" class="py-24 container mx-auto px-6">
-  <h2 class="text-3xl font-semibold mb-10">Work</h2>
+    <div class="mt-10 text-center text-zinc-400">
+      <span>Prefer human-only, hybrid, or full AI workflow? <b>You call the shots.</b></span>
+      <br>
+      <a href="#contact" class="underline hover:text-teal-400">Book a consult—let’s create something that stands out.</a>
+    </div>
+  </div>
+</section>
+
+<!-- Portfolio Section -->
+<section id="portfolio" class="bg-cover-section py-24 container mx-auto px-6">
+  <h2 class="text-3xl font-semibold mb-10">Video Editing Portfolio</h2>
+  <p class="max-w-2xl mx-auto mb-8 text-center text-lg">
+    Original music videos, storytelling edits, and custom animation—every cut by Plumbmonkey. Ready to bring this level of polish to your project?
+  </p>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
     <div class="group">
       <iframe
@@ -119,7 +141,7 @@
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen
       ></iframe>
-      <h3 class="mt-2 text-xl font-semibold">“Manifestation” — Original Song & Music Video</h3>
+      <h3 class="mt-2 text-xl font-semibold">Manifestation — Music Video</h3>
       <p class="text-sm">Animated, directed, and performed by Plumbmonkey. Concept to final mix—full creative control.</p>
     </div>
     <div class="group">
@@ -130,8 +152,8 @@
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen
       ></iframe>
-      <h3 class="mt-2 text-xl font-semibold">“Moon Whisper” — Original Song & Music Video</h3>
-      <p class="text-sm">Contest entry. Lyrics, music, animation, and edit all by Plumbmonkey. Handcrafted visuals and sound.</p>
+      <h3 class="mt-2 text-xl font-semibold">Moon Whisper — Contest Entry</h3>
+      <p class="text-sm">Lyrics, music, animation, and edit all by Plumbmonkey. Handcrafted visuals and sound.</p>
     </div>
     <div class="group">
       <iframe
@@ -141,43 +163,40 @@
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen
       ></iframe>
-      <h3 class="mt-2 text-xl font-semibold">“Dream Tunnel 3” — Original Song & Music Video</h3>
+      <h3 class="mt-2 text-xl font-semibold">Dream Tunnel 3 — Animated Video</h3>
       <p class="text-sm">Full-length surreal journey. Composed, animated, and edited by Plumbmonkey. 100% original content.</p>
     </div>
   </div>
 </section>
 
-  <!-- Contact Section -->
-  <section id="contact" class="py-24 bg-zinc-900/40">
-    <div class="container mx-auto px-6">
-      <h2 class="text-3xl font-semibold mb-6">Contact</h2>
-      <form action="https://formspree.io/f/xjkrragg" method="POST" class="max-w-lg space-y-4">
-        <div>
-          <label for="name" class="block text-sm mb-1">Name</label>
-          <input id="name" name="name" type="text" required class="w-full p-2 rounded bg-zinc-800 border border-zinc-700">
-        </div>
-        <div>
-          <label for="email" class="block text-sm mb-1">Email</label>
-          <input id="email" name="email" type="email" required class="w-full p-2 rounded bg-zinc-800 border border-zinc-700">
-        </div>
-        <div>
-          <label for="message" class="block text-sm mb-1">Message</label>
-          <textarea id="message" name="message" rows="4" required class="w-full p-2 rounded bg-zinc-800 border border-zinc-700"></textarea>
-        </div>
-        <button type="submit" class="px-4 py-2 bg-teal-500 text-zinc-900 rounded font-semibold hover:bg-teal-400">Send</button>
-      </form>
-    </div>
-  </section>
-
-  <!-- JS for hero video transitions -->
-  <script src="assets/hero.js"></script>
-</body>
-</html>
+<!-- Contact Section -->
+<section id="contact" class="contact-section py-24">
+  <div class="container mx-auto px-6">
+    <h2 class="text-3xl font-semibold mb-6">Contact</h2>
+    <p class="mb-6 text-lg text-zinc-300">
+      Ready to make something cinematic? Step into the spotlight—reach out below.
+    </p>
+    <form action="https://formspree.io/f/xjkrragg" method="POST" class="max-w-lg space-y-4 mx-auto">
+      <div>
+        <label for="name" class="block text-sm mb-1">Name</label>
+        <input id="name" name="name" type="text" required class="w-full p-2 rounded bg-zinc-800 border border-zinc-700">
+      </div>
+      <div>
+        <label for="email" class="block text-sm mb-1">Email</label>
+        <input id="email" name="email" type="email" required class="w-full p-2 rounded bg-zinc-800 border border-zinc-700">
+      </div>
+      <div>
+        <label for="message" class="block text-sm mb-1">Message</label>
+        <textarea id="message" name="message" rows="4" required class="w-full p-2 rounded bg-zinc-800 border border-zinc-700"></textarea>
+      </div>
+      <button type="submit" class="px-4 py-2 bg-teal-500 text-zinc-900 rounded font-semibold hover:bg-teal-400">Send</button>
+    </form>
+  </div>
+</section>
 
 
-</head>
-<body class="bg-zinc-950 text-zinc-100 font-inter leading-relaxed">
-  <!-- All your content, sections, scripts -->
+<!-- JS for hero video transitions -->
+<script src="assets/hero.js"></script>
 </body>
 </html>
 

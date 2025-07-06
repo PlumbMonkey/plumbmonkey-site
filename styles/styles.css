@@ -1,35 +1,113 @@
-/* styles/styles.css */
+/* --- styles/styles.css --- */
 
-/* --- HERO VIDEO: Nudge video down slightly if desired (remove if not needed) --- */
+/* HERO VIDEO: Nudge down for visual balance */
 #hero video {
   object-position: center 10%;
 }
 
-/* --- FIXED NAV BAR: Add soft drop shadow for subtle separation --- */
+/* FIXED NAV BAR: Drop shadow for depth */
 header {
   box-shadow: 0 6px 20px rgba(0,0,0,0.16);
 }
 
-/* --- GLOBAL VIDEO BACKGROUND: fallback color if any video transparency --- */
+/* VIDEO: fallback for transparency bugs */
 video {
-  background: #16161a !important;  /* matches site bg */
+  background: #16161a !important;
 }
 
-/* --- HERO SECTION BACKGROUND: ensures no "flash" of other color --- */
+/* HERO SECTION: Prevents color flash on load */
 #hero {
   background: #16161a;
 }
 
-/* --- NAV LINK HOVER EFFECT (optional, easy to spot and remove) --- */
+/* NAV LINK HOVER: Luminous cyan highlight */
 nav a:hover {
   color: #22d3ee;
+  transition: color 0.2s;
 }
 
-/* --- NO references to logo-corner.png or any background-image using PNGs --- */
+/* === SHARED SECTION BACKGROUND OVERLAY UTILITY === */
+.bg-cover-section {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+}
+.bg-cover-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+/* Text/content above overlay */
+.bg-cover-section > * {
+  position: relative;
+  z-index: 1;
+}
 
-/* --- Clean up any old custom logo classes (make sure none remain in your HTML) --- */
-/* .logo-corner, #logo-corner, etc.—not used */
+/* OFFER SECTION: Cinematic still with dark overlay */
+#offer.bg-cover-section {
+  background-image: url('../assets/hero-loop.jpg');
+}
+#offer.bg-cover-section::before {
+  background: rgba(10,10,20,0.65);
+}
 
-/* --- Optional future tweaks left as comments --- */
-/* .section-title { letter-spacing: 0.06em; } */
+/* ABOUT SECTION: SVG starfield + dark overlay */
+#about.bg-cover-section {
+  background-image: url('../assets/starry-night.svg');
+}
+#about.bg-cover-section::before {
+  background: rgba(10,10,20,0.7);
+}
+
+/* SERVICES SECTION: Underwater visual + blue overlay */
+#services.bg-cover-section {
+  background-image: url('../assets/underwater_scene.svg');
+}
+#services.bg-cover-section::before {
+  background: rgba(10,16,30,0.65);
+}
+
+/* WORK/PORTFOLIO SECTION: Stage scene + medium overlay */
+#portfolio.bg-cover-section {
+  background-image: url('../assets/stage_scene.svg');
+}
+#portfolio.bg-cover-section::before {
+  background: rgba(10,10,20,0.5);
+}
+.contact-section {
+  background-image: url('../assets/empty_stage_cinematic.svg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+}
+.contact-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(10,10,20,0.65); /* adjust opacity for legibility */
+  z-index: 0;
+  pointer-events: none;
+}
+.contact-section > * {
+  position: relative;
+  z-index: 1;
+}
+
+
+/* --- End of critical custom styles --- */
+
+/* 
+  Usage in HTML: 
+    <section id="about" class="bg-cover-section ..."> 
+    <section id="offer" class="bg-cover-section ...">
+    <section id="services" class="bg-cover-section ...">
+    <section id="portfolio" class="bg-cover-section ...">
+*/
+
+/* No dead code, no logo-corner cruft, no accidental PNG references */
+
 
