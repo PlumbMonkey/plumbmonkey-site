@@ -1,0 +1,35 @@
+/* styles/styles.css */
+
+/* --- HERO VIDEO: Nudge video down slightly if desired (remove if not needed) --- */
+#hero video {
+  object-position: center 10%;
+}
+
+/* --- FIXED NAV BAR: Add soft drop shadow for subtle separation --- */
+header {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.16);
+}
+
+/* --- GLOBAL VIDEO BACKGROUND: fallback color if any video transparency --- */
+video {
+  background: #16161a !important;  /* matches site bg */
+}
+
+/* --- HERO SECTION BACKGROUND: ensures no "flash" of other color --- */
+#hero {
+  background: #16161a;
+}
+
+/* --- NAV LINK HOVER EFFECT (optional, easy to spot and remove) --- */
+nav a:hover {
+  color: #22d3ee;
+}
+
+/* --- NO references to logo-corner.png or any background-image using PNGs --- */
+
+/* --- Clean up any old custom logo classes (make sure none remain in your HTML) --- */
+/* .logo-corner, #logo-corner, etc.—not used */
+
+/* --- Optional future tweaks left as comments --- */
+/* .section-title { letter-spacing: 0.06em; } */
+
