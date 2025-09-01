@@ -117,6 +117,93 @@ const vfxDefinitions = [
 	},
 ];
 
+const faqs = [
+	{
+		question: "What do the tiers include?",
+		answer:
+			"Budget = cuts & transitions. Pro = +color grade + Light VFX (≤2 shots). Super = +Medium VFX (≤4 shots) + simple motion graphics. Special VFX = Bid (Blender/Fusion/3D/heavy roto).",
+	},
+	{
+		question: "What counts as one VFX “instance”?",
+		answer:
+			"One finished effect on one continuous shot. Same effect on 3 shots = 3 instances. Two different effects on one shot = 2 instances.",
+	},
+	{
+		question: "How many revisions are included?",
+		answer:
+			"One round per project (group your notes). Extra revisions billed $40/hr.",
+	},
+	{
+		question: "How fast is turnaround?",
+		answer:
+			"I process ~2 hours of raw/day for core editing. Color/VFX/MG can double or triple timelines. You’ll see an estimate before booking.",
+	},
+	{
+		question: "Do you do rush jobs?",
+		answer:
+			"Yes. Under 72 hours adds +25–50% depending on scope and readiness of assets.",
+	},
+	{
+		question: "Can I book a free consult first?",
+		answer:
+			"Yes—if your project is complex or exceeds scope, choose Free Bid/Consult. No charge.",
+	},
+	{
+		question: "Do you require a deposit?",
+		answer:
+			"For standard packages: Full or 50% deposit to book. The deposit becomes non-refundable once editing begins. Balance due before final delivery.",
+	},
+	{
+		question: "What formats do you deliver?",
+		answer:
+			"H.264/H.265 (web), ProRes (on request). Multi-aspect (16:9, 9:16, 1:1) available (+15%).",
+	},
+	{
+		question: "Do you provide captions and thumbnails?",
+		answer:
+			"Captions $1.25/min (final runtime). Thumbnails available on request (quoted).",
+	},
+	{
+		question: "Can you blur faces, plates, or screens?",
+		answer:
+			"Yes. Security blur/redaction starts from $50 + $10/min of affected footage.",
+	},
+	{
+		question: "Do you handle audio cleanup and music?",
+		answer:
+			"Light cleanup available (+$40 baseline). You can provide music or I’ll source licensed tracks; usage must be properly licensed.",
+	},
+	{
+		question: "What assets do you need from me?",
+		answer:
+			"Footage, brand kit (fonts/colors/logos), any images/audio, and style references (links). Confirm you have the rights to everything you send.",
+	},
+	{
+		question: "Who owns the final video and project files?",
+		answer:
+			"You own the final rendered video upon full payment. Project files/working assets are not included by default; available as an add-on/hand-off fee.",
+	},
+	{
+		question: "Will you use my video in your portfolio?",
+		answer:
+			"By default, yes—short excerpts only. If this is sensitive, uncheck the portfolio permission in the form or request an NDA.",
+	},
+	{
+		question: "How do we communicate and hand off files?",
+		answer:
+			"All confirmations go to plumbmonkey@proton.me. Upload via Drive/Dropbox/portal link provided after booking.",
+	},
+	{
+		question: "Do you charge sales tax?",
+		answer:
+			"Yes, CAD + GST. If you’re GST-registered, keep the invoice for ITCs.",
+	},
+	{
+		question: "Where are you based / what’s your timezone?",
+		answer: "Calgary, Canada",
+	},
+];
+
 export default function Page() {
 	return (
 		<>
@@ -233,6 +320,27 @@ export default function Page() {
 						</div>
 					))}
 				</dl>
+			</section>
+
+			{/* FAQ Section */}
+			<section className="max-w-3xl mx-auto py-12 px-4">
+				<h2 className="text-2xl sm:text-3xl font-bold text-center mb-8">
+					FAQ
+				</h2>
+				<ul className="space-y-4">
+					{faqs.map((faq) => (
+						<li key={faq.question}>
+							<details className="group rounded-lg bg-white dark:bg-zinc-900 shadow p-4">
+								<summary className="cursor-pointer font-semibold text-lg text-teal-700 dark:text-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400 rounded transition">
+									{faq.question}
+								</summary>
+								<div className="mt-2 text-zinc-700 dark:text-zinc-300">
+									{faq.answer}
+								</div>
+							</details>
+						</li>
+					))}
+				</ul>
 			</section>
 		</>
 	);
