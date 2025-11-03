@@ -22,6 +22,9 @@ export default function NavBar() {
           <Link href="/upload" className="hover:text-teal-400">
             Upload
           </Link>
+          <a href="https://plumbmonkey.github.io/gregg-henwood-dev-portfolio/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-400">
+            Portfolio
+          </a>
         </div>
       </nav>
     </header>
