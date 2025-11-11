@@ -14,6 +14,12 @@ document.addEventListener('DOMContentLoaded', function () {
     console.log('Video element found:', video);
     console.log('Video sources:', video.querySelectorAll('source'));
     
+    // Check each source URL
+    const sources = video.querySelectorAll('source');
+    sources.forEach((source, index) => {
+      console.log(`Source ${index + 1}: ${source.src}`);
+    });
+    
     // Show fallback image if video fails to load
     video.addEventListener('error', (e) => {
       console.error('Video failed to load:', e);
