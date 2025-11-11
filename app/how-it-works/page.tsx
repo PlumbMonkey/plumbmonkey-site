@@ -53,12 +53,12 @@ export default function HowItWorksPage() {
   ];
 
   const tools = [
-    { name: "DaVinci Resolve", category: "Color & Edit" },
-    { name: "FL Studio", category: "Music & Audio" },
-    { name: "Blender", category: "3D & Animation" },
-    { name: "Moho", category: "Motion Graphics" },
-    { name: "Krita", category: "Design & Painting" },
-    { name: "Adobe Suite", category: "Creative Suite" },
+    { name: "Video Editing", icon: "🎬" },
+    { name: "Music & Audio Creation", icon: "🎵" },
+    { name: "Editing, Mixing & Mastering", icon: "🎙️" },
+    { name: "2D/3D Animation & Motion Graphics", icon: "✨" },
+    { name: "Design & Painting", icon: "🖌️" },
+    { name: "AI Tools", icon: "🤖" },
   ];
 
   return (
@@ -155,8 +155,11 @@ export default function HowItWorksPage() {
       <section id="toolkit" className="py-24 px-6 bg-zinc-900/50 border-t border-zinc-800">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Our Toolkit</h2>
-          <p className="text-lg text-zinc-300 mb-12">
-            Everything's built with the same tools used in film studios and sound labs — because you deserve professional results.
+          <p className="text-lg text-zinc-300 mb-4">
+            A professional suite of tools — the same ones used in film studios and sound labs.
+          </p>
+          <p className="text-md text-zinc-400 mb-12">
+            Because you deserve professional results.
           </p>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -166,10 +169,9 @@ export default function HowItWorksPage() {
                 className="rounded-xl border border-zinc-800 bg-zinc-950 p-6 hover:border-teal-500 transition group"
               >
                 <div className="text-4xl mb-3 group-hover:scale-110 transition">
-                  {["🎨", "🎵", "🎬", "✨", "🖌️", "🎭"][idx]}
+                  {tool.icon}
                 </div>
-                <h3 className="font-semibold text-lg mb-1">{tool.name}</h3>
-                <p className="text-sm text-zinc-400">{tool.category}</p>
+                <h3 className="font-semibold text-lg">{tool.name}</h3>
               </div>
             ))}
           </div>
