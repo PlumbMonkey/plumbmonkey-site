@@ -272,10 +272,10 @@ export default function PricingScopePage() {
             {/* Left: Explainer */}
             <div>
               <p className="text-zinc-300 text-lg leading-relaxed mb-6">
-                Editing time scales with footage, output length, and turnaround. You'll always get a transparent quote with your estimated delivery date.
+                Once your project is reviewed, I'll provide you with an estimated completion date. Deadlines are sacred — I take them seriously, even for AI-assisted work.
               </p>
               <p className="text-zinc-400 text-sm italic">
-                Some projects need adrenaline. Some need time to breathe. Either way, I'll quote it straight.
+                No guesses. No surprises. Just precision and respect for your timeline.
               </p>
             </div>
 
@@ -286,7 +286,7 @@ export default function PricingScopePage() {
                   <thead>
                     <tr className="border-b border-zinc-700">
                       <th className="px-4 py-3 text-left font-semibold text-orange-400">Factor</th>
-                      <th className="px-4 py-3 text-left font-semibold text-orange-400">Details</th>
+                      <th className="px-4 py-3 text-left font-semibold text-orange-400">Impact</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -306,13 +306,9 @@ export default function PricingScopePage() {
                       <td className="px-4 py-3">Multi-aspect export</td>
                       <td className="px-4 py-3 text-zinc-300">+25–50%</td>
                     </tr>
-                    <tr className="border-b border-zinc-700/50">
-                      <td className="px-4 py-3">Rush job (48–72h)</td>
-                      <td className="px-4 py-3 text-zinc-300">+25–50%</td>
-                    </tr>
                     <tr>
-                      <td className="px-4 py-3">Flexible timeline</td>
-                      <td className="px-4 py-3 text-zinc-300">-5–10%</td>
+                      <td className="px-4 py-3">Deadline priority</td>
+                      <td className="px-4 py-3 text-zinc-300">Always honored</td>
                     </tr>
                   </tbody>
                 </table>
@@ -338,15 +334,11 @@ export default function PricingScopePage() {
                 </li>
                 <li className="flex items-start text-sm text-zinc-300">
                   <span className="text-orange-400 mr-3 mt-0.5">⚡</span>
-                  <span>Same-day to 48h turnaround</span>
-                </li>
-                <li className="flex items-start text-sm text-zinc-300">
-                  <span className="text-orange-400 mr-3 mt-0.5">⚡</span>
-                  <span>Baseline pricing (no rush fee)</span>
+                  <span>Baseline pricing (no rush premium)</span>
                 </li>
               </ul>
               <p className="text-zinc-400 text-sm italic">
-                "Perfect for quick turnarounds. We use AI to accelerate, but every frame gets human review."
+                "AI accelerates the process, but every frame still gets human review and precision."
               </p>
             </div>
 
@@ -360,15 +352,11 @@ export default function PricingScopePage() {
                 </li>
                 <li className="flex items-start text-sm text-zinc-300">
                   <span className="text-orange-400 mr-3 mt-0.5">✋</span>
-                  <span>5–10 days per phase</span>
-                </li>
-                <li className="flex items-start text-sm text-zinc-300">
-                  <span className="text-orange-400 mr-3 mt-0.5">✋</span>
                   <span>+15–30% premium (but it's yours forever)</span>
                 </li>
               </ul>
               <p className="text-zinc-300 text-sm italic">
-                "If you want it drawn from scratch, not dreamed by a machine, that takes time — but it's yours forever."
+                "If you want it drawn from scratch, not dreamed by a machine, that takes time — but it's yours forever. Deadline still applies."
               </p>
             </div>
           </div>
