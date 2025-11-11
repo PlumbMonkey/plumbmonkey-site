@@ -1,25 +1,23 @@
 document.addEventListener('DOMContentLoaded', function () {
-  const iframe = document.getElementById('hero-video');
+  const video = document.getElementById('hero-video');
   const speakerBtn = document.getElementById('speaker-btn');
   const iconMuted = document.getElementById('icon-muted');
   const iconUnmuted = document.getElementById('icon-unmuted');
   
-  let isMuted = true; // YouTube starts muted
+  let isMuted = true; // Video starts muted
 
   // --- AUDIO TOGGLE BUTTON ---
-  if (speakerBtn && iconMuted && iconUnmuted && iframe) {
+  if (speakerBtn && iconMuted && iconUnmuted && video) {
     speakerBtn.addEventListener('click', () => {
-      const currentSrc = iframe.src;
-      
       if (isMuted) {
-        // Switch to unmuted version
-        iframe.src = currentSrc.replace('mute=1', 'mute=0');
+        // Unmute the video
+        video.muted = false;
         iconMuted.classList.add('hidden');
         iconUnmuted.classList.remove('hidden');
         isMuted = false;
       } else {
-        // Switch to muted version
-        iframe.src = currentSrc.replace('mute=0', 'mute=1');
+        // Mute the video
+        video.muted = true;
         iconMuted.classList.remove('hidden');
         iconUnmuted.classList.add('hidden');
         isMuted = true;
@@ -29,5 +27,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Set initial icon state (muted by default)
     iconMuted.classList.remove('hidden');
     iconUnmuted.classList.add('hidden');
+    
+    // Ensure video starts muted
+    video.muted = true;
   }
 });

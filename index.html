@@ -56,26 +56,18 @@
 <!-- Hero Section -->
 <section class="relative h-screen w-full overflow-hidden pt-10" id="hero">
   <!-- HERO VIDEO -->
-  <iframe
+  <video
     id="hero-video"
-    class="absolute"
-    style="
-      top: 50%; 
-      left: 50%; 
-      width: 100vw; 
-      height: 56.25vw; 
-      min-height: 100vh; 
-      min-width: 177.77vh; 
-      transform: translate(-50%, -50%); 
-      border: none;
-      pointer-events: none;
-    "
-    src="https://www.youtube.com/embed/lk4YO6IBMgU?autoplay=1&mute=1&loop=1&playlist=lk4YO6IBMgU&controls=0&showinfo=0&rel=0&modestbranding=1"
-    title="Plumbmonkey Hero Video"
-    frameborder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-    allowfullscreen
-  ></iframe>
+    class="absolute top-0 left-0 w-full h-full object-cover"
+    autoplay
+    muted
+    loop
+    playsinline
+    preload="metadata"
+  >
+    <source src="assets/Hero video 02.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
 
   <!-- OFFER (text overlay) -->
   <div class="absolute inset-x-0 bottom-0 pb-8 px-4 flex flex-col items-center text-center z-10"
@@ -253,7 +245,7 @@
 <!-- About Footer with Social Links -->
 <footer id="about" class="py-20 px-6 bg-zinc-900/80 mt-24">
   <div class="flex flex-col items-center">
-    <img src="assets/headshot01.jpg" alt="G – Studio Owner" class="w-32 rounded-full shadow-lg border-4 border-zinc-800 mb-6">
+    <img src="assets/headshot 02.png" alt="G – Studio Owner" class="w-32 rounded-full shadow-lg border-4 border-zinc-800 mb-6">
     <h2 class="text-2xl font-semibold mb-4">About Plumbmonkey</h2>
     <p class="max-w-2xl text-center text-lg mb-6">
       Audio-visual alchemy for the algorithmic age—offering pure human craft, ethical AI, or a fusion of both.<br>
