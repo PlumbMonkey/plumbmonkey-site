@@ -18,6 +18,17 @@ document.addEventListener('DOMContentLoaded', function () {
     const sources = video.querySelectorAll('source');
     sources.forEach((source, index) => {
       console.log(`Source ${index + 1}: ${source.src}`);
+      
+      // Test if the video file is actually accessible
+      fetch(source.src, { method: 'HEAD' })
+        .then(response => {
+          console.log(`Source ${index + 1} HTTP status:`, response.status);
+          console.log(`Source ${index + 1} Content-Type:`, response.headers.get('Content-Type'));
+          console.log(`Source ${index + 1} Content-Length:`, response.headers.get('Content-Length'));
+        })
+        .catch(error => {
+          console.error(`Source ${index + 1} fetch error:`, error);
+        });
     });
     
     // Show fallback image if video fails to load
