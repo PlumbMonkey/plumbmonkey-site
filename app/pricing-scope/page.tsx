@@ -296,7 +296,7 @@ export default function PricingScopePage() {
                     </tr>
                     <tr className="border-b border-zinc-700/50">
                       <td className="px-4 py-3">60–180 min</td>
-                      <td className="px-4 py-3 text-zinc-300">+15–30%</td>
+                      <td className="px-4 py-3 text-zinc-300">50% off base price per additional hour</td>
                     </tr>
                     <tr className="border-b border-zinc-700/50">
                       <td className="px-4 py-3">3+ hours</td>
