@@ -203,10 +203,10 @@ export default function OnboardingPage() {
     <main className="min-h-screen bg-zinc-950 text-zinc-50">
       <section className="max-w-3xl mx-auto px-4 py-12">
         <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
-          start a project — assessment
+          project brief — describe your vision
         </h1>
         <p className="mt-2 text-sm text-zinc-400">
-          Fast form. No fluff. You’ll get a straight timeline and the right package.
+          Clarity on your desired outcome, timing and package choice.
         </p>
 
         {!result && (
