@@ -10,13 +10,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // --- VIDEO FALLBACK HANDLING ---
   if (video && fallbackImage) {
+    // Add debugging info
+    console.log('Video element found:', video);
+    console.log('Video sources:', video.querySelectorAll('source'));
+    
     // Show fallback image if video fails to load
-    video.addEventListener('error', () => {
-      console.log('Video failed to load, showing fallback image');
+    video.addEventListener('error', (e) => {
+      console.error('Video failed to load:', e);
       video.classList.add('hidden');
       fallbackImage.classList.remove('hidden');
       // Hide speaker button if no video
       if (speakerBtn) speakerBtn.classList.add('hidden');
+    });
+
+    // Check if video can play
+    video.addEventListener('canplay', () => {
+      console.log('Video can start playing');
     });
 
     // Hide fallback when video loads and starts playing
@@ -41,6 +50,9 @@ document.addEventListener('DOMContentLoaded', function () {
       fallbackImage.classList.add('hidden');
       isVideoPlaying = true;
     });
+
+    // Try to force video load
+    video.load();
   }
 
   // --- AUDIO TOGGLE BUTTON ---
