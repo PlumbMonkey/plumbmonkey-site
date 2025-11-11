@@ -2,7 +2,7 @@ export const tiers = [
   {
     name: "Clean Cut",
     price: "$150–$350",
-    description: "The basics done properly. Nothing sloppy. Nothing amateur.",
+    description: "Basic cuts done properly.",
     features: [
       "Tight, professional edit",
       "Basic audio cleanup",
@@ -11,7 +11,7 @@ export const tiers = [
       "Music licensing included",
       "Export in 1080/4K",
       "1 revision included",
-      "Turnaround: 1–2 days",
+      "Schedule your project — we'll determine turnaround",
     ],
     ctaLabel: "Start a Project",
     ctaHref: "/onboarding?tier=clean-cut",
