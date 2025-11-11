@@ -29,6 +29,14 @@ document.addEventListener('DOMContentLoaded', function () {
       console.log('Video data loaded');
     });
 
+    video.addEventListener('ended', () => {
+      console.log('Video finished playing, showing poster image');
+      video.classList.add('hidden');
+      fallbackImage.classList.remove('hidden');
+      playButton.classList.remove('hidden');
+      isVideoPlaying = false;
+    });
+
     video.addEventListener('error', () => {
       console.log('Video failed to load');
       playButton.classList.add('hidden');
