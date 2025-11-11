@@ -59,20 +59,14 @@
   <video
     id="hero-video"
     class="absolute top-0 left-0 w-full h-full object-cover"
-    autoplay
     muted
     loop
     playsinline
-    preload="metadata"
+    preload="none"
     poster="assets/The%20Haunted%20House%20Branded.jpg"
-    onloadstart="console.log('Video load started')"
-    oncanplay="console.log('Video can play')"
-    onerror="console.error('Video error:', event)"
   >
-    <source src="assets/hero-loop.mp4" type="video/mp4" onerror="console.error('Source 1 failed')">
-    <source src="assets/hero-intro.mp4" type="video/mp4" onerror="console.error('Source 2 failed')">
-    <source src="assets/hero-video.mp4" type="video/mp4" onerror="console.error('Source 3 failed')">
-    <source src="https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4" type="video/mp4" onerror="console.error('External source failed')">
+    <source src="assets/hero-loop.mp4" type="video/mp4">
+    <source src="assets/hero-intro.mp4" type="video/mp4">
     Your browser does not support the video tag.
   </video>
   
@@ -81,8 +75,19 @@
     id="hero-fallback"
     src="assets/The Haunted House Branded.jpg"
     alt="The Haunted House - Plumbmonkey"
-    class="absolute top-0 left-0 w-full h-full object-cover hidden"
+    class="absolute top-0 left-0 w-full h-full object-cover"
   />
+  
+  <!-- PLAY BUTTON OVERLAY (click to start video if autoplay fails) -->
+  <button
+    id="play-button"
+    class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/50 rounded-full p-6 hover:bg-black/70 transition-colors z-30 hidden"
+    aria-label="Play video"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M8 5v14l11-7z"/>
+    </svg>
+  </button>
 
   <!-- OFFER (text overlay) -->
   <div class="absolute inset-x-0 bottom-0 pb-8 px-4 flex flex-col items-center text-center z-10"
