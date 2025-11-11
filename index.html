@@ -58,7 +58,8 @@
   <!-- HERO VIDEO -->
   <iframe
     id="hero-video"
-    class="w-full h-full object-fill"
+    class="absolute top-0 left-0 w-full h-full"
+    style="object-fit: cover; border: none;"
     src="https://www.youtube.com/embed/lk4YO6IBMgU?autoplay=1&mute=1&loop=1&playlist=lk4YO6IBMgU&controls=0&showinfo=0&rel=0&modestbranding=1"
     title="Plumbmonkey Hero Video"
     frameborder="0"
@@ -85,16 +86,29 @@
 
   <!-- SPEAKER BUTTON (overlay, bottom left corner) -->
   <button id="speaker-btn"
-    class="absolute left-6 bottom-8 z-20 bg-black/60 rounded-full p-3 focus:outline-none hover:bg-black/80 transition"
+    class="absolute left-6 bottom-8 z-20 bg-black/70 backdrop-blur-sm rounded-full p-4 focus:outline-none hover:bg-black/90 hover:scale-110 transition-all duration-200 shadow-lg border border-white/20"
     aria-label="Toggle audio">
     <!-- Muted icon (show by default) -->
-    <svg id="icon-muted" xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path d="M9 9v6h4l5 5V4l-5 5H9z" fill="currentColor"/>
-      <line x1="4" y1="4" x2="20" y2="20" stroke="red" stroke-width="2"/>
-    </svg>
+    <div id="icon-muted" class="relative">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+        <!-- Speaker body -->
+        <path d="M3 9v6h4l5 5V4L7 9H3z"/>
+        <!-- Sound waves (light opacity to show they're muted) -->
+        <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" opacity="0.4"/>
+        <path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" opacity="0.4"/>
+      </svg>
+      <!-- Clean diagonal line through center -->
+      <div class="absolute inset-0 flex items-center justify-center">
+        <div class="w-8 h-0.5 bg-red-500 rotate-45 shadow-sm"></div>
+      </div>
+    </div>
     <!-- Unmuted icon (hidden by default) -->
-    <svg id="icon-unmuted" xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-teal-400 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path d="M9 9v6h4l5 5V4l-5 5H9z" fill="currentColor"/>
+    <svg id="icon-unmuted" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white hidden" fill="currentColor" viewBox="0 0 24 24">
+      <!-- Speaker body -->
+      <path d="M3 9v6h4l5 5V4L7 9H3z"/>
+      <!-- Sound waves (full opacity when unmuted) -->
+      <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+      <path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
     </svg>
   </button>
 
