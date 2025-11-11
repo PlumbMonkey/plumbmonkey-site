@@ -206,11 +206,14 @@ export default function OnboardingPage() {
   // -------------------------
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-50">
-      <section className="max-w-3xl mx-auto px-4 py-12">
-        <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
-          project brief — describe your vision
+      <section className="max-w-3xl mx-auto px-4 py-12 text-center">
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-2">
+          Project Brief
         </h1>
-        <p className="mt-2 text-sm text-zinc-400">
+        <p className="text-lg md:text-xl text-zinc-300">
+          Describe your vision
+        </p>
+        <p className="mt-4 text-sm text-zinc-400">
           Clarity on your desired outcome, timing and package choice.
         </p>
 
