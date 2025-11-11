@@ -8,6 +8,7 @@ import { estimate } from "@/lib/intake/estimator";
 
 type Tier = "essential" | "pro" | "super";
 type ContactPref = "phone" | "zoom";
+type AspectRatio = "16:9" | "9:16" | "1:1";
 type Platforms = {
   youtube: boolean;
   instagram: boolean;
@@ -92,6 +93,7 @@ export default function OnboardingPage() {
     website: false,
     other: "",
   });
+  const [aspectRatios, setAspectRatios] = useState<AspectRatio[]>([]);
   const [brandLinks, setBrandLinks] = useState("");
   const [musicLinks, setMusicLinks] = useState("");
   const [contactPref, setContactPref] = useState<ContactPref>("phone");
@@ -114,6 +116,7 @@ export default function OnboardingPage() {
       if (draft.data) setData((d: any) => ({ ...d, ...draft.data }));
       if (typeof draft.story === "string") setStory(draft.story);
       if (draft.platforms) setPlatforms((p) => ({ ...p, ...draft.platforms }));
+      if (Array.isArray(draft.aspectRatios)) setAspectRatios(draft.aspectRatios);
       if (typeof draft.brandLinks === "string") setBrandLinks(draft.brandLinks);
       if (typeof draft.musicLinks === "string") setMusicLinks(draft.musicLinks);
       if (draft.contactPref === "phone" || draft.contactPref === "zoom")
@@ -134,6 +137,7 @@ export default function OnboardingPage() {
           data,
           story,
           platforms,
+          aspectRatios,
           brandLinks,
           musicLinks,
           contactPref,
@@ -144,7 +148,7 @@ export default function OnboardingPage() {
       }
     }, 400);
     return () => clearTimeout(handle);
-  }, [data, story, platforms, brandLinks, musicLinks, contactPref]);
+  }, [data, story, platforms, aspectRatios, brandLinks, musicLinks, contactPref]);
 
   const onEstimate = () => {
     setError(null);
@@ -191,6 +195,7 @@ export default function OnboardingPage() {
       website: false,
       other: "",
     });
+    setAspectRatios([]);
     setBrandLinks("");
     setMusicLinks("");
     setContactPref("phone");
@@ -279,18 +284,6 @@ export default function OnboardingPage() {
                 </label>
 
                 <label className="inline-flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4"
-                    checked={data.multiAspect}
-                    onChange={(e) =>
-                      setData((d: any) => ({ ...d, multiAspect: e.target.checked }))
-                    }
-                  />
-                  <span className="text-sm">Multi-aspect exports (16:9, 9:16, 1:1)</span>
-                </label>
-
-                <label className="inline-flex items-center gap-2">
                   <span className="text-sm">Deadline</span>
                   <input
                     type="date"
@@ -299,6 +292,34 @@ export default function OnboardingPage() {
                     onChange={(e) => setData((d: any) => ({ ...d, deadlineISO: e.target.value }))}
                   />
                 </label>
+              </div>
+
+              {/* Multi-aspect exports selection */}
+              <div className="border-t border-zinc-700 pt-4">
+                <div className="text-sm font-medium mb-3">Export aspect ratios</div>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: "16:9 (Landscape)", value: "16:9" },
+                    { label: "9:16 (Portrait)", value: "9:16" },
+                    { label: "1:1 (Square)", value: "1:1" },
+                  ].map((ratio) => (
+                    <label key={ratio.value} className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={aspectRatios.includes(ratio.value as AspectRatio)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAspectRatios([...aspectRatios, ratio.value as AspectRatio]);
+                          } else {
+                            setAspectRatios(aspectRatios.filter((ar) => ar !== ratio.value));
+                          }
+                        }}
+                      />
+                      <span className="text-sm">{ratio.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <button
@@ -500,6 +521,7 @@ export default function OnboardingPage() {
                   .concat(platforms.other ? [platforms.other] : [])
                   .join(", ") || "—"}
               </div>
+              <div>Aspect ratios: {aspectRatios.length > 0 ? aspectRatios.join(", ") : "—"}</div>
               <div>Branding: {brandLinks || "—"}</div>
               <div>Music: {musicLinks || "—"}</div>
               <div>Contact: {contactPref}</div>
