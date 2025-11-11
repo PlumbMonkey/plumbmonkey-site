@@ -422,12 +422,12 @@ export default function PricingScopePage() {
               Start Your Brief
             </Link>
             <a
-              href="https://gumroad.com"
+              href="https://plumbmonkey.github.io/gregg-henwood-dev-portfolio/"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block px-8 py-4 rounded-lg border-2 border-orange-500 text-orange-400 font-bold hover:bg-orange-500/10 transition-all"
             >
-              Shop via Gumroad
+              View Portfolio
             </a>
           </div>
         </div>
