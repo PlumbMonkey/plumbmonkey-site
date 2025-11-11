@@ -3,65 +3,106 @@ import { tiers } from "@/data/tiers";
 
 export default function PricingPage() {
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-50">
-      <section className="max-w-6xl mx-auto px-4 py-16">
-        <header className="text-center">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight">transparent pricing</h1>
-          <p className="mt-3 text-zinc-400">
-            Clear scope, honest timelines, two revisions included on every package.
-          </p>
-        </header>
+    <main className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950">
+      {/* Hero Section */}
+      <section className="pt-20 pb-12 px-4 sm:px-6 lg:px-8 text-center">
+        <h1 className="text-5xl sm:text-6xl font-bold mb-6 bg-gradient-to-r from-teal-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+          Simple, Transparent Pricing
+        </h1>
+        <p className="text-xl text-zinc-300 max-w-2xl mx-auto">
+          Clear scope, honest timelines, two revisions included on every package.
+        </p>
+      </section>
 
-        {/* Tier cards */}
-        <div className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+      {/* Pricing Cards Section */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           {tiers.map((tier) => (
-            <article
+            <div
               key={tier.name}
-              className={`rounded-2xl border p-6 bg-zinc-900/60 border-zinc-800 flex flex-col ${
-                tier.featured ? "ring-2 ring-teal-500" : ""
+              className={`relative rounded-xl border transition-all duration-300 ${
+                tier.featured
+                  ? 'border-teal-500/50 bg-gradient-to-br from-zinc-800 to-zinc-900 shadow-xl shadow-teal-500/20 scale-105 md:scale-110'
+                  : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600 hover:bg-zinc-800'
               }`}
             >
-              {("badge" in tier && (tier as any).badge) ? (
-                <div className="mb-3 inline-block rounded-full bg-teal-600 px-3 py-1 text-xs font-semibold text-white">
-                  {(tier as any).badge}
+              {/* Badge */}
+              {("badge" in tier && (tier as any).badge) && (
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                  <span className="bg-gradient-to-r from-teal-500 to-cyan-500 text-zinc-950 text-xs font-bold px-3 py-1 rounded-full">
+                    {(tier as any).badge}
+                  </span>
                 </div>
-              ) : null}
+              )}
 
-              <h3 className="text-xl font-semibold">{tier.name}</h3>
-              <div className="mt-1 text-3xl font-extrabold">{tier.price}</div>
-              <p className="mt-2 text-sm text-zinc-400">{tier.description}</p>
+              <div className="p-6 flex flex-col h-full">
+                {/* Tier Name */}
+                <h3 className="text-2xl font-bold mb-2 text-white">{tier.name}</h3>
 
-              <ul className="mt-5 space-y-2 text-sm text-zinc-300">
-                {tier.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-teal-500" />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
+                {/* Description */}
+                <p className="text-sm text-zinc-400 mb-4">{tier.description}</p>
 
-              <Link
-                href={tier.ctaHref}
-                className={`mt-6 inline-flex justify-center rounded-lg px-4 py-2.5 font-semibold transition ${
-                  tier.featured
-                    ? "bg-teal-600 text-white hover:bg-teal-500"
-                    : "bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
-                }`}
-              >
-                {tier.ctaLabel}
-              </Link>
-            </article>
+                {/* Price */}
+                <div className="mb-6">
+                  <span className="text-4xl font-bold text-white">{tier.price}</span>
+                </div>
+
+                {/* Features */}
+                <ul className="space-y-3 mb-6 flex-1">
+                  {tier.features.map((feature) => (
+                    <li
+                      key={feature}
+                      className="flex items-start text-sm text-zinc-300"
+                    >
+                      <span className="text-teal-400 mr-3 mt-0.5">✓</span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* CTA Button */}
+                <Link
+                  href={tier.ctaHref}
+                  className={`block text-center py-3 px-4 rounded-lg font-semibold transition-all duration-200 ${
+                    tier.featured
+                      ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-zinc-950 hover:shadow-lg hover:shadow-teal-500/50'
+                      : 'bg-zinc-700 text-white hover:bg-zinc-600'
+                  }`}
+                >
+                  {tier.ctaLabel}
+                </Link>
+              </div>
+            </div>
           ))}
         </div>
 
-        {/* Micro-copy under grid */}
-        <p className="mt-8 text-center text-xs text-zinc-500">
+        {/* Info text */}
+        <p className="mt-8 text-center text-sm text-zinc-400">
           Need something bigger? Music videos & custom productions start at $2,000 —{" "}
-          <Link href="/consult" className="text-teal-400 hover:underline">
+          <Link href="/consult" className="text-teal-400 hover:text-teal-300">
             book a free consult
           </Link>
           .
         </p>
+      </section>
+
+      {/* Bottom CTA Section */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8 text-center">
+        <div className="max-w-3xl mx-auto bg-gradient-to-r from-teal-500/10 to-purple-500/10 border border-teal-500/30 rounded-xl p-8">
+          <h2 className="text-3xl font-bold text-white mb-4">
+            Ready to bring your vision to life?
+          </h2>
+          <p className="text-zinc-300 mb-6">
+            Choose your package and start your project brief. We'll deliver professional results within your timeline.
+          </p>
+          <Link
+            href="/onboarding"
+            className="inline-block bg-gradient-to-r from-teal-500 to-cyan-500 text-zinc-950 font-bold py-3 px-8 rounded-lg hover:shadow-lg hover:shadow-teal-500/50 transition-all duration-200"
+          >
+            Start Your Brief
+          </Link>
+        </div>
       </section>
     </main>
   );

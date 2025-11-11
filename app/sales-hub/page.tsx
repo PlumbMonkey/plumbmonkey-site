@@ -50,6 +50,12 @@ export default function SalesHubPage() {
               Shop Digital Tools
             </Link>
             <Link
+              href="/pricing"
+              className="inline-block px-8 py-4 rounded-lg bg-purple-600 text-white font-semibold hover:bg-purple-500 transition"
+            >
+              View Service Pricing
+            </Link>
+            <Link
               href="/onboarding"
               className="inline-block px-8 py-4 rounded-lg border border-teal-500 text-teal-400 font-semibold hover:bg-teal-500/10 transition"
             >
