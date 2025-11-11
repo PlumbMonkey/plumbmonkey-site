@@ -1,41 +1,33 @@
 document.addEventListener('DOMContentLoaded', function () {
-  const video = document.getElementById('hero-video');
-  const source = document.getElementById('hero-source');
+  const iframe = document.getElementById('hero-video');
   const speakerBtn = document.getElementById('speaker-btn');
   const iconMuted = document.getElementById('icon-muted');
   const iconUnmuted = document.getElementById('icon-unmuted');
-
-  // --- VIDEO LOOP SWAP ---
-  video.addEventListener('ended', function () {
-    source.src = "assets/hero-loop.mp4";
-    video.load();
-    video.loop = true;
-    video.muted = speakerBtn ? video.muted : true; // Respect mute toggle if set
-    video.play();
-  });
+  
+  let isMuted = true; // YouTube starts muted
 
   // --- AUDIO TOGGLE BUTTON ---
-  if (speakerBtn && iconMuted && iconUnmuted) {
+  if (speakerBtn && iconMuted && iconUnmuted && iframe) {
     speakerBtn.addEventListener('click', () => {
-      video.muted = !video.muted;
-      video.play(); // Some browsers require a play() gesture to unmute
-
-      if (video.muted) {
-        iconMuted.classList.remove('hidden');
-        iconUnmuted.classList.add('hidden');
-      } else {
+      const currentSrc = iframe.src;
+      
+      if (isMuted) {
+        // Switch to unmuted version
+        iframe.src = currentSrc.replace('mute=1', 'mute=0');
         iconMuted.classList.add('hidden');
         iconUnmuted.classList.remove('hidden');
+        isMuted = false;
+      } else {
+        // Switch to muted version
+        iframe.src = currentSrc.replace('mute=0', 'mute=1');
+        iconMuted.classList.remove('hidden');
+        iconUnmuted.classList.add('hidden');
+        isMuted = true;
       }
     });
 
-    // Optional: update icon on initial load
-    if (video.muted) {
-      iconMuted.classList.remove('hidden');
-      iconUnmuted.classList.add('hidden');
-    } else {
-      iconMuted.classList.add('hidden');
-      iconUnmuted.classList.remove('hidden');
-    }
+    // Set initial icon state (muted by default)
+    iconMuted.classList.remove('hidden');
+    iconUnmuted.classList.add('hidden');
   }
 });

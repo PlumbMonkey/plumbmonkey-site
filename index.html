@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Plumbmonkey | Audio + Motion</title>
   <link rel="icon" href="assets/favicon.ico" />
-  <link rel="preload" as="video" href="assets/hero-video.mp4" type="video/mp4">
+
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="styles/styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
@@ -56,16 +56,15 @@
 <!-- Hero Section -->
 <section class="relative h-screen w-full overflow-hidden pt-10" id="hero">
   <!-- HERO VIDEO -->
-  <video
+  <iframe
     id="hero-video"
-    poster="assets/hero-intro.jpg"
-    autoplay
-    muted
-    playsinline
     class="w-full h-full object-fill"
-  >
-    <source id="hero-source" src="assets/hero-video.mp4" type="video/mp4" />
-  </video>
+    src="https://www.youtube.com/embed/lk4YO6IBMgU?autoplay=1&mute=1&loop=1&playlist=lk4YO6IBMgU&controls=0&showinfo=0&rel=0&modestbranding=1"
+    title="Plumbmonkey Hero Video"
+    frameborder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowfullscreen
+  ></iframe>
 
   <!-- OFFER (text overlay) -->
   <div class="absolute inset-x-0 bottom-0 pb-8 px-4 flex flex-col items-center text-center z-10"
@@ -98,6 +97,7 @@
       <path d="M9 9v6h4l5 5V4l-5 5H9z" fill="currentColor"/>
     </svg>
   </button>
+
 </section>
 
 <!-- Services Section -->
