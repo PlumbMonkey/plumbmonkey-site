@@ -13,8 +13,11 @@ export default function NavBar() {
           <Link href="/how-it-works" className="hover:text-teal-400">
             How it works
           </Link>
-          <Link href="/pricing" className="hover:text-teal-400">
+          <Link href="/pricing-scope" className="hover:text-teal-400">
             Pricing
+          </Link>
+          <Link href="/sales-hub" className="hover:text-teal-400">
+            Shop
           </Link>
           <Link href="/onboarding" className="hover:text-teal-400">
             Start a Project

@@ -7,12 +7,26 @@ export default function HomePage() {
       <p className="text-lg text-zinc-400 mb-8 max-w-2xl">
         Professional video editing, transparent pricing, and honest timelines.
       </p>
-      <Link
-        href="/pricing"
-        className="px-6 py-3 rounded-lg bg-teal-600 text-white font-semibold text-lg hover:bg-teal-500 transition"
-      >
-        View Pricing & Start a Project
-      </Link>
+      <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <Link
+          href="/pricing-scope"
+          className="px-6 py-3 rounded-lg bg-teal-600 text-white font-semibold text-lg hover:bg-teal-500 transition"
+        >
+          View Pricing
+        </Link>
+        <Link
+          href="/onboarding"
+          className="px-6 py-3 rounded-lg bg-purple-600 text-white font-semibold text-lg hover:bg-purple-500 transition"
+        >
+          Start a Project
+        </Link>
+        <Link
+          href="/sales-hub"
+          className="px-6 py-3 rounded-lg bg-orange-600 text-white font-semibold text-lg hover:bg-orange-500 transition"
+        >
+          Shop Digital Tools
+        </Link>
+      </div>
     </main>
   );
 }
