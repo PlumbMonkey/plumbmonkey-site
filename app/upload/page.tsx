@@ -9,26 +9,44 @@ export default function UploadPage() {
   const [musicLinks, setMusicLinks] = useState("");
   const [notes, setNotes] = useState("");
 
-  const onSend = () => {
-    // Compose a mailto with the intake summary for now.
-    const subject = encodeURIComponent("Plumbmonkey — Upload Links");
-    const body = encodeURIComponent(
-`Name: ${name}
-Email: ${email}
+  const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
 
-Footage links:
-${footageLinks}
+  const onSend = async () => {
+    setIsSending(true);
+    setError("");
+    setSuccess(false);
 
-Brand kit links:
-${brandLinks}
+    try {
+      const response = await fetch("https://formspree.io/f/xjkrragg", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          message: `Upload Links Submission\n\nFootage links:\n${footageLinks}\n\nBrand kit links:\n${brandLinks}\n\nMusic links / notes:\n${musicLinks}\n\nNotes:\n${notes}`,
+        }),
+      });
 
-Music links:
-${musicLinks}
-
-Notes:
-${notes}
-`);
-    window.location.href = `mailto:plumbmonkey@proton.me?subject=${subject}&body=${body}`;
+      if (response.ok) {
+        setSuccess(true);
+        setName("");
+        setEmail("");
+        setFootageLinks("");
+        setBrandLinks("");
+        setMusicLinks("");
+        setNotes("");
+      } else {
+        setError("Failed to send. Please try again.");
+      }
+    } catch (err) {
+      setError("An error occurred. Please try again or email directly to plumbmonkey@proton.me");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -104,14 +122,28 @@ ${notes}
           </label>
 
           <div className="flex flex-col sm:flex-row gap-3">
+            {success && (
+              <div className="w-full rounded-lg bg-green-900/30 border border-green-700 px-4 py-3 text-green-200">
+                ✓ Links sent successfully!
+              </div>
+            )}
+            {error && (
+              <div className="w-full rounded-lg bg-red-900/30 border border-red-700 px-4 py-3 text-red-200">
+                {error}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               onClick={onSend}
-              className="inline-flex items-center justify-center rounded-lg bg-teal-600 text-white px-5 py-2.5 font-semibold hover:bg-teal-500"
+              disabled={isSending}
+              className="inline-flex items-center justify-center rounded-lg bg-teal-600 text-white px-5 py-2.5 font-semibold hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Email links to plumbmonkey@proton.me
+              {isSending ? "Sending..." : "Email links to plumbmonkey@proton.me"}
             </button>
             <a
-              href="/onboarding"
+              href="/onboarding.html"
               className="inline-flex items-center justify-center rounded-lg border border-zinc-700 px-5 py-2.5 font-medium"
             >
               Back to assessment
