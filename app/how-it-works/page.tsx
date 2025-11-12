@@ -37,9 +37,7 @@ export default function HowItWorksPage() {
       icon: "🎛️",
       title: "Production in Progress",
       description:
-        "Your project moves through the creative pipeline — editing, animation, audio, and post-production — using my pro tool stack (DaVinci Resolve Studio, FL Studio, Blender, and more). You'll get status updates via email.",
-      cta: "See Tools",
-      ctaHref: "#toolkit",
+        "Your project moves through the creative pipeline — editing, animation, audio, and post-production. You'll get status updates via email while I handle all the creative work.",
     },
     {
       number: 5,
@@ -50,15 +48,6 @@ export default function HowItWorksPage() {
       cta: "Start Your Project",
       ctaHref: "/onboarding",
     },
-  ];
-
-  const tools = [
-    { name: "Video Editing", icon: "🎬" },
-    { name: "Music & Audio Creation", icon: "🎵" },
-    { name: "Editing, Mixing & Mastering", icon: "🎙️" },
-    { name: "2D/3D Animation & Motion Graphics", icon: "✨" },
-    { name: "Design & Painting", icon: "🖌️" },
-    { name: "AI Tools", icon: "🤖" },
   ];
 
   return (
@@ -126,14 +115,16 @@ export default function HowItWorksPage() {
                         <p className="text-lg text-zinc-300 leading-relaxed">
                           {step.description}
                         </p>
-                        <div className="pt-4">
-                          <Link
-                            href={step.ctaHref}
-                            className="inline-flex items-center px-6 py-3 rounded-lg bg-zinc-800 text-teal-400 font-semibold hover:bg-zinc-700 hover:text-teal-300 transition border border-zinc-700 hover:border-teal-500"
-                          >
-                            {step.cta} →
-                          </Link>
-                        </div>
+                        {step.cta && (
+                          <div className="pt-4">
+                            <Link
+                              href={step.ctaHref}
+                              className="inline-flex items-center px-6 py-3 rounded-lg bg-zinc-800 text-teal-400 font-semibold hover:bg-zinc-700 hover:text-teal-300 transition border border-zinc-700 hover:border-teal-500"
+                            >
+                              {step.cta} →
+                            </Link>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -151,54 +142,19 @@ export default function HowItWorksPage() {
         </div>
       </section>
 
-      {/* TOOLKIT SECTION */}
-      <section id="toolkit" className="py-24 px-6 bg-zinc-900/50 border-t border-zinc-800">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Our Toolkit</h2>
-          <p className="text-lg text-zinc-300 mb-4">
-            A professional suite of tools — the same ones used in film studios and sound labs.
-          </p>
-          <p className="text-md text-zinc-400 mb-12">
-            Because you deserve professional results.
-          </p>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tools.map((tool, idx) => (
-              <div
-                key={idx}
-                className="rounded-xl border border-zinc-800 bg-zinc-950 p-6 hover:border-teal-500 transition group"
-              >
-                <div className="text-4xl mb-3 group-hover:scale-110 transition">
-                  {tool.icon}
-                </div>
-                <h3 className="font-semibold text-lg">{tool.name}</h3>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* CTA FOOTER SECTION */}
-      <section className="py-20 px-6 bg-gradient-to-r from-teal-900/20 to-purple-900/20 border-t border-zinc-800">
+      <section className="py-24 px-6 bg-gradient-to-r from-teal-900/20 to-purple-900/20 border-t border-zinc-800">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to roll?</h2>
           <p className="text-lg text-zinc-300 mb-8">
-            Pick your package, drop your brief, and let's build something cinematic.
+            Let's build something cinematic.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/onboarding"
-              className="inline-block px-8 py-4 rounded-lg bg-teal-600 text-white font-semibold hover:bg-teal-500 transition"
-            >
-              Start Your Brief
-            </Link>
-            <Link
-              href="/pricing-scope"
-              className="inline-block px-8 py-4 rounded-lg border border-teal-500 text-teal-400 font-semibold hover:bg-teal-500/10 transition"
-            >
-              View Packages
-            </Link>
-          </div>
+          <Link
+            href="/onboarding"
+            className="inline-block px-8 py-4 rounded-lg bg-teal-600 text-white font-semibold hover:bg-teal-500 transition"
+          >
+            Start Your Project
+          </Link>
         </div>
       </section>
     </main>
