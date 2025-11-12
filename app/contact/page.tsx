@@ -14,21 +14,33 @@ export default function ContactPage() {
     setIsError(false);
 
     const formData = new FormData(e.currentTarget);
+    const data = Object.fromEntries(formData);
 
     try {
       const response = await fetch('https://formspree.io/f/mqawknwn', {
         method: 'POST',
-        body: formData,
+        body: JSON.stringify(data),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
       });
 
-      if (response.ok) {
+      const responseData = await response.json().catch(() => ({}));
+      console.log('Response status:', response.status);
+      console.log('Response data:', responseData);
+      
+      // Formspree returns 200 with ok: true on success
+      if (response.status === 200 && (responseData as any).ok === true) {
         setStatusMessage("Message sent! I'll get back to you within 24 hours.");
         e.currentTarget.reset();
       } else {
+        console.error('Unexpected response:', response.status, responseData);
         setIsError(true);
         setStatusMessage('Failed to send message. Please try again or email plumbmonkey@proton.me');
       }
     } catch (error) {
+      console.error('Form submission error:', error);
       setIsError(true);
       setStatusMessage('An error occurred. Please try again or email plumbmonkey@proton.me');
     } finally {
