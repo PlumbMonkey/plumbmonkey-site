@@ -20,12 +20,14 @@ export default function HomePage() {
         >
           Start a Project
         </Link>
-        <Link
-          href="/sales-hub"
+        <a
+          href="https://plumbmonkey.gumroad.com/"
+          target="_blank"
+          rel="noopener noreferrer"
           className="px-6 py-3 rounded-lg bg-orange-600 text-white font-semibold text-lg hover:bg-orange-500 transition"
         >
           Shop Digital Tools
-        </Link>
+        </a>
       </div>
     </main>
   );
