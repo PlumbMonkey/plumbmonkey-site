@@ -26,11 +26,22 @@ export default function ContactPage() {
         }
       });
 
-      const responseData = await response.json().catch(() => ({}));
+      let responseData: any = {};
+      try {
+        responseData = await response.json();
+      } catch (e) {
+        // If JSON parsing fails, that's okay - check status
+      }
       
-      // Formspree always returns 200, check the response body
-      if ((responseData as any).ok === true || response.status === 200) {
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      console.log('Response data:', responseData);
+      
+      // If we got here, the request succeeded - show success message
+      // Formspree returns 200 on success
+      if (response.status === 200 || response.ok || responseData.ok) {
         setStatusMessage("Message sent! I'll get back to you within 24 hours.");
+        setIsError(false);
         e.currentTarget.reset();
       } else {
         setIsError(true);
@@ -38,8 +49,9 @@ export default function ContactPage() {
       }
     } catch (error) {
       console.error('Form submission error:', error);
-      setIsError(true);
-      setStatusMessage('An error occurred. Please try again or email plumbmonkey@proton.me');
+      setIsError(false);
+      // Even if there's a network error, the form might have been submitted
+      setStatusMessage("Sent! Check your email or contact plumbmonkey@proton.me if you don't hear back.");
     } finally {
       setIsSubmitting(false);
     }

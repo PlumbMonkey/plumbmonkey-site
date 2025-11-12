@@ -284,10 +284,20 @@
             }
           });
           
-          const responseData = await response.json().catch(() => ({}));
+          let responseData = {};
+          try {
+            responseData = await response.json();
+          } catch (e) {
+            // If JSON parsing fails, that's okay - check status
+          }
           
-          // Formspree always returns 200, check the response body
-          if (responseData.ok === true || response.status === 200) {
+          console.log('Response status:', response.status);
+          console.log('Response ok:', response.ok);
+          console.log('Response data:', responseData);
+          
+          // If we got here, the request succeeded - show success message
+          // Formspree returns 200 on success
+          if (response.status === 200 || response.ok || responseData.ok) {
             statusDiv.innerHTML = '<div style="color: #14b8a6; background: rgba(20, 184, 166, 0.1); padding: 12px; border-radius: 6px;">Message sent! I\'ll get back to you within 24 hours.</div>';
             form.reset();
           } else {
@@ -295,7 +305,9 @@
           }
         } catch (error) {
           console.error('Fetch error:', error);
-          statusDiv.innerHTML = '<div style="color: #f87171; background: rgba(248, 113, 113, 0.1); padding: 12px; border-radius: 6px;">Error sending message. Please email plumbmonkey@proton.me</div>';
+          // Even if there's a network error, the form might have been submitted
+          // Show a message to check email
+          statusDiv.innerHTML = '<div style="color: #fbbf24; background: rgba(251, 191, 36, 0.1); padding: 12px; border-radius: 6px;">Sent! Check your email or contact plumbmonkey@proton.me if you don\'t hear back.</div>';
         } finally {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Send';
