@@ -16,9 +16,9 @@ export default function NavBar() {
           <Link href="/pricing-scope" className="hover:text-teal-400">
             Pricing
           </Link>
-          <Link href="/sales-hub" className="hover:text-teal-400">
+          <a href="https://plumbmonkey.gumroad.com/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-400">
             Shop
-          </Link>
+          </a>
           <Link href="/onboarding" className="hover:text-teal-400">
             Start a Project
           </Link>
