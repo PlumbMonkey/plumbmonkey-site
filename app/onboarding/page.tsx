@@ -499,12 +499,12 @@ export default function OnboardingPage() {
                   Book a production slot
                 </Link>
               )}
-              <Link
-                href={`/consult?context=onboarding`}
+              <a
+                href="/contact.html"
                 className="inline-flex items-center justify-center rounded-lg bg-zinc-50 text-zinc-950 px-5 py-2.5 font-medium hover:opacity-90"
               >
                 Free bid/consult
-              </Link>
+              </a>
               <Link
                 href={`/upload`}
                 className="inline-flex items-center justify-center rounded-lg bg-teal-600 text-white px-5 py-2.5 font-medium hover:bg-teal-500"
