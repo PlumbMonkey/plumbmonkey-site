@@ -168,7 +168,18 @@ export default function OnboardingPage() {
       const r = estimate(parsed as any);
       setResult(r);
     } catch (e: any) {
-      setError(e?.errors?.[0]?.message || "Please check your inputs.");
+      const fieldErrors = e?.errors || [];
+      if (fieldErrors.length > 0) {
+        const field = fieldErrors[0]?.path?.[0];
+        const message = fieldErrors[0]?.message;
+        if (field === "purpose") {
+          setError("Please describe your project purpose (at least 2 characters)");
+        } else {
+          setError(message || "Please check your inputs.");
+        }
+      } else {
+        setError("Please check your inputs.");
+      }
     }
   };
 
@@ -222,13 +233,16 @@ export default function OnboardingPage() {
             {/* A) Core knobs */}
             <div className="mt-6 grid gap-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
               <label className="block">
-                <span className="text-sm font-medium">Purpose</span>
+                <span className="text-sm font-medium">Purpose <span className="text-red-400">*</span></span>
                 <input
                   className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-zinc-50 focus:outline-none focus:ring-2 focus:ring-teal-500"
                   placeholder="YouTube / promo / training / event / music video…"
                   value={data.purpose}
                   onChange={(e) => setData((d: any) => ({ ...d, purpose: e.target.value }))}
                 />
+                {data.purpose.length < 2 && (
+                  <p className="mt-1 text-xs text-amber-400">Please describe your project purpose (at least 2 characters)</p>
+                )}
               </label>
 
               <div className="flex items-end gap-4">

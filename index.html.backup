@@ -30,15 +30,9 @@
         <li><a href="#services" class="block px-2 hover:underline">Services</a></li>
         <li><a href="#portfolio" class="block px-2 hover:underline">Portfolio</a></li>
         <li><a href="#contact" class="block px-2 hover:underline">Contact</a></li>
-        <li>
-          <a href="https://ghostcircuit.thesimple.ink/"
-             target="_blank"
-             rel="noopener"
-             class="block px-2 text-teal-400 hover:text-teal-300 underline font-semibold"
-          >
-            Creator Tools Directory
-          </a>
-        </li>
+        <li><a href="/how-it-works.html" class="block px-2 text-teal-400 hover:text-teal-300 underline font-semibold">How It Works</a></li>
+        <li><a href="/pricing-scope.html" class="block px-2 text-teal-400 hover:text-teal-300 underline font-semibold">Pricing</a></li>
+        <li><a href="/onboarding.html" class="block px-2 text-teal-400 hover:text-teal-300 underline font-semibold">Start Project</a></li>
         <li>
           <a href="https://plumbmonkey.gumroad.com/"
    target="_blank"
@@ -247,7 +241,7 @@
     <p class="mb-6 text-lg text-zinc-300">
       Ready to make something cinematic? Step into the spotlight—reach out below.
     </p>
-    <form action="https://formspree.io/f/xjkrragg" method="POST" class="max-w-lg space-y-4 mx-auto">
+    <form action="https://formspree.io/f/mqawknwn" method="POST" class="max-w-lg space-y-4 mx-auto">
       <div>
         <label for="name" class="block text-sm mb-1">Name</label>
         <input id="name" name="name" type="text" required class="w-full p-2 rounded bg-zinc-800 border border-zinc-700">
