@@ -24,7 +24,7 @@ export default function UploadPage() {
       formData.append("email", email);
       formData.append("message", `Upload Links Submission\n\nFootage links:\n${footageLinks}\n\nBrand kit links:\n${brandLinks}\n\nMusic links / notes:\n${musicLinks}\n\nNotes:\n${notes}`);
 
-      const response = await fetch("https://formspree.io/f/xjkrragg", {
+      const response = await fetch("https://formspree.io/f/mqawknwn", {
         method: "POST",
         body: formData,
       });

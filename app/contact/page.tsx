@@ -6,7 +6,7 @@ export default function ContactPage() {
       <div className="container mx-auto px-6">
         <h1 className="text-4xl font-bold mb-12 text-center">Get in Touch</h1>
         <div className="max-w-2xl mx-auto">
-          <form action="https://formspree.io/f/xjkrragg" method="POST" className="space-y-6">
+          <form action="https://formspree.io/f/mqawknwn" method="POST" className="space-y-6">
             <div>
               <label htmlFor="name" className="block text-sm font-medium mb-2">
                 Name
