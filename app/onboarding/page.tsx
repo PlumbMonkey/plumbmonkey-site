@@ -506,12 +506,12 @@ export default function OnboardingPage() {
 
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
               {result.path === "standard" && (
-                <Link
-                  href={`/booking?tier=${result.tier}`}
+                <a
+                  href="/booking.html"
                   className="inline-flex items-center justify-center rounded-lg border border-zinc-700 px-5 py-2.5 font-medium"
                 >
                   Book a production slot
-                </Link>
+                </a>
               )}
               <a
                 href="/contact.html"
@@ -519,12 +519,12 @@ export default function OnboardingPage() {
               >
                 Free bid/consult
               </a>
-              <Link
-                href={`/upload`}
+              <a
+                href="/upload.html"
                 className="inline-flex items-center justify-center rounded-lg bg-teal-600 text-white px-5 py-2.5 font-medium hover:bg-teal-500"
               >
                 Go to upload
-              </Link>
+              </a>
             </div>
 
             {/* quick recap for you (not submitted anywhere yet) */}
