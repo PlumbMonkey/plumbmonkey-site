@@ -19,16 +19,14 @@ export default function UploadPage() {
     setSuccess(false);
 
     try {
+      const formData = new FormData();
+      formData.append("name", name);
+      formData.append("email", email);
+      formData.append("message", `Upload Links Submission\n\nFootage links:\n${footageLinks}\n\nBrand kit links:\n${brandLinks}\n\nMusic links / notes:\n${musicLinks}\n\nNotes:\n${notes}`);
+
       const response = await fetch("https://formspree.io/f/xjkrragg", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          message: `Upload Links Submission\n\nFootage links:\n${footageLinks}\n\nBrand kit links:\n${brandLinks}\n\nMusic links / notes:\n${musicLinks}\n\nNotes:\n${notes}`,
-        }),
+        body: formData,
       });
 
       if (response.ok) {
