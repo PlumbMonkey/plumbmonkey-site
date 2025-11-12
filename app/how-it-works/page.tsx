@@ -74,19 +74,16 @@ export default function HowItWorksPage() {
                 >
                   {/* Step Content */}
                   <div className={idx % 2 === 1 ? "md:order-2" : ""}>
-                    <div className="relative">
-                      {/* Step number badge (hidden on mobile, shown on desktop) */}
-                      <div className="hidden md:flex absolute -left-16 top-0 w-12 h-12 rounded-full bg-teal-600 items-center justify-center text-lg font-bold border-4 border-zinc-950 shadow-lg z-10">
-                        {step.number}
-                      </div>
-
-                      {/* Mobile step number */}
-                      <div className="md:hidden mb-4 inline-flex px-4 py-2 rounded-full bg-teal-600/20 border border-teal-500/50 text-sm font-semibold text-teal-400">
-                        Step {step.number}
+                    <div className="relative text-center md:text-left">
+                      {/* Step number badge - centered at top */}
+                      <div className="flex justify-center md:justify-start mb-4">
+                        <div className="w-12 h-12 rounded-full bg-teal-600 flex items-center justify-center text-lg font-bold border-4 border-zinc-950 shadow-lg z-10">
+                          {step.number}
+                        </div>
                       </div>
 
                       <div className="space-y-4">
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-center md:justify-start gap-4">
                           <span className="text-5xl">{step.icon}</span>
                           <h2 className="text-3xl md:text-4xl font-bold">{step.title}</h2>
                         </div>
