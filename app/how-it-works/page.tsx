@@ -11,8 +11,8 @@ export default function HowItWorksPage() {
       title: "Choose Your Package",
       description:
         "Start by selecting a service tier that fits your project — from a simple edit to a full cinematic buildout. Each package clearly lists what's included so you know exactly what you're getting.",
-      cta: "Shop Digital Tools",
-      ctaHref: "/sales-hub",
+      cta: "View Pricing",
+      ctaHref: "/pricing-scope",
     },
     {
       number: 2,
@@ -80,7 +80,7 @@ export default function HowItWorksPage() {
               Start Your Brief
             </Link>
             <Link
-              href="/sales-hub"
+              href="/pricing-scope"
               className="inline-block px-8 py-4 rounded-lg border border-teal-500 text-teal-400 font-semibold hover:bg-teal-500/10 transition"
             >
               Browse Packages
@@ -193,10 +193,10 @@ export default function HowItWorksPage() {
               Start Your Brief
             </Link>
             <Link
-              href="/sales-hub"
+              href="/pricing-scope"
               className="inline-block px-8 py-4 rounded-lg border border-teal-500 text-teal-400 font-semibold hover:bg-teal-500/10 transition"
             >
-              Shop Digital Tools
+              View Packages
             </Link>
           </div>
         </div>
