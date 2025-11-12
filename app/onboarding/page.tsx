@@ -487,7 +487,7 @@ export default function OnboardingPage() {
               Recommended tier: <b>{result.tier}</b>
             </p>
             <p className="mt-4 text-sm text-zinc-400">
-              Two revisions included. Heavier VFX/motion graphics can extend timelines; I’ll keep it honest.
+              Two revisions included. Heavier VFX/motion graphics can extend timelines; I put my heart into every frame.
             </p>
 
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
