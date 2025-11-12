@@ -166,6 +166,16 @@ export default function OnboardingPage() {
       }).parse(data);
 
       const r = estimate(parsed as any);
+      
+      // Track conversion in Google Analytics
+      if (typeof window !== 'undefined' && typeof (window as any).gtag !== 'undefined') {
+        (window as any).gtag('event', 'form_submit', {
+          'event_category': 'engagement',
+          'event_label': 'onboarding_brief',
+          'value': r.tier,
+        });
+      }
+      
       setResult(r);
     } catch (e: any) {
       const fieldErrors = e?.errors || [];

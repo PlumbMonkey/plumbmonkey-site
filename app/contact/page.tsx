@@ -40,6 +40,13 @@ export default function ContactPage() {
       // If we got here, the request succeeded - show success message
       // Formspree returns 200 on success
       if (response.status === 200 || response.ok || responseData.ok) {
+        // Track conversion in Google Analytics
+        if (typeof window !== 'undefined' && typeof (window as any).gtag !== 'undefined') {
+          (window as any).gtag('event', 'form_submit', {
+            'event_category': 'engagement',
+            'event_label': 'contact_form',
+          });
+        }
         setStatusMessage("Message sent! I'll get back to you within 24 hours.");
         setIsError(false);
         e.currentTarget.reset();

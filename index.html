@@ -298,6 +298,13 @@
           // If we got here, the request succeeded - show success message
           // Formspree returns 200 on success
           if (response.status === 200 || response.ok || responseData.ok) {
+            // Track conversion in Google Analytics
+            if (typeof gtag !== 'undefined') {
+              gtag('event', 'form_submit', {
+                'event_category': 'engagement',
+                'event_label': 'contact_form',
+              });
+            }
             statusDiv.innerHTML = '<div style="color: #14b8a6; background: rgba(20, 184, 166, 0.1); padding: 12px; border-radius: 6px;">Message sent! I\'ll get back to you within 24 hours.</div>';
             form.reset();
           } else {
