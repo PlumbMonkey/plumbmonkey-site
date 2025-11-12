@@ -1,3 +1,9 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Plumbmonkey | Professional Video Editing Services",
+  description: "Fast, affordable video editing with transparent pricing. From YouTube videos to promotional content, we deliver cinematic quality on your timeline.",
+};
 
 export default function HomePage() {
   return (
