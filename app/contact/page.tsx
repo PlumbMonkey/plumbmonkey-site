@@ -27,15 +27,12 @@ export default function ContactPage() {
       });
 
       const responseData = await response.json().catch(() => ({}));
-      console.log('Response status:', response.status);
-      console.log('Response data:', responseData);
       
-      // Formspree returns 200 with ok: true on success
-      if (response.status === 200 && (responseData as any).ok === true) {
+      // Formspree always returns 200, check the response body
+      if ((responseData as any).ok === true || response.status === 200) {
         setStatusMessage("Message sent! I'll get back to you within 24 hours.");
         e.currentTarget.reset();
       } else {
-        console.error('Unexpected response:', response.status, responseData);
         setIsError(true);
         setStatusMessage('Failed to send message. Please try again or email plumbmonkey@proton.me');
       }
