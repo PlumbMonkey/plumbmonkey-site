@@ -284,14 +284,21 @@
             }
           });
           
-          if (response.ok) {
+          const responseData = await response.json().catch(() => ({}));
+          console.log('Response status:', response.status);
+          console.log('Response ok:', response.ok);
+          console.log('Response data:', responseData);
+          
+          // Formspree returns 200 with ok: true on success
+          if (response.status === 200 && responseData.ok === true) {
             statusDiv.innerHTML = '<div style="color: #14b8a6; background: rgba(20, 184, 166, 0.1); padding: 12px; border-radius: 6px;">Message sent! I\'ll get back to you within 24 hours.</div>';
             form.reset();
           } else {
+            console.error('Unexpected response:', response.status, responseData);
             statusDiv.innerHTML = '<div style="color: #f87171; background: rgba(248, 113, 113, 0.1); padding: 12px; border-radius: 6px;">Failed to send. Please email plumbmonkey@proton.me</div>';
           }
         } catch (error) {
-          console.error('Error:', error);
+          console.error('Fetch error:', error);
           statusDiv.innerHTML = '<div style="color: #f87171; background: rgba(248, 113, 113, 0.1); padding: 12px; border-radius: 6px;">Error sending message. Please email plumbmonkey@proton.me</div>';
         } finally {
           submitBtn.disabled = false;
