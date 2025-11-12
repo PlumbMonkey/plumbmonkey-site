@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 export default function HomePage() {
   return (
@@ -8,18 +7,18 @@ export default function HomePage() {
         Professional video editing, transparent pricing, and honest timelines.
       </p>
       <div className="flex flex-col sm:flex-row gap-4 justify-center">
-        <Link
-          href="/pricing-scope"
+        <a
+          href="/pricing-scope.html"
           className="px-6 py-3 rounded-lg bg-teal-600 text-white font-semibold text-lg hover:bg-teal-500 transition"
         >
           View Pricing
-        </Link>
-        <Link
-          href="/onboarding"
+        </a>
+        <a
+          href="/onboarding.html"
           className="px-6 py-3 rounded-lg bg-purple-600 text-white font-semibold text-lg hover:bg-purple-500 transition"
         >
           Start a Project
-        </Link>
+        </a>
         <a
           href="https://plumbmonkey.gumroad.com/"
           target="_blank"
