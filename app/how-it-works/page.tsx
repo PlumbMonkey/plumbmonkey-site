@@ -11,8 +11,6 @@ export default function HowItWorksPage() {
       title: "Choose Your Package",
       description:
         "Start by selecting a service tier that fits your project — from a simple edit to a full cinematic buildout. Each package clearly lists what's included so you know exactly what you're getting.",
-      cta: "View Pricing",
-      ctaHref: "/pricing-scope",
     },
     {
       number: 2,
@@ -20,8 +18,6 @@ export default function HowItWorksPage() {
       title: "Submit Your Brief",
       description:
         "Fill out the guided form — this captures your goals, tone, target audience, and examples you love. It's designed to eliminate miscommunication and give me everything I need to start right.",
-      cta: "Start Your Brief",
-      ctaHref: "/onboarding",
     },
     {
       number: 3,
@@ -29,8 +25,6 @@ export default function HowItWorksPage() {
       title: "Approve Estimate & Schedule",
       description:
         "Once I review your brief, you'll receive a personalized estimate with a transparent timeline. Confirm, pay your deposit, and lock in your production slot.",
-      cta: "Get Estimate",
-      ctaHref: "/onboarding",
     },
     {
       number: 4,
@@ -45,8 +39,6 @@ export default function HowItWorksPage() {
       title: "Review & Delivery",
       description:
         "You'll receive a preview cut or final deliverable for review. One round of revisions (depending on your package), then final files are delivered via secure link — ready to launch.",
-      cta: "Start Your Project",
-      ctaHref: "/onboarding",
     },
   ];
 
@@ -61,20 +53,6 @@ export default function HowItWorksPage() {
           <p className="text-lg md:text-xl text-zinc-300 mb-8">
             No jargon. No confusion. Just creation.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/onboarding"
-              className="inline-block px-8 py-4 rounded-lg bg-teal-500 text-zinc-950 font-semibold hover:bg-teal-400 transition"
-            >
-              Start Your Brief
-            </Link>
-            <Link
-              href="/pricing-scope"
-              className="inline-block px-8 py-4 rounded-lg border border-teal-500 text-teal-400 font-semibold hover:bg-teal-500/10 transition"
-            >
-              Browse Packages
-            </Link>
-          </div>
         </div>
       </section>
 
@@ -115,16 +93,6 @@ export default function HowItWorksPage() {
                         <p className="text-lg text-zinc-300 leading-relaxed">
                           {step.description}
                         </p>
-                        {step.cta && (
-                          <div className="pt-4">
-                            <Link
-                              href={step.ctaHref}
-                              className="inline-flex items-center px-6 py-3 rounded-lg bg-zinc-800 text-teal-400 font-semibold hover:bg-zinc-700 hover:text-teal-300 transition border border-zinc-700 hover:border-teal-500"
-                            >
-                              {step.cta} →
-                            </Link>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
