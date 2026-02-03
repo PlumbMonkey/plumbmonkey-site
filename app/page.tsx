@@ -20,7 +20,7 @@ export default function HomePage() {
           View Pricing
         </a>
         <a
-          href="/onboarding.html"
+          href="/onboarding/orientation"
           className="px-6 py-3 rounded-lg bg-purple-600 text-white font-semibold text-lg hover:bg-purple-500 transition"
         >
           Start a Project

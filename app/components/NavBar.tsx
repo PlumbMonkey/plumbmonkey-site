@@ -17,7 +17,7 @@ export default function NavBar() {
           <a href="https://plumbmonkey.gumroad.com/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-400">
             Shop
           </a>
-          <a href="/onboarding.html" className="hover:text-teal-400">
+          <a href="/onboarding/orientation" className="hover:text-teal-400">
             Start a Project
           </a>
           <a href="/upload.html" className="hover:text-teal-400">
