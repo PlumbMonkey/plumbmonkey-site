@@ -45,6 +45,11 @@ export default function OrientationPage() {
       }
 
       if (response.status === 200 || response.ok || responseData.ok) {
+        // Debug logging
+        console.log("Orientation submitted successfully");
+        console.log("Response status:", response.status);
+        console.log("Redirecting to /onboarding.html in 2 seconds");
+
         // Track conversion in Google Analytics
         if (typeof window !== "undefined" && typeof (window as any).gtag !== "undefined") {
           (window as any).gtag("event", "orientation_submit", {
@@ -58,6 +63,7 @@ export default function OrientationPage() {
 
         // Redirect to project brief after 2 seconds
         setTimeout(() => {
+          console.log("Executing redirect to /onboarding.html");
           window.location.href = "/onboarding.html";
         }, 2000);
       } else {
