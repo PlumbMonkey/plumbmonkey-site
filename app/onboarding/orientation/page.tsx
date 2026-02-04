@@ -5,6 +5,9 @@ import OrientationQuestionnaire from "@/app/components/OrientationQuestionnaire"
 import { formatQuestionnaireForEmail } from "@/lib/intake/questionnaireFormatter";
 import type { QuestionnaireInput } from "@/lib/intake/schema";
 
+// Ensure this route is statically exported
+export const dynamic = "force-static";
+
 export default function OrientationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
