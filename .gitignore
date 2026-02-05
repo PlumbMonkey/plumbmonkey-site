@@ -133,4 +133,8 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Next.js and build artifacts
 out/
+.next/
+_next/
