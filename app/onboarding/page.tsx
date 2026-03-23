@@ -19,6 +19,36 @@ type Platforms = {
 };
 
 const STORAGE_KEY = "pm_onboarding_draft_v1";
+const ORIENTATION_KEY = "plumbmonkey_orientation_final";
+
+const TIER_LABELS: Record<string, string> = {
+  budget: "Clean Cut ($150–$350)",
+  pro: "Impact Cut ($350–$900)",
+  super: "Cinematic / Ghost Circuit ($900–$3,500+)",
+  bid: "Custom Bid — I'll reach out with a detailed quote",
+};
+
+const PLATFORM_DISPLAY: Record<string, string> = {
+  youtube: "YouTube",
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  facebook: "Facebook",
+  website: "Website",
+};
+
+// Map orientation questionnaire platform strings → brief platform keys
+function orientationPlatformsToBrief(arr: string[]): Partial<Record<string, boolean>> {
+  const out: Record<string, boolean> = {};
+  arr.forEach((p) => {
+    const lp = p.toLowerCase();
+    if (lp.includes("youtube")) out.youtube = true;
+    if (lp.includes("instagram")) out.instagram = true;
+    if (lp.includes("tiktok")) out.tiktok = true;
+    if (lp.includes("facebook")) out.facebook = true;
+    if (lp.includes("website")) out.website = true;
+  });
+  return out;
+}
 
 const tierDefaults: Record<Tier, Partial<z.infer<typeof IntakeSchema>>> = {
   essential: {
@@ -104,27 +134,47 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
 
   // -------------------------
-  // Draft: LOAD once on mount
+  // Draft: LOAD once on mount (also pre-populates from orientation if no draft)
   // -------------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw);
+      const draft = raw ? JSON.parse(raw) : null;
 
-      if (draft.data) setData((d: any) => ({ ...d, ...draft.data }));
-      if (typeof draft.story === "string") setStory(draft.story);
-      if (draft.platforms) setPlatforms((p) => ({ ...p, ...draft.platforms }));
-      if (Array.isArray(draft.aspectRatios)) setAspectRatios(draft.aspectRatios);
-      if (typeof draft.brandLinks === "string") setBrandLinks(draft.brandLinks);
-      if (typeof draft.musicLinks === "string") setMusicLinks(draft.musicLinks);
-      if (draft.contactPref === "phone" || draft.contactPref === "zoom")
+      if (draft?.data) setData((d: any) => ({ ...d, ...draft.data }));
+      if (typeof draft?.story === "string") setStory(draft.story);
+      if (draft?.platforms) setPlatforms((p) => ({ ...p, ...draft.platforms }));
+      if (Array.isArray(draft?.aspectRatios)) setAspectRatios(draft.aspectRatios);
+      if (typeof draft?.brandLinks === "string") setBrandLinks(draft.brandLinks);
+      if (typeof draft?.musicLinks === "string") setMusicLinks(draft.musicLinks);
+      if (draft?.contactPref === "phone" || draft?.contactPref === "zoom")
         setContactPref(draft.contactPref);
+
+      // If no draft exists, try to pre-populate platforms from orientation questionnaire
+      if (!draft) {
+        const orientationRaw = localStorage.getItem(ORIENTATION_KEY);
+        if (orientationRaw) {
+          const orientation = JSON.parse(orientationRaw);
+          if (Array.isArray(orientation.platforms) && orientation.platforms.length > 0) {
+            const mapped = orientationPlatformsToBrief(orientation.platforms);
+            setPlatforms((p) => ({ ...p, ...mapped }));
+          }
+          // Pre-populate purpose from coreReason if no draft
+          if (orientation.coreReason) {
+            setData((d: any) => ({ ...d, purpose: d.purpose || orientation.coreReason }));
+          }
+        }
+      }
     } catch {
       /* ignore */
     }
   }, []);
+
+  // Sync multiAspect flag whenever aspectRatios changes
+  useEffect(() => {
+    setData((d: any) => ({ ...d, multiAspect: aspectRatios.length > 1 }));
+  }, [aspectRatios]);
 
   // -------------------------
   // Draft: SAVE (debounced)
@@ -357,23 +407,26 @@ export default function OnboardingPage() {
                 {showAdvanced ? "Hide advanced" : "Show advanced options"}
               </button>
 
+              {/* Motion graphics — always visible since it directly affects tier */}
+              <div className="grid sm:grid-cols-2 gap-4">
+                <label className="block">
+                  <span className="text-sm font-medium">Motion graphics / animation</span>
+                  <select
+                    className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-zinc-50 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    value={data.motionGraphics}
+                    onChange={(e) =>
+                      setData((d: any) => ({ ...d, motionGraphics: e.target.value }))
+                    }
+                  >
+                    <option value="none">none</option>
+                    <option value="titles">titles / lower-thirds</option>
+                    <option value="designed">designed / animated package</option>
+                  </select>
+                </label>
+              </div>
+
               {showAdvanced && (
                 <div className="grid sm:grid-cols-2 gap-4">
-                  <label className="block">
-                    <span className="text-sm font-medium">Motion graphics</span>
-                    <select
-                      className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-zinc-50 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      value={data.motionGraphics}
-                      onChange={(e) =>
-                        setData((d: any) => ({ ...d, motionGraphics: e.target.value }))
-                      }
-                    >
-                      <option value="none">none</option>
-                      <option value="titles">titles / lower-thirds</option>
-                      <option value="designed">designed package</option>
-                    </select>
-                  </label>
-
                   <label className="block">
                     <span className="text-sm font-medium">Security blur</span>
                     <select
@@ -508,8 +561,24 @@ export default function OnboardingPage() {
               Estimated timeline: <b>{result.estDays} day(s)</b>
             </p>
             <p className="mt-1">
-              Recommended tier: <b>{result.tier}</b>
+              Recommended tier: <b>{TIER_LABELS[result.tier] ?? result.tier}</b>
             </p>
+            {result.tier === "budget" &&
+              /music|animat|motion/i.test(data.purpose) && (
+              <p className="mt-3 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3">
+                Heads up: music videos and animated projects typically fall under the{" "}
+                <strong>Cinematic / Ghost Circuit</strong> tier ($900–$3,500+). Select motion
+                graphics above or{" "}
+                <a href="/contact.html" className="underline">get a free consultation</a>{" "}
+                for an accurate quote.
+              </p>
+            )}
+            {result.path === "bid" && (
+              <p className="mt-3 text-sm text-purple-300 bg-purple-500/10 border border-purple-500/30 rounded-lg px-4 py-3">
+                This project needs a custom quote. I'll review the details and send you a
+                personalised breakdown — no obligation.
+              </p>
+            )}
             <p className="mt-4 text-sm text-zinc-400">
               Two revisions included. Heavier VFX/motion graphics can extend timelines; I put my heart into every frame.
             </p>
@@ -544,11 +613,13 @@ export default function OnboardingPage() {
                 Platforms:{" "}
                 {Object.entries(platforms)
                   .filter(([k, v]) => typeof v === "boolean" && v)
-                  .map(([k]) => k)
+                  .map(([k]) => PLATFORM_DISPLAY[k] ?? k)
                   .concat(platforms.other ? [platforms.other] : [])
                   .join(", ") || "—"}
               </div>
-              <div>Aspect ratios: {aspectRatios.length > 0 ? aspectRatios.join(", ") : "—"}</div>
+              <div>
+                Aspect ratios: {aspectRatios.length > 0 ? aspectRatios.join(", ") : "—"}
+              </div>
               <div>Branding: {brandLinks || "—"}</div>
               <div>Music: {musicLinks || "—"}</div>
               <div>Contact: {contactPref}</div>

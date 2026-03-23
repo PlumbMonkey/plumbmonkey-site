@@ -58,10 +58,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     address: {
       "@type": "PostalAddress",
       streetAddress: "",
-      addressLocality: "",
-      addressRegion: "",
+      addressLocality: "Calgary",
+      addressRegion: "AB",
       postalCode: "",
-      addressCountry: "US",
+      addressCountry: "CA",
     },
     sameAs: ["https://plumbmonkey.gumroad.com/"],
     offers: [

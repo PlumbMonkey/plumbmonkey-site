@@ -28,7 +28,14 @@ export function estimate(input: IntakeInput): Estimation {
   if (input.audioCleanup) mult *= 1.2;
   if (input.multiAspect) mult *= 1.15;
 
-  const estDays = Math.max(1, Math.ceil(baseDays * mult));
+  // Projects with VFX or motion graphics have a minimum production floor
+  const hasComplexity =
+    input.vfx !== "none" ||
+    input.motionGraphics !== "none" ||
+    input.color === "stylized";
+  const minDays = hasComplexity ? 2 : 1;
+
+  const estDays = Math.max(minDays, Math.ceil(baseDays * mult));
 
   let tier: Estimation["tier"] = "budget";
   if (input.rawMinutes <= 30 && input.vfx === "none" && input.motionGraphics === "none") tier = "budget";

@@ -56,7 +56,7 @@ export default function SalesHubPage() {
               View Service Pricing
             </Link>
             <Link
-              href="/onboarding"
+              href="/onboarding/orientation"
               className="inline-block px-8 py-4 rounded-lg border border-teal-500 text-teal-400 font-semibold hover:bg-teal-500/10 transition"
             >
               Book Creative Time
@@ -168,7 +168,7 @@ export default function SalesHubPage() {
               Start Shopping
             </Link>
             <Link
-              href="/onboarding"
+              href="/onboarding/orientation"
               className="inline-block px-8 py-3 rounded-lg border border-teal-500 text-teal-400 font-semibold hover:bg-teal-500/10 transition"
             >
               Book a Consultation

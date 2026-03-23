@@ -12,6 +12,9 @@ export default function HomePage() {
       <p className="text-lg text-zinc-400 mb-8 max-w-2xl">
         Professional video editing, transparent pricing, and honest timelines.
       </p>
+      <p className="text-sm text-zinc-500 mb-10 max-w-xl">
+        MIDI packs, music loops, producer tools, 3D assets, and more. New releases regularly added.
+      </p>
       <div className="flex flex-col sm:flex-row gap-4 justify-center">
         <a
           href="/pricing-scope.html"
@@ -31,7 +34,7 @@ export default function HomePage() {
           rel="noopener noreferrer"
           className="px-6 py-3 rounded-lg bg-orange-600 text-white font-semibold text-lg hover:bg-orange-500 transition"
         >
-          Shop Digital Tools
+          Visit the Plumbmonkey Store
         </a>
       </div>
     </main>

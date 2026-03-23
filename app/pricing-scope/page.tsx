@@ -45,6 +45,7 @@ export default function PricingScopePage() {
           <p className="text-lg sm:text-xl text-zinc-300 mb-10 max-w-2xl mx-auto leading-relaxed">
             Your story deserves precision, not guesswork. Choose your speed, your depth, and your impact.
           </p>
+          <p className="text-sm text-zinc-500">Based in Calgary, AB</p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -105,6 +106,10 @@ export default function PricingScopePage() {
                   <span className="text-orange-400 mr-3 mt-0.5">✓</span>
                   <span>Export in 1080/4K</span>
                 </li>
+                <li className="flex items-start text-sm text-zinc-300">
+                  <span className="text-orange-400 mr-3 mt-0.5">✓</span>
+                  <span>Turnaround: 3–5 business days</span>
+                </li>
               </ul>
 
               <p className="text-xs text-zinc-400 italic mb-6">
@@ -117,6 +122,14 @@ export default function PricingScopePage() {
               >
                 Get Started
               </Link>
+              <a
+                href="https://buy.stripe.com/dRmfZi6JV60tbFD5KhcEw02"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-center py-3 px-4 rounded-lg border border-orange-500 text-orange-400 font-semibold hover:bg-orange-500/10 transition-all mt-3"
+              >
+                Book This Package
+              </a>
             </div>
 
             {/* CARD 2: IMPACT CUT */}
@@ -174,6 +187,14 @@ export default function PricingScopePage() {
               >
                 Request Quote
               </Link>
+              <a
+                href="https://buy.stripe.com/aFa28s8S388B8tr2y5cEw03"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-center py-3 px-4 rounded-lg border border-orange-500 text-orange-400 font-semibold hover:bg-orange-500/10 transition-all mt-3"
+              >
+                Book This Package
+              </a>
             </div>
 
             {/* CARD 3: SIGNATURE */}
@@ -225,6 +246,15 @@ export default function PricingScopePage() {
               >
                 Let's Talk
               </Link>
+              <a
+                href="https://buy.stripe.com/00waEY1pBcoReRPa0xcEw04"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-center py-3 px-4 rounded-lg border border-orange-500 text-orange-400 font-semibold hover:bg-orange-500/10 transition-all mt-3"
+              >
+                Book This Package
+              </a>
+              <p className="text-xs text-zinc-400 mt-2 text-center">50% deposit to begin. Balance due on delivery.</p>
             </div>
           </div>
         </div>
@@ -259,6 +289,17 @@ export default function PricingScopePage() {
                 )}
               </div>
             ))}
+          </div>
+
+          <div className="mt-10 text-center">
+            <a
+              href="https://buy.stripe.com/8x29AUb0bdsV7pndcJcEw05"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-8 py-4 rounded-lg border border-orange-500 text-orange-400 font-bold hover:bg-orange-500/10 transition-all"
+            >
+              Add-Ons & Rush
+            </a>
           </div>
         </div>
       </section>
