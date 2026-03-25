@@ -85,9 +85,9 @@ export default function OnboardingPage() {
   const urlTier = useMemo<Tier | null>(() => {
     if (typeof window === "undefined") return null;
     const t = new URLSearchParams(window.location.search).get("tier")?.toLowerCase();
-    if (t === "essential" || t === "budget") return "essential";
-    if (t === "pro") return "pro";
-    if (t === "super") return "super";
+    if (t === "essential" || t === "budget" || t === "clean-cut") return "essential";
+    if (t === "pro" || t === "impact-cut") return "pro";
+    if (t === "super" || t === "signature" || t === "cinematic") return "super";
     return null;
   }, []);
 
@@ -586,7 +586,7 @@ export default function OnboardingPage() {
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
               {result.path === "standard" && (
                 <a
-                  href="/booking.html"
+                  href={`/booking.html?tier=${result.tier}`}
                   className="inline-flex items-center justify-center rounded-lg border border-zinc-700 px-5 py-2.5 font-medium"
                 >
                   Book a production slot
