@@ -69,9 +69,11 @@ let gameRunning = false, gameOver = false;
 let magicField = 0; // frames remaining
 let keys = {};
 
-// Player
+// Player — starts mid-maze in the open corridor (row 9 is fully open),
+// far from all four monster home corners
+const PLAYER_START = { x: 10.5 * CELL, y: 9.5 * CELL }; // open corridor, away from power crystals & monster corners
 const player = {
-  x: 1.5 * CELL, y: 1.5 * CELL,
+  x: PLAYER_START.x, y: PLAYER_START.y,
   r: 9, speed: 2.4,
   dir: {x:0,y:0}, nextDir: {x:0,y:0}
 };
@@ -136,7 +138,7 @@ function spawnMonsters() {
 function startGame() {
   score = 0; lives = 3; level = 1; magicField = 0;
   buildMaze();
-  player.x = 1.5 * CELL; player.y = 1.5 * CELL;
+  player.x = PLAYER_START.x; player.y = PLAYER_START.y;
   player.dir = {x:0,y:0}; player.nextDir = {x:0,y:0};
   spawnMonsters();
   gameRunning = true; gameOver = false;
@@ -147,7 +149,7 @@ function startGame() {
 function nextLevel() {
   level++;
   buildMaze();
-  player.x = 1.5 * CELL; player.y = 1.5 * CELL;
+  player.x = PLAYER_START.x; player.y = PLAYER_START.y;
   player.dir = {x:0,y:0}; player.nextDir = {x:0,y:0};
   spawnMonsters();
   magicField = 0;
@@ -160,12 +162,12 @@ window.addEventListener('keydown', e => {
   initAudio();
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
-  if ((e.code === 'Space' || e.code === 'Enter') && !gameRunning && !gameOver) startGame();
+  if ((e.code === 'Space' || e.code === 'Enter') && !gameRunning) startGame();
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 document.getElementById('startOverlay').addEventListener('click', () => {
   initAudio();
-  if (!gameRunning && !gameOver) startGame();
+  if (!gameRunning) startGame();
 });
 
 // ---------- Update ----------
@@ -278,9 +280,10 @@ function update() {
         // player hurt
         lives--;
         sfx.hurt();
-        player.x = 1.5 * CELL; player.y = 1.5 * CELL;
+        player.x = PLAYER_START.x; player.y = PLAYER_START.y;
         player.dir = {x:0,y:0};
         magicField = 0;
+        spawnMonsters(); // send monsters back to their corners
         updateHUD();
         if (lives <= 0) {
           gameOver = true;
@@ -423,6 +426,11 @@ function updateHUD() {
 }
 
 // ---------- Loop ----------
+// Build the maze immediately so the first draw() has data
+// (previously maze was empty until Start, crashing the loop on frame one)
+buildMaze();
+spawnMonsters();
+
 function loop() {
   update();
   draw();

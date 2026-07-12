@@ -55,14 +55,55 @@ function playNoise(duration, vol = 0.06) {
   noise.start();
 }
 
+// Big laser cannon: noise crack + exponential pitch dive + detuned sub layer
+function playLaserCannon() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const f0 = 1900 + Math.random() * 400; // slight variation per shot
+
+  // main zap — fast exponential dive
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(160, t + 0.09);
+  g.gain.setValueAtTime(0.075, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+  const hp = audioCtx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 250;
+  o.connect(hp); hp.connect(g); g.connect(audioCtx.destination);
+  o.start(t); o.stop(t + 0.12);
+
+  // detuned body layer — gives the shot weight
+  const o2 = audioCtx.createOscillator();
+  const g2 = audioCtx.createGain();
+  o2.type = 'square';
+  o2.frequency.setValueAtTime(f0 * 0.51, t);
+  o2.frequency.exponentialRampToValueAtTime(90, t + 0.07);
+  g2.gain.setValueAtTime(0.04, t);
+  g2.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  o2.connect(g2); g2.connect(audioCtx.destination);
+  o2.start(t); o2.stop(t + 0.09);
+
+  // muzzle crack — tiny high-passed noise transient
+  const len = Math.floor(audioCtx.sampleRate * 0.03);
+  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const n = audioCtx.createBufferSource();
+  n.buffer = buf;
+  const nhp = audioCtx.createBiquadFilter();
+  nhp.type = 'highpass'; nhp.frequency.value = 2500;
+  const ng = audioCtx.createGain();
+  ng.gain.setValueAtTime(0.06, t);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+  n.connect(nhp); nhp.connect(ng); ng.connect(audioCtx.destination);
+  n.start(t);
+}
+
 // Sound presets
 const sfx = {
-  // Sharper classic neon laser — high click + fast pitch drop
-  shoot: () => {
-    playTone(1400, 0.035, 'square', 0.055, -900);
-    playTone(2100, 0.02, 'square', 0.03, -1200);
-    playTone(880, 0.04, 'triangle', 0.02, -400);
-  },
+  shoot: playLaserCannon,
   heavy: () => {
     playTone(180, 0.15, 'sawtooth', 0.07, -80);
     playNoise(0.1, 0.04);

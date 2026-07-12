@@ -5,24 +5,66 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Spectral Manor Infestation | Ghost Circuit</title>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { background:#07040f; color:#e0d4ff; font-family:system-ui,sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; }
-    h1 { font-size:1.5rem; letter-spacing:2px; text-shadow:0 0 16px #c084fc; margin-bottom:0.3rem; }
-    .sub { color:#a78bfa; font-size:0.85rem; margin-bottom:1rem; }
-    #c { border:2px solid #7c3aed; box-shadow:0 0 40px rgba(124,58,237,0.4); }
-    .note { max-width:520px; text-align:center; margin-top:1rem; font-size:0.85rem; color:#9ca3af; line-height:1.5; }
-    .note code { background:#1a1025; padding:2px 6px; border-radius:4px; color:#c084fc; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #07040f;
+      color: #e0d4ff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+    h1 { font-size: 1.5rem; letter-spacing: 3px; text-shadow: 0 0 18px #c084fc; margin-bottom: 0.15rem; }
+    .subtitle { font-size: 0.8rem; color: #a78bfa; margin-bottom: 0.6rem; }
+    #gameCanvas {
+      border: 2px solid #7c3aed;
+      box-shadow: 0 0 45px rgba(124, 58, 237, 0.45);
+      background: #0a0614;
+      max-width: 100%;
+    }
+    .hud { display: flex; gap: 1.5rem; margin-top: 0.6rem; font-size: 0.92rem; font-weight: 600; }
+    .hud span { color: #c084fc; }
+    .controls { margin-top: 0.6rem; font-size: 0.75rem; color: #9ca3af; text-align: center; line-height: 1.45; }
+    .start-overlay {
+      position: absolute; inset: 0; background: rgba(7, 4, 15, 0.92);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 10; cursor: pointer;
+    }
+    .start-overlay h2 { font-size: 1.9rem; color: #c084fc; text-shadow: 0 0 22px #c084fc; margin-bottom: 0.5rem; }
+    .start-overlay p { color: #d8b4fe; margin: 0.2rem 0; font-size: 0.95rem; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
   <h1>SPECTRAL MANOR INFESTATION</h1>
-  <div class="sub">Wave 2 Starter · Centipede Style · Ghost Circuit</div>
-  <canvas id="c" width="960" height="540"></canvas>
-  <div class="note">
-    <p><strong>Starter scaffold</strong> — player at bottom, basic Hauntipede segments, shooting.</p>
-    <p>Open this folder in VS Code and paste the <code>Spectral Manor Infestation</code> prompt from <code>PROMPTS.md</code> into Grok Build to turn it into a full Centipede-style game with splitting segments, haunted toadstools, and more bugs.</p>
-    <p>Controls (current): ← → move · Space shoot</p>
+  <div class="subtitle">Ghost Circuit · Haunted Grounds · Hauntipede</div>
+
+  <div style="position:relative">
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div id="startOverlay" class="start-overlay">
+      <h2>INFESTATION</h2>
+      <p>The Hauntipede descends through the toadstool field.</p>
+      <p>Shoot a segment and it splits — and leaves a toadstool behind.</p>
+      <p>Watch for the Gravekeeper Ghost drifting through your zone.</p>
+      <p style="margin-top:0.8rem; opacity:0.75; font-size:0.85rem">Click or SPACE to start</p>
+    </div>
   </div>
+
+  <div class="hud">
+    <div>SCORE: <span id="score">0</span></div>
+    <div>LIVES: <span id="lives">3</span></div>
+    <div>LEVEL: <span id="level">1</span></div>
+  </div>
+
+  <div class="controls">
+    WASD / Arrows : Move (lower zone) &nbsp;&nbsp;•&nbsp;&nbsp; Space : Fire<br>
+    Head = 100 pts · Segment = 10 pts · Ghost = 300 pts · Clear the Hauntipede to advance
+  </div>
+
   <script src="game.js"></script>
 </body>
 </html>

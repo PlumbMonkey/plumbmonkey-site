@@ -95,12 +95,12 @@ window.addEventListener('keydown', e => {
   initAudio();
   keys[e.code]=true;
   if (e.code==='Space') e.preventDefault();
-  if ((e.code==='Space'||e.code==='Enter') && !gameRunning && !gameOver) startGame();
+  if ((e.code==='Space'||e.code==='Enter') && !gameRunning) startGame();
 });
 window.addEventListener('keyup', e => keys[e.code]=false);
 document.getElementById('startOverlay').addEventListener('click', () => {
   initAudio();
-  if (!gameRunning && !gameOver) startGame();
+  if (!gameRunning) startGame();
 });
 
 function fire() {
@@ -436,6 +436,10 @@ function updateHUD() {
   document.getElementById('lives').textContent = lives;
   document.getElementById('wave').textContent = wave;
 }
+
+// Create the ship immediately so the first draw() has data
+// (previously ship was undefined until Start, crashing the loop on frame one)
+resetShip();
 
 function loop() {
   update();
