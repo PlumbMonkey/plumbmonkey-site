@@ -57,9 +57,11 @@ function playNoise(duration, vol = 0.06) {
 
 // Sound presets
 const sfx = {
+  // Sharper classic neon laser — high click + fast pitch drop
   shoot: () => {
-    playTone(880, 0.07, 'square', 0.05, -400);
-    playTone(440, 0.05, 'triangle', 0.03);
+    playTone(1400, 0.035, 'square', 0.055, -900);
+    playTone(2100, 0.02, 'square', 0.03, -1200);
+    playTone(880, 0.04, 'triangle', 0.02, -400);
   },
   heavy: () => {
     playTone(180, 0.15, 'sawtooth', 0.07, -80);
@@ -82,13 +84,18 @@ const sfx = {
     setTimeout(() => playTone(659, 0.08, 'square', 0.06), 70);
     setTimeout(() => playTone(784, 0.12, 'square', 0.07), 140);
   },
+  // Happy rising arpeggio on successful rescue (C–E–G–C)
   rescue: () => {
-    playTone(440, 0.1, 'triangle', 0.06);
-    setTimeout(() => playTone(554, 0.1, 'triangle', 0.06), 80);
-    setTimeout(() => playTone(659, 0.15, 'triangle', 0.07), 160);
+    playTone(523.25, 0.07, 'square', 0.055);
+    setTimeout(() => playTone(659.25, 0.07, 'square', 0.055), 55);
+    setTimeout(() => playTone(783.99, 0.07, 'square', 0.06), 110);
+    setTimeout(() => playTone(1046.5, 0.16, 'triangle', 0.07), 165);
   },
+  // Low descending tone when a fan is fully abducted
   abduct: () => {
-    playTone(300, 0.3, 'sawtooth', 0.05, -200);
+    playTone(240, 0.5, 'sawtooth', 0.055, -170);
+    playTone(120, 0.55, 'triangle', 0.04, -70);
+    playTone(90, 0.4, 'sine', 0.03, -40);
   },
   gameOver: () => {
     playTone(300, 0.2, 'sawtooth', 0.07, -50);
@@ -104,6 +111,27 @@ let gameRunning = false;
 let gameOver = false;
 let keys = {};
 let deathBlast = null; // dramatic full-screen death explosion
+
+// ---------- Screen Shake (death + rescue feel) ----------
+// shake.intensity decays each frame while duration counts down
+let shake = { x: 0, y: 0, intensity: 0, duration: 0 };
+
+function triggerShake(intensity, duration) {
+  // Keep the stronger shake if one is already active
+  if (intensity >= shake.intensity || shake.duration <= 0) {
+    shake.intensity = intensity;
+    shake.duration = duration;
+  }
+}
+
+// ---------- Parallax scroll offsets (different layer speeds) ----------
+// stars: very slow | hillsFar: slow | manor: medium | ground: fastest
+const parallax = {
+  stars: 0,
+  hillsFar: 0,
+  manor: 0,
+  ground: 0
+};
 
 // ---------- Player ----------
 const player = {
@@ -126,9 +154,9 @@ let bullets = [];
 let enemies = [];
 let particles = [];
 let trails = [];     // engine trail particles
+let laserTrails = []; // short neon trail particles behind lasers
 let fans = [];       // concert fans on the ground (can be abducted)
 let powerups = [];   // floating power-ups
-let groundScroll = 0;
 let rescued = 0;
 let abducted = 0;
 let powerupTimer = 0; // frames until next power-up can spawn
@@ -160,10 +188,19 @@ function startGame() {
   enemies = [];
   particles = [];
   trails = [];
+  laserTrails = [];
   fans = [];
   powerups = [];
   deathBlast = null;
   powerupTimer = 180;
+  shake.x = 0;
+  shake.y = 0;
+  shake.intensity = 0;
+  shake.duration = 0;
+  parallax.stars = 0;
+  parallax.hillsFar = 0;
+  parallax.manor = 0;
+  parallax.ground = 0;
   player.x = 120;
   player.y = H / 2;
   player.bank = 0;
@@ -242,21 +279,21 @@ function fire() {
   const noseX = player.x + 40;
 
   if (player.shotType === 0) {
-    // Dual neon lasers
-    bullets.push({ x: noseX, y: baseY - 7, w: 28, h: 3, speed: 16, type: 'normal' });
-    bullets.push({ x: noseX, y: baseY + 4, w: 28, h: 3, speed: 16, type: 'normal' });
+    // Dual neon lasers — longer Defender-style beams
+    bullets.push({ x: noseX, y: baseY - 7, w: 38, h: 3, speed: 16, type: 'normal' });
+    bullets.push({ x: noseX, y: baseY + 4, w: 38, h: 3, speed: 16, type: 'normal' });
     player.fireCooldown = 7;
     sfx.shoot();
   } else if (player.shotType === 1) {
     // Heavy neon bolt
-    bullets.push({ x: noseX, y: baseY - 3, w: 32, h: 8, speed: 11, type: 'heavy' });
+    bullets.push({ x: noseX, y: baseY - 3, w: 36, h: 8, speed: 11, type: 'heavy' });
     player.fireCooldown = 13;
     sfx.heavy();
   } else {
     // Spread lasers
-    bullets.push({ x: noseX, y: baseY - 2, w: 24, h: 3, speed: 15, type: 'normal', vy: 0 });
-    bullets.push({ x: noseX, y: baseY - 2, w: 22, h: 3, speed: 14, type: 'normal', vy: -2.4 });
-    bullets.push({ x: noseX, y: baseY - 2, w: 22, h: 3, speed: 14, type: 'normal', vy: 2.4 });
+    bullets.push({ x: noseX, y: baseY - 2, w: 30, h: 3, speed: 15, type: 'normal', vy: 0 });
+    bullets.push({ x: noseX, y: baseY - 2, w: 28, h: 3, speed: 14, type: 'normal', vy: -2.4 });
+    bullets.push({ x: noseX, y: baseY - 2, w: 28, h: 3, speed: 14, type: 'normal', vy: 2.4 });
     player.fireCooldown = 11;
     sfx.spread();
   }
@@ -264,7 +301,42 @@ function fire() {
 
 // ---------- Update ----------
 function update() {
-  if (!gameRunning) return;
+  // Screen shake always decays (even during death blast)
+  if (shake.duration > 0) {
+    shake.duration--;
+    shake.x = (Math.random() - 0.5) * shake.intensity;
+    shake.y = (Math.random() - 0.5) * shake.intensity;
+    shake.intensity *= 0.88;
+  } else {
+    shake.x = 0;
+    shake.y = 0;
+    shake.intensity = 0;
+  }
+
+  // Parallax layers keep drifting gently even when paused/over (subtle life)
+  if (gameRunning) {
+    parallax.stars = (parallax.stars + 0.18) % W;
+    parallax.hillsFar = (parallax.hillsFar + 0.55) % (W * 2);
+    parallax.manor = (parallax.manor + 1.05) % (W + 320);
+    parallax.ground = (parallax.ground + 2.4) % 80;
+  }
+
+  if (!gameRunning) {
+    // Still update death blast particles when game freezes on death
+    if (deathBlast) {
+      deathBlast.life--;
+      deathBlast.particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= p.friction;
+        p.vy *= p.friction;
+        p.life--;
+      });
+      deathBlast.particles = deathBlast.particles.filter(p => p.life > 0);
+      if (deathBlast.life <= 0) deathBlast = null;
+    }
+    return;
+  }
 
   // Player movement + banking
   player.vx = 0;
@@ -304,19 +376,33 @@ function update() {
   });
   trails = trails.filter(t => t.life > 0);
 
-  // Bullets (support vy for spread)
+  // Bullets (support vy for spread) + short neon trail particles
   bullets.forEach(b => {
     b.x += b.speed;
     if (b.vy) b.y += b.vy;
+
+    // Optional short trail sparks behind lasers
+    if (Math.random() > 0.45) {
+      laserTrails.push({
+        x: b.x + Math.random() * 6,
+        y: b.y + b.h / 2 + (Math.random() - 0.5) * 2,
+        life: 6 + Math.random() * 5,
+        maxLife: 11,
+        size: b.type === 'heavy' ? 2.5 : 1.5,
+        color: b.type === 'heavy' ? '#ff66cc' : '#67e8f9'
+      });
+    }
   });
   bullets = bullets.filter(b => b.x < W + 30 && b.y > -20 && b.y < H + 20);
 
+  laserTrails.forEach(t => { t.life--; t.x -= 1.5; });
+  laserTrails = laserTrails.filter(t => t.life > 0);
+
   // ---------- Fans & Abduction Logic ----------
-  // Update fans
   fans.forEach(f => {
     if (f.state === 'grabbed' && f.grabber) {
       // Follow the enemy that grabbed them
-      f.x = f.grabber.x + f.grabber.w/2 - 5;
+      f.x = f.grabber.x + f.grabber.w / 2 - 5;
       f.y = f.grabber.y + f.grabber.h + 2;
     } else if (f.state === 'falling') {
       f.fallVy += 0.28;
@@ -344,6 +430,7 @@ function update() {
         e.carrying = null;
         score = Math.max(0, score - 100);
         sfx.abduct();
+        triggerShake(3, 12);
         updateHUD();
       }
     } else if (e.seeking) {
@@ -354,7 +441,7 @@ function update() {
         if (f.state === 'ground') {
           const dx = f.x - e.x;
           const dy = f.y - e.y;
-          const d = Math.sqrt(dx*dx + dy*dy);
+          const d = Math.sqrt(dx * dx + dy * dy);
           if (d < nearestDist) {
             nearestDist = d;
             nearest = f;
@@ -363,9 +450,9 @@ function update() {
       });
       if (nearest && nearestDist < 280) {
         // Move toward the fan
-        const dx = nearest.x - (e.x + e.w/2);
+        const dx = nearest.x - (e.x + e.w / 2);
         const dy = nearest.y - (e.y + e.h);
-        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
         e.x += (dx / dist) * e.speed * 0.9;
         e.y += (dy / dist) * e.speed * 0.9;
 
@@ -391,7 +478,7 @@ function update() {
     enemies.forEach((e, ei) => {
       if (b.x < e.x + e.w && b.x + b.w > e.x &&
           b.y < e.y + e.h && b.y + b.h > e.y) {
-        createExplosion(e.x + e.w/2, e.y + e.h/2, e.type === 'ghost' ? '#c084fc' : '#22d3ee');
+        createExplosion(e.x + e.w / 2, e.y + e.h / 2, e.type === 'ghost' ? '#c084fc' : '#22d3ee');
         sfx.explosion();
 
         // Free the fan if this enemy was carrying one
@@ -403,11 +490,12 @@ function update() {
           score += 250; // big rescue bonus
           rescued++;
           sfx.rescue();
+          triggerShake(4, 14); // light shake on rescue
         }
 
         // Chance to drop a power-up
         if (Math.random() < 0.22) {
-          spawnPowerup(e.x + e.w/2, e.y + e.h/2);
+          spawnPowerup(e.x + e.w / 2, e.y + e.h / 2);
         }
 
         enemies.splice(ei, 1);
@@ -439,7 +527,8 @@ function update() {
 
       if (lives <= 0) {
         // DRAMATIC FULL-SCREEN DEATH BLAST
-        createDeathBlast(player.x + player.w/2, player.y + player.h/2);
+        createDeathBlast(player.x + player.w / 2, player.y + player.h / 2);
+        triggerShake(14, 40);
         sfx.hit();
         sfx.explosion();
         setTimeout(() => sfx.gameOver(), 300);
@@ -456,7 +545,8 @@ function update() {
           `;
         }, 1100);
       } else {
-        createExplosion(player.x + player.w/2, player.y + player.h/2, '#f472b6');
+        createExplosion(player.x + player.w / 2, player.y + player.h / 2, '#f472b6');
+        triggerShake(8, 18);
         sfx.hit();
         player.shieldTimer = 55;
       }
@@ -470,6 +560,8 @@ function update() {
         abducted++;
         const idx = fans.indexOf(e.carrying);
         if (idx > -1) fans.splice(idx, 1);
+        sfx.abduct();
+        triggerShake(3, 12);
       }
       return false;
     }
@@ -498,7 +590,6 @@ function update() {
   }
 
   // ---------- Power-ups ----------
-  // Countdown active power-up
   if (player.powerupTime > 0) {
     player.powerupTime--;
     if (player.powerupTime <= 0) {
@@ -547,9 +638,6 @@ function update() {
     deathBlast.particles = deathBlast.particles.filter(p => p.life > 0);
     if (deathBlast.life <= 0) deathBlast = null;
   }
-
-  // Ground scroll
-  groundScroll = (groundScroll + 2.2) % 60;
 }
 
 function createExplosion(x, y, color) {
@@ -603,31 +691,25 @@ function createDeathBlast(x, y) {
   }
 }
 
-// ---------- Draw ----------
-function draw() {
-  // Background sky
-  ctx.fillStyle = '#0a0612';
-  ctx.fillRect(0, 0, W, H);
+// ============================================================
+// DRAW HELPERS — Parallax layers, pilot, manor
+// ============================================================
 
-  // Distant purple nebula / atmosphere
-  const skyGrad = ctx.createLinearGradient(0, 0, 0, H - 60);
-  skyGrad.addColorStop(0, '#0a0612');
-  skyGrad.addColorStop(0.6, '#130a24');
-  skyGrad.addColorStop(1, '#1a0f2e');
-  ctx.fillStyle = skyGrad;
-  ctx.fillRect(0, 0, W, H - 40);
-
-  // Stars
+/** Layer 0: twinkling stars (very slow scroll) */
+function drawStars() {
   ctx.fillStyle = '#e0d4ff';
-  for (let i = 0; i < 70; i++) {
-    const sx = (i * 97 + groundScroll * 0.25) % W;
-    const sy = (i * 53) % (H - 100);
-    ctx.globalAlpha = 0.25 + (i % 4) * 0.18;
-    ctx.fillRect(sx, sy, 1.5, 1.5);
+  for (let i = 0; i < 80; i++) {
+    const sx = (i * 97 + parallax.stars) % W;
+    const sy = (i * 53) % (H - 110);
+    ctx.globalAlpha = 0.22 + (i % 5) * 0.14;
+    const size = (i % 7 === 0) ? 2 : 1.4;
+    ctx.fillRect(sx, sy, size, size);
   }
   ctx.globalAlpha = 1;
+}
 
-  // Full moon
+/** Full moon (kept, stationary glow) */
+function drawMoon() {
   ctx.beginPath();
   ctx.arc(W - 110, 70, 38, 0, Math.PI * 2);
   ctx.fillStyle = '#e9d5ff';
@@ -637,50 +719,168 @@ function draw() {
   ctx.shadowBlur = 0;
   // moon craters
   ctx.fillStyle = 'rgba(180, 140, 220, 0.25)';
-  ctx.beginPath(); ctx.arc(W - 125, 60, 8, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(W - 100, 80, 6, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(W - 125, 60, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(W - 100, 80, 6, 0, Math.PI * 2); ctx.fill();
+}
 
-  // ===== MANOR SILHOUETTE (distant, right side) =====
-  const manorX = W - 280;
-  const manorBase = H - 95;
-  ctx.fillStyle = '#0d0818';
-  
+/** Layer 1: distant rolling hills (slow scroll) */
+function drawDistantHills() {
+  const baseY = H - 88;
+  ctx.fillStyle = '#10081c';
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  ctx.lineTo(0, baseY);
+  for (let x = 0; x <= W; x += 16) {
+    const y = baseY
+      - Math.sin((x + parallax.hillsFar) * 0.012) * 22
+      - Math.sin((x + parallax.hillsFar) * 0.028) * 10
+      - 8;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, H);
+  ctx.closePath();
+  ctx.fill();
+
+  // Soft ridge highlight
+  ctx.strokeStyle = 'rgba(88, 40, 140, 0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let x = 0; x <= W; x += 16) {
+    const y = baseY
+      - Math.sin((x + parallax.hillsFar) * 0.012) * 22
+      - Math.sin((x + parallax.hillsFar) * 0.028) * 10
+      - 8;
+    if (x === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+
+/**
+ * Layer 2: haunted Victorian manor silhouette on a hill
+ * Medium parallax speed, slightly transparent, 4–6 glowing windows
+ */
+function drawManorSilhouette() {
+  // Manor drifts across at medium speed; wraps past left edge
+  const manorX = W + 40 - parallax.manor;
+  const manorBase = H - 100;
+
+  ctx.save();
+  ctx.globalAlpha = 0.72;
+
+  // Hill under the manor
+  ctx.fillStyle = '#0c0614';
+  ctx.beginPath();
+  ctx.moveTo(manorX - 40, manorBase + 20);
+  ctx.quadraticCurveTo(manorX + 90, manorBase - 18, manorX + 240, manorBase + 20);
+  ctx.lineTo(manorX + 240, manorBase + 30);
+  ctx.lineTo(manorX - 40, manorBase + 30);
+  ctx.closePath();
+  ctx.fill();
+
   // Main house body
-  ctx.fillRect(manorX + 40, manorBase - 90, 120, 90);
+  ctx.fillStyle = '#080410';
+  ctx.fillRect(manorX + 40, manorBase - 95, 130, 95);
   // Left wing
-  ctx.fillRect(manorX, manorBase - 70, 50, 70);
+  ctx.fillRect(manorX + 5, manorBase - 72, 48, 72);
   // Right tower
-  ctx.fillRect(manorX + 150, manorBase - 120, 40, 120);
-  // Roof peaks
-  ctx.beginPath();
-  ctx.moveTo(manorX + 35, manorBase - 90);
-  ctx.lineTo(manorX + 100, manorBase - 140);
-  ctx.lineTo(manorX + 165, manorBase - 90);
-  ctx.fill();
-  // Tower roof
-  ctx.beginPath();
-  ctx.moveTo(manorX + 145, manorBase - 120);
-  ctx.lineTo(manorX + 170, manorBase - 155);
-  ctx.lineTo(manorX + 195, manorBase - 120);
-  ctx.fill();
-  // Chimney
-  ctx.fillRect(manorX + 70, manorBase - 150, 12, 25);
+  ctx.fillRect(manorX + 160, manorBase - 130, 42, 130);
+  // Far right annex
+  ctx.fillRect(manorX + 195, manorBase - 58, 36, 58);
 
-  // Glowing windows (purple + amber)
-  const winColors = ['#c084fc', '#f59e0b', '#e879f9', '#c084fc', '#fbbf24'];
-  const windows = [
-    [manorX + 55, manorBase - 70], [manorX + 85, manorBase - 70], [manorX + 115, manorBase - 70],
-    [manorX + 55, manorBase - 40], [manorX + 100, manorBase - 40],
-    [manorX + 15, manorBase - 50], [manorX + 160, manorBase - 90], [manorX + 160, manorBase - 55]
-  ];
-  windows.forEach((w, i) => {
-    ctx.fillStyle = winColors[i % winColors.length];
-    ctx.globalAlpha = 0.7 + Math.sin(Date.now() * 0.003 + i) * 0.2;
-    ctx.fillRect(w[0], w[1], 14, 16);
-  });
+  // Main roof peak (Victorian gable)
+  ctx.beginPath();
+  ctx.moveTo(manorX + 32, manorBase - 95);
+  ctx.lineTo(manorX + 105, manorBase - 148);
+  ctx.lineTo(manorX + 178, manorBase - 95);
+  ctx.closePath();
+  ctx.fill();
+
+  // Tower spire
+  ctx.beginPath();
+  ctx.moveTo(manorX + 155, manorBase - 130);
+  ctx.lineTo(manorX + 181, manorBase - 172);
+  ctx.lineTo(manorX + 207, manorBase - 130);
+  ctx.closePath();
+  ctx.fill();
+
+  // Chimney
+  ctx.fillRect(manorX + 72, manorBase - 158, 11, 28);
+  // Tiny turret
+  ctx.fillRect(manorX + 128, manorBase - 118, 16, 24);
+  ctx.beginPath();
+  ctx.moveTo(manorX + 125, manorBase - 118);
+  ctx.lineTo(manorX + 136, manorBase - 138);
+  ctx.lineTo(manorX + 147, manorBase - 118);
+  ctx.closePath();
+  ctx.fill();
+
+  // Door (darker recess)
+  ctx.fillStyle = '#05020a';
+  ctx.fillRect(manorX + 88, manorBase - 32, 22, 32);
+
   ctx.globalAlpha = 1;
 
-  // ===== CONCERT STAGE (left-center) =====
+  // Glowing purple / amber windows (6 windows, readable silhouette)
+  const winColors = ['#c084fc', '#f59e0b', '#e879f9', '#c084fc', '#fbbf24', '#d8b4fe'];
+  const windows = [
+    [manorX + 55, manorBase - 72, 12, 14],
+    [manorX + 95, manorBase - 72, 12, 14],
+    [manorX + 135, manorBase - 72, 12, 14],
+    [manorX + 18, manorBase - 52, 11, 13],
+    [manorX + 170, manorBase - 100, 10, 14],
+    [manorX + 170, manorBase - 60, 10, 14]
+  ];
+  windows.forEach((w, i) => {
+    const flicker = 0.55 + Math.sin(Date.now() * 0.0035 + i * 1.7) * 0.25;
+    ctx.globalAlpha = flicker;
+    ctx.shadowColor = winColors[i];
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = winColors[i];
+    ctx.fillRect(w[0], w[1], w[2], w[3]);
+  });
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+/** Layer 3: closer ground / hills with purple glow line (fastest) */
+function drawForegroundGround() {
+  ctx.fillStyle = '#12091f';
+  ctx.beginPath();
+  ctx.moveTo(0, H - 40);
+  for (let x = 0; x <= W; x += 16) {
+    const y = H - 40
+      - Math.sin((x + parallax.ground) * 0.02) * 14
+      - Math.sin((x + parallax.ground) * 0.045) * 7;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
+  ctx.fill();
+
+  // Purple glow line along the ridge
+  ctx.strokeStyle = '#7c3aed';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#a855f7';
+  ctx.shadowBlur = 8;
+  ctx.globalAlpha = 0.75;
+  ctx.beginPath();
+  for (let x = 0; x <= W; x += 16) {
+    const y = H - 40
+      - Math.sin((x + parallax.ground) * 0.02) * 14
+      - Math.sin((x + parallax.ground) * 0.045) * 7;
+    if (x === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+}
+
+/** Concert stage (sits on foreground ground, not scrolling independently) */
+function drawConcertStage() {
   const stageX = 180;
   const stageY = H - 78;
 
@@ -694,11 +894,10 @@ function draw() {
   // Stage backdrop / screen
   ctx.fillStyle = '#0f0a1f';
   ctx.fillRect(stageX + 20, stageY - 55, 180, 55);
-  // Screen glow
   ctx.fillStyle = 'rgba(192, 132, 252, 0.15)';
   ctx.fillRect(stageX + 25, stageY - 50, 170, 45);
 
-  // Ghost Circuit "logo" on screen (simple)
+  // Ghost Circuit logo on screen
   ctx.fillStyle = '#c084fc';
   ctx.font = 'bold 14px sans-serif';
   ctx.textAlign = 'center';
@@ -711,26 +910,28 @@ function draw() {
   ctx.fillStyle = '#1e1b4b';
   ctx.fillRect(stageX - 25, stageY - 40, 22, 55);
   ctx.fillRect(stageX + 223, stageY - 40, 22, 55);
-  // Speaker cones
   ctx.fillStyle = '#4c1d95';
-  ctx.beginPath(); ctx.arc(stageX - 14, stageY - 20, 7, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(stageX - 14, stageY + 5, 7, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(stageX + 234, stageY - 20, 7, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(stageX + 234, stageY + 5, 7, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(stageX - 14, stageY - 20, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(stageX - 14, stageY + 5, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(stageX + 234, stageY - 20, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(stageX + 234, stageY + 5, 7, 0, Math.PI * 2); ctx.fill();
 
-  // ===== STAGE LIGHTS (animated beams) =====
+  // Animated stage light beams
   const t = Date.now() * 0.002;
-  const lightColors = ['rgba(192,132,252,0.12)', 'rgba(34,211,238,0.10)', 'rgba(244,114,182,0.10)', 'rgba(167,139,250,0.12)'];
-  
+  const lightColors = [
+    'rgba(192,132,252,0.12)',
+    'rgba(34,211,238,0.10)',
+    'rgba(244,114,182,0.10)',
+    'rgba(167,139,250,0.12)'
+  ];
   for (let i = 0; i < 4; i++) {
     const lx = stageX + 40 + i * 45;
     const angle = Math.sin(t + i * 1.3) * 0.35;
     const beamLen = 160 + Math.sin(t * 1.5 + i) * 30;
-    
+
     ctx.save();
     ctx.translate(lx, stageY - 55);
     ctx.rotate(angle);
-    
     const beamGrad = ctx.createLinearGradient(0, 0, 0, -beamLen);
     beamGrad.addColorStop(0, lightColors[i]);
     beamGrad.addColorStop(1, 'rgba(0,0,0,0)');
@@ -745,7 +946,7 @@ function draw() {
     ctx.restore();
   }
 
-  // Light fixtures on stage
+  // Light fixtures
   for (let i = 0; i < 4; i++) {
     const lx = stageX + 40 + i * 45;
     ctx.fillStyle = '#c084fc';
@@ -756,48 +957,16 @@ function draw() {
     ctx.fill();
   }
   ctx.shadowBlur = 0;
+}
 
-  // ===== GROUND / HILLS =====
-  ctx.fillStyle = '#12091f';
-  ctx.beginPath();
-  ctx.moveTo(0, H - 40);
-  for (let x = 0; x <= W; x += 20) {
-    const y = H - 40 - Math.sin((x + groundScroll) * 0.018) * 14 - Math.sin((x + groundScroll) * 0.04) * 7;
-    ctx.lineTo(x, y);
-  }
-  ctx.lineTo(W, H);
-  ctx.lineTo(0, H);
-  ctx.closePath();
-  ctx.fill();
-
-  // Ground glow line
-  ctx.strokeStyle = '#7c3aed';
-  ctx.lineWidth = 2;
-  ctx.globalAlpha = 0.7;
-  ctx.beginPath();
-  ctx.moveTo(0, H - 40);
-  for (let x = 0; x <= W; x += 20) {
-    const y = H - 40 - Math.sin((x + groundScroll) * 0.018) * 14 - Math.sin((x + groundScroll) * 0.04) * 7;
-    ctx.lineTo(x, y);
-  }
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-
-  // Engine trails (behind ship)
-  trails.forEach(t => {
-    const alpha = t.life / t.maxLife;
-    ctx.globalAlpha = alpha * 0.7;
-    ctx.fillStyle = alpha > 0.5 ? '#67e8f9' : '#c084fc';
-    ctx.beginPath();
-    ctx.arc(t.x, t.y, t.size * alpha, 0, Math.PI * 2);
-    ctx.fill();
-  });
-  ctx.globalAlpha = 1;
-
-  // Player ship — Spectral Manor Revenger (with banking + shield)
+/**
+ * Player — pilot silhouette in a sleek purple energy fighter
+ * Readable at ~44px wide; keeps banking + thruster flames
+ */
+function drawPlayer() {
   ctx.save();
   ctx.translate(player.x + 22, player.y + 10); // pivot near center
-  ctx.rotate(player.bank);                     // banking tilt
+  ctx.rotate(player.bank);
   ctx.translate(-22, -10);
 
   // Shield flicker when hit
@@ -816,61 +985,109 @@ function draw() {
 
   // Outer energy glow
   ctx.shadowColor = '#c084fc';
-  ctx.shadowBlur = 18;
+  ctx.shadowBlur = 16;
 
-  // Main hull
-  ctx.fillStyle = '#1e1b4b';
+  // --- Sleek purple energy fighter hull ---
+  // Lower fuselage
+  ctx.fillStyle = '#1a1438';
   ctx.beginPath();
-  ctx.moveTo(42, 9);
-  ctx.lineTo(28, 2);
-  ctx.lineTo(8, 0);
-  ctx.lineTo(0, 5);
+  ctx.moveTo(44, 10);
+  ctx.lineTo(30, 4);
+  ctx.lineTo(6, 3);
+  ctx.lineTo(0, 7);
   ctx.lineTo(0, 13);
-  ctx.lineTo(8, 18);
-  ctx.lineTo(28, 16);
+  ctx.lineTo(6, 17);
+  ctx.lineTo(30, 16);
   ctx.closePath();
   ctx.fill();
 
   // Wing blades
-  ctx.fillStyle = '#7c3aed';
+  ctx.fillStyle = '#6d28d9';
   ctx.beginPath();
-  ctx.moveTo(26, 1);
-  ctx.lineTo(14, -6);
-  ctx.lineTo(18, 2);
+  ctx.moveTo(24, 3);
+  ctx.lineTo(10, -5);
+  ctx.lineTo(16, 4);
   ctx.closePath();
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(26, 17);
-  ctx.lineTo(14, 24);
-  ctx.lineTo(18, 16);
+  ctx.moveTo(24, 17);
+  ctx.lineTo(10, 25);
+  ctx.lineTo(16, 16);
   ctx.closePath();
   ctx.fill();
 
-  // Core energy body
-  ctx.fillStyle = '#c084fc';
+  // Energy core stripe
+  ctx.fillStyle = '#a855f7';
   ctx.beginPath();
-  ctx.moveTo(38, 9);
-  ctx.lineTo(22, 5);
-  ctx.lineTo(12, 9);
-  ctx.lineTo(22, 13);
+  ctx.moveTo(40, 10);
+  ctx.lineTo(22, 6);
+  ctx.lineTo(10, 10);
+  ctx.lineTo(22, 14);
   ctx.closePath();
   ctx.fill();
 
-  // Cockpit crystal
-  ctx.shadowBlur = 12;
-  ctx.fillStyle = '#f0abfc';
-  ctx.beginPath();
-  ctx.ellipse(28, 9, 7, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Front energy tip
+  // Nose tip
   ctx.fillStyle = '#e879f9';
   ctx.beginPath();
-  ctx.moveTo(42, 9);
-  ctx.lineTo(36, 6);
-  ctx.lineTo(36, 12);
+  ctx.moveTo(44, 10);
+  ctx.lineTo(36, 7);
+  ctx.lineTo(36, 13);
   ctx.closePath();
   ctx.fill();
+
+  // Cockpit rim (open top so pilot reads clearly)
+  ctx.strokeStyle = '#c084fc';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.ellipse(26, 8, 9, 5.5, 0, Math.PI * 0.15, Math.PI * 0.85);
+  ctx.stroke();
+
+  // --- Pilot silhouette (humanoid, readable at small size) ---
+  ctx.shadowBlur = 0;
+
+  // Legs tucked into cockpit
+  ctx.fillStyle = '#1e1b4b';
+  ctx.fillRect(20, 9, 3, 5);
+  ctx.fillRect(25, 9, 3, 5);
+
+  // Torso
+  ctx.fillStyle = '#2e1065';
+  ctx.beginPath();
+  ctx.moveTo(20, 9);
+  ctx.lineTo(19, 3);
+  ctx.lineTo(29, 3);
+  ctx.lineTo(28, 9);
+  ctx.closePath();
+  ctx.fill();
+
+  // Arms on controls
+  ctx.strokeStyle = '#3b0764';
+  ctx.lineWidth = 1.6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(20, 5);
+  ctx.lineTo(15, 8);
+  ctx.moveTo(28, 5);
+  ctx.lineTo(33, 8);
+  ctx.stroke();
+
+  // Head
+  ctx.fillStyle = '#4c1d95';
+  ctx.beginPath();
+  ctx.arc(24, 1.5, 3.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Dark hair
+  ctx.fillStyle = '#0f0a14';
+  ctx.beginPath();
+  ctx.arc(24, 0.5, 3.3, Math.PI * 1.05, Math.PI * 1.95);
+  ctx.fill();
+  // Hair tuft / side
+  ctx.fillRect(21.2, -1.2, 5.6, 2.2);
+
+  // Tiny face highlight (readability)
+  ctx.fillStyle = 'rgba(196, 181, 253, 0.45)';
+  ctx.fillRect(23, 1.5, 1.5, 1.2);
 
   // Thruster flames
   ctx.shadowColor = '#22d3ee';
@@ -878,54 +1095,171 @@ function draw() {
   ctx.fillStyle = '#22d3ee';
   ctx.beginPath();
   ctx.moveTo(0, 6);
-  ctx.lineTo(-11 - Math.random() * 5, 9);
-  ctx.lineTo(0, 12);
+  ctx.lineTo(-11 - Math.random() * 5, 10);
+  ctx.lineTo(0, 14);
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = '#67e8f9';
   ctx.fillRect(-5, 3, 6, 3);
-  ctx.fillRect(-5, 12, 6, 3);
+  ctx.fillRect(-5, 13, 6, 3);
+  // Hot core of flame
+  ctx.fillStyle = '#ecfeff';
+  ctx.beginPath();
+  ctx.moveTo(0, 8);
+  ctx.lineTo(-6 - Math.random() * 2, 10);
+  ctx.lineTo(0, 12);
+  ctx.closePath();
+  ctx.fill();
 
   ctx.shadowBlur = 0;
   ctx.restore();
+}
 
-  // Bullets — Classic Defender-style neon lasers
+/** Classic Defender-style neon lasers + optional trails */
+function drawBullets() {
+  // Short trail particles first (behind beams)
+  laserTrails.forEach(t => {
+    const a = t.life / t.maxLife;
+    ctx.globalAlpha = a * 0.7;
+    ctx.fillStyle = t.color;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, t.size * a, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
   bullets.forEach(b => {
     if (b.type === 'heavy') {
       // Heavy = thick magenta/pink laser
       ctx.shadowColor = '#ff00aa';
-      ctx.shadowBlur = 16;
+      ctx.shadowBlur = 18;
       ctx.fillStyle = '#ff66cc';
       ctx.fillRect(b.x, b.y - 1, b.w + 4, b.h + 2);
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(b.x + 2, b.y + 1, b.w - 2, b.h - 2);
     } else {
-      // Classic neon green / cyan laser beam (Defender style)
-      ctx.shadowColor = '#00ff88';
-      ctx.shadowBlur = 14;
-      // Outer glow
+      // Bright cyan/green core + strong glow (Defender neon)
+      ctx.shadowColor = '#00ff99';
+      ctx.shadowBlur = 16;
+      // Outer green glow
+      ctx.fillStyle = 'rgba(0, 255, 136, 0.55)';
+      ctx.fillRect(b.x - 1, b.y - 2, b.w + 8, b.h + 4);
+      // Mid cyan body
       ctx.fillStyle = '#00ff88';
-      ctx.fillRect(b.x, b.y - 1, b.w + 6, b.h + 2);
-      // Bright core
+      ctx.fillRect(b.x, b.y - 1, b.w + 5, b.h + 2);
+      // Hot cyan-white core
       ctx.fillStyle = '#ccffee';
-      ctx.fillRect(b.x, b.y, b.w + 2, b.h);
-      // Hot white tip
+      ctx.fillRect(b.x + 1, b.y, b.w + 2, b.h);
+      // Bright tip
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(b.x + b.w - 2, b.y, 6, b.h);
+      ctx.fillRect(b.x + b.w - 1, b.y, 7, b.h);
     }
   });
   ctx.shadowBlur = 0;
+}
 
-  // Enemies - Ghosts + UAP shapes (Sphere, Capsule, Cylinder, Pyramid)
+/** Thin purple abduction beam from UAP down to grabbed fan */
+function drawAbductionBeams() {
+  enemies.forEach(e => {
+    if (!e.carrying) return;
+    const fan = e.carrying;
+    const topX = e.x + e.w / 2;
+    const topY = e.y + e.h;
+    const botX = fan.x + 5;
+    const botY = fan.y;
+
+    // Soft outer glow
+    ctx.strokeStyle = 'rgba(192, 132, 252, 0.25)';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(topX, topY);
+    ctx.lineTo(botX, botY);
+    ctx.stroke();
+
+    // Thin core beam
+    const pulse = 0.55 + Math.sin(Date.now() * 0.02) * 0.25;
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle = '#e879f9';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#c084fc';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(topX, topY);
+    ctx.lineTo(botX, botY);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+
+    // Small energy motes along the beam
+    for (let i = 0; i < 3; i++) {
+      const t = ((Date.now() * 0.004 + i * 0.33) % 1);
+      const mx = topX + (botX - topX) * t;
+      const my = topY + (botY - topY) * t;
+      ctx.fillStyle = 'rgba(240, 171, 252, 0.8)';
+      ctx.beginPath();
+      ctx.arc(mx, my, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+}
+
+// ---------- Draw ----------
+function draw() {
+  // Apply screen shake via canvas transform
+  ctx.save();
+  ctx.translate(shake.x, shake.y);
+
+  // Background sky
+  ctx.fillStyle = '#0a0612';
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+
+  // Distant purple nebula / atmosphere
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, H - 60);
+  skyGrad.addColorStop(0, '#0a0612');
+  skyGrad.addColorStop(0.55, '#130a24');
+  skyGrad.addColorStop(1, '#1a0f2e');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+
+  // ===== PARALLAX LAYERS =====
+  drawStars();          // Layer 0 — very slow
+  drawMoon();           // stationary
+  drawDistantHills();   // Layer 1 — slow
+  drawManorSilhouette();// Layer 2 — medium, translucent
+  drawConcertStage();
+  drawForegroundGround();// Layer 3 — fastest + purple glow
+
+  // Engine trails (behind ship)
+  trails.forEach(t => {
+    const alpha = t.life / t.maxLife;
+    ctx.globalAlpha = alpha * 0.7;
+    ctx.fillStyle = alpha > 0.5 ? '#67e8f9' : '#c084fc';
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, t.size * alpha, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // Player (pilot + fighter)
+  if (gameRunning || (deathBlast && deathBlast.life > 50)) {
+    // Hide ship once death blast is underway
+    if (!(deathBlast && deathBlast.life <= 55)) {
+      drawPlayer();
+    }
+  }
+
+  // Neon lasers
+  drawBullets();
+
+  // Enemies - Ghosts + UAP shapes
   enemies.forEach(e => {
     const cx = e.x + e.w / 2;
     const cy = e.y + e.h / 2;
 
     if (e.type === 'ghost') {
-      // Classic ghost
       ctx.fillStyle = '#a78bfa';
       ctx.beginPath();
-      ctx.ellipse(cx, cy, e.w/2, e.h/2, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, e.w / 2, e.h / 2, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#f0abfc';
       ctx.beginPath();
@@ -933,43 +1267,38 @@ function draw() {
       ctx.arc(cx + 5, cy - 3, 3, 0, Math.PI * 2);
       ctx.fill();
     } else if (e.type === 'sphere') {
-      // Classic UAP Sphere
-      const grad = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, e.w/2);
+      const grad = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, e.w / 2);
       grad.addColorStop(0, '#e0f2fe');
       grad.addColorStop(1, '#0284c7');
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(cx, cy, e.w/2, 0, Math.PI * 2);
+      ctx.arc(cx, cy, e.w / 2, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#7dd3fc';
       ctx.lineWidth = 1.5;
       ctx.stroke();
     } else if (e.type === 'capsule') {
-      // Tic-Tac / Capsule UAP
       ctx.fillStyle = '#e2e8f0';
       ctx.beginPath();
-      ctx.roundRect(e.x, e.y, e.w, e.h, e.h/2);
+      ctx.roundRect(e.x, e.y, e.w, e.h, e.h / 2);
       ctx.fill();
       ctx.strokeStyle = '#94a3b8';
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      // subtle windows
       ctx.fillStyle = '#38bdf8';
       ctx.fillRect(e.x + 8, e.y + 5, 6, 6);
       ctx.fillRect(e.x + e.w - 14, e.y + 5, 6, 6);
     } else if (e.type === 'cylinder') {
-      // Cylinder UAP
       ctx.fillStyle = '#64748b';
       ctx.fillRect(e.x + 4, e.y, e.w - 8, e.h);
       ctx.fillStyle = '#94a3b8';
       ctx.beginPath();
-      ctx.ellipse(cx, e.y + 3, (e.w-8)/2, 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, e.y + 3, (e.w - 8) / 2, 5, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.ellipse(cx, e.y + e.h - 3, (e.w-8)/2, 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, e.y + e.h - 3, (e.w - 8) / 2, 5, 0, 0, Math.PI * 2);
       ctx.fill();
     } else if (e.type === 'pyramid') {
-      // Pyramid / Tetrahedron UAP
       ctx.fillStyle = '#c084fc';
       ctx.beginPath();
       ctx.moveTo(cx, e.y);
@@ -983,24 +1312,24 @@ function draw() {
     }
   });
 
+  // Purple abduction beams (UAP → fan)
+  drawAbductionBeams();
+
   // Power-ups
   powerups.forEach(p => {
     const alpha = Math.min(1, p.life / 60);
     ctx.globalAlpha = alpha;
     ctx.shadowColor = p.color;
     ctx.shadowBlur = 15;
-    // Outer ring
     ctx.strokeStyle = p.color;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(p.x + 11, p.y + 11, 12, 0, Math.PI * 2);
     ctx.stroke();
-    // Inner fill
     ctx.fillStyle = 'rgba(10, 6, 18, 0.85)';
     ctx.beginPath();
     ctx.arc(p.x + 11, p.y + 11, 10, 0, Math.PI * 2);
     ctx.fill();
-    // Label
     ctx.fillStyle = p.color;
     ctx.font = 'bold 8px sans-serif';
     ctx.textAlign = 'center';
@@ -1014,14 +1343,7 @@ function draw() {
   fans.forEach(f => {
     ctx.save();
     if (f.state === 'grabbed') {
-      // Being lifted — draw with a beam
-      ctx.globalAlpha = 0.9;
-      ctx.strokeStyle = 'rgba(192, 132, 252, 0.5)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(f.x + 5, f.y);
-      ctx.lineTo(f.x + 5, f.y - 18);
-      ctx.stroke();
+      ctx.globalAlpha = 0.95;
     }
     // Body
     ctx.fillStyle = f.color;
@@ -1052,21 +1374,18 @@ function draw() {
   });
   ctx.globalAlpha = 1;
 
-  // ===== DRAMATIC DEATH BLAST (full screen takeover) =====
+  // ===== DRAMATIC DEATH BLAST =====
   if (deathBlast) {
     const progress = 1 - (deathBlast.life / deathBlast.maxLife);
-    // White flash at the start
     if (deathBlast.life > 55) {
       ctx.fillStyle = `rgba(255, 255, 255, ${(deathBlast.life - 55) / 15 * 0.7})`;
-      ctx.fillRect(0, 0, W, H);
+      ctx.fillRect(-10, -10, W + 20, H + 20);
     }
-    // Expanding ring
     ctx.strokeStyle = `rgba(255, 100, 255, ${1 - progress})`;
     ctx.lineWidth = 8 - progress * 6;
     ctx.beginPath();
     ctx.arc(deathBlast.x, deathBlast.y, progress * 500, 0, Math.PI * 2);
     ctx.stroke();
-    // All the colorful particles
     deathBlast.particles.forEach(p => {
       ctx.globalAlpha = Math.min(1, p.life / 20);
       ctx.shadowColor = p.color;
@@ -1083,8 +1402,10 @@ function draw() {
   // Scanline / CRT feel (subtle)
   ctx.fillStyle = 'rgba(0,0,0,0.08)';
   for (let y = 0; y < H; y += 3) {
-    ctx.fillRect(0, y, W, 1);
+    ctx.fillRect(-10, y, W + 20, 1);
   }
+
+  ctx.restore(); // end screen-shake transform
 }
 
 function updateHUD() {
