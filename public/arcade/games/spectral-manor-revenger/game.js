@@ -166,14 +166,14 @@ window.addEventListener('keydown', e => {
   initAudio();
   keys[e.code] = true;
   if (e.code === 'Space' || e.code === 'KeyZ') e.preventDefault();
-  if ((e.code === 'Space' || e.code === 'KeyZ') && !gameRunning && !gameOver) startGame();
+  if ((e.code === 'Space' || e.code === 'KeyZ') && !gameRunning) startGame();
   if (e.code === 'KeyP' && gameRunning) gameRunning = false; // simple pause
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 
 document.getElementById('startOverlay').addEventListener('click', () => {
   initAudio();
-  if (!gameRunning && !gameOver) startGame();
+  if (!gameRunning) startGame();
 });
 
 // ---------- Core Functions ----------

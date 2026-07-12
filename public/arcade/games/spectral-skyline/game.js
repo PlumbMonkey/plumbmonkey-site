@@ -119,13 +119,13 @@ window.addEventListener('keydown', e => {
   initAudio();
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
-  if ((e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') && !gameRunning && !gameOver) startGame();
+  if ((e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') && !gameRunning) startGame();
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 
 document.getElementById('startOverlay').addEventListener('click', () => {
   initAudio();
-  if (!gameRunning && !gameOver) startGame();
+  if (!gameRunning) startGame();
 });
 
 // ---------- Core ----------
