@@ -37,6 +37,7 @@ jobs:
           cp -r out/_next ./ || true
           cp -r out/onboarding/orientation.html onboarding/orientation.html || true
           cp -r out/onboarding/orientation.txt onboarding/orientation.txt || true
+          cp -r out/arcade ./ || true
 
   deploy:
     environment:
@@ -62,6 +63,7 @@ jobs:
           cp -r out/_next ./ || true
           cp -r out/onboarding/orientation.html onboarding/orientation.html || true
           cp -r out/onboarding/orientation.txt onboarding/orientation.txt || true
+          cp -r out/arcade ./ || true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
