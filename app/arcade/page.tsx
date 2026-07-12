@@ -21,8 +21,6 @@ export const metadata: Metadata = {
 const games = [
   {
     href: "/arcade/games/spectral-manor-revenger/",
-    genre: "Defender Style",
-    genreColor: "text-amber-400",
     icon: "🚀",
     title: "Spectral Manor Revenger",
     description:
@@ -31,8 +29,6 @@ const games = [
   },
   {
     href: "/arcade/games/spectral-food-fight/",
-    genre: "Food Fight Style",
-    genreColor: "text-pink-400",
     icon: "🍗",
     title: "Spectral Manor Mess Hall",
     description:
@@ -41,8 +37,6 @@ const games = [
   },
   {
     href: "/arcade/games/spectral-robotron/",
-    genre: "Robotron Style",
-    genreColor: "text-cyan-400",
     icon: "👾",
     title: "Spectral Manor Swarm",
     description:
@@ -51,8 +45,6 @@ const games = [
   },
   {
     href: "/arcade/games/spectral-skyline/",
-    genre: "Joust Style",
-    genreColor: "text-violet-400",
     icon: "🦉",
     title: "Spectral Manor: Luno's Flight",
     description:
@@ -94,12 +86,7 @@ export default function ArcadePage() {
                 background: "linear-gradient(145deg, #1a1025 0%, #0f0a18 100%)",
               }}
             >
-              <div className="flex items-start justify-between mb-4">
-                <span
-                  className={`text-xs tracking-widest uppercase ${game.genreColor}`}
-                >
-                  {game.genre}
-                </span>
+              <div className="flex items-start justify-end mb-4">
                 <span className="text-2xl">{game.icon}</span>
               </div>
 
