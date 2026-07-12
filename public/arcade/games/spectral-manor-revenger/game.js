@@ -161,13 +161,25 @@ let rescued = 0;
 let abducted = 0;
 let powerupTimer = 0; // frames until next power-up can spawn
 
+// ---------- Juice: high score, combo, hit-pause, wave banner ----------
+const BEST_KEY = 'spectralArcade.revenger.best';
+function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch (e) { return 0; } }
+function saveBest() { try { localStorage.setItem(BEST_KEY, best); } catch (e) {} }
+let best = loadBest();
+let combo = 0, comboTimer = 0;      // kill streak; decays after 150 frames
+let hitPause = 0;                   // frames to freeze the action on impact
+let waveDelay = 0;                  // breather frames before next wave spawns
+let bannerText = '', bannerTime = 0;
+let paused = false;                 // P toggles; game state is preserved
+function comboMult() { return Math.min(1 + Math.floor(combo / 5), 5); }
+
 // ---------- Input ----------
 window.addEventListener('keydown', e => {
   initAudio();
   keys[e.code] = true;
   if (e.code === 'Space' || e.code === 'KeyZ') e.preventDefault();
   if ((e.code === 'Space' || e.code === 'KeyZ') && !gameRunning) startGame();
-  if (e.code === 'KeyP' && gameRunning) gameRunning = false; // simple pause
+  if (e.code === 'KeyP' && gameRunning) paused = !paused; // toggle pause, run preserved
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 
@@ -193,6 +205,9 @@ function startGame() {
   powerups = [];
   deathBlast = null;
   powerupTimer = 180;
+  combo = 0; comboTimer = 0; hitPause = 0; waveDelay = 0;
+  bannerText = 'WAVE 1'; bannerTime = 90;
+  paused = false;
   shake.x = 0;
   shake.y = 0;
   shake.intensity = 0;
@@ -336,6 +351,15 @@ function update() {
       if (deathBlast.life <= 0) deathBlast = null;
     }
     return;
+  }
+
+  if (paused) return;                          // frozen mid-run, P resumes
+  if (hitPause > 0) { hitPause--; return; }   // impact freeze-frame
+  if (bannerTime > 0) bannerTime--;
+  if (comboTimer > 0) { comboTimer--; if (comboTimer === 0) combo = 0; }
+  if (waveDelay > 0) {
+    waveDelay--;
+    if (waveDelay === 0) spawnWave();
   }
 
   // Player movement + banking
@@ -500,9 +524,12 @@ function update() {
 
         enemies.splice(ei, 1);
         bullets.splice(bi, 1);
+        combo++;
+        comboTimer = 150;
         const points = { ghost: 150, sphere: 120, capsule: 180, cylinder: 140, pyramid: 200 };
-        score += points[e.type] || 100;
+        score += (points[e.type] || 100) * comboMult();
         if (b.type === 'heavy') score += 40;
+        hitPause = 2;
         updateHUD();
       }
     });
@@ -523,6 +550,8 @@ function update() {
 
       enemies.splice(ei, 1);
       lives--;
+      combo = 0; comboTimer = 0;
+      hitPause = 5;
       updateHUD();
 
       if (lives <= 0) {
@@ -536,13 +565,17 @@ function update() {
         // Delay the game-over screen so the blast can play out
         setTimeout(() => {
           gameOver = true;
+          const newBest = score > best;
+          if (newBest) { best = score; saveBest(); }
           document.getElementById('startOverlay').classList.remove('hidden');
           document.getElementById('startOverlay').innerHTML = `
             <h2>CONCERT OVERRUN</h2>
             <p>Rescued: ${rescued} &nbsp;|&nbsp; Abducted: ${abducted}</p>
             <p style="margin-top:0.5rem">Final Score: ${score}</p>
+            <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
             <p style="margin-top:1rem; opacity:0.8">Click or SPACE to defend again</p>
           `;
+          updateHUD();
         }, 1100);
       } else {
         createExplosion(player.x + player.w / 2, player.y + player.h / 2, '#f472b6');
@@ -568,8 +601,8 @@ function update() {
     return true;
   });
 
-  // Next wave
-  if (enemies.length === 0) {
+  // Next wave — breather: banner shows for a beat before enemies spawn
+  if (enemies.length === 0 && waveDelay === 0) {
     wave++;
     // Respawn a few more fans if running low
     if (fans.filter(f => f.state === 'ground' || f.state === 'falling').length < 6) {
@@ -585,8 +618,10 @@ function update() {
         });
       }
     }
+    bannerText = 'WAVE ' + wave;
+    bannerTime = 90;
+    waveDelay = 75;
     updateHUD();
-    spawnWave();
   }
 
   // ---------- Power-ups ----------
@@ -1406,6 +1441,48 @@ function draw() {
   }
 
   ctx.restore(); // end screen-shake transform
+
+  // Wave banner
+  if (bannerTime > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, bannerTime / 18);
+    ctx.fillStyle = '#c084fc';
+    ctx.shadowColor = '#c084fc';
+    ctx.shadowBlur = 26;
+    ctx.font = 'bold 52px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(bannerText, W/2, H/2 - 14);
+    ctx.restore();
+  }
+
+  // Combo multiplier indicator
+  if (gameRunning && comboMult() > 1) {
+    ctx.save();
+    ctx.fillStyle = '#f0abfc';
+    ctx.shadowColor = '#f0abfc';
+    ctx.shadowBlur = 12;
+    ctx.font = 'bold 20px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('COMBO ×' + comboMult(), W/2, 44);
+    ctx.restore();
+  }
+
+  // Pause overlay
+  if (paused) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(10, 6, 18, 0.55)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#c084fc';
+    ctx.shadowColor = '#c084fc';
+    ctx.shadowBlur = 26;
+    ctx.font = 'bold 52px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('PAUSED', W/2, H/2 - 14);
+    ctx.font = 'bold 18px "Segoe UI", system-ui, sans-serif';
+    ctx.shadowBlur = 10;
+    ctx.fillText('Press P to resume', W/2, H/2 + 22);
+    ctx.restore();
+  }
 }
 
 function updateHUD() {
@@ -1414,6 +1491,8 @@ function updateHUD() {
   document.getElementById('wave').textContent = wave;
   const r = document.getElementById('rescued');
   if (r) r.textContent = rescued;
+  const bEl = document.getElementById('best');
+  if (bEl) bEl.textContent = best;
   const w = document.getElementById('weapon');
   if (w) {
     const names = ['DUAL', 'HEAVY', 'SPREAD'];
@@ -1429,5 +1508,6 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
+updateHUD();
 loop();
 console.log('Spectral Manor Revenger ready — Ghost Circuit Defense');

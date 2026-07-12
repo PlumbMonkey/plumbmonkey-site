@@ -92,6 +92,19 @@ let score = 0, lives = 3, wave = 1, crystals = 0;
 let gameRunning = false, gameOver = false;
 let keys = {};
 
+// ---------- Juice: high score, combo, shake, hit-pause, banner ----------
+const BEST_KEY = 'spectralArcade.luno.best';
+function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch (e) { return 0; } }
+function saveBest() { try { localStorage.setItem(BEST_KEY, best); } catch (e) {} }
+let best = loadBest();
+let combo = 0, comboTimer = 0;      // kill streak; decays after 150 frames
+let hitPause = 0;                   // frames to freeze the action on impact
+let shakeTime = 0, shakeMag = 0;    // screen shake
+let waveDelay = 0;                  // breather frames before next wave spawns
+let bannerText = '', bannerTime = 0;
+function triggerShake(mag, time) { shakeMag = mag; shakeTime = time; }
+function comboMult() { return Math.min(1 + Math.floor(combo / 5), 5); }
+
 // ---------- Player (riding Luno) ----------
 const player = {
   x: 120, y: H/2,
@@ -132,6 +145,8 @@ document.getElementById('startOverlay').addEventListener('click', () => {
 function startGame() {
   score = 0; lives = 3; wave = 1; crystals = 0;
   witches = []; ghosts = []; crystalPickups = []; particles = [];
+  combo = 0; comboTimer = 0; hitPause = 0; shakeTime = 0; waveDelay = 0;
+  bannerText = 'WAVE 1'; bannerTime = 90;
   player.x = 120; player.y = H/2;
   player.vx = 0; player.vy = 0;
   player.facing = 1; player.invuln = 0;
@@ -197,6 +212,14 @@ function spawnWave() {
 // ---------- Update ----------
 function update() {
   if (!gameRunning) return;
+  if (hitPause > 0) { hitPause--; return; }   // impact freeze-frame
+  if (shakeTime > 0) shakeTime--;
+  if (bannerTime > 0) bannerTime--;
+  if (comboTimer > 0) { comboTimer--; if (comboTimer === 0) combo = 0; }
+  if (waveDelay > 0) {
+    waveDelay--;
+    if (waveDelay === 0) spawnWave();
+  }
 
   // --- Player (Luno) ---
   // Horizontal
@@ -325,7 +348,11 @@ function update() {
       if (playerMid < witchMid - 4) {
         // Player wins — witch becomes crystal
         w.state = 'crystal';
-        score += 200 + wave * 25;
+        combo++;
+        comboTimer = 150;
+        score += (200 + wave * 25) * comboMult();
+        hitPause = 2;
+        triggerShake(3, 8);
         crystals++;
         sfx.crystal();
         createParticles(w.x + w.w/2, w.y + w.h/2, '#e879f9', 14);
@@ -344,6 +371,9 @@ function update() {
         player.invuln = 70;
         player.vy = -6;
         player.vx = (player.x < w.x ? -1 : 1) * 4;
+        combo = 0; comboTimer = 0;
+        hitPause = 5;
+        triggerShake(9, 18);
         sfx.hurt();
         createParticles(player.x + 20, player.y + 15, '#f472b6', 12);
         updateHUD();
@@ -351,12 +381,16 @@ function update() {
           gameOver = true;
           gameRunning = false;
           sfx.gameOver();
+          const newBest = score > best;
+          if (newBest) { best = score; saveBest(); }
           document.getElementById('startOverlay').classList.remove('hidden');
           document.getElementById('startOverlay').innerHTML = `
             <h2>FALLEN FROM THE SKY</h2>
             <p>Crystals: ${crystals} &nbsp;|&nbsp; Score: ${score}</p>
+            <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
             <p style="margin-top:0.9rem; opacity:0.8">Click or SPACE to soar again</p>
           `;
+          updateHUD();
         }
       }
     }
@@ -370,6 +404,9 @@ function update() {
         lives--;
         player.invuln = 70;
         player.vy = -5;
+        combo = 0; comboTimer = 0;
+        hitPause = 5;
+        triggerShake(9, 18);
         sfx.hurt();
         createParticles(player.x + 20, player.y + 15, '#a78bfa', 10);
         updateHUD();
@@ -377,12 +414,16 @@ function update() {
           gameOver = true;
           gameRunning = false;
           sfx.gameOver();
+          const newBest = score > best;
+          if (newBest) { best = score; saveBest(); }
           document.getElementById('startOverlay').classList.remove('hidden');
           document.getElementById('startOverlay').innerHTML = `
             <h2>FALLEN FROM THE SKY</h2>
             <p>Crystals: ${crystals} &nbsp;|&nbsp; Score: ${score}</p>
+            <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
             <p style="margin-top:0.9rem; opacity:0.8">Click or SPACE to soar again</p>
           `;
+          updateHUD();
         }
       }
     });
@@ -414,11 +455,13 @@ function update() {
   });
   crystalPickups = crystalPickups.filter(c => c.life > 0);
 
-  // Wave clear
-  if (witches.length === 0 && gameRunning) {
+  // Wave clear — breather: banner shows for a beat before the next wave spawns
+  if (witches.length === 0 && gameRunning && waveDelay === 0) {
     wave++;
     sfx.wave();
-    spawnWave();
+    bannerText = 'WAVE ' + wave;
+    bannerTime = 90;
+    waveDelay = 75;
     updateHUD();
   }
 
@@ -444,13 +487,19 @@ function createParticles(x, y, color, n) {
 
 // ---------- Draw ----------
 function draw() {
-  // Sky gradient
+  // Screen shake — offset the whole world while shaking
+  ctx.save();
+  if (shakeTime > 0) {
+    ctx.translate((Math.random() - 0.5) * shakeMag, (Math.random() - 0.5) * shakeMag);
+  }
+
+  // Sky gradient (oversized so shake never reveals the canvas edge)
   const sky = ctx.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, '#0a0618');
   sky.addColorStop(0.6, '#150a28');
   sky.addColorStop(1, '#1a0f30');
   ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(-12, -12, W + 24, H + 24);
 
   // Stars
   ctx.fillStyle = '#e0d4ff';
@@ -692,6 +741,33 @@ function draw() {
     ctx.fill();
   });
   ctx.globalAlpha = 1;
+
+  ctx.restore(); // end screen shake — overlays below stay steady
+
+  // Wave banner
+  if (bannerTime > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, bannerTime / 18);
+    ctx.fillStyle = '#c084fc';
+    ctx.shadowColor = '#c084fc';
+    ctx.shadowBlur = 26;
+    ctx.font = 'bold 52px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(bannerText, W/2, H/2 - 14);
+    ctx.restore();
+  }
+
+  // Combo multiplier indicator
+  if (gameRunning && comboMult() > 1) {
+    ctx.save();
+    ctx.fillStyle = '#f0abfc';
+    ctx.shadowColor = '#f0abfc';
+    ctx.shadowBlur = 12;
+    ctx.font = 'bold 20px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('COMBO ×' + comboMult(), W/2, 44);
+    ctx.restore();
+  }
 }
 
 function updateHUD() {
@@ -699,6 +775,7 @@ function updateHUD() {
   document.getElementById('lives').textContent = lives;
   document.getElementById('wave').textContent = wave;
   document.getElementById('crystals').textContent = crystals;
+  document.getElementById('best').textContent = best;
 }
 
 // ---------- Loop ----------
@@ -707,5 +784,6 @@ function loop() {
   draw();
   requestAnimationFrame(loop);
 }
+updateHUD();
 loop();
 console.log('Spectral Manor: Luno\'s Flight ready — Ride Luno, shatter the witches');

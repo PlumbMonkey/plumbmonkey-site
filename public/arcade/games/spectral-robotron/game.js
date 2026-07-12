@@ -42,6 +42,19 @@ let gameRunning = false, gameOver = false;
 let keys = {};
 let mouse = { x: W/2, y: H/2, down: false };
 
+// ---------- Juice: high score, combo, shake, hit-pause, banner ----------
+const BEST_KEY = 'spectralArcade.swarm.best';
+function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch (e) { return 0; } }
+function saveBest() { try { localStorage.setItem(BEST_KEY, best); } catch (e) {} }
+let best = loadBest();
+let combo = 0, comboTimer = 0;      // kill streak; decays after 150 frames
+let hitPause = 0;                   // frames to freeze the action on impact
+let shakeTime = 0, shakeMag = 0;    // screen shake
+let waveDelay = 0;                  // breather frames before next wave spawns
+let bannerText = '', bannerTime = 0;
+function triggerShake(mag, time) { shakeMag = mag; shakeTime = time; }
+function comboMult() { return Math.min(1 + Math.floor(combo / 5), 5); }
+
 // ---------- Player ----------
 const player = {
   x: W/2, y: H/2,
@@ -84,6 +97,8 @@ document.getElementById('startOverlay').addEventListener('click', () => {
 function startGame() {
   score = 0; lives = 3; wave = 1; saved = 0; lost = 0;
   bullets = []; monsters = []; fans = []; particles = [];
+  combo = 0; comboTimer = 0; hitPause = 0; shakeTime = 0; waveDelay = 0;
+  bannerText = 'WAVE 1'; bannerTime = 90;
   player.x = W/2; player.y = H/2;
   player.fireCooldown = 0; player.invuln = 0;
   gameRunning = true; gameOver = false;
@@ -187,6 +202,14 @@ function fire() {
 // ---------- Update ----------
 function update() {
   if (!gameRunning) return;
+  if (hitPause > 0) { hitPause--; return; }   // impact freeze-frame
+  if (shakeTime > 0) shakeTime--;
+  if (bannerTime > 0) bannerTime--;
+  if (comboTimer > 0) { comboTimer--; if (comboTimer === 0) combo = 0; }
+  if (waveDelay > 0) {
+    waveDelay--;
+    if (waveDelay === 0) spawnWave();
+  }
 
   // Move
   let vx = 0, vy = 0;
@@ -311,7 +334,11 @@ function update() {
             if (f.grabber === m) { f.grabbed = false; f.grabber = null; }
           });
           m.carrying = null;
-          score += 150 + wave * 15;
+          combo++;
+          comboTimer = 150;
+          score += (150 + wave * 15) * comboMult();
+          hitPause = 2;
+          triggerShake(3, 8);
           createParticles(m.x + m.w/2, m.y + m.h/2, m.color, 16);
           monsters.splice(mi, 1);
           updateHUD();
@@ -341,6 +368,9 @@ function update() {
           player.y < m.y + m.h && player.y + player.h > m.y) {
         lives--;
         player.invuln = 70;
+        combo = 0; comboTimer = 0;
+        hitPause = 5;
+        triggerShake(9, 18);
         sfx.hurt();
         createParticles(player.x + 13, player.y + 13, '#f472b6', 14);
         // knockback
@@ -352,25 +382,32 @@ function update() {
         if (lives <= 0) {
           gameOver = true;
           gameRunning = false;
+          const newBest = score > best;
+          if (newBest) { best = score; saveBest(); }
           document.getElementById('startOverlay').classList.remove('hidden');
           document.getElementById('startOverlay').innerHTML = `
             <h2>FANS LOST</h2>
             <p>Saved: ${saved} &nbsp;|&nbsp; Lost: ${lost}</p>
             <p style="margin-top:0.5rem">Final Score: ${score}</p>
+            <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
             <p style="margin-top:0.9rem; opacity:0.8">Click or SPACE to try again</p>
           `;
+          updateHUD();
         }
       }
     });
   }
 
-  // Wave clear — all monsters down; any fans still standing are safe
-  if (monsters.length === 0 && gameRunning) {
+  // Wave clear — all monsters down; any fans still standing are safe.
+  // Breather: banner shows for a beat before the next wave spawns.
+  if (monsters.length === 0 && gameRunning && waveDelay === 0) {
     fans.forEach(() => { saved++; score += 300; });
     fans = [];
     wave++;
     sfx.wave();
-    spawnWave();
+    bannerText = 'WAVE ' + wave;
+    bannerTime = 90;
+    waveDelay = 75;
     updateHUD();
   }
 
@@ -394,9 +431,15 @@ function createParticles(x, y, color, n) {
 
 // ---------- Draw ----------
 function draw() {
-  // Dark arena
+  // Screen shake — offset the whole world while shaking
+  ctx.save();
+  if (shakeTime > 0) {
+    ctx.translate((Math.random() - 0.5) * shakeMag, (Math.random() - 0.5) * shakeMag);
+  }
+
+  // Dark arena (oversized so shake never reveals the canvas edge)
   ctx.fillStyle = '#0b0614';
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(-12, -12, W + 24, H + 24);
 
   // Subtle grid
   ctx.strokeStyle = 'rgba(124, 58, 237, 0.08)';
@@ -613,6 +656,33 @@ function draw() {
     ctx.stroke();
     ctx.setLineDash([]);
   }
+
+  ctx.restore(); // end screen shake — HUD overlays below stay steady
+
+  // Wave banner
+  if (bannerTime > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, bannerTime / 18);
+    ctx.fillStyle = '#c084fc';
+    ctx.shadowColor = '#c084fc';
+    ctx.shadowBlur = 26;
+    ctx.font = 'bold 52px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(bannerText, W/2, H/2 - 14);
+    ctx.restore();
+  }
+
+  // Combo multiplier indicator
+  if (gameRunning && comboMult() > 1) {
+    ctx.save();
+    ctx.fillStyle = '#f0abfc';
+    ctx.shadowColor = '#f0abfc';
+    ctx.shadowBlur = 12;
+    ctx.font = 'bold 20px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('COMBO ×' + comboMult(), W/2, 44);
+    ctx.restore();
+  }
 }
 
 function updateHUD() {
@@ -621,6 +691,7 @@ function updateHUD() {
   document.getElementById('wave').textContent = wave;
   document.getElementById('saved').textContent = saved;
   document.getElementById('lost').textContent = lost;
+  document.getElementById('best').textContent = best;
 }
 
 // ---------- Loop ----------
@@ -629,5 +700,6 @@ function loop() {
   draw();
   requestAnimationFrame(loop);
 }
+updateHUD();
 loop();
 console.log('Spectral Manor Swarm ready — Save the Ghost Circuit fans');

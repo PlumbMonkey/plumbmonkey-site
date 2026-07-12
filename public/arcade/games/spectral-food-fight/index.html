@@ -71,6 +71,15 @@
     }
     .start-overlay p { color: #d8b4fe; margin-bottom: 0.4rem; }
     .hidden { display: none !important; }
+    .crt-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+      background:
+        repeating-linear-gradient(0deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 1px, transparent 1px, transparent 3px),
+        radial-gradient(ellipse at center, transparent 58%, rgba(5,2,12,0.42) 100%);
+    }
   </style>
 </head>
 <body>
@@ -79,6 +88,7 @@
 
   <div style="position: relative;">
     <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div class="crt-overlay"></div>
     <div id="startOverlay" class="start-overlay">
       <h2>SPECTRAL MANOR MESS HALL</h2>
       <p>The manor cafeteria has gone insane.</p>
@@ -92,6 +102,7 @@
     <div>LIVES: <span id="lives">3</span></div>
     <div>LEVEL: <span id="level">1</span></div>
     <div>FOOD: <span id="ammo">0</span></div>
+    <div>BEST: <span id="best">0</span></div>
   </div>
 
   <div class="controls">
