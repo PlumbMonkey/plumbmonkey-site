@@ -243,7 +243,7 @@ function update() {
       target = null; // chase player
     }
 
-    if (target && !target.grabbed) {
+    if (!m.carrying && target && !target.grabbed) {
       const dx = target.x - m.x, dy = target.y - m.y;
       const dist = Math.sqrt(dx*dx + dy*dy) || 1;
       m.x += (dx / dist) * m.speed;
@@ -306,12 +306,11 @@ function update() {
         bullets.splice(bi, 1);
         sfx.hit();
         if (m.hp <= 0) {
-          // Free carried fan
-          if (m.carrying) {
-            m.carrying.grabbed = false;
-            m.carrying.grabber = null;
-            m.carrying = null;
-          }
+          // Free every fan this monster was holding (covers any orphaned grabs)
+          fans.forEach(f => {
+            if (f.grabber === m) { f.grabbed = false; f.grabber = null; }
+          });
+          m.carrying = null;
           score += 150 + wave * 15;
           createParticles(m.x + m.w/2, m.y + m.h/2, m.color, 16);
           monsters.splice(mi, 1);
@@ -365,17 +364,9 @@ function update() {
     });
   }
 
-  // Wave clear
-  if (monsters.length === 0 && fans.length === 0 && gameRunning) {
-    wave++;
-    sfx.wave();
-    spawnWave();
-    updateHUD();
-  } else if (monsters.length === 0 && fans.some(f => !f.grabbed)) {
-    // all monsters dead but fans remain — auto rescue remaining
-    fans.forEach(f => {
-      if (!f.grabbed) { saved++; score += 300; }
-    });
+  // Wave clear — all monsters down; any fans still standing are safe
+  if (monsters.length === 0 && gameRunning) {
+    fans.forEach(() => { saved++; score += 300; });
     fans = [];
     wave++;
     sfx.wave();
