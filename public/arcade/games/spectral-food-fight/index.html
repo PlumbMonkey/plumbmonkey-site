@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectral Food Fight | Ghost Circuit</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0612;
+      color: #e0d4ff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+    h1 {
+      font-size: 1.7rem;
+      margin-bottom: 0.2rem;
+      letter-spacing: 2px;
+      text-shadow: 0 0 15px #c084fc;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      color: #a78bfa;
+      margin-bottom: 0.8rem;
+    }
+    #gameCanvas {
+      border: 2px solid #7c3aed;
+      box-shadow: 0 0 40px rgba(124, 58, 237, 0.45);
+      background: #0f0a1a;
+      max-width: 100%;
+      image-rendering: pixelated;
+      cursor: crosshair;
+    }
+    .hud {
+      display: flex;
+      gap: 1.8rem;
+      margin-top: 0.7rem;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .hud span { color: #c084fc; }
+    .controls {
+      margin-top: 0.8rem;
+      font-size: 0.8rem;
+      color: #9ca3af;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .start-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(10, 6, 18, 0.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      cursor: pointer;
+    }
+    .start-overlay h2 {
+      font-size: 2.2rem;
+      color: #c084fc;
+      text-shadow: 0 0 20px #c084fc;
+      margin-bottom: 0.8rem;
+    }
+    .start-overlay p { color: #d8b4fe; margin-bottom: 0.4rem; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <h1>SPECTRAL FOOD FIGHT</h1>
+  <div class="subtitle">Ghost Circuit · Manor Cafeteria Chaos</div>
+
+  <div style="position: relative;">
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div id="startOverlay" class="start-overlay">
+      <h2>SPECTRAL FOOD FIGHT</h2>
+      <p>The manor cafeteria has gone insane.</p>
+      <p>Throw food. Hit the chefs. Survive the chaos.</p>
+      <p style="font-size:0.85rem; opacity:0.75; margin-top:1rem;">Click or press SPACE to start</p>
+    </div>
+  </div>
+
+  <div class="hud">
+    <div>SCORE: <span id="score">0</span></div>
+    <div>LIVES: <span id="lives">3</span></div>
+    <div>LEVEL: <span id="level">1</span></div>
+    <div>FOOD: <span id="ammo">0</span></div>
+  </div>
+
+  <div class="controls">
+    WASD or Arrows : Move &nbsp;&nbsp;•&nbsp;&nbsp; Mouse : Aim &nbsp;&nbsp;•&nbsp;&nbsp; Click or Space : Throw Food<br>
+    Collect food on the ground to restock • Hit chefs to score • Avoid getting hit
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectral Skyline | Ghost Circuit</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #05030c;
+      color: #e0d4ff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+    h1 {
+      font-size: 1.55rem;
+      letter-spacing: 3px;
+      text-shadow: 0 0 18px #c084fc;
+      margin-bottom: 0.15rem;
+    }
+    .subtitle {
+      font-size: 0.8rem;
+      color: #a78bfa;
+      margin-bottom: 0.65rem;
+    }
+    #gameCanvas {
+      border: 2px solid #7c3aed;
+      box-shadow: 0 0 50px rgba(124, 58, 237, 0.45);
+      background: #0a0618;
+      max-width: 100%;
+      image-rendering: pixelated;
+    }
+    .hud {
+      display: flex;
+      gap: 1.5rem;
+      margin-top: 0.6rem;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+    .hud span { color: #c084fc; }
+    .controls {
+      margin-top: 0.65rem;
+      font-size: 0.76rem;
+      color: #9ca3af;
+      text-align: center;
+      line-height: 1.45;
+    }
+    .start-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 3, 12, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      cursor: pointer;
+    }
+    .start-overlay h2 {
+      font-size: 2rem;
+      color: #c084fc;
+      text-shadow: 0 0 22px #c084fc;
+      margin-bottom: 0.6rem;
+    }
+    .start-overlay p { color: #d8b4fe; margin: 0.22rem 0; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <h1>SPECTRAL SKYLINE</h1>
+  <div class="subtitle">Ghost Circuit · Ride Luno · Haunt the Heights</div>
+
+  <div style="position:relative">
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div id="startOverlay" class="start-overlay">
+      <h2>SPECTRAL SKYLINE</h2>
+      <p>Ride Luno across the haunted manor skyline.</p>
+      <p>Flap to stay aloft. Bump witches from above to turn them into crystals.</p>
+      <p style="margin-top:0.85rem; opacity:0.75; font-size:0.84rem">Click or SPACE to start</p>
+    </div>
+  </div>
+
+  <div class="hud">
+    <div>SCORE: <span id="score">0</span></div>
+    <div>LIVES: <span id="lives">3</span></div>
+    <div>WAVE: <span id="wave">1</span></div>
+    <div>CRYSTALS: <span id="crystals">0</span></div>
+  </div>
+
+  <div class="controls">
+    ← → or A D : Fly left / right &nbsp;&nbsp;•&nbsp;&nbsp; Space / W / ↑ : Flap (fly up)<br>
+    Land on witches from above to shatter them into crystals • Avoid ghosts & alien platforms
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

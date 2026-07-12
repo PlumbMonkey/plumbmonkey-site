@@ -23,6 +23,9 @@ export default function NavBar() {
           <a href="/upload.html" className="hover:text-teal-400">
             Upload
           </a>
+          <a href="/arcade" className="hover:text-purple-400 text-purple-300/80">
+            Arcade
+          </a>
         </div>
       </nav>
     </header>
