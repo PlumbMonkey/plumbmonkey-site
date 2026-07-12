@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectral Manor Infestation | Ghost Circuit</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#07040f; color:#e0d4ff; font-family:system-ui,sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; }
+    h1 { font-size:1.5rem; letter-spacing:2px; text-shadow:0 0 16px #c084fc; margin-bottom:0.3rem; }
+    .sub { color:#a78bfa; font-size:0.85rem; margin-bottom:1rem; }
+    #c { border:2px solid #7c3aed; box-shadow:0 0 40px rgba(124,58,237,0.4); }
+    .note { max-width:520px; text-align:center; margin-top:1rem; font-size:0.85rem; color:#9ca3af; line-height:1.5; }
+    .note code { background:#1a1025; padding:2px 6px; border-radius:4px; color:#c084fc; }
+  </style>
+</head>
+<body>
+  <h1>SPECTRAL MANOR INFESTATION</h1>
+  <div class="sub">Wave 2 Starter · Centipede Style · Ghost Circuit</div>
+  <canvas id="c" width="960" height="540"></canvas>
+  <div class="note">
+    <p><strong>Starter scaffold</strong> — player at bottom, basic Hauntipede segments, shooting.</p>
+    <p>Open this folder in VS Code and paste the <code>Spectral Manor Infestation</code> prompt from <code>PROMPTS.md</code> into Grok Build to turn it into a full Centipede-style game with splitting segments, haunted toadstools, and more bugs.</p>
+    <p>Controls (current): ← → move · Space shoot</p>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>

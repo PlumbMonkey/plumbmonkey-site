@@ -158,15 +158,19 @@ function spawnLevel() {
   }
 }
 
+// Shared food roster — pickups and projectiles all use these
+const FOOD_TYPES = [
+  { name: 'pie',     color: '#fbbf24', points: 10 },
+  { name: 'tomato',  color: '#ef4444', points: 15 },
+  { name: 'banana',  color: '#facc15', points: 12 },
+  { name: 'chicken', color: '#fb923c', points: 20 },
+  { name: 'cake',    color: '#f0abfc', points: 25 },
+  { name: 'burger',  color: '#f59e0b', points: 18 }
+];
+function randomFood() { return FOOD_TYPES[Math.floor(Math.random() * FOOD_TYPES.length)]; }
+
 function spawnPickup(x, y) {
-  const types = [
-    { name: 'pie', color: '#fbbf24', points: 10 },
-    { name: 'tomato', color: '#ef4444', points: 15 },
-    { name: 'banana', color: '#facc15', points: 12 },
-    { name: 'chicken', color: '#fb923c', points: 20 },
-    { name: 'cake', color: '#f0abfc', points: 25 }
-  ];
-  const t = types[Math.floor(Math.random() * types.length)];
+  const t = randomFood();
   pickups.push({
     x, y, w: 16, h: 16,
     type: t.name,
@@ -183,6 +187,7 @@ function throwFood() {
   const dy = mouse.y - (player.y + player.h/2);
   const dist = Math.sqrt(dx*dx + dy*dy) || 1;
   const speed = 9;
+  const t = randomFood();
   foods.push({
     x: player.x + player.w/2,
     y: player.y + player.h/2,
@@ -190,7 +195,10 @@ function throwFood() {
     vy: (dy / dist) * speed,
     r: 7,
     life: 90,
-    color: ['#fbbf24', '#ef4444', '#f0abfc', '#22d3ee'][Math.floor(Math.random()*4)]
+    type: t.name,
+    color: t.color,
+    rot: Math.random() * Math.PI * 2,
+    rotSpeed: (Math.random() - 0.5) * 0.5
   });
   player.throwCooldown = 12;
   sfx.throw();
@@ -256,6 +264,7 @@ function update() {
   foods.forEach(f => {
     f.x += f.vx;
     f.y += f.vy;
+    f.rot = (f.rot || 0) + (f.rotSpeed || 0);   // tumble in flight
     f.life--;
     // bounce off tables lightly
     for (const t of tables) {
@@ -307,13 +316,17 @@ function update() {
     c.throwTimer--;
     if (c.throwTimer <= 0 && dist < 340) {
       const speed = 5.2 + Math.random();
+      const ft = randomFood();
       foods.push({
         x: c.x + 15, y: c.y + 15,
         vx: (dx / dist) * speed,
         vy: (dy / dist) * speed,
         r: 6,
         life: 85,
+        type: ft.name,
         color: c.color,
+        rot: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.5,
         fromChef: true,
         owner: c          // so we know who threw it
       });
@@ -478,6 +491,104 @@ function createParticles(x, y, color, count) {
   }
 }
 
+// ---------- Food shapes (shared by pickups & projectiles) ----------
+// Draws the given food centred on the origin at scale s (roughly a radius).
+// Caller is responsible for ctx.save()/translate/rotate/restore.
+function drawFoodShape(type, s) {
+  switch (type) {
+    case 'pie':
+      // tin
+      ctx.fillStyle = '#b45309';
+      ctx.beginPath(); ctx.ellipse(0, s * 0.3, s, s * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+      // filling
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath(); ctx.ellipse(0, 0, s * 0.85, s * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+      // cream dollop
+      ctx.fillStyle = '#fef3c7';
+      ctx.beginPath(); ctx.ellipse(0, -s * 0.2, s * 0.4, s * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    case 'tomato':
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath(); ctx.arc(0, 0, s, 0, Math.PI * 2); ctx.fill();
+      // shine
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath(); ctx.arc(-s * 0.35, -s * 0.35, s * 0.28, 0, Math.PI * 2); ctx.fill();
+      // leafy stem
+      ctx.fillStyle = '#16a34a';
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + 0.4;
+        ctx.beginPath();
+        ctx.ellipse(Math.cos(a) * s * 0.22, -s * 0.75, s * 0.28, s * 0.11, a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    case 'banana':
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = s * 0.55;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(0, -s * 0.25, s * 0.85, Math.PI * 0.15, Math.PI * 0.85);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+      // brown tips
+      ctx.fillStyle = '#854d0e';
+      ctx.beginPath();
+      ctx.arc(Math.cos(Math.PI * 0.15) * s * 0.85, -s * 0.25 + Math.sin(Math.PI * 0.15) * s * 0.85, s * 0.15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(Math.cos(Math.PI * 0.85) * s * 0.85, -s * 0.25 + Math.sin(Math.PI * 0.85) * s * 0.85, s * 0.15, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'chicken':
+      // drumstick meat
+      ctx.fillStyle = '#c2703d';
+      ctx.beginPath(); ctx.ellipse(-s * 0.25, -s * 0.15, s * 0.72, s * 0.55, -0.5, 0, Math.PI * 2); ctx.fill();
+      // roast highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';
+      ctx.beginPath(); ctx.ellipse(-s * 0.42, -s * 0.32, s * 0.26, s * 0.15, -0.5, 0, Math.PI * 2); ctx.fill();
+      // bone
+      ctx.strokeStyle = '#fef3c7';
+      ctx.lineWidth = s * 0.2;
+      ctx.beginPath(); ctx.moveTo(s * 0.2, s * 0.2); ctx.lineTo(s * 0.6, s * 0.55); ctx.stroke();
+      ctx.fillStyle = '#fef3c7';
+      ctx.beginPath(); ctx.arc(s * 0.75, s * 0.45, s * 0.17, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s * 0.6, s * 0.72, s * 0.17, 0, Math.PI * 2); ctx.fill();
+      break;
+    case 'cake':
+      // slice with layers + cherry
+      ctx.fillStyle = '#f9a8d4';
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.9, s * 0.6);
+      ctx.lineTo(s * 0.9, s * 0.6);
+      ctx.lineTo(0, -s * 0.65);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fdf2f8';
+      ctx.fillRect(-s * 0.55, s * 0.05, s * 1.1, s * 0.17);
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath(); ctx.arc(0, -s * 0.78, s * 0.2, 0, Math.PI * 2); ctx.fill();
+      break;
+    case 'burger':
+    default:
+      // bottom bun
+      ctx.fillStyle = '#d97706';
+      ctx.beginPath(); ctx.ellipse(0, s * 0.42, s * 0.85, s * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+      // patty
+      ctx.fillStyle = '#7c2d12';
+      ctx.fillRect(-s * 0.8, s * 0.02, s * 1.6, s * 0.26);
+      // lettuce
+      ctx.fillStyle = '#4ade80';
+      ctx.fillRect(-s * 0.85, -s * 0.12, s * 1.7, s * 0.15);
+      // top bun dome
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath(); ctx.ellipse(0, -s * 0.1, s * 0.85, s * 0.55, 0, Math.PI, 0); ctx.fill();
+      // sesame seeds
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillRect(-s * 0.32, -s * 0.4, s * 0.12, s * 0.07);
+      ctx.fillRect(s * 0.14, -s * 0.32, s * 0.12, s * 0.07);
+      break;
+  }
+}
+
 // ---------- Draw ----------
 function draw() {
   // Screen shake — offset the whole world while shaking
@@ -525,17 +636,12 @@ function draw() {
   // Pickups (food on ground)
   pickups.forEach(p => {
     const by = Math.sin(p.bob) * 3;
+    ctx.save();
+    ctx.translate(p.x + 8, p.y + 8 + by);
     ctx.shadowColor = p.color;
     ctx.shadowBlur = 10;
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x + 8, p.y + 8 + by, 8, 0, Math.PI*2);
-    ctx.fill();
-    // highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.beginPath();
-    ctx.arc(p.x + 5, p.y + 5 + by, 3, 0, Math.PI*2);
-    ctx.fill();
+    drawFoodShape(p.type, 8);
+    ctx.restore();
   });
   ctx.shadowBlur = 0;
 
@@ -670,18 +776,15 @@ function draw() {
   ctx.restore();
   ctx.globalAlpha = 1;
 
-  // Thrown food
+  // Thrown food — real food shapes, tumbling; hostile food glows red
   foods.forEach(f => {
-    ctx.shadowColor = f.color;
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate(f.rot || 0);
+    ctx.shadowColor = f.fromChef ? '#f87171' : f.color;
     ctx.shadowBlur = 12;
-    ctx.fillStyle = f.color;
-    ctx.beginPath();
-    ctx.arc(f.x, f.y, f.r, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.beginPath();
-    ctx.arc(f.x - 2, f.y - 2, f.r*0.4, 0, Math.PI*2);
-    ctx.fill();
+    drawFoodShape(f.type, f.r + 2);
+    ctx.restore();
   });
   ctx.shadowBlur = 0;
 

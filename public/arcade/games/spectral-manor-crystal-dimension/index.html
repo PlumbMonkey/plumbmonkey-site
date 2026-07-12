@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectral Manor Crystal Dimension | Ghost Circuit</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #05030c;
+      color: #e0d4ff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+    h1 { font-size: 1.45rem; letter-spacing: 2px; text-shadow: 0 0 18px #c084fc; margin-bottom: 0.1rem; }
+    .subtitle { font-size: 0.78rem; color: #a78bfa; margin-bottom: 0.55rem; }
+    #gameCanvas {
+      border: 2px solid #7c3aed;
+      box-shadow: 0 0 45px rgba(124, 58, 237, 0.4);
+      background: #06040f;
+      max-width: 100%;
+    }
+    .hud { display: flex; gap: 1.4rem; margin-top: 0.55rem; font-size: 0.9rem; font-weight: 600; }
+    .hud span { color: #c084fc; }
+    .controls { margin-top: 0.55rem; font-size: 0.74rem; color: #9ca3af; text-align: center; line-height: 1.4; }
+    .start-overlay {
+      position: absolute; inset: 0; background: rgba(5,3,12,0.92);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 10; cursor: pointer;
+    }
+    .start-overlay h2 { font-size: 1.8rem; color: #c084fc; text-shadow: 0 0 20px #c084fc; margin-bottom: 0.5rem; }
+    .start-overlay p { color: #d8b4fe; margin: 0.18rem 0; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <h1>SPECTRAL MANOR CRYSTAL DIMENSION</h1>
+  <div class="subtitle">Ghost Circuit · Zero-G · Space Ghosts</div>
+
+  <div style="position:relative">
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div id="startOverlay" class="start-overlay">
+      <h2>CRYSTAL DIMENSION</h2>
+      <p>Gravity has failed. Rocks crush. Space ghosts hunt.</p>
+      <p>← → rotate · ↑ thrust · Space fire</p>
+      <p style="margin-top:0.75rem; opacity:0.75; font-size:0.85rem">Click or SPACE to enter</p>
+    </div>
+  </div>
+
+  <div class="hud">
+    <div>SCORE: <span id="score">0</span></div>
+    <div>LIVES: <span id="lives">3</span></div>
+    <div>WAVE: <span id="wave">1</span></div>
+  </div>
+
+  <div class="controls">
+    ← → or A D : Rotate &nbsp;&nbsp;•&nbsp;&nbsp; ↑ or W : Thrust &nbsp;&nbsp;•&nbsp;&nbsp; Space : Fire<br>
+    Destroy rocks &amp; space ghosts · Collect crystals · Avoid being crushed
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

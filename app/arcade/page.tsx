@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Spectral Manor Arcade | Plumbmonkey Media",
   description:
-    "Play the Spectral Manor Series — four Ghost Circuit arcade games. Defender, Food Fight, Robotron & Joust reborn inside the haunted manor.",
+    "Play the Spectral Manor Series — eight Ghost Circuit arcade games across two waves. Defender, Food Fight, Robotron, Joust, Racing, Asteroids, Centipede & Pac-Man reborn inside the haunted manor.",
   keywords: [
     "spectral manor arcade",
     "ghost circuit games",
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     title: "Spectral Manor Arcade",
-    description: "Four classic arcade games reborn inside the Ghost Circuit universe.",
+    description: "Eight classic arcade games reborn inside the Ghost Circuit universe.",
     type: "website",
   },
 };
@@ -51,6 +51,38 @@ const games = [
       "Ride Luno the owl-griffin across the haunted skyline. Flap, dive, and bump witches from above — they shatter into crystals. Watch for ghosts and aliens on floating platforms.",
     tags: ["Ride Luno", "Crystal Witches", "Sky Combat"],
   },
+  {
+    href: "/arcade/games/spectral-manor-soul-circuit/",
+    icon: "💛",
+    title: "Spectral Manor Soul Circuit",
+    description:
+      "Navigate a dark Victorian hedge maze collecting crystals. Four classic monsters hunt you — Vampire, Frankenstein, Werewolf, and Witch. Grab a large power crystal to activate a magic field and turn the tables.",
+    tags: ["Hedge Maze", "Magic Field", "Power Crystals"],
+  },
+  {
+    href: "/arcade/games/spectral-manor-crystal-dimension/",
+    icon: "🪨",
+    title: "Spectral Manor Crystal Dimension",
+    description:
+      "Zero-gravity combat in deep space. Blast through flying rocks and space ghosts threatening the Ghost Circuit. Rotate, thrust, and fire — or be consumed by the void.",
+    tags: ["Zero-G", "Space Ghosts", "Flying Rocks"],
+  },
+  {
+    href: "/arcade/games/spectral-manor-infestation/",
+    icon: "🐛",
+    title: "Spectral Manor Infestation",
+    description:
+      "The manor grounds are overrun. A Hauntipede descends through the haunted mushroom field — blast it into pieces before it reaches you. Watch for splitting segments and surprise bugs.",
+    tags: ["Haunted Bugs", "Splitting Segments", "Toadstools"],
+  },
+  {
+    href: "/arcade/games/spectral-manor-cruise/",
+    icon: "🚗",
+    title: "Spectral Manor Cruise",
+    description:
+      "Midnight road race through the cursed countryside. Outrun Vampire, Frankenstein, Werewolf, and Witch in a pseudo-3D sprint down the haunted highway.",
+    tags: ["Night Racing", "Monster Racers", "Pseudo-3D"],
+  },
 ];
 
 export default function ArcadePage() {
@@ -68,9 +100,9 @@ export default function ArcadePage() {
           Spectral Manor Arcade
         </h1>
         <p className="text-purple-300/80 max-w-2xl mx-auto text-lg">
-          Four classic arcade experiences reborn inside the Ghost Circuit universe.
+          Eight classic arcade experiences reborn inside the Ghost Circuit universe.
           <br className="hidden sm:block" />
-          Defend the concert. Save the fans. Rule the cafeteria. Rule the skyline.
+          Two waves of haunted action — defend, race, maze, and survive.
         </p>
       </section>
 
@@ -127,7 +159,7 @@ export default function ArcadePage() {
             Built by Plumbmonkey Media
           </p>
           <p className="text-purple-600 text-xs mt-2">
-            Free to play · More coming soon
+            Free to play · Wave 1 &amp; Wave 2 now live
           </p>
         </div>
       </section>
