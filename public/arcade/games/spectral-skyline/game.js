@@ -1,5 +1,5 @@
 // ============================================================
-// SPECTRAL SKYLINE
+// SPECTRAL MANOR: LUNO'S FLIGHT
 // Ghost Circuit Joust-style game
 // Ride Luno the owl-griffin across the haunted manor skyline
 // Bump witches from above → they become crystals
@@ -708,4 +708,4 @@ function loop() {
   requestAnimationFrame(loop);
 }
 loop();
-console.log('Spectral Skyline ready — Ride Luno, shatter the witches');
+console.log('Spectral Manor: Luno\'s Flight ready — Ride Luno, shatter the witches');

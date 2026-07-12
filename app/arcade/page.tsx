@@ -34,7 +34,7 @@ const games = [
     genre: "Food Fight Style",
     genreColor: "text-pink-400",
     icon: "🍗",
-    title: "Spectral Food Fight",
+    title: "Spectral Manor Mess Hall",
     description:
       "The manor cafeteria has gone insane. Throw food at vampires, werewolves, Frankensteins, ghosts & witches — while they throw food at each other.",
     tags: ["Monster Chaos", "Mouse Aim", "Food Ammo"],
@@ -44,7 +44,7 @@ const games = [
     genre: "Robotron Style",
     genreColor: "text-cyan-400",
     icon: "👾",
-    title: "Spectral Robotron",
+    title: "Spectral Manor Swarm",
     description:
       "Twin-stick arena. Monsters hunt screaming Ghost Circuit fans. Move with WASD, shoot with the mouse. Rescue the crowd before they're dragged away.",
     tags: ["Twin Stick", "Save Fans", "Wave Survival"],
@@ -54,7 +54,7 @@ const games = [
     genre: "Joust Style",
     genreColor: "text-violet-400",
     icon: "🦉",
-    title: "Spectral Skyline",
+    title: "Spectral Manor: Luno's Flight",
     description:
       "Ride Luno the owl-griffin across the haunted skyline. Flap, dive, and bump witches from above — they shatter into crystals. Watch for ghosts and aliens on floating platforms.",
     tags: ["Ride Luno", "Crystal Witches", "Sky Combat"],

@@ -1,5 +1,5 @@
 // ============================================================
-// SPECTRAL FOOD FIGHT
+// SPECTRAL MANOR MESS HALL
 // Ghost Circuit themed Food Fight clone
 // Throw food at spectral chefs in the haunted manor cafeteria
 // ============================================================
@@ -673,4 +673,4 @@ function loop() {
   requestAnimationFrame(loop);
 }
 loop();
-console.log('Spectral Food Fight ready — Ghost Circuit Cafeteria Chaos');
+console.log('Spectral Manor Mess Hall ready — Ghost Circuit Cafeteria Chaos');

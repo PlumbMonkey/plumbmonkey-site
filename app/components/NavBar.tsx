@@ -24,7 +24,7 @@ export default function NavBar() {
             Upload
           </a>
           <a href="/arcade" className="hover:text-purple-400 text-purple-300/80">
-            Arcade
+            Spectral Manor Arcade
           </a>
         </div>
       </nav>

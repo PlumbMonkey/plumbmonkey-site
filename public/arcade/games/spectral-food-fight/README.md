@@ -1,4 +1,4 @@
-# Spectral Food Fight
+# Spectral Manor Mess Hall
 
 **Ghost Circuit** themed Food Fight arcade game  
 Throw food at spectral chefs in the haunted manor cafeteria!

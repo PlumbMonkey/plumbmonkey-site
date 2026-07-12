@@ -1,4 +1,4 @@
-# Spectral Robotron
+# Spectral Manor Swarm
 
 **Ghost Circuit** themed Robotron-style twin-stick arena shooter  
 Save the screaming fans from the monsters!

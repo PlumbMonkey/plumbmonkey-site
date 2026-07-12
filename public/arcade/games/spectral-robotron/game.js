@@ -1,5 +1,5 @@
 // ============================================================
-// SPECTRAL ROBOTRON
+// SPECTRAL MANOR SWARM
 // Ghost Circuit themed Robotron-style twin-stick arena
 // Monsters hunt screaming fans — you save them
 // ============================================================
@@ -639,4 +639,4 @@ function loop() {
   requestAnimationFrame(loop);
 }
 loop();
-console.log('Spectral Robotron ready — Save the Ghost Circuit fans');
+console.log('Spectral Manor Swarm ready — Save the Ghost Circuit fans');
