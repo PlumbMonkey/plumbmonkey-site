@@ -70,6 +70,48 @@ let bullets = [];
 let monsters = [];
 let fans = [];
 let particles = [];
+let obstacles = [];   // crypt blocks — cover for you, walls for everyone
+let enemyBolts = [];  // specter projectiles
+let drops = [];       // power-up pickups
+let rescueChain = 0;  // escalating rescue bonus within a wave
+
+// ---------- Obstacles ----------
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+function insideObstacle(x, y, w, h) {
+  return obstacles.some(o => x < o.x + o.w && x + w > o.x && y < o.y + o.h && y + h > o.y);
+}
+function spawnObstacles() {
+  obstacles = [];
+  const count = 4 + Math.min(wave, 3);
+  let guard = 0;
+  while (obstacles.length < count && guard++ < 200) {
+    const o = {
+      x: 70 + Math.random() * (W - 220),
+      y: 70 + Math.random() * (H - 200),
+      w: 46 + Math.random() * 40,
+      h: 34 + Math.random() * 24
+    };
+    // keep the center clear for the player spawn, and space them out
+    const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+    if (Math.hypot(cx - W / 2, cy - H / 2) < 120) continue;
+    if (obstacles.some(p => Math.hypot(p.x - o.x, p.y - o.y) < 130)) continue;
+    obstacles.push(o);
+  }
+}
+
+// ---------- Power-ups ----------
+const DROP_TYPES = [
+  { type: 'rapid',  label: 'RAPID',  color: '#22d3ee' },
+  { type: 'spread', label: 'SPREAD', color: '#f0abfc' },
+  { type: 'shield', label: 'SHIELD', color: '#4ade80' },
+  { type: 'banish', label: 'BANISH', color: '#f59e0b' }
+];
+function spawnDrop(x, y) {
+  const pick = DROP_TYPES[Math.floor(Math.random() * DROP_TYPES.length)];
+  drops.push({ x, y, w: 22, h: 22, ...pick, life: 480, bob: Math.random() * Math.PI * 2 });
+}
 
 // ---------- Input ----------
 window.addEventListener('keydown', e => {
@@ -97,10 +139,12 @@ document.getElementById('startOverlay').addEventListener('click', () => {
 function startGame() {
   score = 0; lives = 3; wave = 1; saved = 0; lost = 0;
   bullets = []; monsters = []; fans = []; particles = [];
+  enemyBolts = []; drops = []; rescueChain = 0;
   combo = 0; comboTimer = 0; hitPause = 0; shakeTime = 0; waveDelay = 0;
   bannerText = 'WAVE 1'; bannerTime = 90;
   player.x = W/2; player.y = H/2;
   player.fireCooldown = 0; player.invuln = 0;
+  player.powerType = null; player.powerTime = 0;
   gameRunning = true; gameOver = false;
   document.getElementById('startOverlay').classList.add('hidden');
   spawnWave();
@@ -110,6 +154,9 @@ function startGame() {
 function spawnWave() {
   monsters = [];
   fans = [];
+  enemyBolts = [];
+  rescueChain = 0;
+  spawnObstacles();
 
   // Fans — mostly screaming females, some males, a couple kids
   const fanCount = 7 + Math.floor(wave * 1.4);
@@ -129,9 +176,14 @@ function spawnWave() {
       color = ['#fde68a', '#fca5a5', '#bbf7d0'][Math.floor(Math.random()*3)];
       scale = 0.72;
     }
+    let fx, fy, tries = 0;
+    do {
+      fx = 60 + Math.random() * (W - 120);
+      fy = 50 + Math.random() * (H - 100);
+    } while (insideObstacle(fx, fy, 16 * scale, 22 * scale) && tries++ < 30);
     fans.push({
-      x: 60 + Math.random() * (W - 120),
-      y: 50 + Math.random() * (H - 100),
+      x: fx,
+      y: fy,
       w: 16 * scale, h: 22 * scale,
       type, color, scale,
       panic: 0,
@@ -171,7 +223,8 @@ function spawnWave() {
       type: m.type,
       color: m.color,
       target: null,
-      size: m.size
+      size: m.size,
+      boltTimer: 100 + Math.random() * 120 // specters: time to next shot
     });
   }
 }
@@ -180,22 +233,23 @@ function fire() {
   if (player.fireCooldown > 0) return;
   const dx = mouse.x - (player.x + player.w/2);
   const dy = mouse.y - (player.y + player.h/2);
-  const dist = Math.sqrt(dx*dx + dy*dy) || 1;
   const speed = 13;
-  // dual shot slight spread for Robotron feel
   const baseAng = Math.atan2(dy, dx);
-  for (let i = -1; i <= 1; i += 2) {
-    const ang = baseAng + i * 0.06;
+  // SPREAD power-up: 5-way fan; otherwise classic dual shot
+  const angles = player.powerType === 'spread'
+    ? [-0.3, -0.15, 0, 0.15, 0.3]
+    : [-0.06, 0.06];
+  angles.forEach(a => {
     bullets.push({
       x: player.x + player.w/2,
       y: player.y + player.h/2,
-      vx: Math.cos(ang) * speed,
-      vy: Math.sin(ang) * speed,
+      vx: Math.cos(baseAng + a) * speed,
+      vy: Math.sin(baseAng + a) * speed,
       r: 4,
       life: 55
     });
-  }
-  player.fireCooldown = 7;
+  });
+  player.fireCooldown = player.powerType === 'rapid' ? 3 : 7;
   sfx.shoot();
 }
 
@@ -219,17 +273,76 @@ function update() {
   if (keys['ArrowDown'] || keys['KeyS']) vy = player.speed;
   if (vx && vy) { vx *= 0.707; vy *= 0.707; }
 
-  player.x = Math.max(8, Math.min(W - player.w - 8, player.x + vx));
-  player.y = Math.max(28, Math.min(H - player.h - 8, player.y + vy));
+  // Move with obstacle sliding (try X and Y separately)
+  let nx = Math.max(8, Math.min(W - player.w - 8, player.x + vx));
+  let ny = Math.max(28, Math.min(H - player.h - 8, player.y + vy));
+  if (!insideObstacle(nx, player.y, player.w, player.h)) player.x = nx;
+  if (!insideObstacle(player.x, ny, player.w, player.h)) player.y = ny;
   player.angle = Math.atan2(mouse.y - (player.y + player.h/2), mouse.x - (player.x + player.w/2));
 
   if ((mouse.down || keys['Space']) && player.fireCooldown <= 0) fire();
   if (player.fireCooldown > 0) player.fireCooldown--;
   if (player.invuln > 0) player.invuln--;
 
-  // Bullets
+  // Power-up timer
+  if (player.powerTime > 0) {
+    player.powerTime--;
+    if (player.powerTime === 0) player.powerType = null;
+  }
+
+  // Bullets — obstacles block shots (yours and theirs)
   bullets.forEach(b => { b.x += b.vx; b.y += b.vy; b.life--; });
-  bullets = bullets.filter(b => b.life > 0 && b.x > -10 && b.x < W+10 && b.y > -10 && b.y < H+10);
+  bullets = bullets.filter(b =>
+    b.life > 0 && b.x > -10 && b.x < W+10 && b.y > -10 && b.y < H+10 &&
+    !insideObstacle(b.x - 2, b.y - 2, 4, 4));
+
+  // Specter bolts
+  enemyBolts.forEach(b => { b.x += b.vx; b.y += b.vy; b.life--; });
+  enemyBolts = enemyBolts.filter(b =>
+    b.life > 0 && b.x > -10 && b.x < W+10 && b.y > -10 && b.y < H+10 &&
+    !insideObstacle(b.x - 2, b.y - 2, 4, 4));
+  if (player.invuln <= 0) {
+    enemyBolts.forEach((b, bi) => {
+      if (b.x > player.x && b.x < player.x + player.w &&
+          b.y > player.y && b.y < player.y + player.h) {
+        enemyBolts.splice(bi, 1);
+        hurtPlayer();
+      }
+    });
+  }
+
+  // Power-up pickups
+  drops.forEach((d, di) => {
+    d.bob += 0.08;
+    d.life--;
+    if (d.life <= 0) { drops.splice(di, 1); return; }
+    if (player.x < d.x + d.w && player.x + player.w > d.x &&
+        player.y < d.y + d.h && player.y + player.h > d.y) {
+      drops.splice(di, 1);
+      sfx.save();
+      if (d.type === 'shield') {
+        player.invuln = 360; // 6 seconds
+      } else if (d.type === 'banish') {
+        // shockwave — every monster takes a hit, carried fans drop
+        triggerShake(12, 22);
+        hitPause = 4;
+        for (let mi = monsters.length - 1; mi >= 0; mi--) {
+          const m = monsters[mi];
+          m.hp--;
+          createParticles(m.x + m.w/2, m.y + m.h/2, m.color, 10);
+          if (m.hp <= 0) {
+            fans.forEach(f => { if (f.grabber === m) { f.grabbed = false; f.grabber = null; } });
+            score += (150 + wave * 15);
+            monsters.splice(mi, 1);
+          }
+        }
+        updateHUD();
+      } else {
+        player.powerType = d.type;   // rapid | spread
+        player.powerTime = 480;      // 8 seconds
+      }
+    }
+  });
 
   // Fans panic + scream animation
   fans.forEach(f => {
@@ -248,6 +361,40 @@ function update() {
 
   // Monsters AI — hunt nearest fan, or player if close
   monsters.forEach(m => {
+    const prevX = m.x, prevY = m.y; // for obstacle sliding
+
+    // ----- Specters are casters: keep range and hurl bolts -----
+    if (m.type === 'specter' && !m.carrying) {
+      const pdx = (player.x + player.w/2) - (m.x + m.w/2);
+      const pdy = (player.y + player.h/2) - (m.y + m.h/2);
+      const pd = Math.hypot(pdx, pdy) || 1;
+      // keep ~200px distance: back off when close, drift in when far
+      const dir = pd < 170 ? -1 : (pd > 260 ? 1 : 0);
+      m.x += (pdx / pd) * m.speed * dir;
+      m.y += (pdy / pd) * m.speed * dir;
+      // strafe slowly for a floaty feel
+      m.x += Math.cos(Date.now() * 0.001 + m.y) * 0.5;
+      m.boltTimer--;
+      if (m.boltTimer <= 0) {
+        enemyBolts.push({
+          x: m.x + m.w/2, y: m.y + m.h/2,
+          vx: (pdx / pd) * 4.6, vy: (pdy / pd) * 4.6,
+          life: 110
+        });
+        sfx.hit();
+        m.boltTimer = 110 + Math.random() * 90 - wave * 3;
+      }
+      // obstacle slide + clamp, then done
+      if (insideObstacle(m.x, m.y, m.w, m.h)) {
+        if (!insideObstacle(m.x, prevY, m.w, m.h)) m.y = prevY;
+        else if (!insideObstacle(prevX, m.y, m.w, m.h)) m.x = prevX;
+        else { m.x = prevX; m.y = prevY; }
+      }
+      m.x = Math.max(10, Math.min(W - 40, m.x));
+      m.y = Math.max(30, Math.min(H - 40, m.y));
+      return;
+    }
+
     let target = null;
     let best = 99999;
 
@@ -313,6 +460,13 @@ function update() {
       m.y += (dy / dist) * m.speed;
     }
 
+    // Slide around obstacles rather than walking through them
+    if (!m.carrying && insideObstacle(m.x, m.y, m.w, m.h)) {
+      if (!insideObstacle(m.x, prevY, m.w, m.h)) m.y = prevY;
+      else if (!insideObstacle(prevX, m.y, m.w, m.h)) m.x = prevX;
+      else { m.x = prevX; m.y = prevY; }
+    }
+
     // Keep mostly on screen while hunting
     if (!m.carrying) {
       m.x = Math.max(10, Math.min(W - 40, m.x));
@@ -340,6 +494,7 @@ function update() {
           hitPause = 2;
           triggerShake(3, 8);
           createParticles(m.x + m.w/2, m.y + m.h/2, m.color, 16);
+          if (Math.random() < 0.14) spawnDrop(m.x, m.y); // sometimes drop a power-up
           monsters.splice(mi, 1);
           updateHUD();
         }
@@ -348,12 +503,14 @@ function update() {
   });
 
   // Player rescues fans by walking into them (if not grabbed)
+  // Robotron-style escalating bonus: 300, 600, 900... up to 1500 per wave chain
   fans.forEach((f, fi) => {
     if (f.grabbed) return;
     if (player.x < f.x + f.w && player.x + player.w > f.x &&
         player.y < f.y + f.h && player.y + player.h > f.y) {
       saved++;
-      score += 300;
+      rescueChain++;
+      score += 300 * Math.min(rescueChain, 5);
       sfx.save();
       createParticles(f.x + f.w/2, f.y + f.h/2, f.color, 10);
       fans.splice(fi, 1);
@@ -366,34 +523,12 @@ function update() {
     monsters.forEach(m => {
       if (player.x < m.x + m.w && player.x + player.w > m.x &&
           player.y < m.y + m.h && player.y + player.h > m.y) {
-        lives--;
-        player.invuln = 70;
-        combo = 0; comboTimer = 0;
-        hitPause = 5;
-        triggerShake(9, 18);
-        sfx.hurt();
-        createParticles(player.x + 13, player.y + 13, '#f472b6', 14);
-        // knockback
+        // knockback away from the monster
         const dx = player.x - m.x, dy = player.y - m.y;
         const d = Math.sqrt(dx*dx + dy*dy) || 1;
         player.x += (dx / d) * 30;
         player.y += (dy / d) * 30;
-        updateHUD();
-        if (lives <= 0) {
-          gameOver = true;
-          gameRunning = false;
-          const newBest = score > best;
-          if (newBest) { best = score; saveBest(); }
-          document.getElementById('startOverlay').classList.remove('hidden');
-          document.getElementById('startOverlay').innerHTML = `
-            <h2>FANS LOST</h2>
-            <p>Saved: ${saved} &nbsp;|&nbsp; Lost: ${lost}</p>
-            <p style="margin-top:0.5rem">Final Score: ${score}</p>
-            <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-            <p style="margin-top:0.9rem; opacity:0.8">Click or SPACE to try again</p>
-          `;
-          updateHUD();
-        }
+        hurtPlayer();
       }
     });
   }
@@ -414,6 +549,33 @@ function update() {
   // Particles
   particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
   particles = particles.filter(p => p.life > 0);
+}
+
+function hurtPlayer() {
+  lives--;
+  player.invuln = 70;
+  player.powerType = null; player.powerTime = 0;
+  combo = 0; comboTimer = 0;
+  hitPause = 5;
+  triggerShake(9, 18);
+  sfx.hurt();
+  createParticles(player.x + 13, player.y + 13, '#f472b6', 14);
+  updateHUD();
+  if (lives <= 0) {
+    gameOver = true;
+    gameRunning = false;
+    const newBest = score > best;
+    if (newBest) { best = score; saveBest(); }
+    document.getElementById('startOverlay').classList.remove('hidden');
+    document.getElementById('startOverlay').innerHTML = `
+      <h2>FANS LOST</h2>
+      <p>Saved: ${saved} &nbsp;|&nbsp; Lost: ${lost}</p>
+      <p style="margin-top:0.5rem">Final Score: ${score}</p>
+      <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
+      <p style="margin-top:0.9rem; opacity:0.8">Click or SPACE to try again</p>
+    `;
+    updateHUD();
+  }
 }
 
 function createParticles(x, y, color, n) {
@@ -455,6 +617,62 @@ function draw() {
   ctx.strokeStyle = '#7c3aed';
   ctx.lineWidth = 3;
   ctx.strokeRect(4, 4, W-8, H-8);
+
+  // Obstacles — crumbling crypt blocks
+  obstacles.forEach(o => {
+    ctx.fillStyle = '#241536';
+    ctx.fillRect(o.x, o.y, o.w, o.h);
+    ctx.fillStyle = '#2f1d47';
+    ctx.fillRect(o.x + 3, o.y + 3, o.w - 6, o.h - 6);
+    // stone cracks
+    ctx.strokeStyle = '#1a0f2a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(o.x + o.w * 0.3, o.y);
+    ctx.lineTo(o.x + o.w * 0.35, o.y + o.h * 0.5);
+    ctx.lineTo(o.x + o.w * 0.25, o.y + o.h);
+    ctx.moveTo(o.x, o.y + o.h * 0.55);
+    ctx.lineTo(o.x + o.w, o.y + o.h * 0.5);
+    ctx.stroke();
+    // moss glow on top
+    ctx.fillStyle = 'rgba(74,222,128,0.15)';
+    ctx.fillRect(o.x, o.y, o.w, 4);
+  });
+
+  // Power-up drops
+  drops.forEach(d => {
+    const bobY = Math.sin(d.bob) * 3;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, d.life / 60);
+    ctx.shadowColor = d.color;
+    ctx.shadowBlur = 15;
+    ctx.strokeStyle = d.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(d.x + 11, d.y + 11 + bobY, 12, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(10,6,18,0.85)';
+    ctx.beginPath();
+    ctx.arc(d.x + 11, d.y + 11 + bobY, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = d.color;
+    ctx.font = 'bold 7px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(d.label, d.x + 11, d.y + 11 + bobY);
+    ctx.restore();
+  });
+
+  // Specter bolts
+  enemyBolts.forEach(b => {
+    ctx.fillStyle = '#22d3ee';
+    ctx.shadowColor = '#22d3ee';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.shadowBlur = 0;
 
   // Fans
   fans.forEach(f => {
@@ -681,6 +899,22 @@ function draw() {
     ctx.font = 'bold 20px "Segoe UI", system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('COMBO ×' + comboMult(), W/2, 44);
+    ctx.restore();
+  }
+
+  // Active power-up indicator with time bar
+  if (gameRunning && player.powerType) {
+    const def = DROP_TYPES.find(d => d.type === player.powerType);
+    ctx.save();
+    ctx.fillStyle = def.color;
+    ctx.shadowColor = def.color;
+    ctx.shadowBlur = 10;
+    ctx.font = 'bold 15px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(def.label, W/2, 70);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 0.8;
+    ctx.fillRect(W/2 - 40, 76, 80 * (player.powerTime / 480), 4);
     ctx.restore();
   }
 }

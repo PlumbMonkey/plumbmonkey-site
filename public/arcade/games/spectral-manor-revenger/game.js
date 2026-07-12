@@ -61,42 +61,53 @@ function playLaserCannon() {
   const t = audioCtx.currentTime;
   const f0 = 1900 + Math.random() * 400; // slight variation per shot
 
-  // main zap — fast exponential dive
+  // main zap — fast exponential dive, longer and louder
   const o = audioCtx.createOscillator();
   const g = audioCtx.createGain();
   o.type = 'sawtooth';
   o.frequency.setValueAtTime(f0, t);
-  o.frequency.exponentialRampToValueAtTime(160, t + 0.09);
-  g.gain.setValueAtTime(0.075, t);
-  g.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+  o.frequency.exponentialRampToValueAtTime(140, t + 0.13);
+  g.gain.setValueAtTime(0.13, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
   const hp = audioCtx.createBiquadFilter();
-  hp.type = 'highpass'; hp.frequency.value = 250;
+  hp.type = 'highpass'; hp.frequency.value = 220;
   o.connect(hp); hp.connect(g); g.connect(audioCtx.destination);
-  o.start(t); o.stop(t + 0.12);
+  o.start(t); o.stop(t + 0.17);
 
   // detuned body layer — gives the shot weight
   const o2 = audioCtx.createOscillator();
   const g2 = audioCtx.createGain();
   o2.type = 'square';
   o2.frequency.setValueAtTime(f0 * 0.51, t);
-  o2.frequency.exponentialRampToValueAtTime(90, t + 0.07);
-  g2.gain.setValueAtTime(0.04, t);
-  g2.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  o2.frequency.exponentialRampToValueAtTime(80, t + 0.1);
+  g2.gain.setValueAtTime(0.07, t);
+  g2.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
   o2.connect(g2); g2.connect(audioCtx.destination);
-  o2.start(t); o2.stop(t + 0.09);
+  o2.start(t); o2.stop(t + 0.13);
 
-  // muzzle crack — tiny high-passed noise transient
-  const len = Math.floor(audioCtx.sampleRate * 0.03);
+  // cannon thump — low sine drop for chest punch
+  const o3 = audioCtx.createOscillator();
+  const g3 = audioCtx.createGain();
+  o3.type = 'sine';
+  o3.frequency.setValueAtTime(150, t);
+  o3.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+  g3.gain.setValueAtTime(0.12, t);
+  g3.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+  o3.connect(g3); g3.connect(audioCtx.destination);
+  o3.start(t); o3.stop(t + 0.15);
+
+  // muzzle crack — high-passed noise transient
+  const len = Math.floor(audioCtx.sampleRate * 0.05);
   const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
   const n = audioCtx.createBufferSource();
   n.buffer = buf;
   const nhp = audioCtx.createBiquadFilter();
-  nhp.type = 'highpass'; nhp.frequency.value = 2500;
+  nhp.type = 'highpass'; nhp.frequency.value = 1800;
   const ng = audioCtx.createGain();
-  ng.gain.setValueAtTime(0.06, t);
-  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+  ng.gain.setValueAtTime(0.1, t);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
   n.connect(nhp); nhp.connect(ng); ng.connect(audioCtx.destination);
   n.start(t);
 }
@@ -297,7 +308,7 @@ function spawnFans() {
   for (let i = 0; i < 12; i++) {
     fans.push({
       x: 80 + i * 75 + Math.random() * 30,
-      y: H - 52,
+      y: H - 60,
       w: 10,
       h: 16,
       state: 'ground',   // ground | grabbed | falling | rescued
@@ -370,11 +381,12 @@ function update() {
   }
 
   // Parallax layers keep drifting gently even when paused/over (subtle life)
+  // Slower speeds push the scenery further into the background
   if (gameRunning) {
-    parallax.stars = (parallax.stars + 0.18) % W;
-    parallax.hillsFar = (parallax.hillsFar + 0.55) % (W * 2);
-    parallax.manor = (parallax.manor + 1.05) % (W + 320);
-    parallax.ground = (parallax.ground + 2.4) % 80;
+    parallax.stars = (parallax.stars + 0.1) % W;
+    parallax.hillsFar = (parallax.hillsFar + 0.28) % (W * 2);
+    parallax.manor = (parallax.manor + 0.5) % (W + 320);
+    parallax.ground = (parallax.ground + 1.8) % (W + 120);
   }
 
   if (!gameRunning) {
@@ -472,8 +484,8 @@ function update() {
     } else if (f.state === 'falling') {
       f.fallVy += 0.28;
       f.y += f.fallVy;
-      if (f.y >= H - 52) {
-        f.y = H - 52;
+      if (f.y >= H - 60) {
+        f.y = H - 60;
         f.state = 'ground';
         f.fallVy = 0;
         f.grabber = null;
@@ -650,7 +662,7 @@ function update() {
       for (let i = 0; i < 4; i++) {
         fans.push({
           x: 100 + Math.random() * (W - 200),
-          y: H - 52,
+          y: H - 60,
           w: 10, h: 16,
           state: 'ground',
           grabber: null,
@@ -799,35 +811,35 @@ function drawMoon() {
   ctx.beginPath(); ctx.arc(W - 100, 80, 6, 0, Math.PI * 2); ctx.fill();
 }
 
-/** Layer 1: distant rolling hills (slow scroll) */
+/** Layer 1: distant rolling hills (slow scroll)
+ *  Sine periods align with the wrap span (W*2) so the layer never snaps,
+ *  and low amplitude keeps it reading as far-away land, not waves. */
+function hillY(x) {
+  const span = W * 2;
+  const k1 = (Math.PI * 2 * 4) / span;  // 4 full cycles per wrap
+  const k2 = (Math.PI * 2 * 9) / span;  // 9 full cycles per wrap
+  return (H - 96)
+    - Math.sin((x + parallax.hillsFar) * k1) * 11
+    - Math.sin((x + parallax.hillsFar) * k2) * 5
+    - 6;
+}
 function drawDistantHills() {
-  const baseY = H - 88;
   ctx.fillStyle = '#10081c';
   ctx.beginPath();
   ctx.moveTo(0, H);
-  ctx.lineTo(0, baseY);
-  for (let x = 0; x <= W; x += 16) {
-    const y = baseY
-      - Math.sin((x + parallax.hillsFar) * 0.012) * 22
-      - Math.sin((x + parallax.hillsFar) * 0.028) * 10
-      - 8;
-    ctx.lineTo(x, y);
-  }
+  ctx.lineTo(0, hillY(0));
+  for (let x = 0; x <= W; x += 16) ctx.lineTo(x, hillY(x));
   ctx.lineTo(W, H);
   ctx.closePath();
   ctx.fill();
 
-  // Soft ridge highlight
-  ctx.strokeStyle = 'rgba(88, 40, 140, 0.35)';
-  ctx.lineWidth = 1.5;
+  // Very soft ridge highlight (dim — it's far away)
+  ctx.strokeStyle = 'rgba(88, 40, 140, 0.18)';
+  ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = 0; x <= W; x += 16) {
-    const y = baseY
-      - Math.sin((x + parallax.hillsFar) * 0.012) * 22
-      - Math.sin((x + parallax.hillsFar) * 0.028) * 10
-      - 8;
-    if (x === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+    if (x === 0) ctx.moveTo(x, hillY(x));
+    else ctx.lineTo(x, hillY(x));
   }
   ctx.stroke();
 }
@@ -920,39 +932,61 @@ function drawManorSilhouette() {
   ctx.restore();
 }
 
-/** Layer 3: closer ground / hills with purple glow line (fastest) */
+/** Layer 3: solid foreground ground — flat earth with scrolling
+ *  tombstones, grass tufts and fence posts (no more water-waves) */
 function drawForegroundGround() {
-  ctx.fillStyle = '#12091f';
-  ctx.beginPath();
-  ctx.moveTo(0, H - 40);
-  for (let x = 0; x <= W; x += 16) {
-    const y = H - 40
-      - Math.sin((x + parallax.ground) * 0.02) * 14
-      - Math.sin((x + parallax.ground) * 0.045) * 7;
-    ctx.lineTo(x, y);
-  }
-  ctx.lineTo(W, H);
-  ctx.lineTo(0, H);
-  ctx.closePath();
-  ctx.fill();
+  const groundY = H - 44;
 
-  // Purple glow line along the ridge
-  ctx.strokeStyle = '#7c3aed';
-  ctx.lineWidth = 2;
-  ctx.shadowColor = '#a855f7';
-  ctx.shadowBlur = 8;
-  ctx.globalAlpha = 0.75;
+  // Solid earth with a subtle vertical gradient
+  const g = ctx.createLinearGradient(0, groundY, 0, H);
+  g.addColorStop(0, '#150b24');
+  g.addColorStop(1, '#0c0616');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, groundY, W, H - groundY);
+
+  // Dim top edge
+  ctx.strokeStyle = 'rgba(124, 58, 237, 0.35)';
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  for (let x = 0; x <= W; x += 16) {
-    const y = H - 40
-      - Math.sin((x + parallax.ground) * 0.02) * 14
-      - Math.sin((x + parallax.ground) * 0.045) * 7;
-    if (x === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
+  ctx.moveTo(0, groundY);
+  ctx.lineTo(W, groundY);
   ctx.stroke();
-  ctx.shadowBlur = 0;
-  ctx.globalAlpha = 1;
+
+  // Deterministic scrolling features, seamless across the wrap span
+  const span = W + 120;
+  const off = parallax.ground;
+  const SPACING = 68;
+  const count = Math.ceil(span / SPACING);
+  for (let i = 0; i < count; i++) {
+    const sx = ((i * SPACING - off) % span + span) % span - 60;
+    if (sx < -40 || sx > W + 40) continue;
+    const kind = i % 5;
+    ctx.fillStyle = '#241536';
+    if (kind === 0) {
+      // tombstone
+      const th = 10 + (i * 7) % 6;
+      ctx.beginPath();
+      ctx.moveTo(sx - 5, groundY);
+      ctx.lineTo(sx - 5, groundY - th + 4);
+      ctx.arc(sx, groundY - th + 4, 5, Math.PI, 0);
+      ctx.lineTo(sx + 5, groundY);
+      ctx.closePath();
+      ctx.fill();
+    } else if (kind === 2) {
+      // fence post with a slat
+      ctx.fillRect(sx - 1.5, groundY - 12, 3, 12);
+      ctx.fillRect(sx - 10, groundY - 9, 20, 2);
+    } else {
+      // grass tuft
+      ctx.strokeStyle = '#1e1230';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(sx, groundY); ctx.lineTo(sx - 3, groundY - 6);
+      ctx.moveTo(sx, groundY); ctx.lineTo(sx, groundY - 7);
+      ctx.moveTo(sx, groundY); ctx.lineTo(sx + 3, groundY - 5);
+      ctx.stroke();
+    }
+  }
 }
 
 /** Concert stage (sits on foreground ground, not scrolling independently) */
@@ -1327,44 +1361,104 @@ function draw() {
   // Neon lasers
   drawBullets();
 
-  // Enemies - Ghosts + UAP shapes
+  // Enemies — alien attackers: pilots in glowing cockpits, running lights, a wraith
+  const blinkOn = Math.floor(Date.now() / 250) % 2 === 0;
   enemies.forEach(e => {
     const cx = e.x + e.w / 2;
     const cy = e.y + e.h / 2;
 
+    // little grey pilot: dome head + huge black almond eyes
+    const alienPilot = (px, py, r) => {
+      ctx.fillStyle = '#b8ce9d';
+      ctx.beginPath();
+      ctx.ellipse(px, py, r, r * 1.15, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0a0a12';
+      ctx.beginPath();
+      ctx.ellipse(px - r * 0.45, py - r * 0.1, r * 0.32, r * 0.5, 0.5, 0, Math.PI * 2);
+      ctx.ellipse(px + r * 0.45, py - r * 0.1, r * 0.32, r * 0.5, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
     if (e.type === 'ghost') {
-      ctx.fillStyle = '#a78bfa';
+      // wraith — wavy skirt, hollow glare, trailing wisps
+      const wob = Date.now() * 0.008 + e.x * 0.05;
+      ctx.fillStyle = 'rgba(167,139,250,0.9)';
+      ctx.shadowColor = '#a78bfa';
+      ctx.shadowBlur = 12;
       ctx.beginPath();
-      ctx.ellipse(cx, cy, e.w / 2, e.h / 2, 0, 0, Math.PI * 2);
+      ctx.arc(cx, cy - 3, e.w / 2, Math.PI, 0);
+      // scalloped, rippling bottom
+      const hem = cy + e.h / 2 - 4;
+      ctx.lineTo(cx + e.w / 2, hem);
+      for (let i = 0; i < 4; i++) {
+        const sx = cx + e.w / 2 - (i + 0.5) * (e.w / 4);
+        ctx.quadraticCurveTo(sx + e.w / 16, hem + 5 + Math.sin(wob + i) * 3, sx - e.w / 16, hem);
+      }
+      ctx.closePath();
       ctx.fill();
+      ctx.shadowBlur = 0;
+      // hollow glaring eyes + angry brows
+      ctx.fillStyle = '#1a0a2e';
+      ctx.beginPath();
+      ctx.arc(cx - 5, cy - 4, 3.2, 0, Math.PI * 2);
+      ctx.arc(cx + 5, cy - 4, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1a0a2e';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - 9, cy - 10); ctx.lineTo(cx - 2, cy - 7);
+      ctx.moveTo(cx + 9, cy - 10); ctx.lineTo(cx + 2, cy - 7);
+      ctx.stroke();
+      // glowing eye cores
       ctx.fillStyle = '#f0abfc';
-      ctx.beginPath();
-      ctx.arc(cx - 5, cy - 3, 3, 0, Math.PI * 2);
-      ctx.arc(cx + 5, cy - 3, 3, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillRect(cx - 6, cy - 5, 2, 2);
+      ctx.fillRect(cx + 4, cy - 5, 2, 2);
     } else if (e.type === 'sphere') {
+      // orb scout — metal ball, equator lights, glass dome with pilot
       const grad = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, e.w / 2);
-      grad.addColorStop(0, '#e0f2fe');
-      grad.addColorStop(1, '#0284c7');
+      grad.addColorStop(0, '#cbd5e1');
+      grad.addColorStop(1, '#334155');
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.arc(cx, cy, e.w / 2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#7dd3fc';
-      ctx.lineWidth = 1.5;
+      // equator band with blinking running lights
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 2, e.w / 2 - 1, 4, 0, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.fillStyle = blinkOn ? '#4ade80' : '#166534';
+      [-8, 0, 8].forEach(dx => ctx.fillRect(cx + dx - 1.5, cy + 4, 3, 3));
+      // glass dome + pilot
+      ctx.fillStyle = 'rgba(103,232,249,0.35)';
+      ctx.beginPath();
+      ctx.arc(cx, cy - 4, 7, Math.PI, 0);
+      ctx.fill();
+      alienPilot(cx, cy - 6, 3.4);
     } else if (e.type === 'capsule') {
-      ctx.fillStyle = '#e2e8f0';
+      // abductor craft — hull, cockpit window with pilot, engine glow
+      ctx.fillStyle = '#94a3b8';
       ctx.beginPath();
       ctx.roundRect(e.x, e.y, e.w, e.h, e.h / 2);
       ctx.fill();
-      ctx.strokeStyle = '#94a3b8';
+      ctx.strokeStyle = '#475569';
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      ctx.fillStyle = '#38bdf8';
-      ctx.fillRect(e.x + 8, e.y + 5, 6, 6);
-      ctx.fillRect(e.x + e.w - 14, e.y + 5, 6, 6);
+      // cockpit
+      ctx.fillStyle = 'rgba(103,232,249,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(e.x + e.w - 11, cy, 7, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      alienPilot(e.x + e.w - 11, cy - 1, 3);
+      // engine glow at the back
+      ctx.fillStyle = blinkOn ? '#f472b6' : '#be185d';
+      ctx.beginPath();
+      ctx.ellipse(e.x + 3, cy, 3, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
     } else if (e.type === 'cylinder') {
+      // mothership shard — hull with window rows + top dome pilot
       ctx.fillStyle = '#64748b';
       ctx.fillRect(e.x + 4, e.y, e.w - 8, e.h);
       ctx.fillStyle = '#94a3b8';
@@ -1374,17 +1468,49 @@ function draw() {
       ctx.beginPath();
       ctx.ellipse(cx, e.y + e.h - 3, (e.w - 8) / 2, 5, 0, 0, Math.PI * 2);
       ctx.fill();
+      // rows of lit windows (alternate blink)
+      for (let r = 0; r < 3; r++) {
+        const on = (Math.floor(Date.now() / 300) + r) % 2 === 0;
+        ctx.fillStyle = on ? '#67e8f9' : '#155e75';
+        ctx.fillRect(e.x + 8, e.y + 5 + r * 6, 4, 3);
+        ctx.fillRect(e.x + e.w - 12, e.y + 5 + r * 6, 4, 3);
+      }
+      // dome on top with pilot
+      ctx.fillStyle = 'rgba(103,232,249,0.35)';
+      ctx.beginPath();
+      ctx.arc(cx, e.y - 1, 6, Math.PI, 0);
+      ctx.fill();
+      alienPilot(cx, e.y - 3, 2.8);
     } else if (e.type === 'pyramid') {
-      ctx.fillStyle = '#c084fc';
+      // void pyramid — obsidian faces + glowing eye
+      ctx.fillStyle = '#2e1065';
       ctx.beginPath();
       ctx.moveTo(cx, e.y);
       ctx.lineTo(e.x + e.w, e.y + e.h);
       ctx.lineTo(e.x, e.y + e.h);
       ctx.closePath();
       ctx.fill();
+      // face edge
       ctx.strokeStyle = '#e879f9';
       ctx.lineWidth = 1.5;
       ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, e.y);
+      ctx.lineTo(cx + 4, e.y + e.h);
+      ctx.stroke();
+      // the Eye — pulsing
+      const pulse = 0.6 + Math.sin(Date.now() * 0.006) * 0.4;
+      ctx.fillStyle = `rgba(232,121,249,${pulse})`;
+      ctx.shadowColor = '#e879f9';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 3, 6, 3.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#0a0612';
+      ctx.beginPath();
+      ctx.arc(cx, cy + 3, 1.8, 0, Math.PI * 2);
+      ctx.fill();
     }
   });
 
@@ -1415,30 +1541,68 @@ function draw() {
   });
   ctx.globalAlpha = 1;
 
-  // Fans (concert crowd)
-  fans.forEach(f => {
+  // Fans (concert crowd) — little humans: head, hair, torso, arms, legs
+  fans.forEach((f, fi) => {
     ctx.save();
-    if (f.state === 'grabbed') {
-      ctx.globalAlpha = 0.95;
-    }
-    // Body
-    ctx.fillStyle = f.color;
-    ctx.fillRect(f.x, f.y, f.w, f.h - 4);
-    // Head
-    ctx.beginPath();
-    ctx.arc(f.x + 5, f.y - 2, 5, 0, Math.PI * 2);
-    ctx.fill();
-    // Arms up if scared / grabbed
-    if (f.state === 'grabbed' || f.state === 'falling') {
-      ctx.strokeStyle = f.color;
-      ctx.lineWidth = 2;
+    const cx = f.x + f.w / 2;
+    const scared = f.state === 'grabbed' || f.state === 'falling';
+    // each fan dances to their own beat
+    const beat = Math.sin(Date.now() * 0.008 + fi * 1.9);
+    const bounce = scared ? 0 : Math.max(0, beat) * 3;
+    const top = f.y - bounce;
+
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = f.color;
+
+    // legs
+    if (scared) {
+      // dangling / kicking
+      const kick = Math.sin(Date.now() * 0.02 + fi) * 3;
       ctx.beginPath();
-      ctx.moveTo(f.x, f.y + 4);
-      ctx.lineTo(f.x - 5, f.y - 4);
-      ctx.moveTo(f.x + f.w, f.y + 4);
-      ctx.lineTo(f.x + f.w + 5, f.y - 4);
+      ctx.moveTo(cx, top + 9);
+      ctx.lineTo(cx - 3 + kick, top + 16);
+      ctx.moveTo(cx, top + 9);
+      ctx.lineTo(cx + 3 - kick, top + 16);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(cx, top + 9);
+      ctx.lineTo(cx - 3, f.y + f.h);
+      ctx.moveTo(cx, top + 9);
+      ctx.lineTo(cx + 3, f.y + f.h);
       ctx.stroke();
     }
+
+    // torso (shirt)
+    ctx.fillStyle = f.color;
+    ctx.fillRect(cx - 3.5, top, 7, 10);
+
+    // arms — up and waving at the concert, flailing when grabbed
+    ctx.beginPath();
+    if (scared) {
+      ctx.moveTo(cx - 3, top + 2); ctx.lineTo(cx - 8, top - 6);
+      ctx.moveTo(cx + 3, top + 2); ctx.lineTo(cx + 8, top - 6);
+    } else if (beat > 0.3) {
+      // arms in the air
+      ctx.moveTo(cx - 3, top + 3); ctx.lineTo(cx - 7, top - 5);
+      ctx.moveTo(cx + 3, top + 3); ctx.lineTo(cx + 7, top - 5);
+    } else {
+      // arms down, swaying
+      ctx.moveTo(cx - 3, top + 2); ctx.lineTo(cx - 6, top + 9);
+      ctx.moveTo(cx + 3, top + 2); ctx.lineTo(cx + 6, top + 9);
+    }
+    ctx.stroke();
+
+    // head — skin tone + hair
+    ctx.fillStyle = '#e8c39e';
+    ctx.beginPath();
+    ctx.arc(cx, top - 5, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = fi % 3 === 0 ? '#3b2a1e' : (fi % 3 === 1 ? '#14100c' : '#6d3f1f');
+    ctx.beginPath();
+    ctx.arc(cx, top - 6.5, 4, Math.PI * 0.95, Math.PI * 2.05);
+    ctx.fill();
     ctx.restore();
   });
 

@@ -23,10 +23,40 @@ function tone(f, d, t='square', v=0.05, s=0) {
   o.connect(g); g.connect(audioCtx.destination);
   o.start(); o.stop(audioCtx.currentTime+d);
 }
+function noiseBlast(dur, vol, cutoff) {
+  if (!audioCtx) return;
+  const len = Math.floor(audioCtx.sampleRate * dur);
+  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const n = audioCtx.createBufferSource();
+  n.buffer = buf;
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(cutoff, audioCtx.currentTime);
+  lp.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + dur);
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(vol, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  n.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
+  n.start();
+}
 const sfx = {
   shoot: () => tone(900, 0.05, 'square', 0.04, -400),
-  boom:  () => { tone(120, 0.15, 'sawtooth', 0.06, -60); tone(80, 0.2, 'triangle', 0.04); },
-  hurt:  () => tone(100, 0.25, 'sawtooth', 0.07, -50),
+  // shattering crystal — noise crack + glassy ring + low thump
+  boom:  () => {
+    noiseBlast(0.3, 0.11, 2400);
+    tone(90, 0.22, 'sine', 0.09, -50);
+    tone(1400, 0.12, 'triangle', 0.035, -600);
+    setTimeout(() => tone(1800, 0.1, 'sine', 0.02, -800), 40);
+  },
+  // ship kill — bigger, deeper
+  bigBoom: () => {
+    noiseBlast(0.45, 0.13, 1600);
+    tone(70, 0.35, 'sine', 0.1, -40);
+    tone(200, 0.2, 'sawtooth', 0.05, -140);
+  },
+  hurt:  () => { noiseBlast(0.4, 0.1, 900); tone(100, 0.3, 'sawtooth', 0.07, -60); },
   crystal: () => { tone(700,0.06); setTimeout(()=>tone(1000,0.08),50); },
   wave:  () => { tone(440,0.07); setTimeout(()=>tone(554,0.07),70); setTimeout(()=>tone(659,0.1),140); }
 };
@@ -65,19 +95,23 @@ function spawnWave() {
 }
 
 function makeRock(x, y, size) {
-  const verts = 7 + Math.floor(Math.random()*4);
+  // hexagonal crystal — slightly irregular hex outline, pseudo-3D facets
   const points = [];
-  for (let i=0; i<verts; i++) {
-    const a = (i / verts) * Math.PI * 2;
-    const rad = (size * 12) * (0.7 + Math.random()*0.5);
-    points.push({ x: Math.cos(a)*rad, y: Math.sin(a)*rad });
+  const baseRad = size * 13;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const rad = baseRad * (0.88 + Math.random() * 0.24);
+    points.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad });
   }
   return {
     x, y, size,
     vx: (Math.random()-0.5) * (1.2 + (4-size)*0.6),
     vy: (Math.random()-0.5) * (1.2 + (4-size)*0.6),
-    angle: 0, spin: (Math.random()-0.5)*0.04,
-    points, r: size * 14
+    angle: Math.random() * Math.PI * 2,
+    spin: (Math.random()-0.5)*0.04,
+    points, r: size * 14,
+    hue: Math.random() < 0.5 ? 'purple' : 'pink',
+    shimmer: Math.random() * Math.PI * 2
   };
 }
 
@@ -173,11 +207,36 @@ function update() {
     if (g.y < 0) g.y = H; if (g.y > H) g.y = 0;
     g.shootTimer--;
     if (g.shootTimer <= 0) {
-      bullets.push({
-        x: g.x, y: g.y,
-        vx: Math.cos(g.angle)*5, vy: Math.sin(g.angle)*5,
-        life: 70, fromGhost: true
-      });
+      if (wave >= 4 && Math.random() < 0.35) {
+        // 5-way spectral fan
+        for (let s = -2; s <= 2; s++) {
+          bullets.push({
+            x: g.x, y: g.y,
+            vx: Math.cos(g.angle + s * 0.22) * 4.6,
+            vy: Math.sin(g.angle + s * 0.22) * 4.6,
+            life: 75, fromGhost: true
+          });
+        }
+      } else if (wave >= 2) {
+        // 3-shot burst, staggered
+        for (let s = 0; s < 3; s++) {
+          setTimeout(() => {
+            if (!gameRunning) return;
+            const a = Math.atan2(ship.y - g.y, ship.x - g.x);
+            bullets.push({
+              x: g.x, y: g.y,
+              vx: Math.cos(a) * 5.2, vy: Math.sin(a) * 5.2,
+              life: 70, fromGhost: true
+            });
+          }, s * 130);
+        }
+      } else {
+        bullets.push({
+          x: g.x, y: g.y,
+          vx: Math.cos(g.angle)*5, vy: Math.sin(g.angle)*5,
+          life: 70, fromGhost: true
+        });
+      }
       g.shootTimer = 80 + Math.random()*100;
     }
   });
@@ -222,8 +281,8 @@ function update() {
       if (Math.hypot(b.x-g.x, b.y-g.y) < g.r) {
         bullets.splice(bi, 1);
         score += 300;
-        sfx.boom();
-        explode(g.x, g.y, '#67e8f9', 16);
+        sfx.bigBoom();
+        explode(g.x, g.y, '#67e8f9', 22);
         ghosts.splice(gi, 1);
         updateHUD();
       }
@@ -305,62 +364,161 @@ function explode(x, y, color, n) {
 }
 
 function draw() {
-  // Cosmic background
-  const g = ctx.createRadialGradient(W/2, H/2, 50, W/2, H/2, 500);
-  g.addColorStop(0, '#12081f');
-  g.addColorStop(1, '#05030c');
+  const now = Date.now();
+
+  // ===== Magical dimension background =====
+  // deep void
+  const g = ctx.createRadialGradient(W/2, H/2, 50, W/2, H/2, 560);
+  g.addColorStop(0, '#160a26');
+  g.addColorStop(0.6, '#0c0518');
+  g.addColorStop(1, '#04020a');
   ctx.fillStyle = g;
   ctx.fillRect(0,0,W,H);
 
-  // Stars
-  ctx.fillStyle = '#e0d4ff';
-  for (let i=0; i<60; i++) {
+  // drifting nebula blobs
+  for (let i = 0; i < 3; i++) {
+    const nx = W/2 + Math.sin(now * 0.00005 + i * 2.1) * 300;
+    const ny = H/2 + Math.cos(now * 0.00004 + i * 1.7) * 160;
+    const ng = ctx.createRadialGradient(nx, ny, 10, nx, ny, 220);
+    ng.addColorStop(0, ['rgba(124,58,237,0.10)','rgba(232,121,249,0.07)','rgba(34,211,238,0.06)'][i]);
+    ng.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = ng;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // aurora bands rippling across the dimension
+  for (let band = 0; band < 2; band++) {
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 20) {
+      const y = H * (0.25 + band * 0.5)
+        + Math.sin(x * 0.008 + now * 0.0004 + band * 3) * 40
+        + Math.sin(x * 0.02 + now * 0.0007) * 12;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = band === 0 ? 'rgba(232,121,249,0.12)' : 'rgba(103,232,249,0.10)';
+    ctx.lineWidth = 26;
+    ctx.stroke();
+  }
+
+  // twinkling stars
+  for (let i=0; i<70; i++) {
     const sx = (i*97) % W, sy = (i*53) % H;
-    ctx.globalAlpha = 0.3 + (i%3)*0.2;
-    ctx.fillRect(sx, sy, 1.5, 1.5);
+    ctx.globalAlpha = 0.25 + Math.abs(Math.sin(now * 0.001 + i)) * 0.4;
+    ctx.fillStyle = i % 5 === 0 ? '#f0abfc' : '#e0d4ff';
+    ctx.fillRect(sx, sy, i % 7 === 0 ? 2 : 1.4, i % 7 === 0 ? 2 : 1.4);
   }
   ctx.globalAlpha = 1;
 
-  // Rocks
+  // faint floating runes, slowly orbiting
+  ctx.strokeStyle = 'rgba(192,132,252,0.15)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 5; i++) {
+    const rx = W/2 + Math.cos(now * 0.00008 + i * 1.26) * (250 + i * 40);
+    const ry = H/2 + Math.sin(now * 0.00008 + i * 1.26) * (140 + i * 22);
+    ctx.save();
+    ctx.translate(rx, ry);
+    ctx.rotate(now * 0.0003 + i);
+    ctx.strokeRect(-5, -5, 10, 10);
+    ctx.beginPath();
+    ctx.moveTo(-5, -5); ctx.lineTo(5, 5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ===== Crusher crystals — pseudo-3D hexagonal prisms =====
   rocks.forEach(r => {
     ctx.save();
     ctx.translate(r.x, r.y);
     ctx.rotate(r.angle);
-    ctx.strokeStyle = '#a78bfa';
-    ctx.lineWidth = 2;
-    ctx.shadowColor = '#7c3aed';
-    ctx.shadowBlur = 8;
+    const main = r.hue === 'purple' ? '#a78bfa' : '#f0abfc';
+    const deep = r.hue === 'purple' ? 'rgba(124,58,237,0.30)' : 'rgba(232,121,249,0.25)';
+    const glow = 0.6 + Math.sin(now * 0.003 + r.shimmer) * 0.3;
+
+    // translucent body
+    ctx.fillStyle = deep;
     ctx.beginPath();
     r.points.forEach((p, i) => {
       if (i===0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
     });
     ctx.closePath();
+    ctx.fill();
+
+    // outer edge
+    ctx.strokeStyle = main;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = main;
+    ctx.shadowBlur = 10 * glow;
     ctx.stroke();
-    ctx.restore();
     ctx.shadowBlur = 0;
+
+    // top face — smaller offset hexagon (the 3D read)
+    ctx.beginPath();
+    r.points.forEach((p, i) => {
+      const fx = p.x * 0.55 - r.r * 0.1;
+      const fy = p.y * 0.55 - r.r * 0.14;
+      if (i===0) ctx.moveTo(fx, fy); else ctx.lineTo(fx, fy);
+    });
+    ctx.closePath();
+    ctx.strokeStyle = `rgba(233,213,255,${0.5 * glow + 0.2})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // facet lines connecting the two faces
+    ctx.beginPath();
+    r.points.forEach((p, i) => {
+      if (i % 2 === 0) {
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x * 0.55 - r.r * 0.1, p.y * 0.55 - r.r * 0.14);
+      }
+    });
+    ctx.strokeStyle = `rgba(216,180,254,${0.35 * glow + 0.1})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // bright core glint
+    ctx.fillStyle = `rgba(245,208,254,${glow * 0.5})`;
+    ctx.beginPath();
+    ctx.arc(-r.r * 0.15, -r.r * 0.2, r.size * 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   });
 
-  // Ghosts
+  // ===== Spectral hunter ships (clearly not the hero) =====
   ghosts.forEach(g => {
     ctx.save();
     ctx.translate(g.x, g.y);
+    // trailing shroud behind the saucer
     ctx.rotate(g.angle);
-    ctx.fillStyle = '#67e8f9';
-    ctx.shadowColor = '#22d3ee';
-    ctx.shadowBlur = 14;
-    // ghost ship
+    ctx.fillStyle = 'rgba(34,211,238,0.15)';
     ctx.beginPath();
-    ctx.moveTo(14, 0);
-    ctx.lineTo(-10, -9);
-    ctx.lineTo(-6, 0);
-    ctx.lineTo(-10, 9);
+    ctx.moveTo(-8, -7);
+    ctx.quadraticCurveTo(-26, 0, -8, 7);
     ctx.closePath();
     ctx.fill();
-    // glow core
-    ctx.fillStyle = '#e0f2fe';
+    ctx.rotate(-g.angle);
+    // saucer hull
+    ctx.fillStyle = '#155e75';
+    ctx.shadowColor = '#22d3ee';
+    ctx.shadowBlur = 14;
     ctx.beginPath();
-    ctx.arc(0, 0, 4, 0, Math.PI*2);
+    ctx.ellipse(0, 2, 15, 6.5, 0, 0, Math.PI*2);
     ctx.fill();
+    // rim lights
+    ctx.fillStyle = Math.floor(now / 200) % 2 === 0 ? '#67e8f9' : '#0e7490';
+    [-10, 0, 10].forEach(dx => {
+      ctx.beginPath(); ctx.arc(dx, 4, 1.8, 0, Math.PI*2); ctx.fill();
+    });
+    // dome with a wisp inside
+    ctx.fillStyle = 'rgba(103,232,249,0.4)';
+    ctx.beginPath();
+    ctx.arc(0, -2, 7, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle = '#e0f2fe';
+    ctx.globalAlpha = 0.7 + Math.sin(now * 0.008 + g.x) * 0.3;
+    ctx.beginPath();
+    ctx.arc(0, -4, 3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
     ctx.restore();
     ctx.shadowBlur = 0;
   });
@@ -392,28 +550,56 @@ function draw() {
   });
   ctx.shadowBlur = 0;
 
-  // Ship
+  // Hero ship — angular purple fighter with glowing cockpit and fins
   if (ship.invuln <= 0 || Math.floor(ship.invuln/3)%2===0) {
     ctx.save();
     ctx.translate(ship.x, ship.y);
     ctx.rotate(ship.angle);
-    ctx.strokeStyle = '#c084fc';
-    ctx.lineWidth = 2.5;
     ctx.shadowColor = '#c084fc';
     ctx.shadowBlur = 14;
+    // hull with gradient
+    const hull = ctx.createLinearGradient(-12, 0, 16, 0);
+    hull.addColorStop(0, '#5b21b6');
+    hull.addColorStop(1, '#c084fc');
+    ctx.fillStyle = hull;
     ctx.beginPath();
-    ctx.moveTo(14, 0);
-    ctx.lineTo(-10, -9);
-    ctx.lineTo(-5, 0);
-    ctx.lineTo(-10, 9);
+    ctx.moveTo(17, 0);
+    ctx.lineTo(-4, -6);
+    ctx.lineTo(-10, -3);
+    ctx.lineTo(-10, 3);
+    ctx.lineTo(-4, 6);
     ctx.closePath();
+    ctx.fill();
+    // swept fins
+    ctx.fillStyle = '#7c3aed';
+    ctx.beginPath();
+    ctx.moveTo(-2, -5); ctx.lineTo(-13, -11); ctx.lineTo(-8, -3);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-2, 5); ctx.lineTo(-13, 11); ctx.lineTo(-8, 3);
+    ctx.closePath(); ctx.fill();
+    // edge light
+    ctx.strokeStyle = '#e9d5ff';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(17, 0); ctx.lineTo(-4, -6);
     ctx.stroke();
+    // glowing cockpit
+    ctx.fillStyle = '#67e8f9';
+    ctx.shadowColor = '#67e8f9';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.ellipse(5, 0, 4, 2.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // engine flame
     if (ship.thrust) {
       ctx.fillStyle = '#f0abfc';
+      ctx.shadowColor = '#f0abfc';
+      ctx.shadowBlur = 12;
       ctx.beginPath();
-      ctx.moveTo(-10, -5);
-      ctx.lineTo(-18 - Math.random()*4, 0);
-      ctx.lineTo(-10, 5);
+      ctx.moveTo(-10, -3);
+      ctx.lineTo(-20 - Math.random()*6, 0);
+      ctx.lineTo(-10, 3);
       ctx.fill();
     }
     ctx.restore();

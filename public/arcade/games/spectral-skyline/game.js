@@ -126,6 +126,38 @@ let ghosts = [];
 let crystalPickups = [];
 let particles = [];
 let groundScroll = 0;
+let nests = [];       // crystals sitting on platforms that walking witches race to mount
+let witchBolts = [];  // hex bolts (witches shoot from wave 4)
+let boss = null;      // THE SHRIEKER — shows up if you dawdle
+let waveTimer = 0;    // frames spent in the current wave
+const BOSS_AFTER = 2700; // ~45 seconds
+
+function hurtLuno(color) {
+  lives--;
+  player.invuln = 70;
+  player.vy = -6;
+  combo = 0; comboTimer = 0;
+  hitPause = 5;
+  triggerShake(9, 18);
+  sfx.hurt();
+  createParticles(player.x + 20, player.y + 15, color || '#f472b6', 12);
+  updateHUD();
+  if (lives <= 0) {
+    gameOver = true;
+    gameRunning = false;
+    sfx.gameOver();
+    const newBest = score > best;
+    if (newBest) { best = score; saveBest(); }
+    document.getElementById('startOverlay').classList.remove('hidden');
+    document.getElementById('startOverlay').innerHTML = `
+      <h2>FALLEN FROM THE SKY</h2>
+      <p>Crystals: ${crystals} &nbsp;|&nbsp; Score: ${score}</p>
+      <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
+      <p style="margin-top:0.9rem; opacity:0.8">Click or SPACE to soar again</p>
+    `;
+    updateHUD();
+  }
+}
 
 // ---------- Input ----------
 window.addEventListener('keydown', e => {
@@ -145,6 +177,8 @@ document.getElementById('startOverlay').addEventListener('click', () => {
 function startGame() {
   score = 0; lives = 3; wave = 1; crystals = 0;
   witches = []; ghosts = []; crystalPickups = []; particles = [];
+  nests = []; witchBolts = []; boss = null; waveTimer = 0;
+  player.grounded = false; player.walkPhase = 0;
   combo = 0; comboTimer = 0; hitPause = 0; shakeTime = 0; waveDelay = 0;
   bannerText = 'WAVE 1'; bannerTime = 90;
   player.x = 120; player.y = H/2;
@@ -180,6 +214,10 @@ function buildSkyline() {
 function spawnWave() {
   witches = [];
   ghosts = [];
+  nests = [];
+  witchBolts = [];
+  boss = null;
+  waveTimer = 0;
 
   // Witches (Joust enemies)
   const wCount = 3 + wave * 2;
@@ -192,8 +230,41 @@ function spawnWave() {
       vy: 0,
       flapTimer: 20 + Math.random() * 40,
       facing: 1,
-      state: 'flying'   // flying | crystal
+      state: 'flying',  // flying | walking (racing to mount a crystal)
+      walkPhase: Math.random() * Math.PI * 2,
+      nest: null,
+      mountTimer: 0,
+      boltTimer: 200 + Math.random() * 300
     });
+  }
+
+  // From wave 3: some witches start on foot, racing to crystals perched
+  // on the platforms. Steal the crystal before they mount up!
+  if (wave >= 3) {
+    const stonePlats = platforms.filter(p => p.type === 'stone' && p.y < H - 60);
+    const nestCount = Math.min(2 + Math.floor(wave / 2), stonePlats.length, witches.length);
+    const used = [];
+    for (let i = 0; i < nestCount; i++) {
+      let p;
+      do { p = stonePlats[Math.floor(Math.random() * stonePlats.length)]; }
+      while (used.includes(p));
+      used.push(p);
+      const nest = {
+        x: p.x + p.w * (0.3 + Math.random() * 0.4),
+        y: p.y - 16,
+        w: 16, h: 16,
+        taken: false,
+        plat: p
+      };
+      nests.push(nest);
+      // this witch starts walking on the same platform, from the edge
+      const wch = witches[i];
+      wch.state = 'walking';
+      wch.nest = nest;
+      wch.x = nest.x > p.x + p.w / 2 ? p.x + 4 : p.x + p.w - 38;
+      wch.y = p.y - wch.h;
+      wch.vx = 0; wch.vy = 0;
+    }
   }
 
   // Ghosts (hazards that float around)
@@ -258,26 +329,61 @@ function update() {
   if (player.x > W) player.x = -player.w;
 
   // Floor / ceiling
+  player.grounded = false;
   if (player.y > H - 70) {
     player.y = H - 70;
     player.vy = Math.min(0, player.vy);
+    player.grounded = true;
   }
   if (player.y < 20) {
     player.y = 20;
     player.vy = Math.max(0, player.vy);
   }
 
-  // Platform collision (land on top)
+  // Platform collision — platforms are SOLID: land on top, bonk from
+  // below, and get pushed out at the sides (no more flying through)
   platforms.forEach(p => {
-    if (player.vy >= 0 &&
-        player.x + player.w > p.x + 6 && player.x < p.x + p.w - 6 &&
+    const overlapX = player.x + player.w > p.x + 4 && player.x < p.x + p.w - 4;
+
+    // land on top
+    if (player.vy >= 0 && overlapX &&
         player.y + player.h > p.y && player.y + player.h < p.y + p.h + 14 &&
         player.y + player.h - player.vy <= p.y + 4) {
       if (player.vy > 1.5) sfx.land();
       player.y = p.y - player.h;
       player.vy = 0;
+      player.grounded = true;
+      // moving alien platforms carry you
+      if (p.type === 'alien') player.x += p.vx;
+      return;
+    }
+
+    // bonk head on the underside
+    if (player.vy < 0 && overlapX &&
+        player.y < p.y + p.h && player.y > p.y &&
+        player.y - player.vy >= p.y + p.h - 4) {
+      player.y = p.y + p.h;
+      player.vy = 1;
+      sfx.land();
+      return;
+    }
+
+    // side push-out (flying into the end of a ledge)
+    if (player.y + player.h > p.y + 4 && player.y < p.y + p.h - 2 &&
+        player.x + player.w > p.x && player.x < p.x + p.w) {
+      if (player.x + player.w / 2 < p.x + p.w / 2) {
+        player.x = p.x - player.w;
+      } else {
+        player.x = p.x + p.w;
+      }
+      player.vx *= -0.3;
     }
   });
+
+  // Walk cycle when running along a surface (Joust-style)
+  if (player.grounded && Math.abs(player.vx) > 0.4) {
+    player.walkPhase += Math.abs(player.vx) * 0.09;
+  }
 
   if (player.invuln > 0) player.invuln--;
 
@@ -289,8 +395,46 @@ function update() {
     }
   });
 
-  // --- Witches AI (Joust behavior) ---
+  // --- Witches AI (Joust behavior + on-foot crystal racers) ---
   witches.forEach(w => {
+    // ----- Walking witches: stroll along their platform to the crystal -----
+    if (w.state === 'walking') {
+      const p = w.nest.plat;
+      w.y = p.y - w.h + (p.type === 'alien' ? p.vx * 0 : 0);
+      if (w.nest.taken) {
+        // crystal stolen — she remembers her broom and takes off (angry)
+        w.mountTimer++;
+        if (w.mountTimer > 120) {
+          w.state = 'flying';
+          w.vx = (Math.random() < 0.5 ? -1 : 1) * (1.6 + wave * 0.15);
+          w.vy = -4;
+        }
+      } else if (w.mountTimer > 0) {
+        // mounting the crystal — brief channel, then airborne and faster
+        w.mountTimer--;
+        if (w.mountTimer === 0) {
+          w.nest.taken = true;
+          w.state = 'flying';
+          w.vx = (w.facing || 1) * (2 + wave * 0.2);
+          w.vy = -5;
+          sfx.crystal();
+          createParticles(w.x + w.w/2, w.y + w.h/2, '#e879f9', 10);
+        }
+        return;
+      } else {
+        // walk toward the crystal
+        const dir = w.nest.x > w.x + w.w/2 ? 1 : -1;
+        w.x += dir * (0.9 + wave * 0.08);
+        w.facing = dir;
+        w.walkPhase += 0.18;
+        // reached it — start mounting
+        if (Math.abs((w.x + w.w/2) - (w.nest.x + 8)) < 10) {
+          w.mountTimer = 50;
+        }
+      }
+      return;
+    }
+
     if (w.state !== 'flying') return;
 
     // simple flap
@@ -311,16 +455,139 @@ function update() {
     if (w.y > H - 80) { w.y = H - 80; w.vy = -4; }
     if (w.y < 30) w.vy = Math.abs(w.vy) * 0.5;
 
-    // bounce on platforms
+    // bounce on platform tops, bonk on undersides (solid both ways)
     platforms.forEach(p => {
-      if (w.vy >= 0 &&
-          w.x + w.w > p.x && w.x < p.x + p.w &&
+      const overlapX = w.x + w.w > p.x && w.x < p.x + p.w;
+      if (w.vy >= 0 && overlapX &&
           w.y + w.h > p.y && w.y + w.h < p.y + 18) {
         w.y = p.y - w.h;
         w.vy = -3;
+      } else if (w.vy < 0 && overlapX &&
+                 w.y < p.y + p.h && w.y > p.y) {
+        w.y = p.y + p.h;
+        w.vy = 1;
       }
     });
+
+    // From wave 4: witches hurl hex bolts at Luno
+    if (wave >= 4) {
+      w.boltTimer--;
+      const pdx = (player.x + player.w/2) - (w.x + w.w/2);
+      const pdy = (player.y + player.h/2) - (w.y + w.h/2);
+      const pd = Math.hypot(pdx, pdy);
+      if (w.boltTimer <= 0 && pd < 420) {
+        witchBolts.push({
+          x: w.x + w.w/2, y: w.y + w.h/2,
+          vx: (pdx / pd) * 3.6, vy: (pdy / pd) * 3.6,
+          life: 130
+        });
+        sfx.flap();
+        w.boltTimer = 260 + Math.random() * 240 - wave * 10;
+      }
+    }
   });
+
+  // --- Witch hex bolts ---
+  witchBolts.forEach(b => { b.x += b.vx; b.y += b.vy; b.life--; });
+  witchBolts = witchBolts.filter(b => b.life > 0 && b.x > -20 && b.x < W + 20 && b.y > -20 && b.y < H + 20);
+  if (player.invuln <= 0) {
+    witchBolts.forEach((b, bi) => {
+      if (b.x > player.x && b.x < player.x + player.w &&
+          b.y > player.y && b.y < player.y + player.h) {
+        witchBolts.splice(bi, 1);
+        hurtLuno('#4ade80');
+      }
+    });
+  }
+
+  // --- Crystal nests: Luno can swoop the crystal before the witch mounts ---
+  nests.forEach(n => {
+    if (n.taken) return;
+    // ride along if the platform moves
+    if (n.plat.type === 'alien') n.x += n.plat.vx;
+    if (player.x < n.x + n.w && player.x + player.w > n.x &&
+        player.y < n.y + n.h && player.y + player.h > n.y) {
+      n.taken = true;
+      crystals++;
+      score += 150;
+      sfx.pickup();
+      createParticles(n.x + 8, n.y + 8, '#e879f9', 10);
+      updateHUD();
+    }
+  });
+
+  // --- THE SHRIEKER: dawdle too long and the boss buzzard arrives ---
+  waveTimer++;
+  if (!boss && waveTimer > BOSS_AFTER && witches.length > 0) {
+    boss = {
+      x: -60, y: 100,
+      w: 64, h: 48,
+      vx: 2.5, vy: 0,
+      hp: 4 + Math.floor(wave / 3),
+      maxHp: 4 + Math.floor(wave / 3),
+      flapTimer: 10,
+      facing: 1,
+      hitFlash: 0
+    };
+    bannerText = 'THE SHRIEKER COMES';
+    bannerTime = 110;
+    sfx.gameOver(); // ominous low tones announce it
+    triggerShake(6, 20);
+  }
+  if (boss) {
+    // relentless Joust-style pursuit — flaps toward Luno
+    boss.flapTimer--;
+    if (boss.flapTimer <= 0) {
+      boss.vy = boss.y > player.y ? -6.5 : -3;
+      boss.flapTimer = 16 + Math.random() * 14;
+    }
+    boss.vy += 0.24;
+    boss.vy = Math.min(boss.vy, 7);
+    boss.vx += (player.x > boss.x ? 0.12 : -0.12);
+    boss.vx = Math.max(-3.6, Math.min(3.6, boss.vx));
+    boss.x += boss.vx;
+    boss.y += boss.vy;
+    boss.facing = boss.vx > 0 ? 1 : -1;
+    if (boss.y > H - 90) { boss.y = H - 90; boss.vy = -5; }
+    if (boss.y < 26) boss.vy = 1;
+    if (boss.x < -80) boss.x = W + 20;
+    if (boss.x > W + 80) boss.x = -20;
+    if (boss.hitFlash > 0) boss.hitFlash--;
+
+    // Joust rules apply to the boss too — but it takes several hits
+    if (player.invuln <= 0 &&
+        player.x < boss.x + boss.w && player.x + player.w > boss.x &&
+        player.y < boss.y + boss.h && player.y + player.h > boss.y) {
+      const playerMid = player.y + player.h * 0.4;
+      const bossMid = boss.y + boss.h * 0.4;
+      if (playerMid < bossMid - 6) {
+        boss.hp--;
+        boss.hitFlash = 12;
+        player.vy = -7; // bounce off its back
+        hitPause = 3;
+        triggerShake(6, 12);
+        sfx.crystal();
+        createParticles(boss.x + boss.w/2, boss.y, '#f59e0b', 16);
+        if (boss.hp <= 0) {
+          score += 1000 * comboMult();
+          crystals += 3;
+          sfx.wave();
+          triggerShake(12, 25);
+          createParticles(boss.x + boss.w/2, boss.y + boss.h/2, '#f59e0b', 30);
+          for (let i = 0; i < 3; i++) {
+            crystalPickups.push({
+              x: boss.x + i * 20, y: boss.y,
+              w: 18, h: 18, life: 400, vy: -2 - i
+            });
+          }
+          boss = null;
+        }
+        updateHUD();
+      } else {
+        hurtLuno('#f59e0b');
+      }
+    }
+  }
 
   // --- Ghosts float ---
   ghosts.forEach(g => {
@@ -334,8 +601,8 @@ function update() {
   });
 
   // --- Player vs Witches (Joust collision: higher one wins) ---
+  // Applies to walking witches too — swoop them before they mount!
   witches.forEach((w, wi) => {
-    if (w.state !== 'flying') return;
     if (player.invuln > 0) return;
 
     if (player.x < w.x + w.w && player.x + player.w > w.x &&
@@ -367,31 +634,8 @@ function update() {
         updateHUD();
       } else {
         // Witch hits player
-        lives--;
-        player.invuln = 70;
-        player.vy = -6;
         player.vx = (player.x < w.x ? -1 : 1) * 4;
-        combo = 0; comboTimer = 0;
-        hitPause = 5;
-        triggerShake(9, 18);
-        sfx.hurt();
-        createParticles(player.x + 20, player.y + 15, '#f472b6', 12);
-        updateHUD();
-        if (lives <= 0) {
-          gameOver = true;
-          gameRunning = false;
-          sfx.gameOver();
-          const newBest = score > best;
-          if (newBest) { best = score; saveBest(); }
-          document.getElementById('startOverlay').classList.remove('hidden');
-          document.getElementById('startOverlay').innerHTML = `
-            <h2>FALLEN FROM THE SKY</h2>
-            <p>Crystals: ${crystals} &nbsp;|&nbsp; Score: ${score}</p>
-            <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-            <p style="margin-top:0.9rem; opacity:0.8">Click or SPACE to soar again</p>
-          `;
-          updateHUD();
-        }
+        hurtLuno();
       }
     }
   });
@@ -401,30 +645,7 @@ function update() {
     ghosts.forEach(g => {
       if (player.x < g.x + g.w && player.x + player.w > g.x &&
           player.y < g.y + g.h && player.y + player.h > g.y) {
-        lives--;
-        player.invuln = 70;
-        player.vy = -5;
-        combo = 0; comboTimer = 0;
-        hitPause = 5;
-        triggerShake(9, 18);
-        sfx.hurt();
-        createParticles(player.x + 20, player.y + 15, '#a78bfa', 10);
-        updateHUD();
-        if (lives <= 0) {
-          gameOver = true;
-          gameRunning = false;
-          sfx.gameOver();
-          const newBest = score > best;
-          if (newBest) { best = score; saveBest(); }
-          document.getElementById('startOverlay').classList.remove('hidden');
-          document.getElementById('startOverlay').innerHTML = `
-            <h2>FALLEN FROM THE SKY</h2>
-            <p>Crystals: ${crystals} &nbsp;|&nbsp; Score: ${score}</p>
-            <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-            <p style="margin-top:0.9rem; opacity:0.8">Click or SPACE to soar again</p>
-          `;
-          updateHUD();
-        }
+        hurtLuno('#a78bfa');
       }
     });
   }
@@ -456,7 +677,8 @@ function update() {
   crystalPickups = crystalPickups.filter(c => c.life > 0);
 
   // Wave clear — breather: banner shows for a beat before the next wave spawns
-  if (witches.length === 0 && gameRunning && waveDelay === 0) {
+  // (the Shrieker must be driven off too)
+  if (witches.length === 0 && !boss && gameRunning && waveDelay === 0) {
     wave++;
     sfx.wave();
     bannerText = 'WAVE ' + wave;
@@ -626,27 +848,89 @@ function draw() {
     ctx.shadowBlur = 0;
   });
 
+  // Crystal nests on the platforms (mount points for walking witches)
+  nests.forEach(n => {
+    if (n.taken) return;
+    ctx.save();
+    ctx.translate(n.x + 8, n.y + 8);
+    const pulse = 1 + Math.sin(Date.now() * 0.005) * 0.12;
+    ctx.scale(pulse, pulse);
+    ctx.shadowColor = '#e879f9';
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = '#e879f9';
+    ctx.beginPath();
+    ctx.moveTo(0, -9); ctx.lineTo(7, 0); ctx.lineTo(0, 9); ctx.lineTo(-7, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#f5d0fe';
+    ctx.beginPath();
+    ctx.moveTo(0, -4); ctx.lineTo(3, 0); ctx.lineTo(0, 4); ctx.lineTo(-3, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.shadowBlur = 0;
+  });
+
+  // Witch hex bolts
+  witchBolts.forEach(b => {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(Date.now() * 0.01);
+    ctx.fillStyle = '#4ade80';
+    ctx.shadowColor = '#4ade80';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      if (i === 0) ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5);
+      else ctx.lineTo(Math.cos(a) * 5, Math.sin(a) * 5);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  });
+  ctx.shadowBlur = 0;
+
   // Witches
   witches.forEach(w => {
-    if (w.state !== 'flying') return;
     ctx.save();
     ctx.translate(w.x + w.w/2, w.y + w.h/2);
     ctx.scale(w.facing, 1);
 
-    // broom
-    ctx.strokeStyle = '#78716c';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(-18, 6);
-    ctx.lineTo(16, 4);
-    ctx.stroke();
-    // bristles
-    ctx.strokeStyle = '#a8a29e';
-    ctx.beginPath();
-    ctx.moveTo(12, 0); ctx.lineTo(20, -6);
-    ctx.moveTo(12, 4); ctx.lineTo(22, 4);
-    ctx.moveTo(12, 8); ctx.lineTo(20, 12);
-    ctx.stroke();
+    if (w.state === 'walking') {
+      // on foot — walking legs, no broom yet
+      const stride = Math.sin(w.walkPhase) * 5;
+      ctx.strokeStyle = '#4c1d95';
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-3, 12); ctx.lineTo(-3 + stride, 15 + Math.abs(stride) * 0.3);
+      ctx.moveTo(3, 12);  ctx.lineTo(3 - stride, 15 + Math.abs(stride) * 0.3);
+      ctx.stroke();
+      // reaching arms while mounting
+      if (w.mountTimer > 0 && !w.nest.taken) {
+        ctx.strokeStyle = '#7c3aed';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(4, 0); ctx.lineTo(12, -4);
+        ctx.stroke();
+      }
+    } else {
+      // broom
+      ctx.strokeStyle = '#78716c';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-18, 6);
+      ctx.lineTo(16, 4);
+      ctx.stroke();
+      // bristles
+      ctx.strokeStyle = '#a8a29e';
+      ctx.beginPath();
+      ctx.moveTo(12, 0); ctx.lineTo(20, -6);
+      ctx.moveTo(12, 4); ctx.lineTo(22, 4);
+      ctx.moveTo(12, 8); ctx.lineTo(20, 12);
+      ctx.stroke();
+    }
 
     // body
     ctx.fillStyle = '#7c3aed';
@@ -672,6 +956,61 @@ function draw() {
     ctx.restore();
   });
 
+  // THE SHRIEKER (boss buzzard)
+  if (boss) {
+    ctx.save();
+    ctx.translate(boss.x + boss.w/2, boss.y + boss.h/2);
+    ctx.scale(boss.facing, 1);
+    const flash = boss.hitFlash > 0 && Math.floor(boss.hitFlash / 3) % 2 === 0;
+    ctx.fillStyle = flash ? '#fef3c7' : '#292524';
+    ctx.shadowColor = '#f59e0b';
+    ctx.shadowBlur = 18;
+    // hulking body
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 24, 17, 0, 0, Math.PI*2);
+    ctx.fill();
+    // vulture neck + head
+    ctx.beginPath();
+    ctx.ellipse(20, -12, 9, 8, 0.4, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = flash ? '#fde68a' : '#7f1d1d';
+    ctx.beginPath();
+    ctx.ellipse(20, -12, 6, 5, 0.4, 0, Math.PI*2);
+    ctx.fill();
+    // hooked beak
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.moveTo(27, -13); ctx.lineTo(36, -9); ctx.lineTo(26, -7);
+    ctx.closePath();
+    ctx.fill();
+    // burning eye
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath(); ctx.arc(22, -13, 2.5, 0, Math.PI*2); ctx.fill();
+    // ragged wings (flap)
+    const bw = boss.vy < 0 ? -30 : -12;
+    ctx.fillStyle = flash ? '#fef3c7' : '#1c1917';
+    ctx.beginPath();
+    ctx.moveTo(-10, -2);
+    ctx.quadraticCurveTo(-40, bw, -46, 10);
+    ctx.lineTo(-34, 6); ctx.lineTo(-38, 16); ctx.lineTo(-26, 10); ctx.lineTo(-28, 20);
+    ctx.quadraticCurveTo(-18, 12, -8, 8);
+    ctx.closePath();
+    ctx.fill();
+    // talons
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(-2, 18); ctx.lineTo(-2, 25); ctx.moveTo(6, 18); ctx.lineTo(8, 25);
+    ctx.stroke();
+    ctx.restore();
+    ctx.shadowBlur = 0;
+    // HP pips above the boss
+    for (let i = 0; i < boss.maxHp; i++) {
+      ctx.fillStyle = i < boss.hp ? '#f59e0b' : 'rgba(245,158,11,0.2)';
+      ctx.fillRect(boss.x + i * 12, boss.y - 14, 9, 5);
+    }
+  }
+
   // Player riding Luno (owl-griffin)
   ctx.save();
   ctx.translate(player.x + player.w/2, player.y + player.h/2);
@@ -682,6 +1021,26 @@ function draw() {
   ctx.fillStyle = '#a8a29e';
   ctx.shadowColor = '#c084fc';
   ctx.shadowBlur = 12;
+  // legs — running stride when grounded (Joust-style), tucked in flight
+  const running = player.grounded && Math.abs(player.vx) > 0.4;
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  if (running) {
+    const stride = Math.sin(player.walkPhase) * 7;
+    ctx.moveTo(-4, 12); ctx.lineTo(-4 + stride, 19);
+    ctx.moveTo(6, 12);  ctx.lineTo(6 - stride, 19);
+  } else if (player.grounded) {
+    // standing
+    ctx.moveTo(-4, 12); ctx.lineTo(-4, 19);
+    ctx.moveTo(6, 12);  ctx.lineTo(6, 19);
+  } else {
+    // tucked while flying
+    ctx.moveTo(-2, 12); ctx.lineTo(2, 15);
+    ctx.moveTo(7, 12);  ctx.lineTo(10, 14);
+  }
+  ctx.stroke();
   // body
   ctx.beginPath();
   ctx.ellipse(0, 4, 16, 12, 0, 0, Math.PI*2);
@@ -697,13 +1056,17 @@ function draw() {
   ctx.beginPath();
   ctx.moveTo(16, -14); ctx.lineTo(18, -22); ctx.lineTo(14, -14);
   ctx.fill();
-  // wing (flaps)
-  const wingOpen = player.flapAnim > 0 ? -18 : -6;
+  // wing — flaps in the air, folds neatly against the body on the ground
+  const wingOpen = player.grounded ? 2 : (player.flapAnim > 0 ? -18 : -6);
   ctx.fillStyle = '#78716c';
   ctx.beginPath();
-  ctx.moveTo(-8, 0);
-  ctx.quadraticCurveTo(-28, wingOpen, -22, 12);
-  ctx.quadraticCurveTo(-14, 8, -6, 6);
+  if (player.grounded) {
+    ctx.ellipse(-6, 4, 11, 8, -0.2, 0, Math.PI * 2);
+  } else {
+    ctx.moveTo(-8, 0);
+    ctx.quadraticCurveTo(-28, wingOpen, -22, 12);
+    ctx.quadraticCurveTo(-14, 8, -6, 6);
+  }
   ctx.fill();
   // eye
   ctx.fillStyle = '#fbbf24';

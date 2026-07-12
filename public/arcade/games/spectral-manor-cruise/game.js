@@ -107,17 +107,26 @@ const opponentDefs = [
   { name: 'Vampire',  color: '#ef4444', trim: '#7f1d1d', speed: 10400, x: -0.5 },
   { name: 'Werewolf', color: '#a8a29e', trim: '#44403c', speed: 10000, x:  0.5 },
   { name: 'Witch',    color: '#a855f7', trim: '#581c87', speed: 9600,  x: -0.2 },
-  { name: 'Frank',    color: '#4ade80', trim: '#14532d', speed: 9100,  x:  0.3 }
+  { name: 'Frank',    color: '#4ade80', trim: '#14532d', speed: 9100,  x:  0.3 },
+  { name: 'Ghost',    color: '#a5f3fc', trim: '#155e75', speed: 9900,  x:  0.0, ghost: true }
 ];
 let opponents = [];
+let race = 1;          // race series — later races add speed and weapons
+let fireballs = [];    // opponent weapons (race 2+)
+let scramble = 0;      // frames of haunted steering after a ghost passes through you
+
 function resetRacers() {
   player.pos = 0; player.x = 0; player.speed = 0;
   player.lap = 1; player.totalZ = 0; player.finished = false;
+  fireballs = []; scramble = 0;
   opponents = opponentDefs.map((d, i) => ({
     ...d,
-    totalZ: (i + 1) * SEG_LEN * 3,  // staggered grid ahead of player
+    speed: d.speed + (race - 1) * 320,  // rivals get faster each race
+    totalZ: (i + 1) * SEG_LEN * 3,      // staggered grid ahead of player
     wobble: Math.random() * Math.PI * 2,
-    passed: false
+    passed: false,
+    fireTimer: 400 + Math.random() * 400,
+    phasing: false                       // ghost car overlap state
   }));
 }
 
@@ -160,13 +169,19 @@ function finishRace() {
   (place === 1 ? sfx.win : sfx.lose)();
   const mins = Math.floor(raceTime / 3600);
   const secs = ((raceTime % 3600) / 60).toFixed(1);
-  const medal = ['🏆', '🥈', '🥉', '💀', '💀'][place - 1];
+  const medal = ['🏆', '🥈', '🥉', '💀', '💀', '💀'][place - 1];
+  const won = place === 1;
+  if (won) race++;
+  const nextLine = won
+    ? `RACE ${race} unlocked — rivals are faster${race >= 2 ? ' and ARMED' : ''}`
+    : 'Same race, same rivals — take the crown';
   document.getElementById('startOverlay').classList.remove('hidden');
   document.getElementById('startOverlay').innerHTML = `
-    <h2>${place === 1 ? 'YOU WIN THE CRUISE' : 'RACE COMPLETE'}</h2>
+    <h2>${won ? 'YOU WIN THE CRUISE' : 'RACE COMPLETE'}</h2>
     <p style="font-size:2rem; margin:0.4rem 0">${medal} ${ordinal(place)} PLACE</p>
     <p>Time: ${mins}:${secs.padStart(4, '0')}</p>
-    <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to race again</p>
+    <p style="margin-top:0.4rem; color:#f0abfc">${nextLine}</p>
+    <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to start your engine</p>
   `;
 }
 
@@ -213,8 +228,16 @@ function update() {
   // Steering + centrifugal pull from curves
   const speedRatio = player.speed / player.maxSpeed;
   const steer = 0.028 * (0.4 + speedRatio);
-  if (keys['ArrowLeft'] || keys['KeyA']) player.x -= steer;
-  if (keys['ArrowRight'] || keys['KeyD']) player.x += steer;
+  if (scramble > 0) {
+    // a ghost passed through you — controls are haunted (reversed + jittery)
+    scramble--;
+    if (keys['ArrowLeft'] || keys['KeyA']) player.x += steer;
+    if (keys['ArrowRight'] || keys['KeyD']) player.x -= steer;
+    player.x += (Math.random() - 0.5) * 0.02;
+  } else {
+    if (keys['ArrowLeft'] || keys['KeyA']) player.x -= steer;
+    if (keys['ArrowRight'] || keys['KeyD']) player.x += steer;
+  }
   const seg = segAt(player.pos);
   player.x -= seg.curve * 0.00135 * speedRatio * speedRatio * 10;
   player.x = Math.max(-1.6, Math.min(1.6, player.x));
@@ -245,14 +268,61 @@ function update() {
     if (!o.passed && rel < -SEG_LEN) { o.passed = true; sfx.pass(); }
     if (o.passed && rel > SEG_LEN) o.passed = false;
 
-    // collision — bump if overlapping
+    // collision — ghosts phase through you and haunt your steering,
+    // solid racers bump you hard
     if (Math.abs(rel) < SEG_LEN * 0.7 && Math.abs(o.x - player.x) < 0.28) {
-      player.speed = Math.min(player.speed, o.speed * 0.55);
-      player.x += (player.x > o.x ? 1 : -1) * 0.06;
-      shake = 8;
-      sfx.crash();
+      if (o.ghost) {
+        if (!o.phasing) {
+          o.phasing = true;
+          scramble = 75; // ~1.25s of haunted controls
+          shake = 5;
+          sfx.pass();
+          sfx.lose();
+        }
+      } else {
+        player.speed = Math.min(player.speed, o.speed * 0.55);
+        player.x += (player.x > o.x ? 1 : -1) * 0.06;
+        shake = 8;
+        sfx.crash();
+      }
+    } else if (o.ghost) {
+      o.phasing = false;
+    }
+
+    // RACE 2+: rivals hurl fireballs at whoever is ahead of them
+    if (race >= 2 && countdown <= 0) {
+      o.fireTimer--;
+      if (o.fireTimer <= 0) {
+        // fire only when the player is ahead and within range
+        const ahead = player.totalZ - o.totalZ;
+        if (ahead > 0 && ahead < SEG_LEN * 30) {
+          fireballs.push({
+            totalZ: o.totalZ + SEG_LEN,
+            x: o.x + (player.x - o.x) * 0.5, // lobbed toward your lane
+            speed: o.speed * 1.5,
+            life: 240,
+            color: o.color
+          });
+        }
+        o.fireTimer = 350 + Math.random() * 350;
+      }
     }
   });
+
+  // Fireballs fly down the track
+  for (let fi = fireballs.length - 1; fi >= 0; fi--) {
+    const f = fireballs[fi];
+    f.totalZ += f.speed * dt;
+    f.life--;
+    if (f.life <= 0) { fireballs.splice(fi, 1); continue; }
+    const rel = f.totalZ - player.totalZ;
+    if (Math.abs(rel) < SEG_LEN * 0.6 && Math.abs(f.x - player.x) < 0.2) {
+      fireballs.splice(fi, 1);
+      player.speed *= 0.45;
+      shake = 10;
+      sfx.crash();
+    }
+  }
 
   if (shake > 0) shake *= 0.85;
 
@@ -304,22 +374,73 @@ function drawBackground(curveOffset) {
   ctx.fill();
   ctx.shadowBlur = 0;
 
-  // Distant manor silhouette
-  const mx = ((W / 2 - curveOffset * 0.3) % W + W) % W - 120;
-  ctx.fillStyle = '#120a20';
-  ctx.fillRect(mx, H / 2 - 70, 240, 70);
-  ctx.beginPath();
-  ctx.moveTo(mx - 10, H / 2 - 70); ctx.lineTo(mx + 50, H / 2 - 115); ctx.lineTo(mx + 110, H / 2 - 70);
-  ctx.fill();
-  ctx.fillRect(mx + 150, H / 2 - 130, 34, 130);
-  ctx.beginPath();
-  ctx.moveTo(mx + 143, H / 2 - 130); ctx.lineTo(mx + 167, H / 2 - 158); ctx.lineTo(mx + 191, H / 2 - 130);
-  ctx.fill();
-  // lit windows
-  ctx.fillStyle = 'rgba(232,121,249,0.7)';
-  ctx.fillRect(mx + 30, H / 2 - 55, 8, 12);
-  ctx.fillRect(mx + 90, H / 2 - 50, 8, 12);
-  ctx.fillRect(mx + 160, H / 2 - 110, 7, 10);
+  // Three gothic silhouettes spaced along the horizon — a Victorian manor,
+  // a ruined cathedral, and a crypt tower — drifting with the curves
+  const span = W * 1.8;
+  const base = H / 2;
+  const win = 'rgba(232,121,249,0.7)';
+
+  for (let bi = 0; bi < 3; bi++) {
+    const bx = ((bi * span / 3 - curveOffset * 0.3) % span + span) % span - 200;
+    if (bx < -260 || bx > W + 60) continue;
+    ctx.fillStyle = '#120a20';
+
+    if (bi === 0) {
+      // Victorian manor with gable + spire tower
+      ctx.fillRect(bx, base - 70, 240, 70);
+      ctx.beginPath();
+      ctx.moveTo(bx - 10, base - 70); ctx.lineTo(bx + 50, base - 115); ctx.lineTo(bx + 110, base - 70);
+      ctx.fill();
+      ctx.fillRect(bx + 150, base - 130, 34, 130);
+      ctx.beginPath();
+      ctx.moveTo(bx + 143, base - 130); ctx.lineTo(bx + 167, base - 158); ctx.lineTo(bx + 191, base - 130);
+      ctx.fill();
+      ctx.fillStyle = win;
+      ctx.fillRect(bx + 30, base - 55, 8, 12);
+      ctx.fillRect(bx + 90, base - 50, 8, 12);
+      ctx.fillRect(bx + 160, base - 110, 7, 10);
+    } else if (bi === 1) {
+      // ruined cathedral — twin broken spires + pointed arch
+      ctx.fillRect(bx, base - 85, 190, 85);
+      ctx.beginPath(); // left spire (intact)
+      ctx.moveTo(bx + 8, base - 85); ctx.lineTo(bx + 30, base - 150); ctx.lineTo(bx + 52, base - 85);
+      ctx.fill();
+      ctx.beginPath(); // right spire (broken, jagged)
+      ctx.moveTo(bx + 138, base - 85); ctx.lineTo(bx + 146, base - 122);
+      ctx.lineTo(bx + 156, base - 108); ctx.lineTo(bx + 166, base - 128); ctx.lineTo(bx + 182, base - 85);
+      ctx.fill();
+      // pointed-arch doorway cut-out
+      ctx.fillStyle = '#07040f';
+      ctx.beginPath();
+      ctx.moveTo(bx + 80, base);
+      ctx.lineTo(bx + 80, base - 40);
+      ctx.quadraticCurveTo(bx + 95, base - 62, bx + 110, base - 40);
+      ctx.lineTo(bx + 110, base);
+      ctx.closePath(); ctx.fill();
+      // rose window
+      ctx.fillStyle = win;
+      ctx.beginPath(); ctx.arc(bx + 95, base - 70, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(bx + 25, base - 70, 7, 14);
+    } else {
+      // crypt tower + mausoleum row with iron fence
+      ctx.fillRect(bx + 20, base - 140, 46, 140);
+      // crenellated top
+      for (let c = 0; c < 4; c++) ctx.fillRect(bx + 20 + c * 13, base - 150, 8, 12);
+      // mausoleums
+      ctx.fillRect(bx + 90, base - 40, 60, 40);
+      ctx.beginPath();
+      ctx.moveTo(bx + 85, base - 40); ctx.lineTo(bx + 120, base - 60); ctx.lineTo(bx + 155, base - 40);
+      ctx.fill();
+      ctx.fillRect(bx + 170, base - 32, 48, 32);
+      // iron fence posts
+      for (let fpi = 0; fpi < 6; fpi++) {
+        ctx.fillRect(bx + 90 + fpi * 26, base - 12, 2.5, 12);
+      }
+      ctx.fillStyle = win;
+      ctx.fillRect(bx + 36, base - 120, 7, 10);
+      ctx.fillRect(bx + 112, base - 28, 8, 10);
+    }
+  }
 }
 
 function drawSprite(type, x, y, scale) {
@@ -364,37 +485,116 @@ function drawSprite(type, x, y, scale) {
   ctx.restore();
 }
 
-function drawCar(x, y, scale, color, trim, name) {
+function drawCar(x, y, scale, o) {
   const s = scale * 7000;
   if (s < 2) return;
   const cw = s * 0.9, ch = s * 0.5;
   ctx.save();
   ctx.translate(x, y);
-  ctx.shadowColor = color;
+  if (o.ghost) ctx.globalAlpha = 0.55 + Math.sin(Date.now() * 0.006) * 0.15;
+  ctx.shadowColor = o.color;
   ctx.shadowBlur = 10;
   // body
-  ctx.fillStyle = color;
+  ctx.fillStyle = o.color;
   ctx.fillRect(-cw / 2, -ch, cw, ch * 0.8);
   // roof
-  ctx.fillStyle = trim;
+  ctx.fillStyle = o.trim;
   ctx.fillRect(-cw * 0.3, -ch * 1.35, cw * 0.6, ch * 0.45);
   ctx.shadowBlur = 0;
   // tail lights
   ctx.fillStyle = '#ff5555';
   ctx.fillRect(-cw / 2 + 1, -ch * 0.85, cw * 0.16, ch * 0.16);
   ctx.fillRect(cw / 2 - 1 - cw * 0.16, -ch * 0.85, cw * 0.16, ch * 0.16);
-  // wheels
-  ctx.fillStyle = '#111';
-  ctx.fillRect(-cw / 2 - cw * 0.05, -ch * 0.25, cw * 0.16, ch * 0.3);
-  ctx.fillRect(cw / 2 - cw * 0.11, -ch * 0.25, cw * 0.16, ch * 0.3);
+  // wheels (the ghost car hovers on wisps instead)
+  if (o.ghost) {
+    ctx.fillStyle = 'rgba(165,243,252,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(-cw * 0.3, -ch * 0.05, cw * 0.14, ch * 0.12, 0, 0, Math.PI * 2);
+    ctx.ellipse(cw * 0.3, -ch * 0.05, cw * 0.14, ch * 0.12, 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = '#111';
+    ctx.fillRect(-cw / 2 - cw * 0.05, -ch * 0.25, cw * 0.16, ch * 0.3);
+    ctx.fillRect(cw / 2 - cw * 0.11, -ch * 0.25, cw * 0.16, ch * 0.3);
+  }
+
+  // ---- monster head poking above the roof ----
+  if (s > 12) {
+    const hy = -ch * 1.5, hr = Math.max(3, s * 0.09);
+    if (o.name === 'Frank') {
+      ctx.fillStyle = '#86efac';
+      ctx.fillRect(-hr, hy - hr * 1.6, hr * 2, hr * 1.7);
+      ctx.fillStyle = '#166534';
+      ctx.fillRect(-hr * 1.1, hy - hr * 1.9, hr * 2.2, hr * 0.5);
+      if (s > 30) {
+        ctx.fillStyle = '#a1a1aa';
+        ctx.fillRect(-hr * 1.5, hy - hr * 0.7, hr * 0.5, hr * 0.5);
+        ctx.fillRect(hr, hy - hr * 0.7, hr * 0.5, hr * 0.5);
+      }
+    } else if (o.name === 'Witch') {
+      ctx.fillStyle = '#e9d5ff';
+      ctx.beginPath(); ctx.arc(0, hy - hr * 0.4, hr * 0.9, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#4c1d95';
+      ctx.beginPath();
+      ctx.moveTo(0, hy - hr * 3);
+      ctx.lineTo(-hr * 1.4, hy - hr);
+      ctx.lineTo(hr * 1.4, hy - hr);
+      ctx.closePath(); ctx.fill();
+      ctx.fillRect(-hr * 1.7, hy - hr * 1.1, hr * 3.4, hr * 0.4);
+    } else if (o.name === 'Vampire') {
+      ctx.fillStyle = '#fce7f3';
+      ctx.beginPath(); ctx.arc(0, hy - hr * 0.6, hr * 0.9, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#0f0a1a'; // slicked widow's peak
+      ctx.beginPath();
+      ctx.moveTo(-hr * 0.9, hy - hr * 1.1);
+      ctx.lineTo(0, hy - hr * 0.6);
+      ctx.lineTo(hr * 0.9, hy - hr * 1.1);
+      ctx.lineTo(hr * 0.9, hy - hr * 1.5);
+      ctx.lineTo(-hr * 0.9, hy - hr * 1.5);
+      ctx.closePath(); ctx.fill();
+      if (s > 30) {
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(-hr * 0.5, hy - hr * 0.8, hr * 0.3, hr * 0.3);
+        ctx.fillRect(hr * 0.2, hy - hr * 0.8, hr * 0.3, hr * 0.3);
+      }
+    } else if (o.name === 'Werewolf') {
+      ctx.fillStyle = '#a8a29e';
+      ctx.beginPath(); ctx.arc(0, hy - hr * 0.5, hr, 0, Math.PI * 2); ctx.fill();
+      // ears
+      ctx.beginPath();
+      ctx.moveTo(-hr, hy - hr); ctx.lineTo(-hr * 0.6, hy - hr * 2.1); ctx.lineTo(-hr * 0.1, hy - hr * 1.1);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(hr, hy - hr); ctx.lineTo(hr * 0.6, hy - hr * 2.1); ctx.lineTo(hr * 0.1, hy - hr * 1.1);
+      ctx.closePath(); ctx.fill();
+      if (s > 30) {
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(-hr * 0.5, hy - hr * 0.7, hr * 0.35, hr * 0.25);
+        ctx.fillRect(hr * 0.15, hy - hr * 0.7, hr * 0.35, hr * 0.25);
+      }
+    } else if (o.name === 'Ghost') {
+      ctx.fillStyle = 'rgba(224,242,254,0.9)';
+      ctx.beginPath();
+      ctx.arc(0, hy - hr * 0.6, hr * 0.9, Math.PI, 0);
+      ctx.lineTo(hr * 0.9, hy + hr * 0.3);
+      ctx.quadraticCurveTo(hr * 0.4, hy, 0, hy + hr * 0.3);
+      ctx.quadraticCurveTo(-hr * 0.4, hy, -hr * 0.9, hy + hr * 0.3);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#155e75';
+      ctx.fillRect(-hr * 0.5, hy - hr * 0.8, hr * 0.3, hr * 0.4);
+      ctx.fillRect(hr * 0.2, hy - hr * 0.8, hr * 0.3, hr * 0.4);
+    }
+  }
+
   // name tag
   if (s > 26) {
     ctx.fillStyle = '#e0d4ff';
     ctx.font = `${Math.max(9, s * 0.11)}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(name, 0, -ch * 1.55);
+    ctx.fillText(o.name, 0, -ch * 2.15);
   }
   ctx.restore();
+  ctx.globalAlpha = 1;
 }
 
 let bgCurveOffset = 0;
@@ -471,13 +671,41 @@ function draw() {
       }
     });
 
+    // queue fireballs on this segment
+    fireballs.forEach(f => {
+      const fTrack = ((f.totalZ % TRACK_LEN) + TRACK_LEN) % TRACK_LEN;
+      const fIdx = Math.floor(fTrack / SEG_LEN) % segments.length;
+      if (fIdx === idx) {
+        spriteQueue.push({
+          fireball: f,
+          x: p.x + f.x * p.w,
+          y: p.y - p.scale * 3000,
+          scale: p.scale
+        });
+      }
+    });
+
     prev = p;
   }
 
   // sprites far → near
   for (let i = spriteQueue.length - 1; i >= 0; i--) {
     const sp = spriteQueue[i];
-    if (sp.car) drawCar(sp.x, sp.y, sp.scale, sp.car.color, sp.car.trim, sp.car.name);
+    if (sp.car) drawCar(sp.x, sp.y, sp.scale, sp.car);
+    else if (sp.fireball) {
+      const fs = Math.max(3, sp.scale * 900);
+      ctx.fillStyle = '#fb923c';
+      ctx.shadowColor = '#f97316';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, fs, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fef3c7';
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, fs * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
     else drawSprite(sp.type, sp.x, sp.y, sp.scale);
   }
 
@@ -518,6 +746,20 @@ function draw() {
     ctx.fill();
   }
   ctx.restore();
+
+  // Race number + haunted-controls warning
+  if (gameRunning) {
+    ctx.fillStyle = '#a78bfa';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('RACE ' + race + (race >= 2 ? ' · ARMED' : ''), 16, 26);
+    if (scramble > 0) {
+      ctx.fillStyle = `rgba(165,243,252,${0.6 + Math.sin(Date.now() * 0.03) * 0.4})`;
+      ctx.font = 'bold 26px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('👻 HAUNTED CONTROLS 👻', W / 2, 90);
+    }
+  }
 
   // ---------- Countdown ----------
   if (gameRunning && countdown > 0) {

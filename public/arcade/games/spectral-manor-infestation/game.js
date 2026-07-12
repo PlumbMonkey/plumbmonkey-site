@@ -25,6 +25,7 @@ function tone(f, d, t = 'square', v = 0.05, s = 0) {
   o.start(); o.stop(audioCtx.currentTime + d);
 }
 const sfx = {
+  bug:      () => { tone(400, 0.06, 'square', 0.05, -150); tone(900, 0.05, 'triangle', 0.03, -300); },
   shoot:    () => tone(1100, 0.045, 'square', 0.035, -600),
   segment:  () => { tone(300, 0.07, 'sawtooth', 0.05, -120); tone(600, 0.05, 'square', 0.03, -200); },
   head:     () => { tone(200, 0.12, 'sawtooth', 0.06, -80); tone(800, 0.08, 'square', 0.04, -400); },
@@ -49,8 +50,11 @@ let segments = [];    // hauntipede segments
 let bullets = [];
 let particles = [];
 let ghost = null;     // bonus gravekeeper ghost
-let ghostTimer = 500;
+let ghostTimer = 350;
 let respawnPause = 0;
+let bugs = [];        // independent scarab bugs crawling down the field
+let bugTimer = 350;
+let hauntipedeLen = 12; // segments at spawn — speed scales as it shrinks
 
 const player = { x: W / 2, y: H - 50, w: 22, h: 22, speed: 4.4, lastShot: 0 };
 
@@ -70,18 +74,39 @@ function seedMushrooms() {
 function spawnHauntipede() {
   segments = [];
   const len = Math.min(10 + level, 16);
-  const speed = Math.min(2.0 + level * 0.25, 4.2);
+  hauntipedeLen = len;
+  const base = Math.min(2.3 + level * 0.28, 4.6);
   for (let i = 0; i < len; i++) {
     segments.push({
       x: (COLS - 2 - i) * CELL + CELL / 2,
       y: 1 * CELL + CELL / 2,
-      dir: 1, drop: 0, speed,
-      head: i === 0
+      dir: 1, drop: 0,
+      speed: base + Math.random() * 0.5, // each segment scuttles at its own pace
+      head: i === 0,
+      legPhase: Math.random() * Math.PI * 2
     });
   }
 }
 
+// The fewer segments remain, the angrier (faster) the survivors get
+function segmentSpeed(s) {
+  const fury = 1 + (1 - segments.length / hauntipedeLen) * 0.9;
+  return s.speed * fury;
+}
+
+// ---------- Scarab bugs (independent hazards) ----------
+function spawnBug() {
+  bugs.push({
+    x: 30 + Math.random() * (W - 60),
+    y: -14,
+    vy: 1.6 + level * 0.2 + Math.random(),
+    sway: Math.random() * Math.PI * 2,
+    legPhase: 0
+  });
+}
+
 function segmentUpdate(s) {
+  s.legPhase += 0.35;
   if (s.drop > 0) {
     // descending to the next row
     s.y += 3;
@@ -92,7 +117,7 @@ function segmentUpdate(s) {
     }
     return;
   }
-  s.x += s.dir * s.speed;
+  s.x += s.dir * segmentSpeed(s);
   const nextC = Math.floor((s.x + s.dir * (CELL / 2 + 2)) / CELL);
   const r = Math.floor(s.y / CELL);
   const blocked = nextC < 0 || nextC >= COLS || mushrooms[key(nextC, r)];
@@ -134,7 +159,8 @@ function explode(x, y, color, n) {
 // ---------- Game flow ----------
 function startGame() {
   score = 0; lives = 3; level = 1;
-  bullets = []; particles = []; ghost = null; ghostTimer = 400;
+  bullets = []; particles = []; ghost = null; ghostTimer = 300;
+  bugs = []; bugTimer = 350;
   player.x = W / 2; player.y = H - 50;
   seedMushrooms();
   spawnHauntipede();
@@ -177,6 +203,7 @@ function loseLife() {
     player.x = W / 2; player.y = H - 50;
     bullets = [];
     ghost = null;
+    bugs = [];
     spawnHauntipede();
   }
 }
@@ -294,8 +321,51 @@ function update() {
     ghostTimer--;
     if (ghostTimer <= 0) {
       spawnGhost();
-      ghostTimer = 400 + Math.random() * 300;
+      ghostTimer = 280 + Math.random() * 240;
     }
+  }
+
+  // Scarab bugs — crawl down through the field, seeding toadstools
+  bugTimer--;
+  if (bugTimer <= 0 && bugs.length < 1 + Math.floor(level / 2)) {
+    spawnBug();
+    bugTimer = 300 + Math.random() * 240 - level * 15;
+  }
+  for (let bi = bugs.length - 1; bi >= 0; bi--) {
+    const bug = bugs[bi];
+    bug.sway += 0.08;
+    bug.legPhase += 0.4;
+    bug.y += bug.vy;
+    bug.x += Math.sin(bug.sway) * 1.6;
+    // seed a toadstool in cells it crawls through
+    const bc = Math.floor(bug.x / CELL), br = Math.floor(bug.y / CELL);
+    if (br > 1 && br < PLAYER_ZONE_ROW && Math.random() < 0.03 &&
+        !mushrooms[key(bc, br)]) {
+      mushrooms[key(bc, br)] = 4;
+    }
+    // hits player
+    if (Math.hypot(bug.x - player.x, bug.y - player.y) < 15) {
+      bugs.splice(bi, 1);
+      loseLife();
+      continue;
+    }
+    // player bullets vs bug
+    let killed = false;
+    for (let ci = bullets.length - 1; ci >= 0; ci--) {
+      const b = bullets[ci];
+      if (Math.hypot(b.x - bug.x, b.y - bug.y) < 12) {
+        bullets.splice(ci, 1);
+        score += 200;
+        sfx.bug();
+        explode(bug.x, bug.y, '#4ade80', 12);
+        bugs.splice(bi, 1);
+        killed = true;
+        updateHUD();
+        break;
+      }
+    }
+    if (killed) continue;
+    if (bug.y > H + 20) bugs.splice(bi, 1);
   }
 
   // Particles
@@ -356,27 +426,88 @@ function draw() {
     drawMushroom(c, r, mushrooms[k]);
   });
 
-  // Hauntipede
+  // Hauntipede — segments with scuttling insect legs
   segments.forEach(s => {
     ctx.save();
     ctx.translate(s.x, s.y);
+    const r = s.head ? 11 : 9;
+    // three pairs of legs, alternating stroke
+    ctx.strokeStyle = s.head ? '#c026d3' : '#7c3aed';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let li = 0; li < 3; li++) {
+      const lx = (li - 1) * 6;
+      const kick = Math.sin(s.legPhase + li * 1.1) * 3;
+      ctx.moveTo(lx, -r + 2);
+      ctx.lineTo(lx + kick, -r - 5);
+      ctx.moveTo(lx, r - 2);
+      ctx.lineTo(lx - kick, r + 5);
+    }
+    ctx.stroke();
+    // body
     ctx.fillStyle = s.head ? '#e879f9' : '#a78bfa';
     ctx.shadowColor = s.head ? '#e879f9' : '#8b5cf6';
     ctx.shadowBlur = 10;
     ctx.beginPath();
-    ctx.arc(0, 0, s.head ? 11 : 9, 0, Math.PI * 2);
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    // eyes on head
+    // eyes + antennae on head
     if (s.head) {
       ctx.fillStyle = '#0f0a1a';
       ctx.fillRect(s.dir > 0 ? 1 : -5, -4, 4, 4);
       ctx.fillRect(s.dir > 0 ? 5 : -9, -1, 3, 3);
+      ctx.strokeStyle = '#e879f9';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const ax = s.dir > 0 ? 8 : -8;
+      ctx.moveTo(ax, -6); ctx.lineTo(ax + s.dir * 6, -12);
+      ctx.moveTo(ax, -3); ctx.lineTo(ax + s.dir * 8, -6);
+      ctx.stroke();
     } else {
       // small ghostly wisp
       ctx.fillStyle = 'rgba(224,212,255,0.5)';
       ctx.beginPath(); ctx.arc(0, -2, 2, 0, Math.PI * 2); ctx.fill();
     }
+    ctx.restore();
+  });
+
+  // Scarab bugs — green beetles with churning legs
+  bugs.forEach(bug => {
+    ctx.save();
+    ctx.translate(bug.x, bug.y);
+    ctx.rotate(Math.sin(bug.sway) * 0.3);
+    // legs
+    ctx.strokeStyle = '#166534';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let li = 0; li < 3; li++) {
+      const ly = (li - 1) * 5;
+      const kick = Math.sin(bug.legPhase + li * 1.3) * 4;
+      ctx.moveTo(-6, ly); ctx.lineTo(-11, ly + kick);
+      ctx.moveTo(6, ly);  ctx.lineTo(11, ly - kick);
+    }
+    ctx.stroke();
+    // carapace
+    ctx.fillStyle = '#4ade80';
+    ctx.shadowColor = '#4ade80';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 7, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // shell split line + head
+    ctx.strokeStyle = '#166534';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -9); ctx.lineTo(0, 9);
+    ctx.stroke();
+    ctx.fillStyle = '#166534';
+    ctx.beginPath();
+    ctx.arc(0, 9, 3.5, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   });
 

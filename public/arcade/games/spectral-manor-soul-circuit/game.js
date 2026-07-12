@@ -32,6 +32,11 @@ const sfx = {
   power:   () => { tone(440,0.08); setTimeout(()=>tone(660,0.08),60); setTimeout(()=>tone(880,0.12),120); },
   respawn: () => { tone(220,0.1,'sawtooth',0.05); setTimeout(()=>tone(330,0.1,'sawtooth',0.04),80); },
   hurt:    () => tone(120, 0.2, 'sawtooth', 0.06, -40),
+  // soul dissolve — long falling wail
+  dissolve:() => { tone(600, 0.5, 'sine', 0.06, -450); tone(900, 0.4, 'triangle', 0.04, -700); setTimeout(()=>tone(300,0.45,'sine',0.05,-220),150); },
+  pickup:  () => { tone(700,0.06,'square',0.05); setTimeout(()=>tone(1050,0.09,'square',0.05),60); },
+  freeze:  () => { tone(1200,0.12,'sine',0.05,-500); setTimeout(()=>tone(800,0.15,'sine',0.04,-400),90); },
+  life:    () => { [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,0.09,'triangle',0.06),i*70)); },
   win:     () => { tone(523,0.08); setTimeout(()=>tone(659,0.08),80); setTimeout(()=>tone(784,0.15),160); }
 };
 
@@ -68,6 +73,63 @@ let score = 0, lives = 3, level = 1, crystalsLeft = 0;
 let gameRunning = false, gameOver = false;
 let magicField = 0; // frames remaining
 let keys = {};
+
+// Death sequence + extra power-ups
+let dying = 0;            // frames left in the soul-dissolve animation
+let awaitingReady = false;// paused on the "READY?" prompt after a death
+let particles = [];       // dissolve wisps
+let pickups = [];         // maze power-ups: speed / freeze / life
+let pickupTimer = 600;    // frames until the next pickup can appear
+let speedBoost = 0;       // frames of extra speed
+let freezeTime = 0;       // frames monsters stay frozen
+
+function spawnPickup() {
+  // find a random open corridor cell
+  for (let tries = 0; tries < 60; tries++) {
+    const c = 1 + Math.floor(Math.random() * (COLS - 2));
+    const r = 1 + Math.floor(Math.random() * (ROWS - 2));
+    if (maze[r][c] === 0 || maze[r][c] === 2) {
+      const roll = Math.random();
+      const type = roll < 0.12 ? 'life' : (roll < 0.55 ? 'speed' : 'freeze');
+      pickups.push({
+        c, r,
+        x: c * CELL + CELL / 2, y: r * CELL + CELL / 2,
+        type, life: 720, bob: Math.random() * Math.PI * 2
+      });
+      return;
+    }
+  }
+}
+
+function startDeath() {
+  if (dying > 0) return; // one death at a time
+  lives--;
+  dying = 75;
+  magicField = 0;
+  sfx.dissolve();
+  // soul wisps drift up and away
+  for (let i = 0; i < 26; i++) {
+    particles.push({
+      x: player.x, y: player.y,
+      vx: (Math.random() - 0.5) * 2.5,
+      vy: -0.5 - Math.random() * 2.2,
+      life: 40 + Math.random() * 40,
+      size: 2 + Math.random() * 4,
+      color: Math.random() < 0.5 ? '#c084fc' : '#e9d5ff'
+    });
+  }
+  updateHUD();
+}
+
+function resumeAfterDeath() {
+  awaitingReady = false;
+  player.x = PLAYER_START.x; player.y = PLAYER_START.y;
+  player.dir = {x:0,y:0}; player.nextDir = {x:0,y:0};
+  spawnMonsters();
+  speedBoost = 0; freezeTime = 0;
+  sfx.respawn();
+  document.getElementById('startOverlay').classList.add('hidden');
+}
 
 // Player — starts mid-maze in the open corridor (row 9 is fully open),
 // far from all four monster home corners
@@ -137,6 +199,9 @@ function spawnMonsters() {
 
 function startGame() {
   score = 0; lives = 3; level = 1; magicField = 0;
+  dying = 0; awaitingReady = false;
+  particles = []; pickups = []; pickupTimer = 600;
+  speedBoost = 0; freezeTime = 0;
   buildMaze();
   player.x = PLAYER_START.x; player.y = PLAYER_START.y;
   player.dir = {x:0,y:0}; player.nextDir = {x:0,y:0};
@@ -162,17 +227,74 @@ window.addEventListener('keydown', e => {
   initAudio();
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
-  if ((e.code === 'Space' || e.code === 'Enter') && !gameRunning) startGame();
+  if (e.code === 'Space' || e.code === 'Enter') {
+    if (awaitingReady) resumeAfterDeath();
+    else if (!gameRunning) startGame();
+  }
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 document.getElementById('startOverlay').addEventListener('click', () => {
   initAudio();
-  if (!gameRunning) startGame();
+  if (awaitingReady) resumeAfterDeath();
+  else if (!gameRunning) startGame();
 });
 
 // ---------- Update ----------
 function update() {
-  if (!gameRunning) return;
+  // Dissolve wisps drift even while paused on READY? / game over
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy -= 0.02; p.life--; });
+  particles = particles.filter(p => p.life > 0);
+
+  if (!gameRunning || awaitingReady) return;
+
+  // Soul dissolve in progress — world holds its breath
+  if (dying > 0) {
+    dying--;
+    if (dying === 0) {
+      if (lives <= 0) {
+        gameOver = true;
+        gameRunning = false;
+        document.getElementById('startOverlay').classList.remove('hidden');
+        document.getElementById('startOverlay').innerHTML = `
+          <h2>SOUL LOST</h2>
+          <p>Final Score: ${score}</p>
+          <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to try again</p>
+        `;
+      } else {
+        awaitingReady = true;
+        document.getElementById('startOverlay').classList.remove('hidden');
+        document.getElementById('startOverlay').innerHTML = `
+          <h2>READY?</h2>
+          <p>${lives} ${lives === 1 ? 'soul remains' : 'souls remain'}</p>
+          <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE when you're ready</p>
+        `;
+      }
+    }
+    return;
+  }
+
+  // Power-up spawning (keep up to 2 in the maze)
+  pickupTimer--;
+  if (pickupTimer <= 0 && pickups.length < 2) {
+    spawnPickup();
+    pickupTimer = 500 + Math.random() * 400;
+  }
+  pickups.forEach((p, pi) => {
+    p.bob += 0.08;
+    p.life--;
+    if (p.life <= 0) { pickups.splice(pi, 1); return; }
+    if (Math.hypot(p.x - player.x, p.y - player.y) < 16) {
+      pickups.splice(pi, 1);
+      if (p.type === 'speed') { speedBoost = 420; sfx.pickup(); }
+      else if (p.type === 'freeze') { freezeTime = 300; sfx.freeze(); }
+      else { lives++; sfx.life(); }
+      score += 25;
+      updateHUD();
+    }
+  });
+  if (speedBoost > 0) speedBoost--;
+  if (freezeTime > 0) freezeTime--;
+  player.speed = speedBoost > 0 ? 3.4 : 2.4;
 
   // Desired direction
   if (keys['ArrowLeft'] || keys['KeyA']) player.nextDir = {x:-1, y:0};
@@ -226,8 +348,9 @@ function update() {
   // Level clear
   if (crystalsLeft <= 0) nextLevel();
 
-  // Monsters AI (simple chase / scatter)
+  // Monsters AI (simple chase / scatter) — frozen monsters stand still
   monsters.forEach(m => {
+    if (freezeTime > 0) return;
     // occasionally pick new direction
     if (Math.random() < 0.04 || (m.dir.x === 0 && m.dir.y === 0)) {
       const options = [];
@@ -277,24 +400,8 @@ function update() {
         sfx.respawn();
         updateHUD();
       } else {
-        // player hurt
-        lives--;
-        sfx.hurt();
-        player.x = PLAYER_START.x; player.y = PLAYER_START.y;
-        player.dir = {x:0,y:0};
-        magicField = 0;
-        spawnMonsters(); // send monsters back to their corners
-        updateHUD();
-        if (lives <= 0) {
-          gameOver = true;
-          gameRunning = false;
-          document.getElementById('startOverlay').classList.remove('hidden');
-          document.getElementById('startOverlay').innerHTML = `
-            <h2>SOUL LOST</h2>
-            <p>Final Score: ${score}</p>
-            <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to try again</p>
-          `;
-        }
+        // player caught — soul dissolves, then READY? before the next life
+        startDeath();
       }
     }
   });
@@ -358,53 +465,184 @@ function draw() {
     }
   }
 
-  // Monsters
+  // Power-up pickups
+  pickups.forEach(p => {
+    const by = Math.sin(p.bob) * 2.5;
+    ctx.save();
+    ctx.translate(p.x, p.y + by);
+    ctx.globalAlpha = Math.min(1, p.life / 60);
+    if (p.type === 'speed') {
+      ctx.fillStyle = '#fbbf24';
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 12;
+      // lightning bolt
+      ctx.beginPath();
+      ctx.moveTo(1, -8); ctx.lineTo(-4, 1); ctx.lineTo(0, 1);
+      ctx.lineTo(-1, 8); ctx.lineTo(4, -1); ctx.lineTo(0, -1);
+      ctx.closePath();
+      ctx.fill();
+    } else if (p.type === 'freeze') {
+      ctx.strokeStyle = '#67e8f9';
+      ctx.shadowColor = '#67e8f9';
+      ctx.shadowBlur = 12;
+      ctx.lineWidth = 2;
+      // snowflake
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * -8, Math.sin(a) * -8);
+        ctx.lineTo(Math.cos(a) * 8, Math.sin(a) * 8);
+        ctx.stroke();
+      }
+    } else {
+      // heart (extra life)
+      ctx.fillStyle = '#f472b6';
+      ctx.shadowColor = '#f472b6';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(-3, -2, 4, 0, Math.PI * 2);
+      ctx.arc(3, -2, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-6.5, 0); ctx.lineTo(0, 8); ctx.lineTo(6.5, 0);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  });
+
+  // Monsters — each classic monster gets its own look
+  const frozen = freezeTime > 0;
   monsters.forEach(m => {
     ctx.save();
     ctx.translate(m.x, m.y);
-    if (magicField > 0) {
-      // scared / blue-ish
-      ctx.globalAlpha = 0.7 + Math.sin(Date.now()*0.01)*0.2;
-      ctx.fillStyle = '#67e8f9';
-    } else {
-      ctx.fillStyle = m.color;
-    }
-    ctx.shadowColor = m.color;
+    const scared = magicField > 0;
+    if (scared) ctx.globalAlpha = 0.7 + Math.sin(Date.now()*0.01)*0.2;
+    const body = frozen ? '#93c5fd' : (scared ? '#67e8f9' : m.color);
+    ctx.shadowColor = body;
     ctx.shadowBlur = 10;
-    // body
-    ctx.beginPath();
-    ctx.arc(0, 0, 10, 0, Math.PI*2);
-    ctx.fill();
-    // eyes
-    ctx.fillStyle = '#0f0a1a';
-    ctx.fillRect(-5, -4, 3, 4);
-    ctx.fillRect(2, -4, 3, 4);
+
+    if (m.name === 'Vampire') {
+      // cape
+      ctx.fillStyle = frozen || scared ? body : '#1e1b4b';
+      ctx.beginPath();
+      ctx.moveTo(-10, -4); ctx.lineTo(0, 11); ctx.lineTo(10, -4);
+      ctx.closePath(); ctx.fill();
+      // head
+      ctx.fillStyle = body;
+      ctx.beginPath(); ctx.arc(0, -2, 7, 0, Math.PI*2); ctx.fill();
+      // widow's peak hair
+      ctx.fillStyle = '#0f0a1a';
+      ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(0, -2); ctx.lineTo(6, -6); ctx.lineTo(6, -9); ctx.lineTo(-6, -9); ctx.closePath(); ctx.fill();
+      // eyes + fangs
+      ctx.fillStyle = frozen ? '#0f0a1a' : '#ff5555';
+      ctx.fillRect(-4, -3, 2.5, 2.5); ctx.fillRect(1.5, -3, 2.5, 2.5);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(-3, 2, 2, 3); ctx.fillRect(1, 2, 2, 3);
+    } else if (m.name === 'Frank') {
+      // flat green head + bolts
+      ctx.fillStyle = body;
+      ctx.fillRect(-8, -9, 16, 18);
+      ctx.fillStyle = '#14532d';
+      ctx.fillRect(-9, -11, 18, 4);
+      ctx.fillStyle = '#a1a1aa';
+      ctx.fillRect(-11, -2, 3, 4); ctx.fillRect(8, -2, 3, 4);
+      ctx.fillStyle = '#0f0a1a';
+      ctx.fillRect(-5, -4, 3, 3); ctx.fillRect(2, -4, 3, 3);
+      ctx.strokeStyle = '#14532d';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(-4, 4); ctx.lineTo(4, 5); ctx.stroke();
+    } else if (m.name === 'Werewolf') {
+      // furry head with ears + snout
+      ctx.fillStyle = body;
+      ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-8, -6); ctx.lineTo(-6, -14); ctx.lineTo(-2, -7); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(8, -6); ctx.lineTo(6, -14); ctx.lineTo(2, -7); ctx.closePath(); ctx.fill();
+      // snout
+      ctx.fillStyle = frozen ? '#60a5fa' : '#57534e';
+      ctx.beginPath(); ctx.ellipse(0, 4, 5, 3.5, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#0f0a1a';
+      ctx.beginPath(); ctx.arc(0, 3, 1.5, 0, Math.PI*2); ctx.fill();
+      // glowing eyes
+      ctx.fillStyle = frozen ? '#0f0a1a' : '#fbbf24';
+      ctx.fillRect(-5, -3, 3, 2.5); ctx.fillRect(2, -3, 3, 2.5);
+    } else {
+      // Witch — hat + green eyes
+      ctx.fillStyle = body;
+      ctx.beginPath(); ctx.arc(0, 1, 7, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = frozen || scared ? body : '#4c1d95';
+      ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(-8, -3); ctx.lineTo(8, -3); ctx.closePath(); ctx.fill();
+      ctx.fillRect(-10, -5, 20, 3);
+      ctx.fillStyle = frozen ? '#0f0a1a' : '#4ade80';
+      ctx.fillRect(-4, 0, 2.5, 2.5); ctx.fillRect(1.5, 0, 2.5, 2.5);
+    }
+
+    // icy overlay when frozen
+    if (frozen) {
+      ctx.strokeStyle = 'rgba(147,197,253,0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(-10, -12, 20, 24);
+    }
     ctx.restore();
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
   });
 
-  // Player
-  ctx.save();
-  ctx.translate(player.x, player.y);
-  if (magicField > 0) {
-    ctx.shadowColor = '#e879f9';
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = '#e879f9';
-  } else {
-    ctx.shadowColor = '#c084fc';
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = '#c084fc';
+  // Player — a glowing spirit with a trailing wisp (hidden while dissolving)
+  if (dying === 0 && !awaitingReady) {
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    const glow = magicField > 0 ? '#e879f9' : '#c084fc';
+    // wisp tail behind movement direction
+    ctx.fillStyle = glow;
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.ellipse(-player.dir.x * 9, -player.dir.y * 9 + 2, 7, 5, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.ellipse(-player.dir.x * 5, -player.dir.y * 5 + 1, 8.5, 7, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = magicField > 0 ? 20 : 12;
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, player.r, 0, Math.PI*2);
+    ctx.fill();
+    // inner core
+    ctx.fillStyle = '#f3e8ff';
+    ctx.beginPath();
+    ctx.arc(0, -1, 4.5, 0, Math.PI*2);
+    ctx.fill();
+    // eyes look where you're headed
+    ctx.fillStyle = '#2e1065';
+    const lx = player.dir.x * 1.5, ly = player.dir.y * 1.5;
+    ctx.fillRect(-3.5 + lx, -3 + ly, 2.5, 3);
+    ctx.fillRect(1 + lx, -3 + ly, 2.5, 3);
+    // speed boost sparkle
+    if (speedBoost > 0) {
+      ctx.fillStyle = '#fbbf24';
+      ctx.globalAlpha = 0.5 + Math.sin(Date.now() * 0.02) * 0.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, player.r + 4, 0, Math.PI * 2);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    ctx.shadowBlur = 0;
   }
-  ctx.beginPath();
-  ctx.arc(0, 0, player.r, 0, Math.PI*2);
-  ctx.fill();
-  // simple face
-  ctx.fillStyle = '#0f0a1a';
-  ctx.fillRect(-4, -3, 3, 3);
-  ctx.fillRect(1, -3, 3, 3);
-  ctx.restore();
-  ctx.shadowBlur = 0;
+
+  // Dissolve wisps
+  particles.forEach(p => {
+    ctx.globalAlpha = Math.min(1, p.life / 40);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
 
   // Magic field ring
   if (magicField > 0) {
