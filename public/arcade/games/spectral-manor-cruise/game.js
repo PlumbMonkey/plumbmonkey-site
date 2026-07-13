@@ -505,7 +505,9 @@ function drawBackground(curveOffset) {
 }
 
 function drawSprite(type, x, y, scale) {
-  const s = scale * 9000; // world→pixel sprite size factor
+  // sized against the road projection (9000 was near-invisible)
+  let s = scale * 60000;
+  if (type === 'banner') s *= 5; // the start gantry spans the road
   if (s < 3) return;
   ctx.save();
   ctx.translate(x, y);
@@ -547,8 +549,10 @@ function drawSprite(type, x, y, scale) {
 }
 
 function drawCar(x, y, scale, o) {
-  const s = scale * 7000;
-  if (s < 2) return;
+  // 70000 sizes a car at ~8-10% of the road width at any distance
+  // (7000 drew sub-pixel dots — the "invisible rivals" bug)
+  const s = scale * 70000;
+  if (s < 3) return;
   const cw = s * 0.9, ch = s * 0.5;
   ctx.save();
   ctx.translate(x, y);
@@ -754,7 +758,7 @@ function draw() {
     const sp = spriteQueue[i];
     if (sp.car) drawCar(sp.x, sp.y, sp.scale, sp.car);
     else if (sp.fireball) {
-      const fs = Math.max(3, sp.scale * 900);
+      const fs = Math.max(4, sp.scale * 10000);
       ctx.fillStyle = '#fb923c';
       ctx.shadowColor = '#f97316';
       ctx.shadowBlur = 14;
