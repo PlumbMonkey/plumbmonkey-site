@@ -40,6 +40,14 @@
       border-radius: 0 0 5px 5px; z-index: 2; }
     .key.black.down { background: linear-gradient(#a855f7, #7c3aed); }
 
+    .transport { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .8rem;
+      margin-top: 1rem; }
+    button { font-family: inherit; font-weight: 600; cursor: pointer; border: none; border-radius: 8px;
+      padding: .5rem 1rem; background: #4c1d95; color: #e9d5ff; transition: all .15s; }
+    button:hover { background: #5b21b6; box-shadow: 0 0 14px rgba(168,85,247,.45); }
+    #recordBtn { background: #7c3aed; min-width: 100px; }
+    #recordBtn.recording { background: #ef4444; color: #fff; box-shadow: 0 0 16px rgba(239,68,68,.7); }
+    #synthStatus { margin-top: .6rem; min-height: 1.1rem; font-size: .8rem; color: #d8b4fe; text-align: center; }
     .hint { margin-top: .8rem; font-size: .72rem; color: #64748b; text-align: center; }
     .footer { margin-top: 1.6rem; text-align: center; font-size: .8rem; color: #64748b; line-height: 1.6; }
     .footer a { color: #c084fc; text-decoration: none; }
@@ -78,12 +86,20 @@
     <div id="keyboard"></div>
   </div>
 
+  <div class="transport">
+    <button id="recordBtn">● Record</button>
+    <button id="exportWavBtn" title="Render your recorded notes to a WAV file">Export WAV</button>
+    <button id="exportMidiBtn" title="Export your recorded notes as a MIDI file">Export MIDI</button>
+  </div>
+  <div id="synthStatus">Press ● Record, then play — export when you're happy with the take</div>
+
   <div class="hint">Play with the mouse/touch, or your computer keys: A W S E D F T G Y H U J K …</div>
 
   <div class="footer">
     Part of the <strong style="color:#d8b4fe">Ghost Circuit</strong> sound lab · Built by Plumbmonkey Media
   </div>
 
+  <script src="../shared/export-utils.js"></script>
   <script src="synth.js"></script>
 </body>
 </html>

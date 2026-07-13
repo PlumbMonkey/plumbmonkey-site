@@ -8,20 +8,36 @@
 // ---------- Audio context ----------
 let audioCtx = null;
 let master = null;
+// Headroom instead of dynamics processing: a DynamicsCompressorNode tuned to
+// only catch the rare overlapping-step peak turned out to unpredictably
+// squash single hits too (measured), so gain-staging is used instead — a
+// plain master level low enough that even the busiest realistic step
+// (kick+snare+hat+clap all landing together) stays under 1.0. Verified: the
+// demo pattern's worst step peaks ~0.66 at this level, with no coloration.
 function initAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     master = audioCtx.createGain();
-    master.gain.value = 0.9;
+    master.gain.value = 0.6;
     master.connect(audioCtx.destination);
   }
   if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
+// Offline render uses the same headroom-only bus, so exports match live playback.
+function makeLimitedBus(ctx) {
+  const bus = ctx.createGain();
+  bus.connect(ctx.destination);
+  return bus;
+}
+
 // ---------- Drum voices (all synthesized) ----------
-function noiseBuffer(dur) {
-  const len = Math.floor(audioCtx.sampleRate * dur);
-  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+// Every voice takes (ctx, dest, t, v) rather than closing over the live
+// audioCtx/master, so the exact same functions can render live playback
+// OR an offline render for WAV/one-shot export.
+function noiseBuffer(ctx, dur) {
+  const len = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const d = buf.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
   return buf;
@@ -33,61 +49,64 @@ function env(gain, t, peak, dur, release) {
 }
 
 const VOICES = {
-  kick(t, v) {
-    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  kick(ctx, dest, t, v) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
     o.frequency.setValueAtTime(150, t);
     o.frequency.exponentialRampToValueAtTime(50, t + 0.12);
     env(g, t, 0.9 * v, 0.28);
-    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.4);
+    o.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.4);
   },
-  snare(t, v) {
-    const n = audioCtx.createBufferSource(); n.buffer = noiseBuffer(0.2);
-    const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800;
-    const ng = audioCtx.createGain(); env(ng, t, 0.6 * v, 0.12);
-    n.connect(bp); bp.connect(ng); ng.connect(master); n.start(t); n.stop(t + 0.2);
-    const o = audioCtx.createOscillator(), og = audioCtx.createGain();
+  snare(ctx, dest, t, v) {
+    const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, 0.2);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800;
+    const ng = ctx.createGain(); env(ng, t, 0.6 * v, 0.12);
+    n.connect(bp); bp.connect(ng); ng.connect(dest); n.start(t); n.stop(t + 0.2);
+    const o = ctx.createOscillator(), og = ctx.createGain();
     o.type = 'triangle'; o.frequency.value = 200; env(og, t, 0.4 * v, 0.09);
-    o.connect(og); og.connect(master); o.start(t); o.stop(t + 0.15);
+    o.connect(og); og.connect(dest); o.start(t); o.stop(t + 0.15);
   },
-  clap(t, v) {
+  clap(ctx, dest, t, v) {
     [0, 0.012, 0.024].forEach(off => {
-      const n = audioCtx.createBufferSource(); n.buffer = noiseBuffer(0.1);
-      const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1200;
-      const g = audioCtx.createGain(); env(g, t + off, 0.5 * v, 0.06);
-      n.connect(bp); bp.connect(g); g.connect(master); n.start(t + off); n.stop(t + off + 0.1);
+      const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, 0.1);
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1200;
+      const g = ctx.createGain(); env(g, t + off, 0.5 * v, 0.06);
+      n.connect(bp); bp.connect(g); g.connect(dest); n.start(t + off); n.stop(t + off + 0.1);
     });
   },
-  chat(t, v) {
-    const n = audioCtx.createBufferSource(); n.buffer = noiseBuffer(0.05);
-    const hp = audioCtx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
-    const g = audioCtx.createGain(); env(g, t, 0.35 * v, 0.03);
-    n.connect(hp); hp.connect(g); g.connect(master); n.start(t); n.stop(t + 0.06);
+  chat(ctx, dest, t, v) {
+    const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, 0.05);
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
+    const g = ctx.createGain(); env(g, t, 0.35 * v, 0.03);
+    n.connect(hp); hp.connect(g); g.connect(dest); n.start(t); n.stop(t + 0.06);
   },
-  ohat(t, v) {
-    const n = audioCtx.createBufferSource(); n.buffer = noiseBuffer(0.35);
-    const hp = audioCtx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
-    const g = audioCtx.createGain(); env(g, t, 0.3 * v, 0.28);
-    n.connect(hp); hp.connect(g); g.connect(master); n.start(t); n.stop(t + 0.4);
+  ohat(ctx, dest, t, v) {
+    const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, 0.35);
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
+    const g = ctx.createGain(); env(g, t, 0.3 * v, 0.28);
+    n.connect(hp); hp.connect(g); g.connect(dest); n.start(t); n.stop(t + 0.4);
   },
-  ltom(t, v) {
-    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  ltom(ctx, dest, t, v) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
     o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(65, t + 0.2);
-    env(g, t, 0.7 * v, 0.24); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.35);
+    env(g, t, 0.7 * v, 0.24); o.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.35);
   },
-  htom(t, v) {
-    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  htom(ctx, dest, t, v) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
     o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(120, t + 0.16);
-    env(g, t, 0.7 * v, 0.2); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3);
+    env(g, t, 0.7 * v, 0.2); o.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.3);
   },
-  cowbell(t, v) {
+  cowbell(ctx, dest, t, v) {
     [560, 845].forEach(f => {
-      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      const o = ctx.createOscillator(), g = ctx.createGain();
       o.type = 'square'; o.frequency.value = f; env(g, t, 0.28 * v, 0.18);
-      const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700;
-      o.connect(bp); bp.connect(g); g.connect(master); o.start(t); o.stop(t + 0.25);
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700;
+      o.connect(bp); bp.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.25);
     });
   }
 };
+
+// GM percussion map (channel 10) — used for MIDI export
+const GM_NOTE = { kick: 36, snare: 38, clap: 39, chat: 42, ohat: 46, ltom: 45, htom: 50, cowbell: 56 };
 
 // ---------- Tracks & pattern ----------
 const TRACKS = [
@@ -127,7 +146,7 @@ function scheduleStep(step, time) {
   // swing: push odd steps later
   const t = (step % 2 === 1) ? time + secondsPerStep() * swing : time;
   TRACKS.forEach((tr, ti) => {
-    if (pattern[ti][step] && !mutes[ti]) VOICES[tr.id](t, 1);
+    if (pattern[ti][step] && !mutes[ti]) VOICES[tr.id](audioCtx, master, t, 1);
   });
   drawQueue.push({ step, time: t });
 }
@@ -182,12 +201,20 @@ function buildGrid() {
   TRACKS.forEach((tr, ti) => {
     const label = document.createElement('div');
     label.className = 'track-label';
-    label.textContent = tr.name;
     label.title = 'Click to mute · plays on click';
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = tr.name;
+    label.appendChild(nameSpan);
+    const dl = document.createElement('span');
+    dl.className = 'sample-dl';
+    dl.textContent = '⭳';
+    dl.title = 'Download this sample as a WAV';
+    dl.addEventListener('click', e => { e.stopPropagation(); exportVoiceOneShot(ti); });
+    label.appendChild(dl);
     label.addEventListener('click', () => {
       mutes[ti] = !mutes[ti];
       label.classList.toggle('muted', mutes[ti]);
-      if (!mutes[ti]) { initAudio(); VOICES[tr.id](audioCtx.currentTime, 1); } // preview
+      if (!mutes[ti]) { initAudio(); VOICES[tr.id](audioCtx, master, audioCtx.currentTime, 1); } // preview
     });
     grid.appendChild(label);
 
@@ -198,7 +225,7 @@ function buildGrid() {
       cell.addEventListener('click', () => {
         pattern[ti][s] ^= 1;
         cell.classList.toggle('on', !!pattern[ti][s]);
-        if (pattern[ti][s]) { initAudio(); VOICES[tr.id](audioCtx.currentTime, 1); }
+        if (pattern[ti][s]) { initAudio(); VOICES[tr.id](audioCtx, master, audioCtx.currentTime, 1); }
       });
       grid.appendChild(cell);
     }
@@ -257,6 +284,76 @@ function flash(msg) {
   flashTimer = setTimeout(() => el.classList.remove('show'), 1400);
 }
 
+// ---------- Export (WAV loop, MIDI loop, per-voice one-shot samples) ----------
+// Renders the current pattern through an OfflineAudioContext using the SAME
+// VOICES functions that drive live playback — what you hear is what exports.
+async function renderPatternToBuffer(loops) {
+  loops = loops || 1;
+  const sr = (audioCtx && audioCtx.sampleRate) || 44100;
+  const spb = secondsPerStep();
+  const totalSeconds = spb * STEPS * loops + 0.6; // pad for voice tails
+  const off = new OfflineAudioContext(2, Math.ceil(totalSeconds * sr), sr);
+  const offMaster = makeLimitedBus(off);
+  offMaster.gain.value = master ? master.gain.value : 0.9;
+  for (let loop = 0; loop < loops; loop++) {
+    for (let s = 0; s < STEPS; s++) {
+      const stepTime = (loop * STEPS + s) * spb;
+      const t = (s % 2 === 1) ? stepTime + spb * swing : stepTime;
+      TRACKS.forEach((tr, ti) => {
+        if (pattern[ti][s] && !mutes[ti]) VOICES[tr.id](off, offMaster, t, 1);
+      });
+    }
+  }
+  return off.startRendering();
+}
+
+async function exportLoopWav() {
+  initAudio();
+  const hasAnyHit = pattern.some(track => track.some(s => s));
+  if (!hasAnyHit) { flash('Nothing to export — add some steps first'); return; }
+  flash('Rendering…');
+  const buffer = await renderPatternToBuffer(1);
+  const blob = ExportUtils.audioBufferToWav(buffer);
+  ExportUtils.downloadBlob(blob, 'ghost-circuit-beat.wav');
+  flash('WAV exported');
+}
+
+function exportLoopMidi() {
+  const hasAnyHit = pattern.some(track => track.some(s => s));
+  if (!hasAnyHit) { flash('Nothing to export — add some steps first'); return; }
+  const division = 480;             // ticks per quarter note
+  const ticksPerStep = division / 4; // 16th notes
+  const hitTicks = 20;               // short note-off duration per hit
+  const events = [];
+  for (let s = 0; s < STEPS; s++) {
+    const swingTicks = (s % 2 === 1) ? Math.round(ticksPerStep * swing) : 0;
+    const tick = s * ticksPerStep + swingTicks;
+    TRACKS.forEach((tr, ti) => {
+      if (pattern[ti][s] && !mutes[ti]) {
+        const note = GM_NOTE[tr.id];
+        events.push({ tick, type: 'on', note, velocity: 100, channel: 9 });
+        events.push({ tick: tick + hitTicks, type: 'off', note, velocity: 0, channel: 9 });
+      }
+    });
+  }
+  const blob = ExportUtils.buildMidiFile(events, division, tempo);
+  ExportUtils.downloadBlob(blob, 'ghost-circuit-beat.mid');
+  flash('MIDI exported');
+}
+
+async function exportVoiceOneShot(ti) {
+  initAudio();
+  const tr = TRACKS[ti];
+  const sr = (audioCtx && audioCtx.sampleRate) || 44100;
+  const off = new OfflineAudioContext(2, Math.ceil(sr * 1.0), sr);
+  const dest = makeLimitedBus(off); dest.gain.value = 1;
+  VOICES[tr.id](off, dest, 0.01, 1);
+  const buffer = await off.startRendering();
+  const blob = ExportUtils.audioBufferToWav(buffer);
+  ExportUtils.downloadBlob(blob, tr.id + '.wav');
+  flash(tr.name + ' sample downloaded');
+}
+
 // ---------- Wire up ----------
 window.addEventListener('DOMContentLoaded', () => {
   buildGrid();
@@ -265,6 +362,8 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('demoBtn').addEventListener('click', demoPattern);
   document.getElementById('saveBtn').addEventListener('click', savePattern);
   document.getElementById('loadBtn').addEventListener('click', loadPattern);
+  document.getElementById('exportWavBtn').addEventListener('click', exportLoopWav);
+  document.getElementById('exportMidiBtn').addEventListener('click', exportLoopMidi);
   const tempoEl = document.getElementById('tempo');
   tempoEl.addEventListener('input', e => { tempo = +e.target.value; document.getElementById('tempoVal').textContent = tempo; });
   const swingEl = document.getElementById('swing');

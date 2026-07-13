@@ -30,6 +30,12 @@ const patch = {
 const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 const voices = {}; // midi -> {osc, filt, gain}
 
+// ---------- Recording (captures note timing + the patch as played) ----------
+let recording = false;
+let recordStart = 0;
+let recordedEvents = []; // {midi, onT, offT, snap} — times are seconds from recordStart
+let openRecordings = {}; // midi -> event object, while the key is still held
+
 function noteOn(midi) {
   initAudio();
   if (voices[midi]) return; // already sounding
@@ -50,6 +56,12 @@ function noteOn(midi) {
   osc.start(now);
   voices[midi] = { osc, filt, gain };
   highlightKey(midi, true);
+
+  if (recording) {
+    const ev = { midi, onT: now - recordStart, offT: null, snap: { ...patch } };
+    recordedEvents.push(ev);
+    openRecordings[midi] = ev;
+  }
 }
 
 function noteOff(midi) {
@@ -63,6 +75,118 @@ function noteOff(midi) {
   v.osc.stop(now + patch.release + 0.03);
   delete voices[midi];
   highlightKey(midi, false);
+
+  if (recording && openRecordings[midi]) {
+    openRecordings[midi].offT = now - recordStart;
+    delete openRecordings[midi];
+  }
+}
+
+function toggleRecording() {
+  initAudio();
+  if (!recording) {
+    recording = true;
+    recordStart = audioCtx.currentTime;
+    recordedEvents = [];
+    openRecordings = {};
+    setRecordUI(true, 0);
+  } else {
+    recording = false;
+    const stopT = audioCtx.currentTime - recordStart;
+    // finalize any keys still held so nothing is left open-ended
+    Object.values(openRecordings).forEach(ev => { ev.offT = stopT; });
+    openRecordings = {};
+    setRecordUI(false, recordedEvents.length);
+  }
+}
+
+// ---------- Offline re-synthesis of a recorded note (for export) ----------
+// Mirrors the live noteOn/noteOff envelope shape, but as a single scheduled
+// curve computed ahead of time (no cancel/resume — see the simplification
+// note below).
+function scheduleVoice(ctx, dest, midi, onT, offT, snap) {
+  const peak = 0.9;
+  const osc = ctx.createOscillator();
+  osc.type = snap.wave;
+  osc.frequency.value = midiToFreq(midi);
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.frequency.value = snap.cutoff;
+  filt.Q.value = snap.resonance;
+  const gain = ctx.createGain();
+  const sustainLevel = Math.max(0.0001, snap.sustain * peak);
+  gain.gain.setValueAtTime(0.0001, onT);
+  gain.gain.linearRampToValueAtTime(peak, onT + Math.max(snap.attack, 0.001));
+  gain.gain.linearRampToValueAtTime(sustainLevel, onT + snap.attack + snap.decay);
+  // Simplification: if a note is released before the decay stage finishes,
+  // the release begins once decay completes rather than mid-ramp — avoids
+  // fragile scheduled-curve cancellation for a small audible difference on
+  // very short notes.
+  const releaseStart = Math.max(offT, onT + snap.attack + snap.decay);
+  gain.gain.setValueAtTime(sustainLevel, releaseStart);
+  gain.gain.linearRampToValueAtTime(0.0001, releaseStart + snap.release);
+  osc.connect(filt); filt.connect(gain); gain.connect(dest);
+  osc.start(onT);
+  osc.stop(releaseStart + snap.release + 0.02);
+}
+
+async function renderRecordingToBuffer() {
+  const sr = (audioCtx && audioCtx.sampleRate) || 44100;
+  let endTime = 0;
+  recordedEvents.forEach(e => {
+    const off = e.offT != null ? e.offT : e.onT + 1;
+    endTime = Math.max(endTime, Math.max(off, e.onT + e.snap.attack + e.snap.decay) + e.snap.release);
+  });
+  const off = new OfflineAudioContext(2, Math.ceil(sr * (endTime + 0.3)), sr);
+  const dest = off.createGain();
+  // match the volume the recording was actually heard at — an offline unity
+  // bus here would export louder (and clip harder) than live playback
+  dest.gain.value = master ? master.gain.value : patch.volume;
+  dest.connect(off.destination);
+  recordedEvents.forEach(e => {
+    const offT = e.offT != null ? e.offT : e.onT + 1;
+    scheduleVoice(off, dest, e.midi, e.onT, offT, e.snap);
+  });
+  return off.startRendering();
+}
+
+async function exportRecordingWav() {
+  if (!recordedEvents.length) { setStatus('Nothing recorded yet — press ● Record and play something'); return; }
+  setStatus('Rendering…');
+  const buffer = await renderRecordingToBuffer();
+  const blob = ExportUtils.audioBufferToWav(buffer);
+  ExportUtils.downloadBlob(blob, 'ghost-circuit-riff.wav');
+  setStatus('WAV exported — ' + recordedEvents.length + ' notes');
+}
+
+function exportRecordingMidi() {
+  if (!recordedEvents.length) { setStatus('Nothing recorded yet — press ● Record and play something'); return; }
+  const division = 480;
+  const refTempo = 120; // reference tempo used only to express real recorded seconds as ticks
+  const ticksPerSecond = division * (refTempo / 60);
+  const events = [];
+  recordedEvents.forEach(e => {
+    const offT = e.offT != null ? e.offT : e.onT + 0.5;
+    events.push({ tick: Math.round(e.onT * ticksPerSecond), type: 'on', note: e.midi, velocity: 100, channel: 0 });
+    events.push({ tick: Math.round(offT * ticksPerSecond), type: 'off', note: e.midi, velocity: 0, channel: 0 });
+  });
+  const blob = ExportUtils.buildMidiFile(events, division, refTempo);
+  ExportUtils.downloadBlob(blob, 'ghost-circuit-riff.mid');
+  setStatus('MIDI exported — ' + recordedEvents.length + ' notes');
+}
+
+function setRecordUI(isRecording, noteCount) {
+  const btn = document.getElementById('recordBtn');
+  if (btn) {
+    btn.textContent = isRecording ? '■ Stop' : '● Record';
+    btn.classList.toggle('recording', isRecording);
+  }
+  if (isRecording) setStatus('Recording…');
+  else setStatus(noteCount ? 'Recorded ' + noteCount + ' notes — ready to export' : 'Recording stopped (nothing played)');
+}
+function setStatus(msg) {
+  const el = document.getElementById('synthStatus');
+  if (el) el.textContent = msg;
 }
 
 // ---------- Keyboard (one+ octave, C4=60 .. E5=76) ----------
@@ -163,5 +287,8 @@ window.addEventListener('keyup', e => {
 window.addEventListener('DOMContentLoaded', () => {
   buildKeyboard();
   bindControls();
+  document.getElementById('recordBtn').addEventListener('click', toggleRecording);
+  document.getElementById('exportWavBtn').addEventListener('click', exportRecordingWav);
+  document.getElementById('exportMidiBtn').addEventListener('click', exportRecordingMidi);
 });
 console.log('Ghost Circuit Soft Synth ready');
