@@ -161,6 +161,7 @@ let lives = 3;
 let wave = 1;
 let gameRunning = false;
 let gameOver = false;
+let deathPending = false; // true during the 1.1s death blast — blocks restart so the score isn't wiped
 let keys = {};
 let deathBlast = null; // dramatic full-screen death explosion
 
@@ -230,14 +231,14 @@ window.addEventListener('keydown', e => {
   initAudio();
   keys[e.code] = true;
   if (e.code === 'Space' || e.code === 'KeyZ') e.preventDefault();
-  if ((e.code === 'Space' || e.code === 'KeyZ') && !gameRunning) startGame();
+  if ((e.code === 'Space' || e.code === 'KeyZ') && !gameRunning && !deathPending) startGame();
   if (e.code === 'KeyP' && gameRunning) paused = !paused; // toggle pause, run preserved
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 
 document.getElementById('startOverlay').addEventListener('click', () => {
   initAudio();
-  if (!gameRunning) startGame();
+  if (!gameRunning && !deathPending) startGame();
 });
 
 // ---------- Core Functions ----------
@@ -276,6 +277,7 @@ function startGame() {
   player.powerupTime = 0;
   gameRunning = true;
   gameOver = false;
+  deathPending = false;
   document.getElementById('startOverlay').classList.add('hidden');
   spawnFans();
   spawnWave();
@@ -615,12 +617,17 @@ function update() {
         sfx.explosion();
         setTimeout(() => sfx.gameOver(), 300);
         gameRunning = false;
+        // Capture the score NOW and lock out restarts — otherwise a held
+        // Space (fire) restarts during the blast and wipes the score before
+        // the initials prompt can read it
+        deathPending = true;
+        const finalScore = score;
         // Delay the game-over screen so the blast can play out
         setTimeout(() => {
+          deathPending = false;
           gameOver = true;
-          const newBest = score > best;
-          if (newBest) { best = score; saveBest(); }
-          const finalScore = score;
+          const newBest = finalScore > best;
+          if (newBest) { best = finalScore; saveBest(); }
           Arcade.submitFlow(finalScore, () => {
             document.getElementById('startOverlay').classList.remove('hidden');
             document.getElementById('startOverlay').innerHTML = `

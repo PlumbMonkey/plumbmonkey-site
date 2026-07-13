@@ -103,12 +103,15 @@ const player = {
   totalZ: 0,
   finished: false
 };
+// Rivals never brake for curves, so their pace is tuned below a decent
+// driver's LAP AVERAGE (~10800-11200), not below the 11800 top speed —
+// drive clean and you out-run them; the rubber-band keeps them on screen
 const opponentDefs = [
-  { name: 'Vampire',  color: '#ef4444', trim: '#7f1d1d', speed: 10400, x: -0.5 },
-  { name: 'Werewolf', color: '#a8a29e', trim: '#44403c', speed: 10000, x:  0.5 },
-  { name: 'Witch',    color: '#a855f7', trim: '#581c87', speed: 9600,  x: -0.2 },
-  { name: 'Frank',    color: '#4ade80', trim: '#14532d', speed: 9100,  x:  0.3 },
-  { name: 'Ghost',    color: '#a5f3fc', trim: '#155e75', speed: 9900,  x:  0.0, ghost: true }
+  { name: 'Vampire',  color: '#ef4444', trim: '#7f1d1d', speed: 9600, x: -0.5 },
+  { name: 'Werewolf', color: '#a8a29e', trim: '#44403c', speed: 9300, x:  0.5 },
+  { name: 'Witch',    color: '#a855f7', trim: '#581c87', speed: 9100, x: -0.2 },
+  { name: 'Frank',    color: '#4ade80', trim: '#14532d', speed: 8900, x:  0.3 },
+  { name: 'Ghost',    color: '#a5f3fc', trim: '#155e75', speed: 9450, x:  0.0, ghost: true }
 ];
 let opponents = [];
 let race = 1;          // race series — later races add speed and weapons
@@ -122,12 +125,15 @@ function resetRacers() {
   fireballs = []; scramble = 0;
   opponents = opponentDefs.map((d, i) => ({
     ...d,
-    speed: d.speed + (race - 1) * 320,  // rivals get faster each race
+    // rivals gain pace each race but cap below a good driver's lap average —
+    // later races get tighter, never impossible
+    speed: Math.min(d.speed + (race - 1) * 250, 11000),
     totalZ: (i + 1) * SEG_LEN * 3,      // staggered grid ahead of player
     wobble: Math.random() * Math.PI * 2,
     passed: false,
     fireTimer: 400 + Math.random() * 400,
-    phasing: false                       // ghost car overlap state
+    phasing: false,                      // ghost car overlap state
+    boosting: false                      // rubber-band sprint state
   }));
 }
 
@@ -295,13 +301,25 @@ function update() {
 
     if (countdown > 0) return; // frozen on the starting grid
 
-    // rubber-band: rivals ahead of you ease off, rivals behind speed up,
-    // keeping the field within a few seconds of the player
+    // Keep the racing visible with a hysteresis boost: a rival that drops
+    // >15 segments behind sprints (above your speed) until it has overtaken
+    // you by 6 segments, then resumes natural pace — so stragglers blow past
+    // into view instead of hovering just behind your bumper. Rivals that get
+    // way ahead (player crashed a lot) ease off so you can claw back.
     const gap = o.totalZ - player.totalZ;            // + = ahead of player
-    let rubber = 1;
-    if (gap > SEG_LEN * 8) rubber = 0.82;            // pulling away → slow down
-    else if (gap < -SEG_LEN * 8) rubber = 1.18;      // dropping back → catch up
-    const oz = (0.92 + 0.12 * Math.sin(o.wobble)) * o.speed * rubber * dt;
+    // final lap runs honest — no boost — so clean driving decides the finish
+    if (player.lap >= LAPS) o.boosting = false;
+    else if (gap < -SEG_LEN * 15) o.boosting = true;
+    else if (gap > SEG_LEN * 6) o.boosting = false;
+    let effSpeed = o.speed;
+    if (o.boosting) {
+      effSpeed = Math.max(o.speed, player.speed * 1.08 + 500);
+    } else if (gap > SEG_LEN * 12) {
+      // ahead of you: pace off YOUR current speed so they can't bank distance
+      // while you brake for hairpins — they stay catchable
+      effSpeed = Math.min(o.speed, Math.max(2000, player.speed * 0.92));
+    }
+    const oz = (0.97 + 0.05 * Math.sin(o.wobble)) * effSpeed * dt;
     o.totalZ += oz;
 
     // relative distance to player (on-track)

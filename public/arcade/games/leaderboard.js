@@ -158,7 +158,10 @@
     modal.querySelector('.sm-submit').addEventListener('click', submit);
 
     function onKey(e) {
-      e.stopPropagation();
+      // stopImmediatePropagation: the game's own keydown handler is also on
+      // window, and plain stopPropagation would not block same-node listeners
+      // (Space would restart the game underneath the modal)
+      e.stopImmediatePropagation();
       e.preventDefault();
       const k = e.key;
       if (/^[a-zA-Z]$/.test(k)) {
