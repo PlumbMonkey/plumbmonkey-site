@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ghost Circuit Drum Machine | Plumbmonkey</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: radial-gradient(ellipse at top, #10182e 0%, #07040f 70%);
+      color: #dbeafe; font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+      padding: 2.5rem 1rem 3rem; user-select: none;
+    }
+    h1 { font-size: 1.6rem; letter-spacing: 2px; color: #67e8f9; text-shadow: 0 0 18px #22d3ee; margin-bottom: .2rem; }
+    .subtitle { color: #7dd3fc; font-size: .82rem; margin-bottom: 1.4rem; }
+    .nav { position: fixed; top: 10px; left: 10px; display: flex; gap: .5rem; font-size: .78rem; z-index: 20; }
+    .nav a { color: #67e8f9; text-decoration: none; padding: .3rem .7rem; border-radius: 6px;
+      background: rgba(16,24,46,.8); border: 1px solid #164e63; }
+    .nav a:hover { color: #fff; border-color: #22d3ee; box-shadow: 0 0 12px rgba(34,211,238,.5); }
+
+    .transport { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 1.2rem;
+      background: rgba(16,24,46,.6); border: 1px solid #164e63; border-radius: 12px; padding: .8rem 1.2rem; }
+    button { font-family: inherit; font-weight: 600; cursor: pointer; border: none; border-radius: 8px;
+      padding: .5rem 1rem; background: #155e75; color: #e0f2fe; transition: all .15s; }
+    button:hover { background: #0e7490; box-shadow: 0 0 14px rgba(34,211,238,.4); }
+    #playBtn { background: #22d3ee; color: #06121f; min-width: 96px; font-size: 1rem; }
+    #playBtn:hover { background: #67e8f9; }
+    .ctl { display: flex; flex-direction: column; align-items: center; font-size: .7rem; color: #7dd3fc; gap: .2rem; }
+    input[type=range] { width: 130px; accent-color: #22d3ee; }
+
+    .machine { background: rgba(16,24,46,.5); border: 1px solid #164e63; border-radius: 14px;
+      padding: 1rem; box-shadow: 0 0 50px rgba(34,211,238,.12); overflow-x: auto; max-width: 100%; }
+    #grid { display: grid; grid-template-columns: 120px repeat(16, 1fr); gap: 5px; min-width: 720px; }
+    .track-label { display: flex; align-items: center; justify-content: flex-end; padding-right: .7rem;
+      font-size: .8rem; color: #bae6fd; cursor: pointer; border-radius: 6px; }
+    .track-label:hover { color: #fff; }
+    .track-label.muted { color: #475569; text-decoration: line-through; }
+    .cell { aspect-ratio: 1; min-width: 30px; border-radius: 6px; background: #0f1e38;
+      border: 1px solid #1e3a5f; cursor: pointer; transition: background .08s, box-shadow .08s; }
+    .cell.beat { background: #13284a; }
+    .cell:hover { border-color: #22d3ee; }
+    .cell.on { background: #22d3ee; box-shadow: 0 0 10px rgba(34,211,238,.6); }
+    .cell.playing { outline: 2px solid #f0abfc; outline-offset: -2px; }
+    .cell.on.playing { background: #f0abfc; box-shadow: 0 0 14px rgba(240,171,252,.8); }
+
+    .flash { margin-top: 1rem; min-height: 1.2rem; color: #67e8f9; font-size: .85rem; opacity: 0; transition: opacity .2s; }
+    .flash.show { opacity: 1; }
+    .footer { margin-top: 1.6rem; text-align: center; font-size: .8rem; color: #64748b; line-height: 1.6; }
+    .footer a { color: #22d3ee; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+    .hint { margin-top: .6rem; font-size: .72rem; color: #475569; }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="/music">← Sound Stage</a>
+    <a href="/">Plumbmonkey Home</a>
+  </div>
+
+  <h1>GHOST CIRCUIT DRUM MACHINE</h1>
+  <div class="subtitle">8-track step sequencer · synthesized in your browser</div>
+
+  <div class="transport">
+    <button id="playBtn">▶ Play</button>
+    <button id="demoBtn">Demo Beat</button>
+    <button id="clearBtn">Clear</button>
+    <button id="saveBtn">Save</button>
+    <button id="loadBtn">Load</button>
+    <div class="ctl">
+      <label>Tempo · <span id="tempoVal">120</span> BPM</label>
+      <input type="range" id="tempo" min="60" max="200" value="120" />
+    </div>
+    <div class="ctl">
+      <label>Swing</label>
+      <input type="range" id="swing" min="0" max="50" value="0" />
+    </div>
+  </div>
+
+  <div class="machine">
+    <div id="grid"></div>
+  </div>
+
+  <div id="flash" class="flash"></div>
+  <div class="hint">Click steps to build a beat · click a track name to mute (or preview) · Spacebar plays/stops</div>
+
+  <div class="footer">
+    Part of the <strong style="color:#7dd3fc">Ghost Circuit</strong> sound lab · Built by Plumbmonkey Media<br>
+    Want the full desktop version — more kits, sample import, MIDI export?
+    <a href="https://plumbmonkey.gumroad.com/" target="_blank" rel="noopener noreferrer">Get the Drum Machine on Gumroad →</a>
+  </div>
+
+  <script src="drum.js"></script>
+</body>
+</html>

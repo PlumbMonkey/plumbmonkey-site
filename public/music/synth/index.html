@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ghost Circuit Soft Synth | Plumbmonkey</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: radial-gradient(ellipse at top, #10182e 0%, #07040f 70%);
+      color: #dbeafe; font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+      padding: 2.5rem 1rem 3rem; user-select: none;
+    }
+    h1 { font-size: 1.6rem; letter-spacing: 2px; color: #c084fc; text-shadow: 0 0 18px #a855f7; margin-bottom: .2rem; }
+    .subtitle { color: #d8b4fe; font-size: .82rem; margin-bottom: 1.4rem; }
+    .nav { position: fixed; top: 10px; left: 10px; display: flex; gap: .5rem; font-size: .78rem; z-index: 20; }
+    .nav a { color: #c084fc; text-decoration: none; padding: .3rem .7rem; border-radius: 6px;
+      background: rgba(26,16,37,.8); border: 1px solid #3b2660; }
+    .nav a:hover { color: #fff; border-color: #c084fc; box-shadow: 0 0 12px rgba(192,132,252,.5); }
+
+    .panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem;
+      background: rgba(26,16,37,.55); border: 1px solid #3b2660; border-radius: 14px;
+      padding: 1.2rem 1.4rem; margin-bottom: 1.4rem; max-width: 720px; width: 100%; }
+    .ctl { display: flex; flex-direction: column; gap: .3rem; font-size: .72rem; color: #d8b4fe; }
+    .ctl label { display: flex; justify-content: space-between; }
+    .ctl span { color: #f0abfc; }
+    input[type=range] { width: 100%; accent-color: #c084fc; }
+    select { font-family: inherit; background: #2e1065; color: #e9d5ff; border: 1px solid #7c3aed;
+      border-radius: 6px; padding: .3rem; }
+
+    .kb-wrap { width: 100%; max-width: 720px; }
+    #keyboard { position: relative; height: 170px; background: #0f0a18; border: 1px solid #3b2660;
+      border-radius: 10px; overflow: hidden; box-shadow: 0 0 40px rgba(168,85,247,.15); }
+    .key { position: absolute; top: 0; cursor: pointer; }
+    .key.white { height: 100%; background: linear-gradient(#f5f3ff, #e9d5ff); border: 1px solid #1e1b4b;
+      border-radius: 0 0 6px 6px; }
+    .key.white.down { background: linear-gradient(#d8b4fe, #c084fc); }
+    .key.black { height: 62%; background: linear-gradient(#3b2660, #1a1025); border: 1px solid #000;
+      border-radius: 0 0 5px 5px; z-index: 2; }
+    .key.black.down { background: linear-gradient(#a855f7, #7c3aed); }
+
+    .hint { margin-top: .8rem; font-size: .72rem; color: #64748b; text-align: center; }
+    .footer { margin-top: 1.6rem; text-align: center; font-size: .8rem; color: #64748b; line-height: 1.6; }
+    .footer a { color: #c084fc; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="/music">← Sound Stage</a>
+    <a href="/">Plumbmonkey Home</a>
+  </div>
+
+  <h1>GHOST CIRCUIT SOFT SYNTH</h1>
+  <div class="subtitle">Polyphonic subtractive synth · played in your browser</div>
+
+  <div class="panel">
+    <div class="ctl">
+      <label>Waveform</label>
+      <select id="wave">
+        <option value="sawtooth">Saw</option>
+        <option value="square">Square</option>
+        <option value="triangle">Triangle</option>
+        <option value="sine">Sine</option>
+      </select>
+    </div>
+    <div class="ctl"><label>Cutoff <span id="cutoffVal"></span></label><input type="range" id="cutoff" min="200" max="9000" value="2200" /></div>
+    <div class="ctl"><label>Resonance <span id="resonanceVal"></span></label><input type="range" id="resonance" min="0" max="20" step="0.5" value="6" /></div>
+    <div class="ctl"><label>Attack <span id="attackVal"></span></label><input type="range" id="attack" min="1" max="1000" value="20" data-scale="0.001" /></div>
+    <div class="ctl"><label>Decay <span id="decayVal"></span></label><input type="range" id="decay" min="1" max="1500" value="200" data-scale="0.001" /></div>
+    <div class="ctl"><label>Sustain <span id="sustainVal"></span></label><input type="range" id="sustain" min="0" max="100" value="60" data-scale="0.01" /></div>
+    <div class="ctl"><label>Release <span id="releaseVal"></span></label><input type="range" id="release" min="1" max="2000" value="350" data-scale="0.001" /></div>
+    <div class="ctl"><label>Volume <span id="volumeVal"></span></label><input type="range" id="volume" min="0" max="60" value="25" data-scale="0.01" /></div>
+  </div>
+
+  <div class="kb-wrap">
+    <div id="keyboard"></div>
+  </div>
+
+  <div class="hint">Play with the mouse/touch, or your computer keys: A W S E D F T G Y H U J K …</div>
+
+  <div class="footer">
+    Part of the <strong style="color:#d8b4fe">Ghost Circuit</strong> sound lab · Built by Plumbmonkey Media
+  </div>
+
+  <script src="synth.js"></script>
+</body>
+</html>

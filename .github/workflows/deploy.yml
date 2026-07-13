@@ -40,6 +40,8 @@ jobs:
           cp -r out/arcade ./ || true
           cp -r out/arcade.html ./arcade.html || true
           cp -r out/arcade.txt ./arcade.txt || true
+          cp -r out/music ./ || true
+          cp -r out/music.html ./music.html || true
 
   deploy:
     environment:
@@ -68,6 +70,8 @@ jobs:
           cp -r out/arcade ./ || true
           cp -r out/arcade.html ./arcade.html || true
           cp -r out/arcade.txt ./arcade.txt || true
+          cp -r out/music ./ || true
+          cp -r out/music.html ./music.html || true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

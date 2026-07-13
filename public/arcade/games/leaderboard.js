@@ -270,8 +270,8 @@
   // per-game layout: pad = 'dpad' (4-way) | 'lr' (steer only); actions = [[label, code]]
   const CONTROL_LAYOUTS = {
     'spectral-manor-revenger':          { pad: 'dpad', actions: [['FIRE', 'Space']] },
-    'spectral-food-fight':              { pad: 'dpad', actions: [], aim: true },
-    'spectral-robotron':                { pad: 'dpad', actions: [], aim: true },
+    'spectral-food-fight':              { pad: 'dpad', actions: [['THROW', 'Space']], aim: true },
+    'spectral-robotron':                { pad: 'dpad', actions: [['FIRE', 'Space']], aim: true },
     'spectral-skyline':                 { pad: 'lr',   actions: [['FLAP', 'Space']] },
     'spectral-manor-soul-circuit':      { pad: 'dpad', actions: [] },
     'spectral-manor-crystal-dimension': { pad: 'lr',   actions: [['THRUST', 'ArrowUp'], ['FIRE', 'Space']] },
@@ -357,10 +357,13 @@
 
     document.body.appendChild(bar);
 
-    // Aim games: translate canvas touch → mouse so existing aim/fire works
+    // Aim games: drag anywhere on the play area to aim (and auto-fire) via the
+    // game's existing mouse handlers. touch-action:none is essential — without
+    // it mobile browsers steal the drag as a scroll and aim never registers.
     if (layout.aim) {
       const cv = document.getElementById('gameCanvas');
       if (cv) {
+        cv.style.touchAction = 'none';
         const toMouse = (type, t) => cv.dispatchEvent(new MouseEvent(type, { clientX: t.clientX, clientY: t.clientY, bubbles: true }));
         cv.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; toMouse('mousemove', t); toMouse('mousedown', t); }, { passive: false });
         cv.addEventListener('touchmove', e => { e.preventDefault(); toMouse('mousemove', e.changedTouches[0]); }, { passive: false });

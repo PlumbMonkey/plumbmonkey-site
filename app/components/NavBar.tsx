@@ -26,6 +26,9 @@ export default function NavBar() {
           <a href="/arcade" className="hover:text-purple-400 text-purple-300/80">
             Spectral Manor Arcade
           </a>
+          <a href="/music" className="hover:text-cyan-400 text-cyan-300/80">
+            Music Sandbox
+          </a>
         </div>
       </nav>
     </header>
