@@ -106,12 +106,14 @@ const player = {
 // Rivals never brake for curves, so their pace is tuned below a decent
 // driver's LAP AVERAGE (~10800-11200), not below the 11800 top speed —
 // drive clean and you out-run them; the rubber-band keeps them on screen
+// each rival drives a different body style: hearse, muscle car, bubble
+// buggy, rat-rod pickup, phantom coupe
 const opponentDefs = [
-  { name: 'Vampire',  color: '#ef4444', trim: '#7f1d1d', speed: 9600, x: -0.5 },
-  { name: 'Werewolf', color: '#a8a29e', trim: '#44403c', speed: 9300, x:  0.5 },
-  { name: 'Witch',    color: '#a855f7', trim: '#581c87', speed: 9100, x: -0.2 },
-  { name: 'Frank',    color: '#4ade80', trim: '#14532d', speed: 8900, x:  0.3 },
-  { name: 'Ghost',    color: '#a5f3fc', trim: '#155e75', speed: 9450, x:  0.0, ghost: true }
+  { name: 'Vampire',  color: '#ef4444', trim: '#7f1d1d', speed: 9600, x: -0.5, body: 'hearse' },
+  { name: 'Werewolf', color: '#a8a29e', trim: '#44403c', speed: 9300, x:  0.5, body: 'muscle' },
+  { name: 'Witch',    color: '#a855f7', trim: '#581c87', speed: 9100, x: -0.2, body: 'buggy' },
+  { name: 'Frank',    color: '#4ade80', trim: '#14532d', speed: 8900, x:  0.3, body: 'pickup' },
+  { name: 'Ghost',    color: '#a5f3fc', trim: '#155e75', speed: 9450, x:  0.0, ghost: true, body: 'phantom' }
 ];
 let opponents = [];
 let race = 1;          // race series — later races add speed and weapons
@@ -279,6 +281,10 @@ function update() {
   }
   const seg = segAt(player.pos);
   player.x -= seg.curve * 0.00135 * speedRatio * speedRatio * 10;
+  // bump momentum from trading paint
+  player.bumpVx = player.bumpVx || 0;
+  player.x += player.bumpVx;
+  player.bumpVx *= 0.85;
   player.x = Math.max(-1.6, Math.min(1.6, player.x));
 
   // Advance
@@ -341,9 +347,14 @@ function update() {
           sfx.lose();
         }
       } else {
-        player.speed = Math.min(player.speed, o.speed * 0.55);
-        player.x += (player.x > o.x ? 1 : -1) * 0.06;
-        shake = 8;
+        // trading paint: both cars take a lateral shove — yours carries
+        // momentum (bumpVx decays over ~15 frames), theirs lurches away
+        const dir = player.x > o.x ? 1 : -1;
+        player.bumpVx = dir * 0.05;
+        o.x -= dir * 0.14;
+        o.wobble += 1.7; // scrambles their line for a beat
+        player.speed = Math.min(player.speed, o.speed * 0.6);
+        shake = 10;
         sfx.crash();
       }
     } else if (o.ghost) {
@@ -549,9 +560,8 @@ function drawSprite(type, x, y, scale) {
 }
 
 function drawCar(x, y, scale, o) {
-  // 70000 sizes a car at ~8-10% of the road width at any distance
-  // (7000 drew sub-pixel dots — the "invisible rivals" bug)
-  const s = scale * 70000;
+  // 115000 makes a rival at ~5 segments read the same size as the hero car
+  const s = scale * 115000;
   if (s < 3) return;
   const cw = s * 0.9, ch = s * 0.5;
   ctx.save();
@@ -559,12 +569,39 @@ function drawCar(x, y, scale, o) {
   if (o.ghost) ctx.globalAlpha = 0.55 + Math.sin(Date.now() * 0.006) * 0.15;
   ctx.shadowColor = o.color;
   ctx.shadowBlur = 10;
-  // body
+  // body + roof vary by car type
   ctx.fillStyle = o.color;
   ctx.fillRect(-cw / 2, -ch, cw, ch * 0.8);
-  // roof
   ctx.fillStyle = o.trim;
-  ctx.fillRect(-cw * 0.3, -ch * 1.35, cw * 0.6, ch * 0.45);
+  if (o.body === 'hearse') {
+    // long tall cabin covering the rear two-thirds
+    ctx.fillRect(-cw * 0.45, -ch * 1.5, cw * 0.72, ch * 0.62);
+    ctx.fillStyle = '#e9d5ff'; // curtained rear window
+    ctx.fillRect(-cw * 0.36, -ch * 1.38, cw * 0.5, ch * 0.3);
+  } else if (o.body === 'muscle') {
+    // low center cab + rear spoiler
+    ctx.fillRect(-cw * 0.28, -ch * 1.28, cw * 0.56, ch * 0.38);
+    ctx.fillRect(-cw * 0.5, -ch * 1.18, cw * 0.12, ch * 0.1);  // spoiler struts
+    ctx.fillRect(cw * 0.38, -ch * 1.18, cw * 0.12, ch * 0.1);
+    ctx.fillRect(-cw * 0.55, -ch * 1.28, cw * 1.1, ch * 0.12); // spoiler wing
+  } else if (o.body === 'buggy') {
+    // rounded bubble dome
+    ctx.beginPath();
+    ctx.ellipse(0, -ch * 1.1, cw * 0.34, ch * 0.55, 0, Math.PI, 0);
+    ctx.fill();
+  } else if (o.body === 'pickup') {
+    // boxy cab at one side + exposed engine block
+    ctx.fillRect(-cw * 0.45, -ch * 1.42, cw * 0.42, ch * 0.52);
+    ctx.fillStyle = '#a1a1aa'; // chrome engine poking from the bed
+    ctx.fillRect(cw * 0.08, -ch * 1.18, cw * 0.26, ch * 0.28);
+  } else {
+    // phantom — sleek swept coupe roof
+    ctx.beginPath();
+    ctx.moveTo(-cw * 0.42, -ch * 0.95);
+    ctx.quadraticCurveTo(-cw * 0.1, -ch * 1.55, cw * 0.34, -ch * 0.95);
+    ctx.closePath();
+    ctx.fill();
+  }
   ctx.shadowBlur = 0;
   // tail lights
   ctx.fillStyle = '#ff5555';

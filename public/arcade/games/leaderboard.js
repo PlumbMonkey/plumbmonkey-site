@@ -230,6 +230,32 @@
   }
   if (attract) window.addEventListener('load', startAttract);
 
+  // ---- Persistent back-links (skipped in attract-mode previews) ----
+  // Lets a player leave a game for the arcade hub or the main site at any
+  // time — matches the site's own /arcade and / links.
+  function injectNav() {
+    if (attract || document.querySelector('.sm-nav')) return;
+    const s = document.createElement('style');
+    s.textContent = `
+      .sm-nav{position:fixed;top:10px;left:10px;z-index:9998;display:flex;gap:.5rem;
+        font-family:'Segoe UI',system-ui,sans-serif;font-size:.78rem}
+      .sm-nav a{color:#c084fc;text-decoration:none;padding:.3rem .7rem;border-radius:6px;
+        background:rgba(26,16,37,.8);border:1px solid #3b2660;backdrop-filter:blur(4px);
+        transition:all .15s;white-space:nowrap}
+      .sm-nav a:hover{color:#fff;border-color:#c084fc;box-shadow:0 0 14px rgba(192,132,252,.5)}
+      @media (max-width:520px){ .sm-nav{font-size:.7rem} }
+    `;
+    document.head.appendChild(s);
+    const nav = document.createElement('div');
+    nav.className = 'sm-nav';
+    nav.innerHTML = `<a href="/arcade">← Arcade</a><a href="/">Plumbmonkey Home</a>`;
+    document.body.appendChild(nav);
+  }
+  if (!attract && typeof document !== 'undefined') {
+    if (document.body) injectNav();
+    else window.addEventListener('DOMContentLoaded', injectNav);
+  }
+
   const API = {
     slug: deriveSlug(),
     attract,
