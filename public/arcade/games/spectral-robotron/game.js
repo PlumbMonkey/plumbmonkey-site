@@ -344,7 +344,7 @@ function update() {
     }
   });
 
-  // Fans panic + scream animation
+  // Fans panic + scream + scramble away from danger (Revenger-style limbs)
   fans.forEach(f => {
     f.screamTimer--;
     if (f.screamTimer <= 0) {
@@ -356,7 +356,43 @@ function update() {
     if (f.grabbed && f.grabber) {
       f.x = f.grabber.x + f.grabber.w/2 - f.w/2;
       f.y = f.grabber.y + f.grabber.h - 4;
+      f.moving = true;
+      return;
     }
+
+    // find the nearest monster to flee from
+    let near = null, nd = 1e9;
+    monsters.forEach(m => {
+      const d = Math.hypot(m.x - f.x, m.y - f.y);
+      if (d < nd) { nd = d; near = m; }
+    });
+
+    let vx = 0, vy = 0;
+    if (near && nd < 150) {
+      // run away from it
+      const dx = f.x - near.x, dy = f.y - near.y;
+      const d = Math.hypot(dx, dy) || 1;
+      vx = (dx / d) * 1.7;
+      vy = (dy / d) * 1.7;
+      f.facing = vx < 0 ? -1 : 1;
+    } else {
+      // idle wander
+      f.wander = (f.wander || 0) - 1;
+      if (f.wander <= 0) {
+        f.wx = (Math.random() - 0.5) * 1.1;
+        f.wy = (Math.random() - 0.5) * 1.1;
+        f.wander = 40 + Math.random() * 60;
+      }
+      vx = f.wx; vy = f.wy;
+      if (Math.abs(vx) > 0.05) f.facing = vx < 0 ? -1 : 1;
+    }
+
+    f.moving = Math.abs(vx) + Math.abs(vy) > 0.15;
+    if (f.moving) f.walkPhase = (f.walkPhase || 0) + 0.3;
+
+    const nx = f.x + vx, ny = f.y + vy;
+    if (nx > 14 && nx < W - f.w - 14 && !insideObstacle(nx, f.y, f.w, f.h)) f.x = nx;
+    if (ny > 34 && ny < H - f.h - 10 && !insideObstacle(f.x, ny, f.w, f.h)) f.y = ny;
   });
 
   // Monsters AI — hunt nearest fan, or player if close
@@ -566,14 +602,19 @@ function hurtPlayer() {
     gameRunning = false;
     const newBest = score > best;
     if (newBest) { best = score; saveBest(); }
-    document.getElementById('startOverlay').classList.remove('hidden');
-    document.getElementById('startOverlay').innerHTML = `
-      <h2>FANS LOST</h2>
-      <p>Saved: ${saved} &nbsp;|&nbsp; Lost: ${lost}</p>
-      <p style="margin-top:0.5rem">Final Score: ${score}</p>
-      <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-      <p style="margin-top:0.9rem; opacity:0.8">Click or SPACE to try again</p>
-    `;
+    const finalScore = score;
+    Arcade.submitFlow(finalScore, () => {
+      document.getElementById('startOverlay').classList.remove('hidden');
+      document.getElementById('startOverlay').innerHTML = `
+        <h2>FANS LOST</h2>
+        <p>Saved: ${saved} &nbsp;|&nbsp; Lost: ${lost}</p>
+        <p style="margin-top:0.5rem">Final Score: ${finalScore}</p>
+        <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
+        <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP HEROES</p>
+        ${Arcade.boardHTML(Arcade.slug)}
+        <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to try again</p>
+      `;
+    });
     updateHUD();
   }
 }
@@ -684,15 +725,39 @@ function draw() {
       ctx.translate((Math.random()-0.5)*3, (Math.random()-0.5)*3);
     }
 
+    const S = f.scale;
+    const bodyH = f.type === 'child' ? 9 : 11;
+    const legY = bodyH * S + 3;
+
+    // legs — running stride while moving, planted when still
+    ctx.strokeStyle = f.color;
+    ctx.lineWidth = 2.5 * S;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    if (f.moving && !f.grabbed) {
+      const stride = Math.sin(f.walkPhase || 0) * 5 * S;
+      ctx.moveTo(-2.5 * S, bodyH * S - 2); ctx.lineTo(-2.5 * S + stride, legY + 5 * S);
+      ctx.moveTo(2.5 * S, bodyH * S - 2);  ctx.lineTo(2.5 * S - stride, legY + 5 * S);
+    } else if (f.grabbed) {
+      // dangling, kicking
+      const kick = Math.sin(Date.now() * 0.02) * 3 * S;
+      ctx.moveTo(-2.5 * S, bodyH * S - 2); ctx.lineTo(-3 * S + kick, legY + 4 * S);
+      ctx.moveTo(2.5 * S, bodyH * S - 2);  ctx.lineTo(3 * S - kick, legY + 4 * S);
+    } else {
+      ctx.moveTo(-2.5 * S, bodyH * S - 2); ctx.lineTo(-3 * S, legY + 5 * S);
+      ctx.moveTo(2.5 * S, bodyH * S - 2);  ctx.lineTo(3 * S, legY + 5 * S);
+    }
+    ctx.stroke();
+
     // body
     ctx.fillStyle = f.color;
     if (f.type === 'child') {
       ctx.beginPath();
-      ctx.ellipse(0, 4, 7 * f.scale, 9 * f.scale, 0, 0, Math.PI*2);
+      ctx.ellipse(0, 4, 7 * S, 9 * S, 0, 0, Math.PI*2);
       ctx.fill();
     } else {
       ctx.beginPath();
-      ctx.ellipse(0, 5, 8 * f.scale, 11 * f.scale, 0, 0, Math.PI*2);
+      ctx.ellipse(0, 5, 8 * S, 11 * S, 0, 0, Math.PI*2);
       ctx.fill();
     }
 
@@ -737,17 +802,22 @@ function draw() {
       ctx.stroke();
     }
 
-    // arms up when panicked / grabbed
+    // arms — up when panicked/grabbed, swinging while running, else at rest
+    ctx.strokeStyle = f.color;
+    ctx.lineWidth = 3 * f.scale;
+    ctx.beginPath();
     if (f.panic > 0 || f.grabbed) {
-      ctx.strokeStyle = f.color;
-      ctx.lineWidth = 3 * f.scale;
-      ctx.beginPath();
-      ctx.moveTo(-6 * f.scale, 0);
-      ctx.lineTo(-11 * f.scale, -12 * f.scale);
-      ctx.moveTo(6 * f.scale, 0);
-      ctx.lineTo(11 * f.scale, -12 * f.scale);
-      ctx.stroke();
+      ctx.moveTo(-6 * f.scale, 0); ctx.lineTo(-11 * f.scale, -12 * f.scale);
+      ctx.moveTo(6 * f.scale, 0);  ctx.lineTo(11 * f.scale, -12 * f.scale);
+    } else if (f.moving) {
+      const swing = Math.sin(f.walkPhase || 0) * 4 * f.scale;
+      ctx.moveTo(-6 * f.scale, 1); ctx.lineTo(-9 * f.scale, 8 * f.scale + swing);
+      ctx.moveTo(6 * f.scale, 1);  ctx.lineTo(9 * f.scale, 8 * f.scale - swing);
+    } else {
+      ctx.moveTo(-6 * f.scale, 1); ctx.lineTo(-8 * f.scale, 9 * f.scale);
+      ctx.moveTo(6 * f.scale, 1);  ctx.lineTo(8 * f.scale, 9 * f.scale);
     }
+    ctx.stroke();
 
     ctx.restore();
   });

@@ -57,14 +57,41 @@ const sfx = {
     tone(200, 0.2, 'sawtooth', 0.05, -140);
   },
   hurt:  () => { noiseBlast(0.4, 0.1, 900); tone(100, 0.3, 'sawtooth', 0.07, -60); },
+  // hero destroyed — huge layered detonation
+  shipDeath: () => {
+    noiseBlast(0.7, 0.16, 2000);
+    noiseBlast(0.5, 0.12, 600);
+    tone(60, 0.6, 'sine', 0.13, -30);
+    tone(180, 0.4, 'sawtooth', 0.07, -140);
+    setTimeout(() => { noiseBlast(0.4, 0.09, 400); tone(45, 0.5, 'sine', 0.1, -20); }, 120);
+  },
   crystal: () => { tone(700,0.06); setTimeout(()=>tone(1000,0.08),50); },
   wave:  () => { tone(440,0.07); setTimeout(()=>tone(554,0.07),70); setTimeout(()=>tone(659,0.1),140); }
 };
 
+// ---------- Dramatic magical-dimension music (D-minor arpeggio + drone) ----------
+let musicTimer = null, musicStep = 0;
+// slow rolling arpeggio over a low pulsing drone
+const arp = [293.66, 349.23, 440, 587.33, 440, 349.23,   // Dm
+             311.13, 392, 466.16, 622.25, 466.16, 392];  // Ebm-ish shimmer
+const drone = [73.42, 0, 0, 0, 0, 0, 77.78, 0, 0, 0, 0, 0];
+function musicTick() {
+  if (!gameRunning || deathFreeze > 0 || !audioCtx) return;
+  const n = arp[musicStep % arp.length];
+  // gentle bell-like arpeggio
+  tone(n, 0.32, 'triangle', 0.03);
+  tone(n * 2, 0.18, 'sine', 0.014);
+  const d = drone[musicStep % drone.length];
+  if (d) tone(d, 1.1, 'sawtooth', 0.035, 4);
+  musicStep++;
+}
+function startMusic() { if (!musicTimer) musicTimer = setInterval(musicTick, 240); }
+
 let score=0, lives=3, wave=1;
 let gameRunning=false, gameOver=false;
 let keys = {};
-let ship, bullets=[], rocks=[], ghosts=[], crystals=[], particles=[];
+let ship, bullets=[], rocks=[], ghosts=[], crystals=[], particles=[], shockwaves=[];
+let deathFreeze = 0; // brief slow-mo after the hero dies
 
 function resetShip() {
   ship = {
@@ -117,11 +144,12 @@ function makeRock(x, y, size) {
 
 function startGame() {
   score=0; lives=3; wave=1;
-  bullets=[]; particles=[];
+  bullets=[]; particles=[]; shockwaves=[]; deathFreeze=0;
   resetShip();
   spawnWave();
   gameRunning=true; gameOver=false;
   document.getElementById('startOverlay').classList.add('hidden');
+  startMusic();
   updateHUD();
 }
 
@@ -151,6 +179,18 @@ function fire() {
 
 function update() {
   if (!gameRunning) return;
+
+  // Shockwave rings expand + fade (also during the death slow-mo)
+  shockwaves.forEach(s => { s.r += (s.max - s.r) * 0.12; s.life--; });
+  shockwaves = shockwaves.filter(s => s.life > 0);
+
+  // Slow-mo beat right after the hero explodes — let the blast land
+  if (deathFreeze > 0) {
+    deathFreeze--;
+    particles.forEach(p => { p.x += p.vx * 0.3; p.y += p.vy * 0.3; p.life--; });
+    particles = particles.filter(p => p.life > 0);
+    return;
+  }
 
   // Ship controls
   if (keys['ArrowLeft']||keys['KeyA']) ship.angle -= 0.07;
@@ -336,18 +376,29 @@ function update() {
 
 function hitShip() {
   lives--;
-  sfx.hurt();
-  explode(ship.x, ship.y, '#f472b6', 20);
+  sfx.shipDeath();
+  // dramatic multi-color blast: white core, pink debris, cyan sparks
+  explode(ship.x, ship.y, '#ffffff', 18);
+  explode(ship.x, ship.y, '#f472b6', 26);
+  explode(ship.x, ship.y, '#67e8f9', 18);
+  shockwaves.push({ x: ship.x, y: ship.y, r: 6, max: 220, life: 40, maxLife: 40 });
+  deathFreeze = 18; // short slow-mo beat
   resetShip();
+  ship.invuln = 140; // longer breather after such a big death
   updateHUD();
   if (lives <= 0) {
     gameOver = true; gameRunning = false;
-    document.getElementById('startOverlay').classList.remove('hidden');
-    document.getElementById('startOverlay').innerHTML = `
-      <h2>DIMENSION COLLAPSED</h2>
-      <p>Score: ${score}</p>
-      <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to try again</p>
-    `;
+    const finalScore = score;
+    Arcade.submitFlow(finalScore, () => {
+      document.getElementById('startOverlay').classList.remove('hidden');
+      document.getElementById('startOverlay').innerHTML = `
+        <h2>DIMENSION COLLAPSED</h2>
+        <p>Score: ${finalScore}</p>
+        <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP PILOTS</p>
+        ${Arcade.boardHTML(Arcade.slug)}
+        <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to try again</p>
+      `;
+    });
   }
 }
 
@@ -539,6 +590,21 @@ function draw() {
     ctx.shadowBlur = 0;
   });
 
+  // Shockwaves (expanding rings from big explosions)
+  shockwaves.forEach(s => {
+    const a = s.life / s.maxLife;
+    ctx.strokeStyle = `rgba(255,255,255,${a * 0.7})`;
+    ctx.lineWidth = 3 * a + 1;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(244,114,182,${a * 0.5})`;
+    ctx.lineWidth = 6 * a + 1;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r * 0.8, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
   // Bullets
   bullets.forEach(b => {
     ctx.fillStyle = b.fromGhost ? '#f87171' : '#00ffaa';
@@ -557,39 +623,44 @@ function draw() {
     ctx.rotate(ship.angle);
     ctx.shadowColor = '#c084fc';
     ctx.shadowBlur = 14;
-    // hull with gradient
-    const hull = ctx.createLinearGradient(-12, 0, 16, 0);
-    hull.addColorStop(0, '#5b21b6');
-    hull.addColorStop(1, '#c084fc');
+    // back-swept wings first (behind the hull)
+    ctx.fillStyle = '#6d28d9';
+    ctx.beginPath();
+    ctx.moveTo(2, -3); ctx.lineTo(-16, -14); ctx.lineTo(-6, -4);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(2, 3); ctx.lineTo(-16, 14); ctx.lineTo(-6, 4);
+    ctx.closePath(); ctx.fill();
+    // sleek dart hull with a long nose + notched tail (gradient)
+    const hull = ctx.createLinearGradient(-12, 0, 20, 0);
+    hull.addColorStop(0, '#4c1d95');
+    hull.addColorStop(0.6, '#7c3aed');
+    hull.addColorStop(1, '#d8b4fe');
     ctx.fillStyle = hull;
     ctx.beginPath();
-    ctx.moveTo(17, 0);
-    ctx.lineTo(-4, -6);
-    ctx.lineTo(-10, -3);
-    ctx.lineTo(-10, 3);
-    ctx.lineTo(-4, 6);
+    ctx.moveTo(20, 0);      // sharp nose
+    ctx.lineTo(4, -4);
+    ctx.lineTo(-8, -5);
+    ctx.lineTo(-11, -2);    // tail notch
+    ctx.lineTo(-7, 0);
+    ctx.lineTo(-11, 2);
+    ctx.lineTo(-8, 5);
+    ctx.lineTo(4, 4);
     ctx.closePath();
     ctx.fill();
-    // swept fins
-    ctx.fillStyle = '#7c3aed';
-    ctx.beginPath();
-    ctx.moveTo(-2, -5); ctx.lineTo(-13, -11); ctx.lineTo(-8, -3);
-    ctx.closePath(); ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(-2, 5); ctx.lineTo(-13, 11); ctx.lineTo(-8, 3);
-    ctx.closePath(); ctx.fill();
-    // edge light
-    ctx.strokeStyle = '#e9d5ff';
+    // bright nose highlight
+    ctx.strokeStyle = '#f5f3ff';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.moveTo(17, 0); ctx.lineTo(-4, -6);
+    ctx.moveTo(20, 0); ctx.lineTo(4, -4);
+    ctx.moveTo(20, 0); ctx.lineTo(4, 4);
     ctx.stroke();
     // glowing cockpit
     ctx.fillStyle = '#67e8f9';
     ctx.shadowColor = '#67e8f9';
     ctx.shadowBlur = 8;
     ctx.beginPath();
-    ctx.ellipse(5, 0, 4, 2.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(6, 0, 3.5, 2.4, 0, 0, Math.PI * 2);
     ctx.fill();
     // engine flame
     if (ship.thrust) {

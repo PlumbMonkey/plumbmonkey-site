@@ -73,6 +73,23 @@ let pickups = [];    // food on ground
 let chefs = [];      // enemies
 let particles = [];
 let tables = [];     // obstacles
+let splats = [];     // messy food splats left by hits
+
+// A splat is a cluster of blobs that sticks briefly then fades
+function spawnSplat(x, y, color) {
+  const blobs = [];
+  const n = 4 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const dist = Math.random() * 12;
+    blobs.push({
+      dx: Math.cos(a) * dist,
+      dy: Math.sin(a) * dist,
+      r: 2 + Math.random() * 5
+    });
+  }
+  splats.push({ x, y, color, blobs, life: 90, maxLife: 90 });
+}
 
 // ---------- The Grand Buffet (the objective) ----------
 // Monsters periodically try to steal a dish and escape off-screen.
@@ -105,7 +122,7 @@ document.getElementById('startOverlay').addEventListener('click', () => {
 function startGame() {
   score = 0; lives = 3; level = 1; ammo = 12;
   buffet.dishes = buffet.maxDishes; buffet.flash = 0;
-  foods = []; pickups = []; chefs = []; particles = [];
+  foods = []; pickups = []; chefs = []; particles = []; splats = [];
   combo = 0; comboTimer = 0; hitPause = 0; shakeTime = 0; waveDelay = 0;
   bannerText = 'LEVEL 1'; bannerTime = 90;
   player.x = 80; player.y = H/2;          // start clear of tables
@@ -122,14 +139,19 @@ function endGame(title, line) {
   gameRunning = false;
   const newBest = score > best;
   if (newBest) { best = score; saveBest(); }
-  document.getElementById('startOverlay').classList.remove('hidden');
-  document.getElementById('startOverlay').innerHTML = `
-    <h2>${title}</h2>
-    <p>${line}</p>
-    <p style="margin-top:0.3rem">Final Score: ${score}</p>
-    <p>Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-    <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to fight again</p>
-  `;
+  const finalScore = score;
+  Arcade.submitFlow(finalScore, () => {
+    document.getElementById('startOverlay').classList.remove('hidden');
+    document.getElementById('startOverlay').innerHTML = `
+      <h2>${title}</h2>
+      <p>${line}</p>
+      <p style="margin-top:0.3rem">Final Score: ${finalScore}</p>
+      <p>Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
+      <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP CHEFS</p>
+      ${Arcade.boardHTML(Arcade.slug)}
+      <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to fight again</p>
+    `;
+  });
   updateHUD();
 }
 
@@ -229,7 +251,7 @@ function throwFood() {
     rotSpeed: (Math.random() - 0.5) * 0.5
   });
   player.throwCooldown = 12;
-  player.throwAnim = 10;
+  player.throwAnim = 16; // full wind-up → snap
   sfx.throw();
   updateHUD();
 }
@@ -419,6 +441,7 @@ function update() {
       if (c === f.owner) return;
       if (f.x > c.x && f.x < c.x + c.w && f.y > c.y && f.y < c.y + c.h) {
         c.hp--;
+        spawnSplat(f.x, f.y, f.color);
         createParticles(c.x + 15, c.y + 15, c.color, 6);
         foods.splice(fi, 1);
         if (c.hp <= 0) {
@@ -439,6 +462,7 @@ function update() {
     chefs.forEach((c, ci) => {
       if (f.x > c.x && f.x < c.x + c.w && f.y > c.y && f.y < c.y + c.h) {
         c.hp--;
+        spawnSplat(f.x, f.y, f.color);
         createParticles(c.x + 15, c.y + 15, c.color, 8);
         foods.splice(fi, 1);
         sfx.hit();
@@ -470,6 +494,7 @@ function update() {
       if (!f.fromChef) return;
       if (f.x > player.x && f.x < player.x + player.w &&
           f.y > player.y && f.y < player.y + player.h) {
+        spawnSplat(f.x, f.y, f.color);
         foods.splice(fi, 1);
         lives--;
         player.invuln = 60;
@@ -479,20 +504,7 @@ function update() {
         sfx.hurt();
         createParticles(player.x + 14, player.y + 16, '#f472b6', 12);
         updateHUD();
-        if (lives <= 0) {
-          gameOver = true;
-          gameRunning = false;
-          const newBest = score > best;
-          if (newBest) { best = score; saveBest(); }
-          document.getElementById('startOverlay').classList.remove('hidden');
-          document.getElementById('startOverlay').innerHTML = `
-            <h2>KITCHEN CLOSED</h2>
-            <p>Final Score: ${score}</p>
-            <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-            <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to fight again</p>
-          `;
-          updateHUD();
-        }
+        if (lives <= 0) endGame('KITCHEN CLOSED', 'The monsters ran you out of the mess hall.');
       }
     });
   }
@@ -513,20 +525,7 @@ function update() {
         player.x += (player.x - c.x) * 0.4;
         player.y += (player.y - c.y) * 0.4;
         updateHUD();
-        if (lives <= 0) {
-          gameOver = true;
-          gameRunning = false;
-          const newBest = score > best;
-          if (newBest) { best = score; saveBest(); }
-          document.getElementById('startOverlay').classList.remove('hidden');
-          document.getElementById('startOverlay').innerHTML = `
-            <h2>KITCHEN CLOSED</h2>
-            <p>Final Score: ${score}</p>
-            <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-            <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to fight again</p>
-          `;
-          updateHUD();
-        }
+        if (lives <= 0) endGame('KITCHEN CLOSED', 'A monster caught you in the chaos.');
       }
     });
   }
@@ -561,6 +560,10 @@ function update() {
     p.x += p.vx; p.y += p.vy; p.life--;
   });
   particles = particles.filter(p => p.life > 0);
+
+  // Splats fade
+  splats.forEach(s => s.life--);
+  splats = splats.filter(s => s.life > 0);
 }
 
 function createParticles(x, y, color, count) {
@@ -685,6 +688,19 @@ function draw() {
   // Background - manor cafeteria (oversized so shake never reveals the edge)
   ctx.fillStyle = '#12091f';
   ctx.fillRect(-12, -12, W + 24, H + 24);
+
+  // Food splats on the floor (drawn low so entities layer on top)
+  splats.forEach(s => {
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.8, s.life / s.maxLife);
+    ctx.fillStyle = s.color;
+    s.blobs.forEach(b => {
+      ctx.beginPath();
+      ctx.ellipse(s.x + b.dx, s.y + b.dy, b.r, b.r * 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  });
 
   // Floor tiles
   ctx.strokeStyle = 'rgba(124, 58, 237, 0.12)';
@@ -948,13 +964,23 @@ function draw() {
   ctx.moveTo(-Math.cos(player.angle) * 6, 2 - Math.sin(player.angle) * 6);
   ctx.lineTo(-Math.cos(player.angle) * 14, 8 - Math.sin(player.angle) * 10 - pStride * 0.5);
   ctx.stroke();
-  // throwing arm — extends with the throw snap
-  const armLen = player.throwAnim > 0 ? 18 + (10 - player.throwAnim) * 1.2 : 18;
+  // throwing arm — winds back, then snaps forward past full reach
+  // throwAnim: 16..11 = wind-up (arm behind), 10..0 = forward snap
+  let armLen = 18;
+  if (player.throwAnim > 10) {
+    // pulling back — arm reaches behind the aim direction
+    const t = (player.throwAnim - 10) / 6; // 1→0 over windup
+    armLen = 18 - t * 26; // dips negative (behind the shoulder)
+  } else if (player.throwAnim > 0) {
+    // snap forward, overshooting then settling
+    const t = player.throwAnim / 10; // 1→0
+    armLen = 30 - (1 - t) * 12;
+  }
   ctx.beginPath();
   ctx.moveTo(0, 0);
   ctx.lineTo(Math.cos(player.angle)*armLen, Math.sin(player.angle)*armLen);
   ctx.stroke();
-  // hand (with next food held when not mid-throw)
+  // hand (holds the next food between throws)
   ctx.fillStyle = '#f0abfc';
   ctx.beginPath();
   ctx.arc(Math.cos(player.angle)*(armLen+2), Math.sin(player.angle)*(armLen+2), 5, 0, Math.PI*2);

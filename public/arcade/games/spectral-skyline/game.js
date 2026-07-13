@@ -148,13 +148,18 @@ function hurtLuno(color) {
     sfx.gameOver();
     const newBest = score > best;
     if (newBest) { best = score; saveBest(); }
-    document.getElementById('startOverlay').classList.remove('hidden');
-    document.getElementById('startOverlay').innerHTML = `
-      <h2>FALLEN FROM THE SKY</h2>
-      <p>Crystals: ${crystals} &nbsp;|&nbsp; Score: ${score}</p>
-      <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-      <p style="margin-top:0.9rem; opacity:0.8">Click or SPACE to soar again</p>
-    `;
+    const finalScore = score;
+    Arcade.submitFlow(finalScore, () => {
+      document.getElementById('startOverlay').classList.remove('hidden');
+      document.getElementById('startOverlay').innerHTML = `
+        <h2>FALLEN FROM THE SKY</h2>
+        <p>Crystals: ${crystals} &nbsp;|&nbsp; Score: ${finalScore}</p>
+        <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
+        <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP RIDERS</p>
+        ${Arcade.boardHTML(Arcade.slug)}
+        <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to soar again</p>
+      `;
+    });
     updateHUD();
   }
 }
@@ -234,7 +239,9 @@ function spawnWave() {
       walkPhase: Math.random() * Math.PI * 2,
       nest: null,
       mountTimer: 0,
-      boltTimer: 200 + Math.random() * 300
+      boltTimer: 200 + Math.random() * 300,
+      mount: Math.random() < 0.35 ? 'crow' : 'broom', // steed
+      wingPhase: Math.random() * Math.PI * 2
     });
   }
 
@@ -290,6 +297,17 @@ function update() {
   if (waveDelay > 0) {
     waveDelay--;
     if (waveDelay === 0) spawnWave();
+  }
+
+  // Attract-mode autopilot (hub preview): drift toward the nearest witch and
+  // flap to stay aloft so Luno is visibly flying, not sitting on the ground
+  if (Arcade.attract) {
+    keys = {};
+    let tgt = witches[0];
+    if (tgt) keys[tgt.x > player.x ? 'ArrowRight' : 'ArrowLeft'] = true;
+    if (player.y > H / 2 || (tgt && player.y > tgt.y + 6)) {
+      if ((player.flapAnim || 0) <= 0 && Math.random() < 0.5) keys['Space'] = true;
+    }
   }
 
   // --- Player (Luno) ---
@@ -915,20 +933,59 @@ function draw() {
         ctx.moveTo(4, 0); ctx.lineTo(12, -4);
         ctx.stroke();
       }
+    } else if (w.mount === 'crow') {
+      // riding a crow — handle wing flap
+      w.wingPhase += 0.35;
+      const flap = Math.sin(w.wingPhase) * 8;
+      ctx.fillStyle = '#0f0a1a';
+      ctx.shadowColor = '#1e1b4b';
+      ctx.shadowBlur = 6;
+      // body
+      ctx.beginPath();
+      ctx.ellipse(0, 8, 14, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // head + beak facing forward (+x = travel direction)
+      ctx.beginPath();
+      ctx.arc(13, 4, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath();
+      ctx.moveTo(17, 3); ctx.lineTo(24, 5); ctx.lineTo(17, 7);
+      ctx.closePath(); ctx.fill();
+      // tail trailing behind (-x)
+      ctx.fillStyle = '#0f0a1a';
+      ctx.beginPath();
+      ctx.moveTo(-12, 8); ctx.lineTo(-24, 4); ctx.lineTo(-22, 12);
+      ctx.closePath(); ctx.fill();
+      // flapping wings
+      ctx.beginPath();
+      ctx.moveTo(-2, 4);
+      ctx.quadraticCurveTo(-10, 4 - flap, -16, 10 - flap * 0.5);
+      ctx.quadraticCurveTo(-8, 8, 2, 8);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(4, 4);
+      ctx.quadraticCurveTo(-4, 4 - flap, -10, 10 - flap * 0.5);
+      ctx.quadraticCurveTo(0, 8, 6, 8);
+      ctx.fill();
+      // red eye
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath(); ctx.arc(14, 3, 1.4, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
     } else {
-      // broom
+      // broom — handle points forward (+x = travel), bristles trail behind (-x)
       ctx.strokeStyle = '#78716c';
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(-18, 6);
-      ctx.lineTo(16, 4);
+      ctx.moveTo(18, 4);
+      ctx.lineTo(-16, 6);
       ctx.stroke();
-      // bristles
+      // bristles fanned out at the back
       ctx.strokeStyle = '#a8a29e';
       ctx.beginPath();
-      ctx.moveTo(12, 0); ctx.lineTo(20, -6);
-      ctx.moveTo(12, 4); ctx.lineTo(22, 4);
-      ctx.moveTo(12, 8); ctx.lineTo(20, 12);
+      ctx.moveTo(-14, 2); ctx.lineTo(-22, -4);
+      ctx.moveTo(-14, 6); ctx.lineTo(-24, 6);
+      ctx.moveTo(-14, 10); ctx.lineTo(-22, 14);
       ctx.stroke();
     }
 

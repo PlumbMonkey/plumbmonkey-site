@@ -40,6 +40,23 @@ const sfx = {
   win:     () => { tone(523,0.08); setTimeout(()=>tone(659,0.08),80); setTimeout(()=>tone(784,0.15),160); }
 };
 
+// ---------- 8-bit background music (A-minor spooky loop) ----------
+// lead melody + walking bass, stepped every 8th note
+let musicTimer = null, musicStep = 0;
+const A=440, C=523.25, D=587.33, E=659.25, F=698.46, G=783.99, Ah=880, r=0;
+const leadLine = [A,0,C,0,E,0,D,0, F,0,E,0,C,0,A,0, G,0,E,0,G,0,Ah,0, E,0,D,0,C,0,A,0];
+const bassLine = [220,0,0,0,174.61,0,0,0, 196,0,0,0,164.81,0,0,0,
+                  220,0,0,0,174.61,0,0,0, 130.81,0,0,0,164.81,0,0,0];
+function musicTick() {
+  if (!gameRunning || dying > 0 || awaitingReady || !audioCtx) return;
+  const n = leadLine[musicStep % leadLine.length];
+  if (n) tone(n, 0.13, 'square', 0.035);
+  const b = bassLine[musicStep % bassLine.length];
+  if (b) tone(b, 0.16, 'triangle', 0.045);
+  musicStep++;
+}
+function startMusic() { if (!musicTimer) musicTimer = setInterval(musicTick, 165); }
+
 // ---------- Maze (1 = hedge wall, 0 = path, 2 = small crystal, 3 = power crystal) ----------
 // 40 cols × 22 rows  (each cell 24×24 → 960×528)
 const COLS = 40, ROWS = 22, CELL = 24;
@@ -208,6 +225,7 @@ function startGame() {
   spawnMonsters();
   gameRunning = true; gameOver = false;
   document.getElementById('startOverlay').classList.add('hidden');
+  startMusic();
   updateHUD();
 }
 
@@ -254,12 +272,17 @@ function update() {
       if (lives <= 0) {
         gameOver = true;
         gameRunning = false;
-        document.getElementById('startOverlay').classList.remove('hidden');
-        document.getElementById('startOverlay').innerHTML = `
-          <h2>SOUL LOST</h2>
-          <p>Final Score: ${score}</p>
-          <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to try again</p>
-        `;
+        const finalScore = score;
+        Arcade.submitFlow(finalScore, () => {
+          document.getElementById('startOverlay').classList.remove('hidden');
+          document.getElementById('startOverlay').innerHTML = `
+            <h2>SOUL LOST</h2>
+            <p>Final Score: ${finalScore}</p>
+            <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP SOULS</p>
+            ${Arcade.boardHTML(Arcade.slug)}
+            <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to try again</p>
+          `;
+        });
       } else {
         awaitingReady = true;
         document.getElementById('startOverlay').classList.remove('hidden');

@@ -49,12 +49,14 @@ let mushrooms = {};   // "c,r" -> hp (4..1)
 let segments = [];    // hauntipede segments
 let bullets = [];
 let particles = [];
-let ghost = null;     // bonus gravekeeper ghost
-let ghostTimer = 350;
+let ghosts = [];      // gravekeeper ghosts drifting down from the manor hill
+let ghostTimer = 200;
 let respawnPause = 0;
 let bugs = [];        // independent scarab bugs crawling down the field
-let bugTimer = 350;
+let bugTimer = 220;
 let hauntipedeLen = 12; // segments at spawn — speed scales as it shrinks
+// the manor sits on a hill in the upper-right; ghosts & bugs spill from it
+const manor = { x: W - 150, y: 46 };
 
 const player = { x: W / 2, y: H - 50, w: 22, h: 22, speed: 4.4, lastShot: 0 };
 
@@ -96,8 +98,10 @@ function segmentSpeed(s) {
 
 // ---------- Scarab bugs (independent hazards) ----------
 function spawnBug() {
+  // ~40% scuttle out from under the manor, the rest from across the top
+  const fromManor = Math.random() < 0.4;
   bugs.push({
-    x: 30 + Math.random() * (W - 60),
+    x: fromManor ? manor.x + (Math.random() - 0.5) * 50 : 30 + Math.random() * (W - 60),
     y: -14,
     vy: 1.6 + level * 0.2 + Math.random(),
     sway: Math.random() * Math.PI * 2,
@@ -132,15 +136,15 @@ function segmentUpdate(s) {
   }
 }
 
-// ---------- Ghost (bonus enemy, spider role) ----------
+// ---------- Ghosts — spill out of the manor and drift down the hill ----------
 function spawnGhost() {
-  const fromLeft = Math.random() < 0.5;
-  ghost = {
-    x: fromLeft ? -20 : W + 20,
-    y: H - 120 - Math.random() * 80,
-    vx: (fromLeft ? 1 : -1) * (1.8 + level * 0.15),
+  ghosts.push({
+    x: manor.x + (Math.random() - 0.5) * 40,
+    y: manor.y + 20,
+    vx: (Math.random() - 0.5) * 2.2,
+    vy: 0.7 + level * 0.12 + Math.random() * 0.6, // downhill drift
     t: Math.random() * Math.PI * 2
-  };
+  });
 }
 
 // ---------- Effects ----------
@@ -159,8 +163,8 @@ function explode(x, y, color, n) {
 // ---------- Game flow ----------
 function startGame() {
   score = 0; lives = 3; level = 1;
-  bullets = []; particles = []; ghost = null; ghostTimer = 300;
-  bugs = []; bugTimer = 350;
+  bullets = []; particles = []; ghosts = []; ghostTimer = 180;
+  bugs = []; bugTimer = 200;
   player.x = W / 2; player.y = H - 50;
   seedMushrooms();
   spawnHauntipede();
@@ -190,19 +194,24 @@ function loseLife() {
   updateHUD();
   if (lives <= 0) {
     gameOver = true; gameRunning = false;
-    document.getElementById('startOverlay').classList.remove('hidden');
-    document.getElementById('startOverlay').innerHTML = `
-      <h2>THE MANOR IS OVERRUN</h2>
-      <p>Final Score: ${score}</p>
-      <p>Level Reached: ${level}</p>
-      <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to try again</p>
-    `;
+    const finalScore = score;
+    Arcade.submitFlow(finalScore, () => {
+      document.getElementById('startOverlay').classList.remove('hidden');
+      document.getElementById('startOverlay').innerHTML = `
+        <h2>THE MANOR IS OVERRUN</h2>
+        <p>Final Score: ${finalScore}</p>
+        <p>Level Reached: ${level}</p>
+        <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP EXTERMINATORS</p>
+        ${Arcade.boardHTML(Arcade.slug)}
+        <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to try again</p>
+      `;
+    });
   } else {
     // brief pause, reset positions
     respawnPause = 60;
     player.x = W / 2; player.y = H - 50;
     bullets = [];
-    ghost = null;
+    ghosts = [];
     bugs = [];
     spawnHauntipede();
   }
@@ -288,14 +297,18 @@ function update() {
     }
     if (consumed) continue;
 
-    // vs ghost
-    if (ghost && Math.hypot(b.x - ghost.x, b.y - ghost.y) < 16) {
-      score += 300;
-      sfx.ghost();
-      explode(ghost.x, ghost.y, '#67e8f9', 16);
-      ghost = null;
-      bullets.splice(bi, 1);
-      updateHUD();
+    // vs ghosts
+    for (let gi = ghosts.length - 1; gi >= 0; gi--) {
+      const g = ghosts[gi];
+      if (Math.hypot(b.x - g.x, b.y - g.y) < 16) {
+        score += 300;
+        sfx.ghost();
+        explode(g.x, g.y, '#67e8f9', 16);
+        ghosts.splice(gi, 1);
+        bullets.splice(bi, 1);
+        updateHUD();
+        break;
+      }
     }
   }
 
@@ -307,29 +320,33 @@ function update() {
     if (Math.hypot(s.x - player.x, s.y - player.y) < 16) loseLife();
   });
 
-  // Ghost behavior
-  if (ghost) {
-    ghost.t += 0.06;
-    ghost.x += ghost.vx;
-    ghost.y += Math.sin(ghost.t) * 2.2;
+  // Ghosts drifting down from the manor
+  const maxGhosts = 2 + Math.floor(level / 2);
+  ghostTimer--;
+  if (ghostTimer <= 0 && ghosts.length < maxGhosts) {
+    spawnGhost();
+    ghostTimer = 130 + Math.random() * 130 - level * 6;
+  }
+  for (let gi = ghosts.length - 1; gi >= 0; gi--) {
+    const g = ghosts[gi];
+    g.t += 0.06;
+    g.x += g.vx + Math.sin(g.t) * 0.8;
+    g.y += g.vy;
+    // curve toward the player a little as it descends
+    g.vx += ((player.x - g.x) > 0 ? 1 : -1) * 0.015;
+    g.vx = Math.max(-2.4, Math.min(2.4, g.vx));
     // eats mushrooms it passes over
-    const gc = Math.floor(ghost.x / CELL), gr = Math.floor(ghost.y / CELL);
+    const gc = Math.floor(g.x / CELL), gr = Math.floor(g.y / CELL);
     if (mushrooms[key(gc, gr)] && Math.random() < 0.1) delete mushrooms[key(gc, gr)];
-    if (Math.hypot(ghost.x - player.x, ghost.y - player.y) < 18) loseLife();
-    if (ghost && (ghost.x < -40 || ghost.x > W + 40)) ghost = null;
-  } else {
-    ghostTimer--;
-    if (ghostTimer <= 0) {
-      spawnGhost();
-      ghostTimer = 280 + Math.random() * 240;
-    }
+    if (Math.hypot(g.x - player.x, g.y - player.y) < 18) { ghosts.splice(gi, 1); loseLife(); continue; }
+    if (g.y > H + 30 || g.x < -40 || g.x > W + 40) ghosts.splice(gi, 1);
   }
 
   // Scarab bugs — crawl down through the field, seeding toadstools
   bugTimer--;
-  if (bugTimer <= 0 && bugs.length < 1 + Math.floor(level / 2)) {
+  if (bugTimer <= 0 && bugs.length < 3 + level) {
     spawnBug();
-    bugTimer = 300 + Math.random() * 240 - level * 15;
+    bugTimer = 75 + Math.random() * 90 - level * 6;
   }
   for (let bi = bugs.length - 1; bi >= 0; bi--) {
     const bug = bugs[bi];
@@ -407,9 +424,42 @@ function draw() {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 
-  // faint moon
+  // faint moon (behind the manor)
   ctx.fillStyle = 'rgba(224,212,255,0.12)';
-  ctx.beginPath(); ctx.arc(W - 90, 60, 34, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(W - 210, 54, 30, 0, Math.PI * 2); ctx.fill();
+
+  // ---- Manor on its hill (upper-right) — ghosts & bugs spill from here ----
+  // hill
+  ctx.fillStyle = '#0c0716';
+  ctx.beginPath();
+  ctx.moveTo(W - 320, 130);
+  ctx.quadraticCurveTo(W - 150, 20, W + 20, 120);
+  ctx.lineTo(W + 20, 0);
+  ctx.lineTo(W - 320, 0);
+  ctx.closePath();
+  ctx.fill();
+  // manor body
+  ctx.fillStyle = '#160c26';
+  ctx.fillRect(manor.x - 34, manor.y - 34, 68, 42);
+  ctx.fillRect(manor.x + 20, manor.y - 52, 20, 60); // tower
+  // roofs
+  ctx.beginPath();
+  ctx.moveTo(manor.x - 40, manor.y - 34);
+  ctx.lineTo(manor.x, manor.y - 60);
+  ctx.lineTo(manor.x + 12, manor.y - 34);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(manor.x + 16, manor.y - 52);
+  ctx.lineTo(manor.x + 30, manor.y - 68);
+  ctx.lineTo(manor.x + 44, manor.y - 52);
+  ctx.closePath(); ctx.fill();
+  // lit windows flickering
+  ctx.fillStyle = 'rgba(232,121,249,0.7)';
+  ctx.globalAlpha = 0.6 + Math.sin(Date.now() * 0.004) * 0.3;
+  ctx.fillRect(manor.x - 24, manor.y - 22, 8, 10);
+  ctx.fillRect(manor.x + 2, manor.y - 22, 8, 10);
+  ctx.fillRect(manor.x + 26, manor.y - 40, 7, 9);
+  ctx.globalAlpha = 1;
 
   // player-zone boundary hint
   ctx.strokeStyle = 'rgba(124,58,237,0.25)';
@@ -511,10 +561,10 @@ function draw() {
     ctx.restore();
   });
 
-  // Ghost
-  if (ghost) {
+  // Ghosts
+  ghosts.forEach(g => {
     ctx.save();
-    ctx.translate(ghost.x, ghost.y);
+    ctx.translate(g.x, g.y);
     ctx.globalAlpha = 0.85;
     ctx.fillStyle = '#67e8f9';
     ctx.shadowColor = '#22d3ee';
@@ -533,7 +583,7 @@ function draw() {
     ctx.fillRect(2, -8, 4, 5);
     ctx.restore();
     ctx.globalAlpha = 1;
-  }
+  });
 
   // Bullets
   ctx.fillStyle = '#00ffaa';

@@ -112,6 +112,7 @@ const opponentDefs = [
 ];
 let opponents = [];
 let race = 1;          // race series — later races add speed and weapons
+let cruiseScore = 0;   // cumulative run score (banked to the leaderboard on a loss)
 let fireballs = [];    // opponent weapons (race 2+)
 let scramble = 0;      // frames of haunted steering after a ghost passes through you
 
@@ -171,18 +172,41 @@ function finishRace() {
   const secs = ((raceTime % 3600) / 60).toFixed(1);
   const medal = ['🏆', '🥈', '🥉', '💀', '💀', '💀'][place - 1];
   const won = place === 1;
-  if (won) race++;
-  const nextLine = won
-    ? `RACE ${race} unlocked — rivals are faster${race >= 2 ? ' and ARMED' : ''}`
-    : 'Same race, same rivals — take the crown';
-  document.getElementById('startOverlay').classList.remove('hidden');
-  document.getElementById('startOverlay').innerHTML = `
-    <h2>${won ? 'YOU WIN THE CRUISE' : 'RACE COMPLETE'}</h2>
-    <p style="font-size:2rem; margin:0.4rem 0">${medal} ${ordinal(place)} PLACE</p>
-    <p>Time: ${mins}:${secs.padStart(4, '0')}</p>
-    <p style="margin-top:0.4rem; color:#f0abfc">${nextLine}</p>
-    <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to start your engine</p>
-  `;
+
+  // score this race: placement + race bonus + a time bonus, accumulated over the run
+  const placePts = [1500, 900, 600, 300, 150, 150][place - 1] || 100;
+  const timeBonus = Math.max(0, Math.round((70 - raceTime / 60) * 10));
+  cruiseScore += placePts + race * 400 + timeBonus;
+
+  if (won) {
+    race++;
+    document.getElementById('startOverlay').classList.remove('hidden');
+    document.getElementById('startOverlay').innerHTML = `
+      <h2>YOU WIN THE CRUISE</h2>
+      <p style="font-size:2rem; margin:0.4rem 0">${medal} ${ordinal(place)} PLACE</p>
+      <p>Time: ${mins}:${secs.padStart(4, '0')}</p>
+      <p>Run score: ${cruiseScore}</p>
+      <p style="margin-top:0.4rem; color:#f0abfc">RACE ${race} unlocked — rivals are faster${race >= 2 ? ' and ARMED' : ''}</p>
+      <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to keep the streak going</p>
+    `;
+  } else {
+    // the run ends — bank the score to the leaderboard, then reset the streak
+    const finalScore = cruiseScore;
+    const reachedRace = race;
+    const endRun = () => {
+      document.getElementById('startOverlay').classList.remove('hidden');
+      document.getElementById('startOverlay').innerHTML = `
+        <h2>RUN OVER</h2>
+        <p style="font-size:2rem; margin:0.4rem 0">${medal} ${ordinal(place)} PLACE</p>
+        <p>Reached Race ${reachedRace} · Run score: ${finalScore}</p>
+        <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP DRIVERS</p>
+        ${Arcade.boardHTML(Arcade.slug)}
+        <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE for a fresh run from Race 1</p>
+      `;
+      race = 1; cruiseScore = 0; // fresh streak next time
+    };
+    Arcade.submitFlow(finalScore, endRun);
+  }
 }
 
 function ordinal(n) { return n + (['st','nd','rd'][n - 1] || 'th'); }
@@ -208,6 +232,15 @@ function update() {
   const dt = 1 / 60;
   const canDrive = countdown <= 0;
   if (countdown > 0) countdown--;
+
+  // Attract-mode autopilot (hub preview): floor it and steer through curves
+  if (Arcade.attract) {
+    keys = {};
+    keys['ArrowUp'] = true;
+    const seg = segAt(player.pos);
+    if (seg.curve > 0.4 || player.x < -0.5) keys['ArrowRight'] = true;
+    else if (seg.curve < -0.4 || player.x > 0.5) keys['ArrowLeft'] = true;
+  }
 
   // Throttle / brake
   if (canDrive && (keys['ArrowUp'] || keys['KeyW'])) {
@@ -253,13 +286,23 @@ function update() {
     sfx.lap();
   }
 
-  // Opponents
+  // Opponents — held at the grid until the lights go green, then they
+  // rubber-band around the player so the pack stays on-screen and racy
   opponents.forEach(o => {
     o.wobble += 0.015;
-    const oz = (0.92 + 0.12 * Math.sin(o.wobble)) * o.speed * dt;
-    o.totalZ += oz;
     o.x += Math.sin(o.wobble * 1.7) * 0.002; // gentle lane drift
     o.x = Math.max(-0.8, Math.min(0.8, o.x));
+
+    if (countdown > 0) return; // frozen on the starting grid
+
+    // rubber-band: rivals ahead of you ease off, rivals behind speed up,
+    // keeping the field within a few seconds of the player
+    const gap = o.totalZ - player.totalZ;            // + = ahead of player
+    let rubber = 1;
+    if (gap > SEG_LEN * 8) rubber = 0.82;            // pulling away → slow down
+    else if (gap < -SEG_LEN * 8) rubber = 1.18;      // dropping back → catch up
+    const oz = (0.92 + 0.12 * Math.sin(o.wobble)) * o.speed * rubber * dt;
+    o.totalZ += oz;
 
     // relative distance to player (on-track)
     const rel = o.totalZ - player.totalZ;

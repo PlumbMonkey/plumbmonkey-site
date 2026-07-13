@@ -620,14 +620,19 @@ function update() {
           gameOver = true;
           const newBest = score > best;
           if (newBest) { best = score; saveBest(); }
-          document.getElementById('startOverlay').classList.remove('hidden');
-          document.getElementById('startOverlay').innerHTML = `
-            <h2>CONCERT OVERRUN</h2>
-            <p>Rescued: ${rescued} &nbsp;|&nbsp; Abducted: ${abducted}</p>
-            <p style="margin-top:0.5rem">Final Score: ${score}</p>
-            <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-            <p style="margin-top:1rem; opacity:0.8">Click or SPACE to defend again</p>
-          `;
+          const finalScore = score;
+          Arcade.submitFlow(finalScore, () => {
+            document.getElementById('startOverlay').classList.remove('hidden');
+            document.getElementById('startOverlay').innerHTML = `
+              <h2>CONCERT OVERRUN</h2>
+              <p>Rescued: ${rescued} &nbsp;|&nbsp; Abducted: ${abducted}</p>
+              <p style="margin-top:0.5rem">Final Score: ${finalScore}</p>
+              <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
+              <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP DEFENDERS</p>
+              ${Arcade.boardHTML(Arcade.slug)}
+              <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to defend again</p>
+            `;
+          });
           updateHUD();
         }, 1100);
       } else {
