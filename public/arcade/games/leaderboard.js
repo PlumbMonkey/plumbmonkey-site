@@ -256,9 +256,128 @@
     else window.addEventListener('DOMContentLoaded', injectNav);
   }
 
+  // ---- Touch controls (phones/tablets) ----
+  // Directional & action buttons synthesize KeyboardEvents on window, so every
+  // game's existing key handler works untouched. The two aim games also get
+  // canvas-touch → mouse translation. Skipped in attract previews & on desktop.
+  // ?touch=1 forces controls on (hybrid devices / testing); ?touch=0 forces off
+  const forceTouch = /[?&]touch=1\b/.test(location.search);
+  const forceNoTouch = /[?&]touch=0\b/.test(location.search);
+  const coarse = typeof window !== 'undefined' && window.matchMedia &&
+    window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+  const isTouch = !attract && !forceNoTouch && (forceTouch || coarse);
+
+  // per-game layout: pad = 'dpad' (4-way) | 'lr' (steer only); actions = [[label, code]]
+  const CONTROL_LAYOUTS = {
+    'spectral-manor-revenger':          { pad: 'dpad', actions: [['FIRE', 'Space']] },
+    'spectral-food-fight':              { pad: 'dpad', actions: [], aim: true },
+    'spectral-robotron':                { pad: 'dpad', actions: [], aim: true },
+    'spectral-skyline':                 { pad: 'lr',   actions: [['FLAP', 'Space']] },
+    'spectral-manor-soul-circuit':      { pad: 'dpad', actions: [] },
+    'spectral-manor-crystal-dimension': { pad: 'lr',   actions: [['THRUST', 'ArrowUp'], ['FIRE', 'Space']] },
+    'spectral-manor-infestation':       { pad: 'dpad', actions: [['FIRE', 'Space']] },
+    'spectral-manor-cruise':            { pad: 'lr',   actions: [['GAS', 'ArrowUp'], ['BRAKE', 'ArrowDown']] }
+  };
+
+  function key(code, type) {
+    window.dispatchEvent(new KeyboardEvent(type, { code, key: code === 'Space' ? ' ' : code, bubbles: true }));
+  }
+
+  function bindHold(el, code) {
+    let held = false;
+    const down = e => { if (e) { e.preventDefault(); e.stopPropagation(); } if (held) return; held = true; el.classList.add('active'); key(code, 'keydown'); };
+    const up = e => { if (e) { e.preventDefault(); e.stopPropagation(); } if (!held) return; held = false; el.classList.remove('active'); key(code, 'keyup'); };
+    el.addEventListener('touchstart', down, { passive: false });
+    el.addEventListener('touchend', up, { passive: false });
+    el.addEventListener('touchcancel', up, { passive: false });
+    el.addEventListener('mousedown', down);
+    el.addEventListener('mouseup', up);
+    el.addEventListener('mouseleave', up);
+  }
+
+  function makeBtn(cls, label, code) {
+    const b = document.createElement('div');
+    b.className = 'sm-tb ' + cls;
+    b.textContent = label;
+    bindHold(b, code);
+    return b;
+  }
+
+  function initTouchControls() {
+    const layout = CONTROL_LAYOUTS[deriveSlug()];
+    if (!layout || document.querySelector('.sm-touch')) return;
+
+    const css = document.createElement('style');
+    css.textContent = `
+      .sm-touch{position:fixed;left:0;right:0;bottom:0;z-index:9997;display:flex;
+        justify-content:space-between;align-items:flex-end;padding:12px 14px;
+        pointer-events:none;font-family:'Segoe UI',system-ui,sans-serif;touch-action:none}
+      .sm-touch .sm-cluster{pointer-events:auto;display:flex;gap:10px;align-items:flex-end}
+      .sm-tb{pointer-events:auto;display:flex;align-items:center;justify-content:center;
+        color:#e9d5ff;background:rgba(26,16,37,.72);border:2px solid #7c3aed;border-radius:12px;
+        font-weight:700;letter-spacing:1px;user-select:none;-webkit-user-select:none;touch-action:none;
+        box-shadow:0 0 16px rgba(124,58,237,.35);backdrop-filter:blur(3px)}
+      .sm-tb.active{background:rgba(124,58,237,.85);border-color:#e879f9;box-shadow:0 0 22px rgba(232,121,249,.7)}
+      .sm-dir{width:58px;height:58px;font-size:1.6rem}
+      .sm-lr{width:74px;height:70px;font-size:2rem}
+      .sm-act{width:74px;height:74px;border-radius:50%;font-size:.8rem}
+      .sm-dpad{display:grid;grid-template-columns:repeat(3,58px);grid-template-rows:repeat(3,58px);gap:6px}
+      .sm-dpad .sm-up{grid-area:1/2} .sm-dpad .sm-left{grid-area:2/1}
+      .sm-dpad .sm-right{grid-area:2/3} .sm-dpad .sm-down{grid-area:3/2}
+      .sm-actions{flex-direction:row}
+      @media (max-width:400px){ .sm-dir{width:50px;height:50px} .sm-dpad{grid-template-columns:repeat(3,50px);grid-template-rows:repeat(3,50px)} .sm-act{width:64px;height:64px} }
+    `;
+    document.head.appendChild(css);
+
+    const bar = document.createElement('div');
+    bar.className = 'sm-touch';
+
+    // left cluster — directional
+    const left = document.createElement('div');
+    left.className = 'sm-cluster';
+    if (layout.pad === 'dpad') {
+      const pad = document.createElement('div');
+      pad.className = 'sm-dpad';
+      pad.appendChild(makeBtn('sm-dir sm-up', '▲', 'ArrowUp'));
+      pad.appendChild(makeBtn('sm-dir sm-left', '◀', 'ArrowLeft'));
+      pad.appendChild(makeBtn('sm-dir sm-right', '▶', 'ArrowRight'));
+      pad.appendChild(makeBtn('sm-dir sm-down', '▼', 'ArrowDown'));
+      left.appendChild(pad);
+    } else { // lr
+      left.appendChild(makeBtn('sm-lr', '◀', 'ArrowLeft'));
+      left.appendChild(makeBtn('sm-lr', '▶', 'ArrowRight'));
+    }
+    bar.appendChild(left);
+
+    // right cluster — action buttons
+    const right = document.createElement('div');
+    right.className = 'sm-cluster sm-actions';
+    layout.actions.forEach(([label, code]) => right.appendChild(makeBtn('sm-act', label, code)));
+    bar.appendChild(right);
+
+    document.body.appendChild(bar);
+
+    // Aim games: translate canvas touch → mouse so existing aim/fire works
+    if (layout.aim) {
+      const cv = document.getElementById('gameCanvas');
+      if (cv) {
+        const toMouse = (type, t) => cv.dispatchEvent(new MouseEvent(type, { clientX: t.clientX, clientY: t.clientY, bubbles: true }));
+        cv.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; toMouse('mousemove', t); toMouse('mousedown', t); }, { passive: false });
+        cv.addEventListener('touchmove', e => { e.preventDefault(); toMouse('mousemove', e.changedTouches[0]); }, { passive: false });
+        cv.addEventListener('touchend', e => { e.preventDefault(); toMouse('mouseup', e.changedTouches[0]); }, { passive: false });
+        cv.addEventListener('touchcancel', e => { toMouse('mouseup', e.changedTouches[0]); }, { passive: false });
+      }
+    }
+  }
+  if (isTouch && typeof document !== 'undefined') {
+    if (document.body) initTouchControls();
+    else window.addEventListener('DOMContentLoaded', initTouchControls);
+  }
+
   const API = {
     slug: deriveSlug(),
     attract,
+    isTouch,
     GAMES,
     get, add, top, qualifies, boardHTML, hallOfFame, promptInitials, submitFlow, injectStyle
   };
