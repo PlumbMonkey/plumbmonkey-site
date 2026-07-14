@@ -309,25 +309,57 @@
 
     const css = document.createElement('style');
     css.textContent = `
+      /* --- reclaim vertical space + keep the WHOLE game on-screen on phones --- */
+      body.sm-touch-active { padding: 2px !important; min-height: 0 !important;
+        justify-content: flex-start !important; overflow: hidden !important; }
+      body.sm-touch-active h1,
+      body.sm-touch-active .subtitle,
+      body.sm-touch-active .sub,
+      body.sm-touch-active .controls,
+      body.sm-touch-active .note,
+      body.sm-touch-active .hint { display: none !important; }
+      body.sm-touch-active .hud { font-size: .68rem !important; gap: .5rem !important; margin: 2px 0 !important; }
+      /* fit the canvas inside the viewport (no gameplay off-screen), leaving a
+         band at the bottom for the controls so they don't cover the playfield */
+      body.sm-touch-active #gameCanvas {
+        max-width: 100vw !important;
+        max-height: calc(100dvh - 96px) !important;
+        height: auto !important; box-shadow: none !important; }
+
       .sm-touch{position:fixed;left:0;right:0;bottom:0;z-index:9997;display:flex;
-        justify-content:space-between;align-items:flex-end;padding:12px 14px;
+        justify-content:space-between;align-items:flex-end;
+        padding:8px 10px calc(8px + env(safe-area-inset-bottom));
         pointer-events:none;font-family:'Segoe UI',system-ui,sans-serif;touch-action:none}
       .sm-touch .sm-cluster{pointer-events:auto;display:flex;gap:10px;align-items:flex-end}
       .sm-tb{pointer-events:auto;display:flex;align-items:center;justify-content:center;
-        color:#e9d5ff;background:rgba(26,16,37,.72);border:2px solid #7c3aed;border-radius:12px;
+        color:#e9d5ff;background:rgba(26,16,37,.66);border:2px solid #7c3aed;border-radius:12px;
         font-weight:700;letter-spacing:1px;user-select:none;-webkit-user-select:none;touch-action:none;
-        box-shadow:0 0 16px rgba(124,58,237,.35);backdrop-filter:blur(3px)}
+        box-shadow:0 0 14px rgba(124,58,237,.3);backdrop-filter:blur(3px)}
       .sm-tb.active{background:rgba(124,58,237,.85);border-color:#e879f9;box-shadow:0 0 22px rgba(232,121,249,.7)}
-      .sm-dir{width:58px;height:58px;font-size:1.6rem}
-      .sm-lr{width:74px;height:70px;font-size:2rem}
-      .sm-act{width:74px;height:74px;border-radius:50%;font-size:.8rem}
-      .sm-dpad{display:grid;grid-template-columns:repeat(3,58px);grid-template-rows:repeat(3,58px);gap:6px}
+      .sm-dir{width:52px;height:52px;font-size:1.4rem}
+      .sm-lr{width:64px;height:60px;font-size:1.7rem}
+      .sm-act{width:64px;height:64px;border-radius:50%;font-size:.72rem}
+      .sm-dpad{display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(3,52px);gap:5px}
       .sm-dpad .sm-up{grid-area:1/2} .sm-dpad .sm-left{grid-area:2/1}
       .sm-dpad .sm-right{grid-area:2/3} .sm-dpad .sm-down{grid-area:3/2}
       .sm-actions{flex-direction:row}
-      @media (max-width:400px){ .sm-dir{width:50px;height:50px} .sm-dpad{grid-template-columns:repeat(3,50px);grid-template-rows:repeat(3,50px)} .sm-act{width:64px;height:64px} }
+      /* narrow phones — shrink so 2-action layouts never clip the right edge */
+      @media (max-width:380px){
+        .sm-dir{width:46px;height:46px} .sm-dpad{grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,46px)}
+        .sm-lr{width:56px;height:54px} .sm-act{width:56px;height:56px} }
+      /* landscape / short viewports — compact so controls clear the game.
+         dpad clusters are ~3 rows tall, so those games reserve more room than
+         the single-row steer (lr) games. */
+      @media (max-height:460px){
+        body.sm-touch-active.sm-pad-lr #gameCanvas{ max-height: calc(100dvh - 82px) !important; }
+        body.sm-touch-active.sm-pad-dpad #gameCanvas{ max-height: calc(100dvh - 150px) !important; }
+        .sm-dir{width:44px;height:44px;font-size:1.2rem} .sm-dpad{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:4px}
+        .sm-lr{width:56px;height:48px;font-size:1.4rem} .sm-act{width:54px;height:54px;font-size:.66rem}
+        .sm-touch{padding:6px 12px calc(6px + env(safe-area-inset-bottom))} }
     `;
     document.head.appendChild(css);
+    document.body.classList.add('sm-touch-active');
+    document.body.classList.add('sm-pad-' + layout.pad); // dpad clusters are taller → need more bottom clearance in landscape
 
     const bar = document.createElement('div');
     bar.className = 'sm-touch';
