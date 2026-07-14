@@ -17,7 +17,7 @@ const INSTRUMENTS = [
     href: "/music/drum-machine/index.html",
     title: "Drum Machine",
     tag: "8-track step sequencer",
-    desc: "Program 16-step beats across eight synthesized drum voices — kick, snare, claps, hats, toms and cowbell. Tempo, swing, save & load.",
+    desc: "Program 16-step beats across eight synthesized drum voices — kick, snare, claps, hats, toms and cowbell. Tempo, swing, save & load, and export your loop to WAV or MIDI (plus one-shot samples).",
     accent: "#22d3ee",
     glyph: "▦",
   },
@@ -25,7 +25,7 @@ const INSTRUMENTS = [
     href: "/music/synth/index.html",
     title: "Soft Synth",
     tag: "polyphonic subtractive synth",
-    desc: "Play a two-octave keyboard with your mouse, touch, or computer keys. Shape it with waveforms, a resonant filter and full ADSR envelope.",
+    desc: "Play a two-octave keyboard with your mouse, touch, or computer keys. Shape it with waveforms, a resonant filter and full ADSR envelope — then record a take and export it to WAV or MIDI.",
     accent: "#c084fc",
     glyph: "♪",
   },
@@ -99,8 +99,9 @@ export default function MusicPage() {
             Ready for the full studio?
           </p>
           <p className="text-slate-400 text-sm mb-4 max-w-xl mx-auto">
-            The desktop <strong className="text-cyan-300">Drum Machine</strong> adds real sample kits,
-            sample import, MIDI controller support and export — the pro version of what you&apos;re playing here.
+            The desktop <strong className="text-cyan-300">Drum Machine</strong> adds real sampled kits,
+            your own sample import, MIDI-controller playability and deeper sound design — the pro studio version
+            of what you&apos;re playing here.
           </p>
           <a
             href="https://plumbmonkey.gumroad.com/"
@@ -118,7 +119,7 @@ export default function MusicPage() {
             Part of the <span className="text-cyan-300">Ghost Circuit</span> universe · Built by Plumbmonkey Media
           </p>
           <p className="text-slate-600 text-xs mt-2">
-            More coming: WAV loop &amp; MIDI export, so you can take what you make into any DAW.
+            Everything you make exports to WAV &amp; MIDI — drop it straight into any DAW.
           </p>
         </div>
       </section>

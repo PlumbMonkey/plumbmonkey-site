@@ -377,6 +377,125 @@
     else window.addEventListener('DOMContentLoaded', initTouchControls);
   }
 
+  // ---- Gamepad support (Bluetooth or USB, via the standard Gamepad API) ----
+  // A connected controller drives the SAME synthetic key/mouse events as the
+  // touch buttons, so every game works untouched. Standard mapping:
+  //   left stick + D-pad → arrow keys · face buttons A/B/X/Y → the game's
+  //   actions · Start → begin/restart · right stick → aim cursor (aim games).
+  let gamepadIndex = null;
+  let gamepadTimer = null;       // ~60Hz input poll (setInterval, not rAF, so it
+                                 // keeps polling even when the tab isn't painting)
+  let aimCursor = null;          // virtual aim cursor in canvas coords (aim games)
+  let reticleEl = null;
+  const vk = {};                 // synthetic-key held-state for edge detection
+  let prevStart = false, prevAimFire = false;
+
+  function setVK(code, pressed) {
+    if (!!vk[code] === !!pressed) return;
+    vk[code] = !!pressed;
+    key(code, pressed ? 'keydown' : 'keyup');
+  }
+
+  function gamepadBadge(on) {
+    let b = document.getElementById('sm-gp-badge');
+    if (on) {
+      if (!b) {
+        b = document.createElement('div');
+        b.id = 'sm-gp-badge';
+        b.textContent = '🎮 Controller';
+        b.style.cssText = 'position:fixed;top:10px;right:10px;z-index:9998;font:600 .72rem system-ui,sans-serif;' +
+          'color:#e0d4ff;background:rgba(26,16,37,.85);border:1px solid #7c3aed;border-radius:6px;' +
+          'padding:.3rem .6rem;box-shadow:0 0 12px rgba(124,58,237,.4)';
+        document.body.appendChild(b);
+      }
+    } else if (b) { b.remove(); }
+  }
+
+  function moveReticle(cx, cy) {
+    if (!reticleEl) {
+      reticleEl = document.createElement('div');
+      reticleEl.style.cssText = 'position:fixed;width:26px;height:26px;margin:-13px 0 0 -13px;z-index:9996;' +
+        'pointer-events:none;border:2px solid rgba(240,171,252,.9);border-radius:50%;' +
+        'box-shadow:0 0 10px rgba(240,171,252,.7),inset 0 0 6px rgba(240,171,252,.5)';
+      document.body.appendChild(reticleEl);
+    }
+    reticleEl.style.left = cx + 'px';
+    reticleEl.style.top = cy + 'px';
+  }
+
+  function pollGamepad() {
+    if (attract || gamepadIndex === null) return;
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const gp = pads[gamepadIndex];
+    if (!gp) return;
+    const ax = gp.axes || [], btn = gp.buttons || [];
+    const DZ = 0.4;
+    const held = i => !!(btn[i] && btn[i].pressed);
+    const axis = i => (typeof ax[i] === 'number' ? ax[i] : 0);
+    const layout = CONTROL_LAYOUTS[deriveSlug()] || { pad: 'dpad', actions: [] };
+
+    // Directions: left stick + D-pad → arrow keys (edge-detected)
+    setVK('ArrowLeft',  axis(0) < -DZ || held(14));
+    setVK('ArrowRight', axis(0) >  DZ || held(15));
+    setVK('ArrowUp',    axis(1) < -DZ || held(12));
+    setVK('ArrowDown',  axis(1) >  DZ || held(13));
+
+    // Face buttons A/B/X/Y (0-3) → the game's actions in order; RT (7) also fires action 0
+    layout.actions.forEach(([label, code], i) => {
+      setVK(code, held(i) || (i === 0 && held(7)));
+    });
+
+    // Start (9) → a momentary Space to begin / restart (universal start key)
+    const startNow = held(9);
+    if (startNow !== prevStart) key('Space', startNow ? 'keydown' : 'keyup');
+    prevStart = startNow;
+
+    // Aim games: right stick steers a virtual cursor; deflection (or RT) fires
+    if (layout.aim) {
+      const cv = document.getElementById('gameCanvas');
+      if (cv) {
+        const rx = axis(2), ry = axis(3);
+        const mag = Math.hypot(rx, ry);
+        if (!aimCursor) aimCursor = { x: cv.width / 2, y: cv.height / 2 };
+        if (mag > DZ) {
+          aimCursor.x = Math.max(0, Math.min(cv.width, aimCursor.x + rx * 12));
+          aimCursor.y = Math.max(0, Math.min(cv.height, aimCursor.y + ry * 12));
+        }
+        const rect = cv.getBoundingClientRect();
+        const clientX = rect.left + (aimCursor.x / cv.width) * rect.width;
+        const clientY = rect.top + (aimCursor.y / cv.height) * rect.height;
+        cv.dispatchEvent(new MouseEvent('mousemove', { clientX, clientY, bubbles: true }));
+        moveReticle(clientX, clientY);
+        const fireNow = mag > DZ || held(7);
+        if (fireNow !== prevAimFire) {
+          cv.dispatchEvent(new MouseEvent(fireNow ? 'mousedown' : 'mouseup', { clientX, clientY, bubbles: true }));
+          prevAimFire = fireNow;
+        }
+      }
+    }
+  }
+
+  function releaseAllVK() {
+    Object.keys(vk).forEach(c => setVK(c, false));
+    if (prevStart) { key('Space', 'keyup'); prevStart = false; }
+  }
+
+  if (!attract && typeof window !== 'undefined' && 'getGamepads' in navigator) {
+    window.addEventListener('gamepadconnected', e => {
+      if (gamepadIndex === null) gamepadIndex = e.gamepad.index;
+      gamepadBadge(true);
+      if (!gamepadTimer) gamepadTimer = setInterval(pollGamepad, 16);
+    });
+    window.addEventListener('gamepaddisconnected', e => {
+      if (e.gamepad.index === gamepadIndex) {
+        gamepadIndex = null;
+        releaseAllVK();
+        gamepadBadge(false);
+        if (reticleEl) { reticleEl.remove(); reticleEl = null; }
+      }
+    });
+  }
+
   const API = {
     slug: deriveSlug(),
     attract,
