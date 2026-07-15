@@ -46,28 +46,50 @@ let score = 0, lives = 3, level = 1;
 let gameRunning = false, gameOver = false;
 let keys = {};
 let mushrooms = {};   // "c,r" -> hp (4..1)
+let poisoned = {};    // "c,r" -> true; a scorpion-poisoned toadstool
+let tombstones = {};  // "c,r" -> variant; INDESTRUCTIBLE terrain (bullets stop,
+                      // the hauntipede turns off them, ghosts pass through)
 let segments = [];    // hauntipede segments
 let bullets = [];
 let particles = [];
 let ghosts = [];      // gravekeeper ghosts drifting down from the manor hill
 let ghostTimer = 200;
 let respawnPause = 0;
-let bugs = [];        // independent scarab bugs crawling down the field
+let bugs = [];        // scarab bugs ("flea" role) — seed toadstools from above
 let bugTimer = 220;
+let beetles = [];     // grave beetles ("earwig") — cross the player zone
+let beetleTimer = 600;
+let moths = [];       // wisp moths — erratic diagonal bonus targets
+let mothTimer = 800;
+let scorpions = [];   // bone scorpions — poison toadstools they touch
+let scorpionTimer = 900;
 let hauntipedeLen = 12; // segments at spawn — speed scales as it shrinks
 // the manor sits on a hill in the upper-right; ghosts & bugs spill from it
 const manor = { x: W - 150, y: 46 };
 
 const player = { x: W / 2, y: H - 50, w: 22, h: 22, speed: 4.4, lastShot: 0 };
 
-// ---------- Mushroom field ----------
+// ---------- Graveyard field ----------
 function key(c, r) { return c + ',' + r; }
 function seedMushrooms() {
   mushrooms = {};
+  poisoned = {};
+  tombstones = {};
+  // Tombstones first — permanent terrain the randomised toadstools work around.
+  // Kept clear of the player zone and the hauntipede's entry row.
+  const stoneCount = 5 + Math.min(level, 6);
+  for (let i = 0; i < stoneCount; i++) {
+    const c = 1 + Math.floor(Math.random() * (COLS - 2));
+    const r = 3 + Math.floor(Math.random() * (PLAYER_ZONE_ROW - 5));
+    // Variants are 1..3, never 0 — every lookup here is a truthiness check
+    // (`if (tombstones[k])`), so a 0 variant would be silently ignored.
+    tombstones[key(c, r)] = 1 + Math.floor(Math.random() * 3);
+  }
   const count = 45 + level * 3;
   for (let i = 0; i < count; i++) {
     const c = 1 + Math.floor(Math.random() * (COLS - 2));
     const r = 2 + Math.floor(Math.random() * (PLAYER_ZONE_ROW - 3));
+    if (tombstones[key(c, r)]) continue; // never stack a toadstool on a stone
     mushrooms[key(c, r)] = 4;
   }
 }
@@ -109,8 +131,54 @@ function spawnBug() {
   });
 }
 
+// ---------- Grave beetle ("earwig"): crosses the player zone horizontally,
+// forcing vertical dodges rather than only left/right ----------
+function spawnBeetle() {
+  const fromLeft = Math.random() < 0.5;
+  beetles.push({
+    x: fromLeft ? -16 : W + 16,
+    y: (PLAYER_ZONE_ROW + 1) * CELL + Math.random() * (H - (PLAYER_ZONE_ROW + 1) * CELL - 30),
+    vx: (fromLeft ? 1 : -1) * (1.7 + level * 0.12),
+    legPhase: 0
+  });
+}
+
+// ---------- Wisp moth: erratic diagonal drifter, pure bonus target ----------
+function spawnMoth() {
+  moths.push({
+    x: 30 + Math.random() * (W - 60),
+    y: 40 + Math.random() * 120,
+    vx: (Math.random() < 0.5 ? -1 : 1) * (1.4 + Math.random()),
+    vy: 0.8 + Math.random() * 0.8,
+    t: Math.random() * Math.PI * 2,
+    wing: 0
+  });
+}
+
+// ---------- Bone scorpion: poisons toadstools it walks over. A hauntipede
+// segment that hits a poisoned toadstool dives straight at the player — the
+// classic Centipede pressure valve that makes late levels dangerous. ----------
+function spawnScorpion() {
+  const fromLeft = Math.random() < 0.5;
+  scorpions.push({
+    x: fromLeft ? -20 : W + 20,
+    y: (2 + Math.floor(Math.random() * (PLAYER_ZONE_ROW - 4))) * CELL + CELL / 2,
+    vx: (fromLeft ? 1 : -1) * (1.5 + level * 0.1),
+    legPhase: 0
+  });
+}
+
 function segmentUpdate(s) {
   s.legPhase += 0.35;
+
+  // Poisoned: dive straight down at the player until it reaches the zone,
+  // then resume normal scuttling. This is what a bone scorpion sets up.
+  if (s.diving) {
+    s.y += 6;
+    if (s.y >= (ROWS - 2) * CELL) { s.diving = false; s.y = (ROWS - 2) * CELL; }
+    return;
+  }
+
   if (s.drop > 0) {
     // descending to the next row
     s.y += 3;
@@ -124,8 +192,12 @@ function segmentUpdate(s) {
   s.x += s.dir * segmentSpeed(s);
   const nextC = Math.floor((s.x + s.dir * (CELL / 2 + 2)) / CELL);
   const r = Math.floor(s.y / CELL);
-  const blocked = nextC < 0 || nextC >= COLS || mushrooms[key(nextC, r)];
+  // tombstones block exactly like toadstools — but can never be shot away
+  const blocked = nextC < 0 || nextC >= COLS ||
+                  mushrooms[key(nextC, r)] || tombstones[key(nextC, r)];
   if (blocked) {
+    // touching a POISONED toadstool sends it plunging at the player
+    if (poisoned[key(nextC, r)]) { s.diving = true; return; }
     s.dir *= -1;
     if (r >= ROWS - 2) {
       // at the bottom: bounce back up a row (stays trapped in the player zone)
@@ -165,6 +237,9 @@ function startGame() {
   score = 0; lives = 3; level = 1;
   bullets = []; particles = []; ghosts = []; ghostTimer = 180;
   bugs = []; bugTimer = 200;
+  beetles = []; beetleTimer = 600;
+  moths = []; mothTimer = 800;
+  scorpions = []; scorpionTimer = 900;
   player.x = W / 2; player.y = H - 50;
   seedMushrooms();
   spawnHauntipede();
@@ -213,6 +288,7 @@ function loseLife() {
     bullets = [];
     ghosts = [];
     bugs = [];
+    beetles = []; moths = []; scorpions = [];
     spawnHauntipede();
   }
 }
@@ -261,14 +337,23 @@ function update() {
     const b = bullets[bi];
     let consumed = false;
 
-    // vs mushrooms
     const bc = Math.floor(b.x / CELL), br = Math.floor(b.y / CELL);
     const mk = key(bc, br);
+
+    // vs tombstones — solid granite: the shot stops, the stone is unharmed
+    if (tombstones[mk]) {
+      sfx.mushroom();
+      explode(b.x, b.y, '#94a3b8', 3);
+      bullets.splice(bi, 1);
+      continue;
+    }
+
+    // vs toadstools
     if (mushrooms[mk]) {
       mushrooms[mk]--;
       sfx.mushroom();
-      explode(b.x, b.y, '#a78bfa', 3);
-      if (mushrooms[mk] <= 0) { delete mushrooms[mk]; score += 5; }
+      explode(b.x, b.y, poisoned[mk] ? '#4ade80' : '#a78bfa', 3);
+      if (mushrooms[mk] <= 0) { delete mushrooms[mk]; delete poisoned[mk]; score += 5; }
       else score += 1;
       bullets.splice(bi, 1);
       updateHUD();
@@ -385,6 +470,78 @@ function update() {
     if (bug.y > H + 20) bugs.splice(bi, 1);
   }
 
+  // ---- Grave beetles: sprint across the player zone (forces vertical dodges)
+  beetleTimer--;
+  if (beetleTimer <= 0 && level >= 2 && beetles.length < 2) {
+    spawnBeetle();
+    beetleTimer = 420 + Math.random() * 360 - level * 18;
+  }
+  for (let i = beetles.length - 1; i >= 0; i--) {
+    const bt = beetles[i];
+    bt.x += bt.vx;
+    bt.legPhase += 0.5;
+    if (Math.hypot(bt.x - player.x, bt.y - player.y) < 15) { beetles.splice(i, 1); loseLife(); continue; }
+    let hit = false;
+    for (let ci = bullets.length - 1; ci >= 0; ci--) {
+      const b = bullets[ci];
+      if (Math.hypot(b.x - bt.x, b.y - bt.y) < 12) {
+        bullets.splice(ci, 1); score += 250; sfx.bug();
+        explode(bt.x, bt.y, '#f59e0b', 12); beetles.splice(i, 1); hit = true; updateHUD(); break;
+      }
+    }
+    if (hit) continue;
+    if (bt.x < -30 || bt.x > W + 30) beetles.splice(i, 1);
+  }
+
+  // ---- Wisp moths: erratic diagonal bonus targets (harmless, high points)
+  mothTimer--;
+  if (mothTimer <= 0 && moths.length < 2) {
+    spawnMoth();
+    mothTimer = 520 + Math.random() * 420;
+  }
+  for (let i = moths.length - 1; i >= 0; i--) {
+    const m = moths[i];
+    m.t += 0.09; m.wing += 0.5;
+    m.x += m.vx + Math.sin(m.t * 1.7) * 1.8;
+    m.y += m.vy * Math.sin(m.t) * 0.9 + 0.25;
+    if (m.x < 12 || m.x > W - 12) m.vx *= -1;
+    let hit = false;
+    for (let ci = bullets.length - 1; ci >= 0; ci--) {
+      const b = bullets[ci];
+      if (Math.hypot(b.x - m.x, b.y - m.y) < 13) {
+        bullets.splice(ci, 1); score += 500; sfx.ghost();
+        explode(m.x, m.y, '#fde68a', 14); moths.splice(i, 1); hit = true; updateHUD(); break;
+      }
+    }
+    if (hit) continue;
+    if (m.y > PLAYER_ZONE_ROW * CELL) moths.splice(i, 1);
+  }
+
+  // ---- Bone scorpions: poison every toadstool they touch
+  scorpionTimer--;
+  if (scorpionTimer <= 0 && level >= 3 && scorpions.length < 1) {
+    spawnScorpion();
+    scorpionTimer = 700 + Math.random() * 500 - level * 25;
+  }
+  for (let i = scorpions.length - 1; i >= 0; i--) {
+    const sc = scorpions[i];
+    sc.x += sc.vx;
+    sc.legPhase += 0.45;
+    const cc = Math.floor(sc.x / CELL), cr = Math.floor(sc.y / CELL);
+    if (mushrooms[key(cc, cr)]) poisoned[key(cc, cr)] = true;
+    if (Math.hypot(sc.x - player.x, sc.y - player.y) < 16) { scorpions.splice(i, 1); loseLife(); continue; }
+    let hit = false;
+    for (let ci = bullets.length - 1; ci >= 0; ci--) {
+      const b = bullets[ci];
+      if (Math.hypot(b.x - sc.x, b.y - sc.y) < 14) {
+        bullets.splice(ci, 1); score += 1000; sfx.head();
+        explode(sc.x, sc.y, '#e2e8f0', 18); scorpions.splice(i, 1); hit = true; updateHUD(); break;
+      }
+    }
+    if (hit) continue;
+    if (sc.x < -40 || sc.x > W + 40) scorpions.splice(i, 1);
+  }
+
   // Particles
   particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
   particles = particles.filter(p => p.life > 0);
@@ -394,25 +551,55 @@ function update() {
 function drawMushroom(c, r, hp) {
   const x = c * CELL + CELL / 2, y = r * CELL + CELL / 2;
   const s = 0.55 + hp * 0.11; // shrink as damaged
+  const bad = poisoned[key(c, r)];
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(s, s);
   // stem
-  ctx.fillStyle = '#d8c8f0';
+  ctx.fillStyle = bad ? '#86efac' : '#d8c8f0';
   ctx.fillRect(-3, 0, 6, 9);
-  // cap
-  ctx.fillStyle = hp >= 3 ? '#7c3aed' : '#5b21b6';
-  ctx.shadowColor = '#a855f7';
-  ctx.shadowBlur = 6;
+  // cap — poisoned toadstools go sickly green so the danger is readable
+  ctx.fillStyle = bad ? (hp >= 3 ? '#16a34a' : '#15803d') : (hp >= 3 ? '#7c3aed' : '#5b21b6');
+  ctx.shadowColor = bad ? '#4ade80' : '#a855f7';
+  ctx.shadowBlur = bad ? 10 : 6;
   ctx.beginPath();
   ctx.arc(0, 0, 10, Math.PI, 0);
   ctx.closePath();
   ctx.fill();
   ctx.shadowBlur = 0;
   // spots
-  ctx.fillStyle = '#e9d5ff';
+  ctx.fillStyle = bad ? '#bbf7d0' : '#e9d5ff';
   ctx.beginPath(); ctx.arc(-4, -4, 1.8, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(3, -6, 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+// Indestructible granite tombstone — deliberately colder/greyer than the
+// purple toadstools so players read "this one will never break".
+function drawTombstone(c, r, variant) {
+  const x = c * CELL + CELL / 2, y = r * CELL + CELL / 2;
+  ctx.save();
+  ctx.translate(x, y + 2);
+  ctx.fillStyle = '#64748b';
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  if (variant === 1) {          // rounded headstone
+    ctx.moveTo(-8, 10); ctx.lineTo(-8, -2);
+    ctx.arc(0, -2, 8, Math.PI, 0);
+    ctx.lineTo(8, 10);
+  } else if (variant === 2) {   // cross
+    ctx.rect(-3, -10, 6, 20);
+    ctx.rect(-8, -5, 16, 5);
+  } else {                      // slab
+    ctx.rect(-8, -8, 16, 18);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // carved shading + a faint RIP scratch
+  ctx.fillStyle = 'rgba(15,23,42,0.5)';
+  if (variant !== 2) ctx.fillRect(-5, -3, 10, 2);
   ctx.restore();
 }
 
@@ -461,6 +648,31 @@ function draw() {
   ctx.fillRect(manor.x + 26, manor.y - 40, 7, 9);
   ctx.globalAlpha = 1;
 
+  // ---- Graveyard ground: dead grass tufts + iron fence under the manor hill
+  ctx.strokeStyle = 'rgba(71,85,105,0.5)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 26; i++) {
+    const gx = (i * 137) % W, gy = 150 + ((i * 61) % (PLAYER_ZONE_ROW * CELL - 150));
+    ctx.beginPath();
+    ctx.moveTo(gx, gy); ctx.lineTo(gx - 2, gy - 5);
+    ctx.moveTo(gx, gy); ctx.lineTo(gx + 1, gy - 6);
+    ctx.moveTo(gx, gy); ctx.lineTo(gx + 3, gy - 4);
+    ctx.stroke();
+  }
+  // iron fence along the base of the manor hill
+  ctx.strokeStyle = 'rgba(100,116,139,0.45)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(W - 330, 128); ctx.lineTo(W, 118);
+  ctx.stroke();
+  for (let i = 0; i < 12; i++) {
+    const fx = W - 325 + i * 27;
+    const fy = 128 - (i * 10) / 12;
+    ctx.beginPath();
+    ctx.moveTo(fx, fy); ctx.lineTo(fx, fy - 11);
+    ctx.stroke();
+  }
+
   // player-zone boundary hint
   ctx.strokeStyle = 'rgba(124,58,237,0.25)';
   ctx.setLineDash([6, 10]);
@@ -470,7 +682,13 @@ function draw() {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Mushrooms
+  // Tombstones (drawn under the toadstools so overlaps read correctly)
+  Object.keys(tombstones).forEach(k => {
+    const [c, r] = k.split(',').map(Number);
+    drawTombstone(c, r, tombstones[k]);
+  });
+
+  // Toadstools
   Object.keys(mushrooms).forEach(k => {
     const [c, r] = k.split(',').map(Number);
     drawMushroom(c, r, mushrooms[k]);
@@ -561,6 +779,88 @@ function draw() {
     ctx.restore();
   });
 
+  // Grave beetles — amber, low and fast, running sideways
+  beetles.forEach(bt => {
+    ctx.save();
+    ctx.translate(bt.x, bt.y);
+    ctx.scale(bt.vx > 0 ? 1 : -1, 1);
+    ctx.strokeStyle = '#78350f';
+    ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let li = 0; li < 3; li++) {
+      const lx = (li - 1) * 5;
+      const kick = Math.sin(bt.legPhase + li * 1.2) * 4;
+      ctx.moveTo(lx, -6); ctx.lineTo(lx + kick, -11);
+      ctx.moveTo(lx, 6);  ctx.lineTo(lx - kick, 11);
+    }
+    ctx.stroke();
+    ctx.fillStyle = '#f59e0b';
+    ctx.shadowColor = '#f59e0b'; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.ellipse(0, 0, 11, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // pincers up front
+    ctx.strokeStyle = '#78350f'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(9, -2); ctx.lineTo(15, -5);
+    ctx.moveTo(9, 2);  ctx.lineTo(15, 5);
+    ctx.stroke();
+    ctx.restore();
+  });
+
+  // Wisp moths — pale, fluttering, harmless bonus
+  moths.forEach(m => {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    const flap = Math.abs(Math.sin(m.wing));
+    ctx.fillStyle = 'rgba(253,230,138,0.85)';
+    ctx.shadowColor = '#fde68a'; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.ellipse(-5, 0, 5 * flap + 2, 7, -0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(5, 0, 5 * flap + 2, 7, 0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#78350f';
+    ctx.beginPath(); ctx.ellipse(0, 0, 2, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  });
+
+  // Bone scorpions — bleached white, the level's real threat
+  scorpions.forEach(sc => {
+    ctx.save();
+    ctx.translate(sc.x, sc.y);
+    ctx.scale(sc.vx > 0 ? 1 : -1, 1);
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 2; ctx.lineCap = 'round';
+    // legs
+    ctx.beginPath();
+    for (let li = 0; li < 3; li++) {
+      const lx = (li - 1) * 6;
+      const kick = Math.sin(sc.legPhase + li) * 4;
+      ctx.moveTo(lx, -5); ctx.lineTo(lx + kick, -11);
+      ctx.moveTo(lx, 5);  ctx.lineTo(lx - kick, 11);
+    }
+    ctx.stroke();
+    // body
+    ctx.fillStyle = '#e2e8f0';
+    ctx.shadowColor = '#94a3b8'; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.ellipse(0, 0, 12, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // curled tail with a green venom bead
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(-10, -2);
+    ctx.quadraticCurveTo(-20, -12, -12, -16);
+    ctx.stroke();
+    ctx.fillStyle = '#4ade80';
+    ctx.shadowColor = '#4ade80'; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(-12, -17, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // claws
+    ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(10, -3); ctx.lineTo(17, -6); ctx.moveTo(10, 3); ctx.lineTo(17, 6);
+    ctx.stroke();
+    ctx.restore();
+  });
+
   // Ghosts
   ghosts.forEach(g => {
     ctx.save();
@@ -584,6 +884,17 @@ function draw() {
     ctx.restore();
     ctx.globalAlpha = 1;
   });
+
+  // Drifting ground fog — sits low over the graveyard for depth
+  for (let i = 0; i < 3; i++) {
+    const fy = PLAYER_ZONE_ROW * CELL - 26 + i * 16;
+    const fx = ((Date.now() * 0.012 * (i % 2 ? 1 : -1)) % (W + 260) + W + 260) % (W + 260) - 130;
+    const fg = ctx.createRadialGradient(fx, fy, 8, fx, fy, 150);
+    fg.addColorStop(0, 'rgba(148,163,184,0.10)');
+    fg.addColorStop(1, 'rgba(148,163,184,0)');
+    ctx.fillStyle = fg;
+    ctx.fillRect(0, fy - 60, W, 120);
+  }
 
   // Bullets
   ctx.fillStyle = '#00ffaa';

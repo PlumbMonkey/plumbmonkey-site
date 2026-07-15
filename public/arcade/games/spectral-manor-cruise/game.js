@@ -55,6 +55,7 @@ const DRAW_DIST = 140;         // segments
 const LAPS = 3;
 
 let segments = [];
+const JUMP_SEGMENTS = [];   // indices of ramp/launch segments
 function addRoad(count, curve) {
   for (let i = 0; i < count; i++) {
     segments.push({ curve, sprites: [] });
@@ -77,6 +78,17 @@ function buildTrack() {
   addRoad(60, 0);
   addRoad(80, -2.8);
   addRoad(70, 0);
+  // Jump ramps — placed on straights only (launching mid-hairpin would be
+  // unreadable). `jump` marks the launch segment; a ramp sprite telegraphs it.
+  JUMP_SEGMENTS.length = 0;
+  [40, 300].forEach(idx => {
+    if (segments[idx]) {
+      segments[idx].jump = true;
+      segments[idx].sprites.push({ type: 'ramp', offset: 0 });
+      JUMP_SEGMENTS.push(idx);
+    }
+  });
+
   // roadside scenery: dead trees & tombstones
   for (let i = 0; i < segments.length; i += 4) {
     if (Math.random() < 0.65) {
@@ -101,7 +113,10 @@ const player = {
   maxSpeed: 11800,
   lap: 1,
   totalZ: 0,
-  finished: false
+  finished: false,
+  air: 0,            // frames remaining airborne (0 = on the road)
+  airMax: 0,         // total airtime of the current jump (for the arc)
+  airHeight: 0       // current parabolic lift, in px, applied to the camera/car
 };
 // Rivals never brake for curves, so their pace is tuned below a decent
 // driver's LAP AVERAGE (~10800-11200), not below the 11800 top speed —
@@ -118,12 +133,15 @@ const opponentDefs = [
 let opponents = [];
 let race = 1;          // race series — later races add speed and weapons
 let cruiseScore = 0;   // cumulative run score (banked to the leaderboard on a loss)
-let fireballs = [];    // opponent weapons (race 2+)
+let fireballs = [];    // road hazards dropped by rivals ahead (race 2+)
 let scramble = 0;      // frames of haunted steering after a ghost passes through you
+let batSwarm = 0;      // frames of Vampire bat swarm darkening the screen edges (race 4+)
 
 function resetRacers() {
+  player.air = 0; player.airMax = 0; player.airHeight = 0;
+  batSwarm = 0;
   player.pos = 0; player.x = 0; player.speed = 0;
-  player.lap = 1; player.totalZ = 0; player.finished = false;
+  player.lap = 1; player.totalZ = 0; player.prevTotalZ = 0; player.finished = false;
   fireballs = []; scramble = 0;
   opponents = opponentDefs.map((d, i) => ({
     ...d,
@@ -266,9 +284,12 @@ function update() {
   }
   player.speed = Math.max(0, Math.min(player.maxSpeed, player.speed));
 
-  // Steering + centrifugal pull from curves
+  // Steering + centrifugal pull from curves.
+  // Airborne = almost no steering authority (that's the risk of the jump —
+  // you commit to your line before the ramp).
   const speedRatio = player.speed / player.maxSpeed;
-  const steer = 0.028 * (0.4 + speedRatio);
+  const airborne = player.air > 0;
+  const steer = 0.028 * (0.4 + speedRatio) * (airborne ? 0.18 : 1);
   if (scramble > 0) {
     // a ghost passed through you — controls are haunted (reversed + jittery)
     scramble--;
@@ -280,15 +301,38 @@ function update() {
     if (keys['ArrowRight'] || keys['KeyD']) player.x += steer;
   }
   const seg = segAt(player.pos);
-  player.x -= seg.curve * 0.00135 * speedRatio * speedRatio * 10;
+  // no centrifugal pull while in the air — you're not touching the road
+  if (!airborne) player.x -= seg.curve * 0.00135 * speedRatio * speedRatio * 10;
   // bump momentum from trading paint
   player.bumpVx = player.bumpVx || 0;
   player.x += player.bumpVx;
   player.bumpVx *= 0.85;
   player.x = Math.max(-1.6, Math.min(1.6, player.x));
 
+  // ---- Jump ramps ----
+  // Speed-gated: crawling over the ramp must not launch you.
+  if (!airborne && seg.jump && player.speed > player.maxSpeed * 0.55) {
+    player.airMax = 52 + Math.round(28 * speedRatio); // faster = longer flight
+    player.air = player.airMax;
+    sfx.beep();
+    shake = Math.max(shake, 4);
+  }
+  if (player.air > 0) {
+    player.air--;
+    // parabola: 0 at launch, peak mid-flight, 0 on landing
+    const t = 1 - (player.air / player.airMax);      // 0..1 through the jump
+    player.airHeight = Math.sin(t * Math.PI) * (60 + 50 * speedRatio);
+    if (player.air === 0) {
+      player.airHeight = 0;
+      shake = Math.max(shake, 9);                    // landing thud
+      sfx.crash();
+      player.speed *= 0.94;                          // small landing scrub
+    }
+  }
+
   // Advance
   const dz = player.speed * dt;
+  player.prevTotalZ = player.totalZ;   // for swept hazard collision (see below)
   player.pos += dz;
   player.totalZ += dz;
   if (player.pos >= TRACK_LEN) {
@@ -331,6 +375,31 @@ function update() {
     // relative distance to player (on-track)
     const rel = o.totalZ - player.totalZ;
 
+    // RACE 3+: side-swipe duels — a rival running alongside you leans into
+    // your lane. You can counter by steering into them (the bump exchange
+    // below already shoves both cars), so it's a duel, not a free hit.
+    if (race >= 3 && countdown <= 0 && !o.ghost && Math.abs(rel) < SEG_LEN * 2.2) {
+      const dir = player.x > o.x ? 1 : -1;
+      o.x += dir * 0.006;                      // lean toward the player
+      o.x = Math.max(-0.9, Math.min(0.9, o.x));
+    }
+
+    // RACE 4+: character powers — each monster leans on its own trick
+    if (race >= 4 && countdown <= 0 && Math.abs(rel) < SEG_LEN * 8) {
+      o.powerTimer = (o.powerTimer || 240) - 1;
+      if (o.powerTimer <= 0) {
+        o.powerTimer = 420 + Math.random() * 300;
+        if (o.name === 'Witch') {
+          // hexes your lane — a slow patch you can steer out of
+          fireballs.push({ totalZ: player.totalZ + SEG_LEN * 14, x: player.x, life: 600, color: '#a855f7', hex: true });
+        } else if (o.name === 'Werewolf' && rel < 0) {
+          o.boosting = true;                   // lunge-ram from behind
+        } else if (o.name === 'Vampire') {
+          batSwarm = 90;                       // bats darken the screen edges
+        }
+      }
+    }
+
     // overtake chime
     if (!o.passed && rel < -SEG_LEN) { o.passed = true; sfx.pass(); }
     if (o.passed && rel > SEG_LEN) o.passed = false;
@@ -361,41 +430,55 @@ function update() {
       o.phasing = false;
     }
 
-    // RACE 2+: rivals hurl fireballs at whoever is ahead of them
+    // RACE 2+: rivals AHEAD of you drop hazards onto the road behind them.
+    // Previously rivals fired from BEHIND you — off-screen, with no rear view,
+    // so there was no possible response. Now the attack always originates from
+    // a car you can see and lands as an obstacle you steer around.
     if (race >= 2 && countdown <= 0) {
       o.fireTimer--;
       if (o.fireTimer <= 0) {
-        // fire only when the player is ahead and within range
-        const ahead = player.totalZ - o.totalZ;
-        if (ahead > 0 && ahead < SEG_LEN * 30) {
+        const ahead = o.totalZ - player.totalZ;          // + = rival is ahead of you
+        if (ahead > SEG_LEN * 2 && ahead < SEG_LEN * 60) { // visible ahead only
           fireballs.push({
-            totalZ: o.totalZ + SEG_LEN,
-            x: o.x + (player.x - o.x) * 0.5, // lobbed toward your lane
-            speed: o.speed * 1.5,
-            life: 240,
+            totalZ: o.totalZ - SEG_LEN * 1.5,             // drops behind the rival, in your path
+            x: o.x,
+            life: 900,
             color: o.color
           });
         }
-        o.fireTimer = 350 + Math.random() * 350;
+        o.fireTimer = 320 + Math.random() * 320;
       }
     }
   });
 
-  // Fireballs fly down the track
+  // Road hazards sit on the track — you drive into them, so they're dodgeable.
+  // Collision is SWEPT (did we cross it this frame?) rather than a proximity
+  // window: at top speed the car advances ~197 units/frame, so a fixed ±120
+  // window let fast players tunnel straight through hazards untouched.
   for (let fi = fireballs.length - 1; fi >= 0; fi--) {
     const f = fireballs[fi];
-    f.totalZ += f.speed * dt;
     f.life--;
     if (f.life <= 0) { fireballs.splice(fi, 1); continue; }
     const rel = f.totalZ - player.totalZ;
-    if (Math.abs(rel) < SEG_LEN * 0.6 && Math.abs(f.x - player.x) < 0.2) {
+    if (rel < -SEG_LEN * 4) { fireballs.splice(fi, 1); continue; } // passed it
+    // airborne = you sail straight over hazards. That's the jump's payoff.
+    if (player.air > 0) continue;
+    const crossed = f.totalZ > player.prevTotalZ && f.totalZ <= player.totalZ;
+    if (crossed && Math.abs(f.x - player.x) < 0.2) {
       fireballs.splice(fi, 1);
-      player.speed *= 0.45;
-      shake = 10;
-      sfx.crash();
+      if (f.hex) {                 // Witch hex — a drag, not a wall
+        player.speed *= 0.72;
+        shake = 5;
+        sfx.lose();
+      } else {
+        player.speed *= 0.45;
+        shake = 10;
+        sfx.crash();
+      }
     }
   }
 
+  if (batSwarm > 0) batSwarm--;
   if (shake > 0) shake *= 0.85;
 
   // Engine sound
@@ -519,9 +602,34 @@ function drawSprite(type, x, y, scale) {
   // sized against the road projection (9000 was near-invisible)
   let s = scale * 60000;
   if (type === 'banner') s *= 5; // the start gantry spans the road
+  if (type === 'ramp') s *= 6;   // the ramp spans the road too
   if (s < 3) return;
   ctx.save();
   ctx.translate(x, y);
+  if (type === 'ramp') {
+    // glowing wooden launch ramp across the road — telegraphs the jump early
+    const rw = s * 0.5, rh = s * 0.16;
+    ctx.fillStyle = '#3b2412';
+    ctx.beginPath();
+    ctx.moveTo(-rw, 0); ctx.lineTo(rw, 0); ctx.lineTo(rw * 0.72, -rh); ctx.lineTo(-rw * 0.72, -rh);
+    ctx.closePath(); ctx.fill();
+    // plank lines
+    ctx.strokeStyle = '#5b3a1c';
+    ctx.lineWidth = Math.max(1, s * 0.006);
+    for (let i = -3; i <= 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(rw * (i / 3.4), 0); ctx.lineTo(rw * 0.72 * (i / 3.4), -rh);
+      ctx.stroke();
+    }
+    // glowing lip so you can spot it at distance
+    ctx.fillStyle = '#f0abfc';
+    ctx.shadowColor = '#e879f9';
+    ctx.shadowBlur = 12;
+    ctx.fillRect(-rw * 0.72, -rh - Math.max(1.5, s * 0.012), rw * 1.44, Math.max(1.5, s * 0.012));
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    return;
+  }
   if (type === 'tree') {
     ctx.strokeStyle = '#2d1a4a';
     ctx.lineWidth = Math.max(1.5, s * 0.07);
@@ -565,13 +673,23 @@ function drawCar(x, y, scale, o) {
   if (s < 3) return;
   const cw = s * 0.9, ch = s * 0.5;
   ctx.save();
-  ctx.translate(x, y);
+  // Snap to whole pixels — sub-pixel car rects at distance smear into a blur
+  ctx.translate(Math.round(x), Math.round(y));
   if (o.ghost) ctx.globalAlpha = 0.55 + Math.sin(Date.now() * 0.006) * 0.15;
+  // Glow scales down with distance. A flat shadowBlur:10 on a ~20px far car
+  // IS most of the car — that was the "fuzzy racers" problem.
   ctx.shadowColor = o.color;
-  ctx.shadowBlur = 10;
+  ctx.shadowBlur = s > 60 ? 4 : 0;
   // body + roof vary by car type
   ctx.fillStyle = o.color;
   ctx.fillRect(-cw / 2, -ch, cw, ch * 0.8);
+  // dark outline so the silhouette reads crisply against the road
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(8,4,16,0.9)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-cw / 2, -ch, cw, ch * 0.8);
+  ctx.shadowColor = o.color;
+  ctx.shadowBlur = s > 60 ? 4 : 0;
   ctx.fillStyle = o.trim;
   if (o.body === 'hearse') {
     // long tall cabin covering the rear two-thirds
@@ -781,8 +899,9 @@ function draw() {
         spriteQueue.push({
           fireball: f,
           x: p.x + f.x * p.w,
-          y: p.y - p.scale * 3000,
-          scale: p.scale
+          y: p.y,            // sits ON the road now, not floating above it
+          scale: p.scale,
+          roadW: p.w
         });
       }
     });
@@ -795,25 +914,32 @@ function draw() {
     const sp = spriteQueue[i];
     if (sp.car) drawCar(sp.x, sp.y, sp.scale, sp.car);
     else if (sp.fireball) {
-      const fs = Math.max(4, sp.scale * 10000);
-      ctx.fillStyle = '#fb923c';
-      ctx.shadowColor = '#f97316';
-      ctx.shadowBlur = 14;
+      // ghost-fire patch lying on the road — flattened so it reads as ground,
+      // and it flickers so it's easy to spot early at distance
+      const fw = Math.max(4, sp.roadW * 0.16);
+      const fh = Math.max(2, fw * 0.34);
+      const flick = 0.7 + Math.sin(Date.now() * 0.02 + sp.x) * 0.3;
+      const hex = sp.fireball.hex;
+      ctx.save();
+      ctx.globalAlpha = flick;
+      ctx.fillStyle = hex ? '#a855f7' : '#f97316';
+      ctx.shadowColor = hex ? '#c084fc' : '#fb923c';
+      ctx.shadowBlur = 12;
       ctx.beginPath();
-      ctx.arc(sp.x, sp.y, fs, 0, Math.PI * 2);
+      ctx.ellipse(Math.round(sp.x), Math.round(sp.y), fw, fh, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#fef3c7';
+      ctx.fillStyle = hex ? '#f0abfc' : '#fde68a';
       ctx.beginPath();
-      ctx.arc(sp.x, sp.y, fs * 0.45, 0, Math.PI * 2);
+      ctx.ellipse(Math.round(sp.x), Math.round(sp.y), fw * 0.45, fh * 0.45, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.shadowBlur = 0;
+      ctx.restore();
     }
     else drawSprite(sp.type, sp.x, sp.y, sp.scale);
   }
 
-  // ---------- Player car (fixed near bottom) ----------
+  // ---------- Player car (fixed near bottom; lifts when airborne) ----------
   const px = W / 2;
-  const py = H - 42;
+  const py = H - 42 - player.airHeight;
   const tilt = (keys['ArrowLeft'] || keys['KeyA']) ? -1 : (keys['ArrowRight'] || keys['KeyD']) ? 1 : 0;
   ctx.save();
   ctx.translate(px, py);
@@ -849,17 +975,42 @@ function draw() {
   }
   ctx.restore();
 
+  // Vampire bat swarm — darkens the screen edges without blinding you (race 4+)
+  if (batSwarm > 0) {
+    const a = Math.min(1, batSwarm / 30) * 0.75;
+    const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.22, W / 2, H / 2, H * 0.75);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, `rgba(8,2,14,${a})`);
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = `rgba(20,8,30,${a})`;
+    for (let i = 0; i < 14; i++) {
+      const t = Date.now() * 0.004 + i * 1.7;
+      const bx = W / 2 + Math.cos(t) * (W * 0.42);
+      const by = H / 2 + Math.sin(t * 1.3) * (H * 0.38);
+      ctx.beginPath();
+      ctx.ellipse(bx, by, 7, 3, Math.sin(t) * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   // Race number + haunted-controls warning
   if (gameRunning) {
     ctx.fillStyle = '#a78bfa';
     ctx.font = 'bold 15px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('RACE ' + race + (race >= 2 ? ' · ARMED' : ''), 16, 26);
+    ctx.fillText('RACE ' + race + (race >= 2 ? ' · HAZARDS' : '') + (race >= 4 ? ' · POWERS' : ''), 16, 26);
     if (scramble > 0) {
       ctx.fillStyle = `rgba(165,243,252,${0.6 + Math.sin(Date.now() * 0.03) * 0.4})`;
       ctx.font = 'bold 26px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('👻 HAUNTED CONTROLS 👻', W / 2, 90);
+    }
+    if (player.air > 0) {
+      ctx.fillStyle = `rgba(240,171,252,${0.5 + Math.sin(Date.now() * 0.03) * 0.4})`;
+      ctx.font = 'bold 24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🦇 AIRBORNE 🦇', W / 2, 120);
     }
   }
 

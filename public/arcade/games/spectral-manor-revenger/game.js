@@ -197,6 +197,7 @@ const player = {
   vy: 0,
   fireCooldown: 0,
   bank: 0,           // banking tilt
+  facing: 1,         // 1 = facing right, -1 = facing left (Defender turn-around)
   shieldTimer: 0,    // frames of shield flicker after hit
   shotType: 0,       // 0 = dual, 1 = heavy, 2 = spread
   powerupTime: 0     // frames remaining on current power-up
@@ -204,6 +205,7 @@ const player = {
 
 // ---------- Entities ----------
 let bullets = [];
+let enemyShots = [];  // aimed bolts + charged beams fired BY enemies
 let enemies = [];
 let particles = [];
 let trails = [];     // engine trail particles
@@ -250,6 +252,7 @@ function startGame() {
   rescued = 0;
   abducted = 0;
   bullets = [];
+  enemyShots = [];
   enemies = [];
   particles = [];
   trails = [];
@@ -272,6 +275,7 @@ function startGame() {
   player.x = 120;
   player.y = H / 2;
   player.bank = 0;
+  player.facing = 1;
   player.shieldTimer = 0;
   player.shotType = 0;
   player.powerupTime = 0;
@@ -336,8 +340,82 @@ function spawnWave() {
       hp: 1,
       rot: Math.random() * Math.PI * 2,
       carrying: null,     // fan currently being abducted
-      seeking: Math.random() < 0.55  // some enemies actively hunt fans
+      seeking: Math.random() < 0.55, // some enemies actively hunt fans
+      dir: -1,            // -1 = sweeping left (normal), +1 = looped back from behind
+      loops: 0,           // how many times it has circled around
+      // ~1s of grace so a fresh wave can't shoot you the instant it appears
+      shootTimer: 60 + Math.random() * 150,
+      charge: 0           // pyramid beam wind-up (telegraph)
     });
+  }
+}
+
+// ---------- Player damage (shared by collisions AND enemy fire) ----------
+function hitPlayer() {
+  if (player.shieldTimer > 0 || !gameRunning) return;
+  lives--;
+  combo = 0; comboTimer = 0;
+  hitPause = 5;
+  updateHUD();
+
+  if (lives <= 0) {
+    // DRAMATIC FULL-SCREEN DEATH BLAST
+    createDeathBlast(player.x + player.w / 2, player.y + player.h / 2);
+    triggerShake(14, 40);
+    sfx.hit();
+    sfx.explosion();
+    setTimeout(() => sfx.gameOver(), 300);
+    gameRunning = false;
+    // Capture the score NOW and lock out restarts — otherwise a held
+    // Space (fire) restarts during the blast and wipes the score before
+    // the initials prompt can read it
+    deathPending = true;
+    const finalScore = score;
+    // Delay the game-over screen so the blast can play out
+    setTimeout(() => {
+      deathPending = false;
+      gameOver = true;
+      const newBest = finalScore > best;
+      if (newBest) { best = finalScore; saveBest(); }
+      Arcade.submitFlow(finalScore, () => {
+        document.getElementById('startOverlay').classList.remove('hidden');
+        document.getElementById('startOverlay').innerHTML = `
+          <h2>CONCERT OVERRUN</h2>
+          <p>Rescued: ${rescued} &nbsp;|&nbsp; Abducted: ${abducted}</p>
+          <p style="margin-top:0.5rem">Final Score: ${finalScore}</p>
+          <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
+          <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP DEFENDERS</p>
+          ${Arcade.boardHTML(Arcade.slug)}
+          <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to defend again</p>
+        `;
+      });
+      updateHUD();
+    }, 1100);
+  } else {
+    createExplosion(player.x + player.w / 2, player.y + player.h / 2, '#f472b6');
+    triggerShake(8, 18);
+    sfx.hit();
+    player.shieldTimer = 55;
+  }
+}
+
+// ---------- Enemy weapons ----------
+// Only spheres (aimed bolts) and pyramids (charged beam) shoot. Ghosts,
+// capsules and cylinders stay melee so there are always enemies it's safe to
+// close on — otherwise every wave becomes a bullet hell.
+function enemyFire(e) {
+  const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
+  const px = player.x + player.w / 2, py = player.y + player.h / 2;
+  if (e.type === 'sphere') {
+    const dx = px - ex, dy = py - ey;
+    const d = Math.hypot(dx, dy) || 1;
+    const sp = 4.2;
+    enemyShots.push({ x: ex, y: ey, vx: (dx / d) * sp, vy: (dy / d) * sp, r: 4, life: 200, kind: 'bolt' });
+    sfx.spread();
+  } else if (e.type === 'pyramid') {
+    // fires along its current row — dodge by changing altitude
+    enemyShots.push({ x: ex, y: ey, vx: (px < ex ? -1 : 1) * 9, vy: 0, r: 5, life: 140, kind: 'beam' });
+    sfx.heavy();
   }
 }
 
@@ -345,24 +423,26 @@ function fire() {
   if (player.fireCooldown > 0) return;
 
   const baseY = player.y + player.h / 2;
-  const noseX = player.x + 40;
+  const f = player.facing;                       // 1 = right, -1 = left
+  // shots leave from whichever end of the ship is the nose right now
+  const noseX = f > 0 ? player.x + 40 : player.x + 4;
 
   if (player.shotType === 0) {
     // Dual neon lasers — longer Defender-style beams
-    bullets.push({ x: noseX, y: baseY - 7, w: 38, h: 3, speed: 16, type: 'normal' });
-    bullets.push({ x: noseX, y: baseY + 4, w: 38, h: 3, speed: 16, type: 'normal' });
+    bullets.push({ x: noseX, y: baseY - 7, w: 38, h: 3, speed: 16, dir: f, type: 'normal' });
+    bullets.push({ x: noseX, y: baseY + 4, w: 38, h: 3, speed: 16, dir: f, type: 'normal' });
     player.fireCooldown = 7;
     sfx.shoot();
   } else if (player.shotType === 1) {
     // Heavy neon bolt
-    bullets.push({ x: noseX, y: baseY - 3, w: 36, h: 8, speed: 11, type: 'heavy' });
+    bullets.push({ x: noseX, y: baseY - 3, w: 36, h: 8, speed: 11, dir: f, type: 'heavy' });
     player.fireCooldown = 13;
     sfx.heavy();
   } else {
     // Spread lasers
-    bullets.push({ x: noseX, y: baseY - 2, w: 30, h: 3, speed: 15, type: 'normal', vy: 0 });
-    bullets.push({ x: noseX, y: baseY - 2, w: 28, h: 3, speed: 14, type: 'normal', vy: -2.4 });
-    bullets.push({ x: noseX, y: baseY - 2, w: 28, h: 3, speed: 14, type: 'normal', vy: 2.4 });
+    bullets.push({ x: noseX, y: baseY - 2, w: 30, h: 3, speed: 15, dir: f, type: 'normal', vy: 0 });
+    bullets.push({ x: noseX, y: baseY - 2, w: 28, h: 3, speed: 14, dir: f, type: 'normal', vy: -2.4 });
+    bullets.push({ x: noseX, y: baseY - 2, w: 28, h: 3, speed: 14, dir: f, type: 'normal', vy: 2.4 });
     player.fireCooldown = 11;
     sfx.spread();
   }
@@ -417,11 +497,13 @@ function update() {
     if (waveDelay === 0) spawnWave();
   }
 
-  // Player movement + banking
+  // Player movement + banking. Holding a direction turns the ship to face it —
+  // enemies loop around and attack from behind, so you must be able to fight
+  // left as well as right (classic Defender turn-around).
   player.vx = 0;
   player.vy = 0;
-  if (keys['ArrowLeft'] || keys['KeyA']) player.vx = -player.speed;
-  if (keys['ArrowRight'] || keys['KeyD']) player.vx = player.speed;
+  if (keys['ArrowLeft'] || keys['KeyA']) { player.vx = -player.speed; player.facing = -1; }
+  if (keys['ArrowRight'] || keys['KeyD']) { player.vx = player.speed; player.facing = 1; }
   if (keys['ArrowUp'] || keys['KeyW']) player.vy = -player.speed;
   if (keys['ArrowDown'] || keys['KeyS']) player.vy = player.speed;
 
@@ -457,7 +539,7 @@ function update() {
 
   // Bullets (support vy for spread) + short neon trail particles
   bullets.forEach(b => {
-    b.x += b.speed;
+    b.x += b.speed * (b.dir || 1);   // travel in the direction the ship was facing
     if (b.vy) b.y += b.vy;
 
     // Optional short trail sparks behind lasers
@@ -472,7 +554,7 @@ function update() {
       });
     }
   });
-  bullets = bullets.filter(b => b.x < W + 30 && b.y > -20 && b.y < H + 20);
+  bullets = bullets.filter(b => b.x < W + 30 && b.x > -40 && b.y > -20 && b.y < H + 20);
 
   laserTrails.forEach(t => { t.life--; t.x -= 1.5; });
   laserTrails = laserTrails.filter(t => t.life > 0);
@@ -543,14 +625,65 @@ function update() {
           e.seeking = false;
         }
       } else {
-        // Default left movement
-        e.x -= e.speed;
+        // Default sweep along its current heading
+        e.x += e.speed * e.dir;
       }
     } else {
-      e.x -= e.speed;
+      e.x += e.speed * e.dir;
       if (e.type === 'ghost') e.y += Math.sin(Date.now() * 0.004 + e.x) * 0.6;
+      // Looped-back attackers drift toward the player's altitude so they
+      // actually threaten from behind rather than sailing harmlessly past
+      if (e.dir > 0) {
+        const py = player.y + player.h / 2;
+        e.y += Math.sign(py - (e.y + e.h / 2)) * Math.min(0.7, e.speed * 0.35);
+      }
+    }
+
+    // ---- Shooting (spheres + pyramids only) ----
+    if (!e.carrying && (e.type === 'sphere' || e.type === 'pyramid')) {
+      const onScreen = e.x > -40 && e.x < W + 40;
+      if (onScreen) {
+        e.shootTimer--;
+        if (e.type === 'pyramid' && e.shootTimer <= 30 && e.shootTimer > 0) {
+          e.charge = 1 - e.shootTimer / 30;   // eye glows as it winds up
+        }
+        if (e.shootTimer <= 0) {
+          enemyFire(e);
+          e.charge = 0;
+          const base = e.type === 'pyramid' ? 260 : 170;
+          e.shootTimer = base + Math.random() * 180 - wave * 6;
+        }
+      }
+    }
+
+    // ---- Circle back and attack from behind ----
+    // An enemy that sweeps past you doesn't vanish any more: it loops around
+    // and re-enters from the opposite edge, which is what forces you to turn.
+    if (!e.carrying) {
+      if (e.dir < 0 && e.x < -60) {
+        e.dir = 1; e.x = -55; e.loops++;
+        e.y = 60 + Math.random() * (H - 160);
+      } else if (e.dir > 0 && e.x > W + 60) {
+        e.dir = -1; e.x = W + 55; e.loops++;
+        e.y = 60 + Math.random() * (H - 160);
+      }
     }
   });
+
+  // ---- Enemy shots ----
+  enemyShots.forEach(s => { s.x += s.vx; s.y += s.vy; s.life--; });
+  enemyShots = enemyShots.filter(s => s.life > 0 && s.x > -30 && s.x < W + 30 && s.y > -30 && s.y < H + 30);
+  if (player.shieldTimer <= 0) {
+    for (let si = enemyShots.length - 1; si >= 0; si--) {
+      const s = enemyShots[si];
+      if (s.x > player.x && s.x < player.x + player.w &&
+          s.y > player.y && s.y < player.y + player.h) {
+        enemyShots.splice(si, 1);
+        hitPlayer();
+        break;
+      }
+    }
+  }
 
   // Collisions: bullets vs enemies
   bullets.forEach((b, bi) => {
@@ -604,63 +737,20 @@ function update() {
       }
 
       enemies.splice(ei, 1);
-      lives--;
-      combo = 0; comboTimer = 0;
-      hitPause = 5;
-      updateHUD();
-
-      if (lives <= 0) {
-        // DRAMATIC FULL-SCREEN DEATH BLAST
-        createDeathBlast(player.x + player.w / 2, player.y + player.h / 2);
-        triggerShake(14, 40);
-        sfx.hit();
-        sfx.explosion();
-        setTimeout(() => sfx.gameOver(), 300);
-        gameRunning = false;
-        // Capture the score NOW and lock out restarts — otherwise a held
-        // Space (fire) restarts during the blast and wipes the score before
-        // the initials prompt can read it
-        deathPending = true;
-        const finalScore = score;
-        // Delay the game-over screen so the blast can play out
-        setTimeout(() => {
-          deathPending = false;
-          gameOver = true;
-          const newBest = finalScore > best;
-          if (newBest) { best = finalScore; saveBest(); }
-          Arcade.submitFlow(finalScore, () => {
-            document.getElementById('startOverlay').classList.remove('hidden');
-            document.getElementById('startOverlay').innerHTML = `
-              <h2>CONCERT OVERRUN</h2>
-              <p>Rescued: ${rescued} &nbsp;|&nbsp; Abducted: ${abducted}</p>
-              <p style="margin-top:0.5rem">Final Score: ${finalScore}</p>
-              <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-              <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP DEFENDERS</p>
-              ${Arcade.boardHTML(Arcade.slug)}
-              <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to defend again</p>
-            `;
-          });
-          updateHUD();
-        }, 1100);
-      } else {
-        createExplosion(player.x + player.w / 2, player.y + player.h / 2, '#f472b6');
-        triggerShake(8, 18);
-        sfx.hit();
-        player.shieldTimer = 55;
-      }
+      hitPlayer();
     }
   });
 
-  // Remove off-screen enemies
+  // Only ABDUCTORS leave the field — they fly the fan off-screen and are gone.
+  // Everyone else loops back around (handled above), so the wave keeps coming
+  // at you from both sides instead of quietly despawning.
   enemies = enemies.filter(e => {
-    if (e.x < -50) {
-      if (e.carrying) {
-        abducted++;
-        const idx = fans.indexOf(e.carrying);
-        if (idx > -1) fans.splice(idx, 1);
-        sfx.abduct();
-        triggerShake(3, 12);
-      }
+    if (e.carrying && e.x < -50) {
+      abducted++;
+      const idx = fans.indexOf(e.carrying);
+      if (idx > -1) fans.splice(idx, 1);
+      sfx.abduct();
+      triggerShake(3, 12);
       return false;
     }
     return true;
@@ -1088,7 +1178,8 @@ function drawConcertStage() {
 function drawPlayer() {
   ctx.save();
   ctx.translate(player.x + 22, player.y + 10); // pivot near center
-  ctx.rotate(player.bank);
+  ctx.rotate(player.bank * player.facing);     // bank reads correctly when mirrored
+  ctx.scale(player.facing, 1);                 // mirror the whole ship when facing left
   ctx.translate(-22, -10);
 
   // Shield flicker when hit
@@ -1238,6 +1329,33 @@ function drawPlayer() {
 }
 
 /** Classic Defender-style neon lasers + optional trails */
+// Enemy fire — deliberately a different colour language from your neon lasers
+// (hot red/orange vs cyan/magenta) so incoming vs outgoing reads instantly.
+function drawEnemyShots() {
+  enemyShots.forEach(s => {
+    if (s.kind === 'beam') {
+      ctx.shadowColor = '#f97316';
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = '#fb923c';
+      ctx.fillRect(s.x - 14, s.y - 2.5, 28, 5);
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillRect(s.x - 10, s.y - 1, 20, 2);
+    } else {
+      ctx.shadowColor = '#ef4444';
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = '#f87171';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fee2e2';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  ctx.shadowBlur = 0;
+}
+
 function drawBullets() {
   // Short trail particles first (behind beams)
   laserTrails.forEach(t => {
@@ -1372,6 +1490,7 @@ function draw() {
 
   // Neon lasers
   drawBullets();
+  drawEnemyShots();
 
   // Enemies — alien attackers: pilots in glowing cockpits, running lights, a wraith
   const blinkOn = Math.floor(Date.now() / 250) % 2 === 0;
@@ -1510,19 +1629,36 @@ function draw() {
       ctx.moveTo(cx, e.y);
       ctx.lineTo(cx + 4, e.y + e.h);
       ctx.stroke();
-      // the Eye — pulsing
-      const pulse = 0.6 + Math.sin(Date.now() * 0.006) * 0.4;
-      ctx.fillStyle = `rgba(232,121,249,${pulse})`;
-      ctx.shadowColor = '#e879f9';
-      ctx.shadowBlur = 10;
+      // the Eye — pulses idly, then flares red as the beam winds up. The
+      // charge is the tell: you have ~0.5s to change altitude and dodge.
+      const charging = e.charge > 0;
+      const pulse = charging
+        ? 0.55 + e.charge * 0.45
+        : 0.6 + Math.sin(Date.now() * 0.006) * 0.4;
+      ctx.fillStyle = charging
+        ? `rgba(248,113,113,${pulse})`
+        : `rgba(232,121,249,${pulse})`;
+      ctx.shadowColor = charging ? '#ef4444' : '#e879f9';
+      ctx.shadowBlur = charging ? 10 + e.charge * 22 : 10;
       ctx.beginPath();
-      ctx.ellipse(cx, cy + 3, 6, 3.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy + 3, 6 + e.charge * 3, 3.5 + e.charge * 2, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.fillStyle = '#0a0612';
       ctx.beginPath();
       ctx.arc(cx, cy + 3, 1.8, 0, Math.PI * 2);
       ctx.fill();
+      // firing-line tracer so the threatened row is unmistakable
+      if (charging) {
+        ctx.strokeStyle = `rgba(248,113,113,${e.charge * 0.5})`;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 8]);
+        ctx.beginPath();
+        const tx = player.x < cx ? 0 : W;
+        ctx.moveTo(cx, cy + 3); ctx.lineTo(tx, cy + 3);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
   });
 
@@ -1669,6 +1805,43 @@ function draw() {
     ctx.font = 'bold 52px "Segoe UI", system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(bannerText, W/2, H/2 - 14);
+    ctx.restore();
+  }
+
+  // Radar strip — with enemies looping in from behind you need to know what's
+  // off-screen. Shows a wider slice of the field than the viewport does.
+  if (gameRunning) {
+    const rw = 220, rh = 26, rx = W / 2 - rw / 2, ry = 8;
+    const RANGE = W * 2;                       // world span the radar covers
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,6,18,0.72)';
+    ctx.strokeStyle = 'rgba(124,58,237,0.7)';
+    ctx.lineWidth = 1;
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeRect(rx, ry, rw, rh);
+    // viewport bracket = the part of the field you can actually see
+    const vpW = (W / RANGE) * rw;
+    ctx.strokeStyle = 'rgba(192,132,252,0.5)';
+    ctx.strokeRect(rx + rw / 2 - vpW / 2, ry + 1, vpW, rh - 2);
+    const toRadar = (wx) => rx + rw / 2 + ((wx - (player.x + player.w / 2)) / RANGE) * rw;
+    // fans
+    fans.forEach(f => {
+      const bx = toRadar(f.x);
+      if (bx < rx || bx > rx + rw) return;
+      ctx.fillStyle = f.state === 'grabbed' ? '#f87171' : '#67e8f9';
+      ctx.fillRect(bx - 1, ry + rh - 6, 2, 3);
+    });
+    // enemies — looped-back attackers flash amber so you know to turn
+    enemies.forEach(e => {
+      const bx = toRadar(e.x + e.w / 2);
+      if (bx < rx || bx > rx + rw) return;
+      const by = ry + 4 + ((e.y / H) * (rh - 12));
+      ctx.fillStyle = e.dir > 0 ? '#fbbf24' : '#e879f9';
+      ctx.fillRect(bx - 1.5, by, 3, 3);
+    });
+    // your ship
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(rx + rw / 2 - 1.5, ry + 4 + ((player.y / H) * (rh - 12)), 3, 4);
     ctx.restore();
   }
 
