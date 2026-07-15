@@ -343,23 +343,42 @@
       .sm-dpad .sm-up{grid-area:1/2} .sm-dpad .sm-left{grid-area:2/1}
       .sm-dpad .sm-right{grid-area:2/3} .sm-dpad .sm-down{grid-area:3/2}
       .sm-actions{flex-direction:row}
+      /* These games are 16:9, so in portrait the canvas is capped by screen
+         width and a lot of height goes unused — nudge the player to rotate,
+         where the side-gutter layout gives a much bigger play area. */
+      .sm-rotate-hint{position:fixed;left:0;right:0;top:52%;z-index:9995;text-align:center;
+        pointer-events:none;font:600 .78rem system-ui,sans-serif;color:#a78bfa;opacity:.75}
+      @media (min-height:461px){ .sm-rotate-hint{display:block} }
+      @media (max-height:460px){ .sm-rotate-hint{display:none} }
       /* narrow phones — shrink so 2-action layouts never clip the right edge */
       @media (max-width:380px){
         .sm-dir{width:46px;height:46px} .sm-dpad{grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,46px)}
         .sm-lr{width:56px;height:54px} .sm-act{width:56px;height:56px} }
-      /* landscape / short viewports — compact so controls clear the game.
-         dpad clusters are ~3 rows tall, so those games reserve more room than
-         the single-row steer (lr) games. */
+      /* Landscape / short viewports — the game is 16:9 inside a ~2:1 screen, so
+         when it fits by height there's spare width at the sides. Put the controls
+         in those side gutters instead of a bottom band: the canvas keeps its full
+         height (much bigger play area) and nothing overlaps. */
       @media (max-height:460px){
-        body.sm-touch-active.sm-pad-lr #gameCanvas{ max-height: calc(100dvh - 82px) !important; }
-        body.sm-touch-active.sm-pad-dpad #gameCanvas{ max-height: calc(100dvh - 150px) !important; }
+        /* Gutters are sized per side to the controls that actually live there —
+           the dpad needs ~150px on the left but the single action button only
+           needs ~70px on the right, so an asymmetric page padding reclaims the
+           difference for the canvas rather than mirroring the widest side. */
+        body.sm-touch-active.sm-pad-dpad{ padding: 2px 76px 2px 156px !important; }
+        body.sm-touch-active.sm-pad-lr{ padding: 2px 138px 2px 138px !important; }
+        body.sm-touch-active #gameCanvas{ max-height: calc(100dvh - 26px) !important; max-width: 100% !important; }
         .sm-dir{width:44px;height:44px;font-size:1.2rem} .sm-dpad{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:4px}
         .sm-lr{width:56px;height:48px;font-size:1.4rem} .sm-act{width:54px;height:54px;font-size:.66rem}
         .sm-touch{padding:6px 12px calc(6px + env(safe-area-inset-bottom))} }
     `;
     document.head.appendChild(css);
     document.body.classList.add('sm-touch-active');
-    document.body.classList.add('sm-pad-' + layout.pad); // dpad clusters are taller → need more bottom clearance in landscape
+    document.body.classList.add('sm-pad-' + layout.pad); // dpad clusters are wider → need bigger side gutters in landscape
+    addFullscreenBtn();
+
+    const rotate = document.createElement('div');
+    rotate.className = 'sm-rotate-hint';
+    rotate.textContent = '⟳ Rotate your device for a bigger screen';
+    document.body.appendChild(rotate);
 
     const bar = document.createElement('div');
     bar.className = 'sm-touch';
@@ -435,12 +454,55 @@
         b = document.createElement('div');
         b.id = 'sm-gp-badge';
         b.textContent = '🎮 Controller';
-        b.style.cssText = 'position:fixed;top:10px;right:10px;z-index:9998;font:600 .72rem system-ui,sans-serif;' +
-          'color:#e0d4ff;background:rgba(26,16,37,.85);border:1px solid #7c3aed;border-radius:6px;' +
-          'padding:.3rem .6rem;box-shadow:0 0 12px rgba(124,58,237,.4)';
+        // top-centre so it never collides with the back-links (left) or the
+        // fullscreen button (right)
+        b.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:9998;' +
+          'font:600 .72rem system-ui,sans-serif;color:#e0d4ff;background:rgba(26,16,37,.85);' +
+          'border:1px solid #7c3aed;border-radius:6px;padding:.3rem .6rem;box-shadow:0 0 12px rgba(124,58,237,.4)';
         document.body.appendChild(b);
       }
     } else if (b) { b.remove(); }
+  }
+
+  // ---- Fullscreen toggle (touch devices) ----
+  // Reclaims the browser's URL bar / toolbars — that chrome is what pushes the
+  // bottom controls out of reach — and gives the game the whole screen.
+  // Feature-detected: iPhone Safari can't fullscreen arbitrary elements, so the
+  // button is simply not shown there rather than silently failing.
+  function fullscreenSupported() {
+    const el = document.documentElement;
+    return !!(el.requestFullscreen || el.webkitRequestFullscreen);
+  }
+  async function toggleFullscreen() {
+    const el = document.documentElement;
+    try {
+      const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+      if (!isFs) {
+        if (el.requestFullscreen) await el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        // Android/Chrome can lock orientation once fullscreen; unsupported
+        // elsewhere, so failure here is fine.
+        try {
+          if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+        } catch (e) {}
+      } else {
+        try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) {}
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      }
+    } catch (e) {}
+  }
+  function addFullscreenBtn() {
+    if (attract || document.getElementById('sm-fs') || !fullscreenSupported()) return;
+    const b = document.createElement('button');
+    b.id = 'sm-fs';
+    b.textContent = '⛶';
+    b.title = 'Fullscreen';
+    b.style.cssText = 'position:fixed;top:10px;right:10px;z-index:9998;cursor:pointer;' +
+      'font:700 1rem system-ui,sans-serif;color:#c084fc;background:rgba(26,16,37,.8);' +
+      'border:1px solid #3b2660;border-radius:6px;padding:.25rem .5rem;line-height:1;touch-action:manipulation';
+    b.addEventListener('click', toggleFullscreen);
+    document.body.appendChild(b);
   }
 
   function moveReticle(cx, cy) {
