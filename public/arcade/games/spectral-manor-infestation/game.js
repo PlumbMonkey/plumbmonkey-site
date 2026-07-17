@@ -885,15 +885,21 @@ function draw() {
     ctx.globalAlpha = 1;
   });
 
-  // Drifting ground fog — sits low over the graveyard for depth
+  // Drifting ground fog — soft elliptical wisps. The gradient must be fully
+  // CONTAINED in its fill area: an oversized radius clipped by the fill rect
+  // leaves hard-edged full-width bands (the "artifacts" bug).
   for (let i = 0; i < 3; i++) {
     const fy = PLAYER_ZONE_ROW * CELL - 26 + i * 16;
     const fx = ((Date.now() * 0.012 * (i % 2 ? 1 : -1)) % (W + 260) + W + 260) % (W + 260) - 130;
-    const fg = ctx.createRadialGradient(fx, fy, 8, fx, fy, 150);
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.scale(3, 1); // stretch the circular glow into a wide, low wisp
+    const fg = ctx.createRadialGradient(0, 0, 4, 0, 0, 54);
     fg.addColorStop(0, 'rgba(148,163,184,0.10)');
     fg.addColorStop(1, 'rgba(148,163,184,0)');
     ctx.fillStyle = fg;
-    ctx.fillRect(0, fy - 60, W, 120);
+    ctx.fillRect(-56, -56, 112, 112); // radius 54 < 56 → glow fades out inside the rect
+    ctx.restore();
   }
 
   // Bullets

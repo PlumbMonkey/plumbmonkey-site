@@ -112,16 +112,75 @@ function playLaserCannon() {
   n.start(t);
 }
 
+// Generic layered cannon blast — the '80s Defender recipe: noise crack +
+// exponential pitch dive + detuned body + low sine thump. All three fire
+// modes use this so every trigger pull sounds like ARTILLERY, with the
+// parameters giving each weapon its own character.
+function playBlast(opts) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const f0 = opts.f0 + Math.random() * opts.f0 * 0.15;
+
+  // main zap — exponential dive
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(opts.fEnd, t + opts.dur);
+  g.gain.setValueAtTime(opts.vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + opts.dur * 1.25);
+  const hp = audioCtx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 180;
+  o.connect(hp); hp.connect(g); g.connect(audioCtx.destination);
+  o.start(t); o.stop(t + opts.dur * 1.35);
+
+  // detuned body layer
+  const o2 = audioCtx.createOscillator();
+  const g2 = audioCtx.createGain();
+  o2.type = 'square';
+  o2.frequency.setValueAtTime(f0 * 0.5, t);
+  o2.frequency.exponentialRampToValueAtTime(Math.max(50, opts.fEnd * 0.55), t + opts.dur * 0.8);
+  g2.gain.setValueAtTime(opts.vol * 0.55, t);
+  g2.gain.exponentialRampToValueAtTime(0.001, t + opts.dur);
+  o2.connect(g2); g2.connect(audioCtx.destination);
+  o2.start(t); o2.stop(t + opts.dur * 1.1);
+
+  // cannon thump — low sine punch
+  const o3 = audioCtx.createOscillator();
+  const g3 = audioCtx.createGain();
+  o3.type = 'sine';
+  o3.frequency.setValueAtTime(opts.subF, t);
+  o3.frequency.exponentialRampToValueAtTime(Math.max(30, opts.subF * 0.3), t + opts.dur);
+  g3.gain.setValueAtTime(opts.vol * 0.9, t);
+  g3.gain.exponentialRampToValueAtTime(0.001, t + opts.dur * 1.1);
+  o3.connect(g3); g3.connect(audioCtx.destination);
+  o3.start(t); o3.stop(t + opts.dur * 1.2);
+
+  // muzzle crack — high-passed noise transient
+  const len = Math.floor(audioCtx.sampleRate * 0.05);
+  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const n = audioCtx.createBufferSource();
+  n.buffer = buf;
+  const nhp = audioCtx.createBiquadFilter();
+  nhp.type = 'highpass'; nhp.frequency.value = opts.crackHz || 1800;
+  const ng = audioCtx.createGain();
+  ng.gain.setValueAtTime(opts.vol * 0.8, t);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+  n.connect(nhp); nhp.connect(ng); ng.connect(audioCtx.destination);
+  n.start(t);
+}
+
 // Sound presets
 const sfx = {
   shoot: playLaserCannon,
-  heavy: () => {
-    playTone(180, 0.15, 'sawtooth', 0.07, -80);
-    playNoise(0.1, 0.04);
-  },
+  // Heavy bolt — the deepest blast of the three: low dive, big sub, slow decay
+  heavy: () => playBlast({ f0: 900, fEnd: 70, dur: 0.24, subF: 110, vol: 0.14, crackHz: 900 }),
+  // Spread — wide triple crack: slightly shorter, brighter, doubled zap
   spread: () => {
-    playTone(660, 0.06, 'square', 0.04, -200);
-    playTone(990, 0.05, 'square', 0.03, -300);
+    playBlast({ f0: 1500, fEnd: 160, dur: 0.13, subF: 140, vol: 0.11, crackHz: 1500 });
+    setTimeout(() => playBlast({ f0: 1750, fEnd: 200, dur: 0.1, subF: 150, vol: 0.07, crackHz: 2200 }), 25);
   },
   explosion: () => {
     playNoise(0.25, 0.09);
