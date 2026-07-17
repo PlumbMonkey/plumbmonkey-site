@@ -577,15 +577,17 @@ function update() {
   if (player.fireCooldown > 0) player.fireCooldown--;
   if (player.shieldTimer > 0) player.shieldTimer--;
 
-  // Engine trail particles
+  // Engine trail particles — emitted from the TAIL, which swaps ends when the
+  // ship turns (facing right: tail = left edge; facing left: tail = right edge),
+  // and the exhaust drifts opposite to the facing direction.
   if (Math.random() > 0.3) {
     trails.push({
-      x: player.x + 2,
+      x: player.facing > 0 ? player.x + 2 : player.x + player.w - 2,
       y: player.y + player.h / 2 + (Math.random() - 0.5) * 8,
       life: 18 + Math.random() * 10,
       maxLife: 28,
       size: 2 + Math.random() * 3,
-      vx: -1.5 - Math.random() * 2,
+      vx: (-1.5 - Math.random() * 2) * player.facing,
       vy: (Math.random() - 0.5) * 1.5
     });
   }

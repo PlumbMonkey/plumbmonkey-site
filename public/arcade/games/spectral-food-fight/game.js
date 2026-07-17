@@ -27,12 +27,57 @@ function playTone(freq, dur, type='square', vol=0.07, slide=0) {
   o.connect(g); g.connect(audioCtx.destination);
   o.start(); o.stop(audioCtx.currentTime+dur);
 }
+// Filtered noise burst — whooshes, splats and thuds are all shaped noise
+function playNoise(dur, vol, filterType, f0, f1) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const len = Math.floor(audioCtx.sampleRate * dur);
+  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const n = audioCtx.createBufferSource();
+  n.buffer = buf;
+  const flt = audioCtx.createBiquadFilter();
+  flt.type = filterType;
+  flt.frequency.setValueAtTime(f0, t);
+  if (f1) flt.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  n.connect(flt); flt.connect(g); g.connect(audioCtx.destination);
+  n.start(t);
+}
+
 const sfx = {
-  throw: () => playTone(600, 0.08, 'square', 0.05, -300),
-  hit: () => { playTone(180, 0.12, 'sawtooth', 0.07, -80); },
-  pickup: () => playTone(880, 0.06, 'triangle', 0.05),
-  hurt: () => playTone(140, 0.15, 'sawtooth', 0.08, -60),
-  level: () => { playTone(440,0.08); setTimeout(()=>playTone(554,0.08),70); setTimeout(()=>playTone(659,0.12),140); }
+  // Food leaves the hand: rising air whoosh + a little grunt of effort
+  throw: () => {
+    playNoise(0.14, 0.07, 'bandpass', 500, 2600);
+    playTone(220, 0.06, 'triangle', 0.04, 120);
+  },
+  // SPLAT — wet noise smack + two quick descending "blorp" blips
+  hit: () => {
+    playNoise(0.16, 0.12, 'lowpass', 1600, 250);
+    playTone(340, 0.08, 'sine', 0.08, -180);
+    setTimeout(() => playTone(210, 0.09, 'sine', 0.06, -120), 45);
+  },
+  // Restock: classic two-note coin blip
+  pickup: () => {
+    playTone(760, 0.05, 'square', 0.05);
+    setTimeout(() => playTone(1140, 0.09, 'square', 0.05), 45);
+  },
+  // Player splattered: heavyweight splat + low thud
+  hurt: () => {
+    playNoise(0.3, 0.13, 'lowpass', 2200, 180);
+    playTone(300, 0.12, 'sine', 0.1, -200);
+    playTone(85, 0.28, 'sine', 0.11, -40);
+  },
+  // Level clear: fanfare + celebratory sweep
+  level: () => {
+    playNoise(0.22, 0.04, 'bandpass', 400, 3000);
+    playTone(440, 0.08, 'square', 0.07);
+    setTimeout(() => playTone(554, 0.08, 'square', 0.07), 70);
+    setTimeout(() => playTone(659, 0.12, 'square', 0.08), 140);
+  }
 };
 
 // ---------- State ----------

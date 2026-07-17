@@ -27,13 +27,77 @@ function playTone(freq, dur, type='square', vol=0.06, slide=0) {
   o.connect(g); g.connect(audioCtx.destination);
   o.start(); o.stop(audioCtx.currentTime + dur);
 }
+// Filtered noise burst — the backbone of '80s arcade impact sounds
+function playNoise(dur, vol, filterType, f0, f1) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const len = Math.floor(audioCtx.sampleRate * dur);
+  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const n = audioCtx.createBufferSource();
+  n.buffer = buf;
+  const flt = audioCtx.createBiquadFilter();
+  flt.type = filterType;
+  flt.frequency.setValueAtTime(f0, t);
+  if (f1) flt.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  n.connect(flt); flt.connect(g); g.connect(audioCtx.destination);
+  n.start(t);
+}
+
+// Fast dive zap — sawtooth pitch dive, the Robotron gun voice
+function playZap(f0, fEnd, dur, vol) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(fEnd, t + dur);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur * 1.2);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(t); o.stop(t + dur * 1.3);
+}
+
 const sfx = {
-  shoot:  () => playTone(920, 0.05, 'square', 0.045, -450),
-  hit:    () => playTone(160, 0.1, 'sawtooth', 0.06, -70),
-  save:   () => { playTone(520,0.07); setTimeout(()=>playTone(680,0.08),60); setTimeout(()=>playTone(880,0.1),120); },
-  lost:   () => playTone(280, 0.25, 'sawtooth', 0.05, -180),
-  hurt:   () => playTone(130, 0.14, 'sawtooth', 0.07, -50),
-  wave:   () => { playTone(440,0.07); setTimeout(()=>playTone(554,0.07),70); setTimeout(()=>playTone(659,0.12),140); }
+  // Rapid-fire gun: bright, harsh, SHORT (fires ~8x/sec — anything longer muds)
+  shoot: () => {
+    playZap(1600 + Math.random() * 250, 380, 0.055, 0.06);
+    playNoise(0.03, 0.05, 'highpass', 2600);
+  },
+  // Monster destroyed: crunchy pop + low thud
+  hit: () => {
+    playNoise(0.14, 0.1, 'lowpass', 2200, 300);
+    playZap(300, 70, 0.12, 0.08);
+  },
+  // Rescue: rising sparkle arpeggio with a shimmer on top
+  save: () => {
+    playTone(520, 0.07, 'square', 0.06);
+    setTimeout(() => playTone(680, 0.08, 'square', 0.06), 60);
+    setTimeout(() => { playTone(880, 0.1, 'square', 0.07); playNoise(0.1, 0.03, 'highpass', 6000); }, 120);
+  },
+  // Fan dragged away: falling wail
+  lost: () => {
+    playZap(420, 90, 0.4, 0.06);
+    playTone(280, 0.35, 'triangle', 0.05, -180);
+  },
+  // Player down: full detonation — noise blast + saw dive + sub thump
+  hurt: () => {
+    playNoise(0.35, 0.13, 'lowpass', 2800, 200);
+    playZap(700, 60, 0.3, 0.1);
+    playTone(90, 0.3, 'sine', 0.12, -50);
+  },
+  // Wave clear: fanfare + riser sweep
+  wave: () => {
+    playNoise(0.25, 0.04, 'bandpass', 400, 3200);
+    playTone(440, 0.07, 'square', 0.06);
+    setTimeout(() => playTone(554, 0.07, 'square', 0.06), 70);
+    setTimeout(() => playTone(659, 0.12, 'square', 0.07), 140);
+  }
 };
 
 // ---------- State ----------
