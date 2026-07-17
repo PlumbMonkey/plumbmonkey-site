@@ -25,7 +25,7 @@ const INSTRUMENTS = [
     href: "/music/synth/index.html",
     title: "Soft Synth",
     tag: "polyphonic subtractive synth",
-    desc: "Play a two-octave keyboard with your mouse, touch, or computer keys. Shape it with waveforms, a resonant filter and full ADSR envelope — then record a take and export it to WAV or MIDI.",
+    desc: "Play with your mouse, touch, or computer keys across a shiftable C2–C6 range. Shape it with waveforms, a resonant filter and full ADSR, then run it through a real FX rack — vibrato, drive, chorus, delay and reverb — with five presets and a live oscilloscope. Record a take and export it to WAV or MIDI.",
     accent: "#c084fc",
     glyph: "♪",
   },

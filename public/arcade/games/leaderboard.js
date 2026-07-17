@@ -248,7 +248,7 @@
     document.head.appendChild(s);
     const nav = document.createElement('div');
     nav.className = 'sm-nav';
-    nav.innerHTML = `<a href="/arcade">← Arcade</a><a href="/">Plumbmonkey Home</a>`;
+    nav.innerHTML = `<a href="/arcade">← Arcade</a><a href="/music">Sound Stage</a><a href="/">Plumbmonkey Home</a>`;
     document.body.appendChild(nav);
   }
   if (!attract && typeof document !== 'undefined') {
