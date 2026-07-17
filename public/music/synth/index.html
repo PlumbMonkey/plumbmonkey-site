@@ -19,9 +19,12 @@
       background: rgba(26,16,37,.8); border: 1px solid #3b2660; }
     .nav a:hover { color: #fff; border-color: #c084fc; box-shadow: 0 0 12px rgba(192,132,252,.5); }
 
-    .panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem;
-      background: rgba(26,16,37,.55); border: 1px solid #3b2660; border-radius: 14px;
-      padding: 1.2rem 1.4rem; margin-bottom: 1.4rem; max-width: 720px; width: 100%; }
+    .rack { max-width: 720px; width: 100%; margin-bottom: 1.1rem; }
+    fieldset.section { border: 1px solid #3b2660; border-radius: 12px; padding: .9rem 1.1rem 1rem;
+      margin-bottom: .9rem; background: rgba(26,16,37,.55); }
+    fieldset.section legend { font-size: .68rem; letter-spacing: 2px; color: #a78bfa; padding: 0 .5rem;
+      text-transform: uppercase; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; }
     .ctl { display: flex; flex-direction: column; gap: .3rem; font-size: .72rem; color: #d8b4fe; }
     .ctl label { display: flex; justify-content: space-between; }
     .ctl span { color: #f0abfc; }
@@ -29,16 +32,39 @@
     select { font-family: inherit; background: #2e1065; color: #e9d5ff; border: 1px solid #7c3aed;
       border-radius: 6px; padding: .3rem; }
 
+    .presets { display: flex; flex-wrap: wrap; gap: .5rem; max-width: 720px; width: 100%;
+      margin-bottom: 1rem; align-items: center; }
+    .preset-chip { background: #2e1065; color: #e9d5ff; border: 1px solid #7c3aed; border-radius: 999px;
+      padding: .38rem .9rem; font-size: .75rem; font-weight: 600; cursor: pointer; transition: all .15s; }
+    .preset-chip:hover { background: #4c1d95; box-shadow: 0 0 12px rgba(168,85,247,.5); }
+    .preset-sep { flex: 1; }
+    .mini-btn { background: #1e1b4b; color: #c4b5fd; border: 1px solid #3b2660; border-radius: 8px;
+      padding: .38rem .8rem; font-size: .72rem; font-weight: 600; cursor: pointer; }
+    .mini-btn:hover { border-color: #c084fc; color: #fff; }
+
+    #scope { display: block; width: 100%; max-width: 720px; height: 70px; border: 1px solid #3b2660;
+      border-radius: 10px; background: #07040f; margin-bottom: 1rem; }
+
+    .kb-head { display: flex; align-items: center; justify-content: space-between; max-width: 720px;
+      width: 100%; margin-bottom: .5rem; }
+    .octave { display: flex; align-items: center; gap: .5rem; font-size: .74rem; color: #d8b4fe; }
+    .octave button { padding: .25rem .7rem; background: #4c1d95; }
+    #octaveVal { color: #f0abfc; min-width: 82px; text-align: center; }
+    .key-label { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center;
+      font-size: .62rem; color: #6d28d9; pointer-events: none; }
+
     .kb-wrap { width: 100%; max-width: 720px; }
     #keyboard { position: relative; height: 170px; background: #0f0a18; border: 1px solid #3b2660;
       border-radius: 10px; overflow: hidden; box-shadow: 0 0 40px rgba(168,85,247,.15); }
     .key { position: absolute; top: 0; cursor: pointer; }
     .key.white { height: 100%; background: linear-gradient(#f5f3ff, #e9d5ff); border: 1px solid #1e1b4b;
       border-radius: 0 0 6px 6px; }
-    .key.white.down { background: linear-gradient(#d8b4fe, #c084fc); }
+    .key.white.down { background: linear-gradient(#d8b4fe, #c084fc);
+      box-shadow: 0 0 18px rgba(192,132,252,.9), inset 0 0 10px rgba(168,85,247,.5); }
     .key.black { height: 62%; background: linear-gradient(#3b2660, #1a1025); border: 1px solid #000;
       border-radius: 0 0 5px 5px; z-index: 2; }
-    .key.black.down { background: linear-gradient(#a855f7, #7c3aed); }
+    .key.black.down { background: linear-gradient(#a855f7, #7c3aed);
+      box-shadow: 0 0 18px rgba(168,85,247,.95); }
 
     .transport { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .8rem;
       margin-top: 1rem; }
@@ -63,23 +89,83 @@
   <h1>GHOST CIRCUIT SOFT SYNTH</h1>
   <div class="subtitle">Polyphonic subtractive synth · played in your browser</div>
 
-  <div class="panel">
-    <div class="ctl">
-      <label>Waveform</label>
-      <select id="wave">
-        <option value="sawtooth">Saw</option>
-        <option value="square">Square</option>
-        <option value="triangle">Triangle</option>
-        <option value="sine">Sine</option>
-      </select>
+  <div class="presets">
+    <button class="preset-chip" data-preset="Init">Init</button>
+    <button class="preset-chip" data-preset="Neon Lead">Neon Lead</button>
+    <button class="preset-chip" data-preset="Ghost Pad">Ghost Pad</button>
+    <button class="preset-chip" data-preset="Grave Bass">Grave Bass</button>
+    <button class="preset-chip" data-preset="Haunted Bell">Haunted Bell</button>
+    <span class="preset-sep"></span>
+    <button class="mini-btn" id="savePatchBtn">Save</button>
+    <button class="mini-btn" id="loadPatchBtn">Load</button>
+  </div>
+
+  <div class="rack">
+    <fieldset class="section">
+      <legend>Osc</legend>
+      <div class="grid">
+        <div class="ctl">
+          <label>Waveform</label>
+          <select id="wave">
+            <option value="sawtooth">Saw</option>
+            <option value="square">Square</option>
+            <option value="triangle">Triangle</option>
+            <option value="sine">Sine</option>
+          </select>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="section">
+      <legend>Filter</legend>
+      <div class="grid">
+        <div class="ctl"><label>Cutoff <span id="cutoffVal"></span></label><input type="range" id="cutoff" min="200" max="9000" value="2200" /></div>
+        <div class="ctl"><label>Resonance <span id="resonanceVal"></span></label><input type="range" id="resonance" min="0" max="20" step="0.5" value="6" /></div>
+      </div>
+    </fieldset>
+
+    <fieldset class="section">
+      <legend>Envelope</legend>
+      <div class="grid">
+        <div class="ctl"><label>Attack <span id="attackVal"></span></label><input type="range" id="attack" min="1" max="1000" value="20" data-scale="0.001" /></div>
+        <div class="ctl"><label>Decay <span id="decayVal"></span></label><input type="range" id="decay" min="1" max="1500" value="200" data-scale="0.001" /></div>
+        <div class="ctl"><label>Sustain <span id="sustainVal"></span></label><input type="range" id="sustain" min="0" max="100" value="60" data-scale="0.01" /></div>
+        <div class="ctl"><label>Release <span id="releaseVal"></span></label><input type="range" id="release" min="1" max="2000" value="350" data-scale="0.001" /></div>
+      </div>
+    </fieldset>
+
+    <fieldset class="section">
+      <legend>FX</legend>
+      <div class="grid">
+        <div class="ctl"><label>Vibrato Rate <span id="vibRateVal"></span></label><input type="range" id="vibRate" min="3" max="8" step="0.1" value="5" /></div>
+        <div class="ctl"><label>Vibrato Depth <span id="vibDepthVal"></span></label><input type="range" id="vibDepth" min="0" max="25" step="1" value="0" /></div>
+        <div class="ctl"><label>Drive <span id="driveVal"></span></label><input type="range" id="drive" min="0" max="100" value="0" /></div>
+        <div class="ctl"><label>Chorus <span id="chorusVal"></span></label><input type="range" id="chorus" min="0" max="100" value="0" /></div>
+        <div class="ctl"><label>Delay Time <span id="delayTimeVal"></span></label><input type="range" id="delayTime" min="60" max="800" value="320" data-scale="0.001" /></div>
+        <div class="ctl"><label>Delay Fbk <span id="delayFeedbackVal"></span></label><input type="range" id="delayFeedback" min="0" max="75" value="0" data-scale="0.01" /></div>
+        <div class="ctl"><label>Delay Wet <span id="delayWetVal"></span></label><input type="range" id="delayWet" min="0" max="60" value="0" data-scale="0.01" /></div>
+        <div class="ctl"><label>Reverb Size <span id="reverbSizeVal"></span></label><input type="range" id="reverbSize" min="80" max="350" value="180" data-scale="0.01" /></div>
+        <div class="ctl"><label>Reverb Wet <span id="reverbWetVal"></span></label><input type="range" id="reverbWet" min="0" max="50" value="0" data-scale="0.01" /></div>
+      </div>
+    </fieldset>
+
+    <fieldset class="section">
+      <legend>Out</legend>
+      <div class="grid">
+        <div class="ctl"><label>Volume <span id="volumeVal"></span></label><input type="range" id="volume" min="0" max="60" value="25" data-scale="0.01" /></div>
+      </div>
+    </fieldset>
+  </div>
+
+  <canvas id="scope" width="720" height="70"></canvas>
+
+  <div class="kb-head">
+    <div class="hint" style="margin:0">Z / X shift octave</div>
+    <div class="octave">
+      <button id="octDown">– Oct</button>
+      <span id="octaveVal"></span>
+      <button id="octUp">Oct +</button>
     </div>
-    <div class="ctl"><label>Cutoff <span id="cutoffVal"></span></label><input type="range" id="cutoff" min="200" max="9000" value="2200" /></div>
-    <div class="ctl"><label>Resonance <span id="resonanceVal"></span></label><input type="range" id="resonance" min="0" max="20" step="0.5" value="6" /></div>
-    <div class="ctl"><label>Attack <span id="attackVal"></span></label><input type="range" id="attack" min="1" max="1000" value="20" data-scale="0.001" /></div>
-    <div class="ctl"><label>Decay <span id="decayVal"></span></label><input type="range" id="decay" min="1" max="1500" value="200" data-scale="0.001" /></div>
-    <div class="ctl"><label>Sustain <span id="sustainVal"></span></label><input type="range" id="sustain" min="0" max="100" value="60" data-scale="0.01" /></div>
-    <div class="ctl"><label>Release <span id="releaseVal"></span></label><input type="range" id="release" min="1" max="2000" value="350" data-scale="0.001" /></div>
-    <div class="ctl"><label>Volume <span id="volumeVal"></span></label><input type="range" id="volume" min="0" max="60" value="25" data-scale="0.01" /></div>
   </div>
 
   <div class="kb-wrap">
@@ -92,6 +178,7 @@
     <button id="exportMidiBtn" title="Export your recorded notes as a MIDI file">Export MIDI</button>
   </div>
   <div id="synthStatus">Press ● Record, then play — export when you're happy with the take</div>
+  <div class="hint">Effects apply to the whole take as currently set (vibrato is baked per note)</div>
 
   <div class="hint">Play with the mouse/touch, or your computer keys: A W S E D F T G Y H U J K …</div>
 
