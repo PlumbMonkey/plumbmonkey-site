@@ -310,8 +310,11 @@ function update() {
   player.x = Math.max(-1.6, Math.min(1.6, player.x));
 
   // ---- Jump ramps ----
-  // Speed-gated: crawling over the ramp must not launch you.
-  if (!airborne && seg.jump && player.speed > player.maxSpeed * 0.55) {
+  // Speed-gated (crawling over the ramp must not launch you) AND lane-gated:
+  // the ramp spans the ROAD, so driving past it on the graveyard shoulder
+  // means no launch — you only jump if you actually hit the ramp.
+  const onRamp = Math.abs(player.x) <= 1.0;
+  if (!airborne && seg.jump && onRamp && player.speed > player.maxSpeed * 0.55) {
     player.airMax = 52 + Math.round(28 * speedRatio); // faster = longer flight
     player.air = player.airMax;
     sfx.beep();
@@ -598,17 +601,18 @@ function drawBackground(curveOffset) {
   }
 }
 
-function drawSprite(type, x, y, scale) {
+function drawSprite(type, x, y, scale, roadW) {
   // sized against the road projection (9000 was near-invisible)
   let s = scale * 60000;
   if (type === 'banner') s *= 5; // the start gantry spans the road
-  if (type === 'ramp') s *= 6;   // the ramp spans the road too
+  if (type === 'ramp') s *= 6;
   if (s < 3) return;
   ctx.save();
   ctx.translate(x, y);
   if (type === 'ramp') {
-    // glowing wooden launch ramp across the road — telegraphs the jump early
-    const rw = s * 0.5, rh = s * 0.16;
+    // Glowing wooden launch ramp spanning the FULL road (edge to edge) so the
+    // visual matches the mechanic: on the road = you jump, shoulder = you don't.
+    const rw = roadW || s * 0.5, rh = s * 0.16;
     ctx.fillStyle = '#3b2412';
     ctx.beginPath();
     ctx.moveTo(-rw, 0); ctx.lineTo(rw, 0); ctx.lineTo(rw * 0.72, -rh); ctx.lineTo(-rw * 0.72, -rh);
@@ -873,7 +877,8 @@ function draw() {
         type: sp.type,
         x: p.x + sp.offset * p.w,
         y: p.y,
-        scale: p.scale
+        scale: p.scale,
+        roadW: p.w    // ramps span the exact road width at their distance
       });
     });
 
@@ -934,7 +939,7 @@ function draw() {
       ctx.fill();
       ctx.restore();
     }
-    else drawSprite(sp.type, sp.x, sp.y, sp.scale);
+    else drawSprite(sp.type, sp.x, sp.y, sp.scale, sp.roadW);
   }
 
   // ---------- Player car (fixed near bottom; lifts when airborne) ----------

@@ -616,15 +616,16 @@ function draw() {
   ctx.beginPath(); ctx.arc(W - 210, 54, 30, 0, Math.PI * 2); ctx.fill();
 
   // ---- Manor on its hill (upper-right) — ghosts & bugs spill from here ----
-  // hill
-  ctx.fillStyle = '#0c0716';
-  ctx.beginPath();
-  ctx.moveTo(W - 320, 130);
-  ctx.quadraticCurveTo(W - 150, 20, W + 20, 120);
-  ctx.lineTo(W + 20, 0);
-  ctx.lineTo(W - 320, 0);
-  ctx.closePath();
-  ctx.fill();
+  // hill — a soft-edged gradient mound. The old version was a flat fill whose
+  // hard curved boundary read as a thin line under the house (the same
+  // artifact problem as the fence and zone line). The gradient reaches full
+  // transparency BEFORE every visible edge so there is no seam anywhere.
+  const hillGrad = ctx.createRadialGradient(W - 130, 10, 20, W - 130, 10, 170);
+  hillGrad.addColorStop(0, 'rgba(16, 9, 28, 0.9)');
+  hillGrad.addColorStop(0.6, 'rgba(14, 8, 24, 0.5)');
+  hillGrad.addColorStop(1, 'rgba(12, 7, 22, 0)');
+  ctx.fillStyle = hillGrad;
+  ctx.fillRect(W - 310, 0, 310, 190);
   // manor body
   ctx.fillStyle = '#160c26';
   ctx.fillRect(manor.x - 34, manor.y - 34, 68, 42);
@@ -659,19 +660,8 @@ function draw() {
     ctx.moveTo(gx, gy); ctx.lineTo(gx + 3, gy - 4);
     ctx.stroke();
   }
-  // iron fence along the base of the manor hill
-  ctx.strokeStyle = 'rgba(100,116,139,0.45)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(W - 330, 128); ctx.lineTo(W, 118);
-  ctx.stroke();
-  for (let i = 0; i < 12; i++) {
-    const fx = W - 325 + i * 27;
-    const fy = 128 - (i * 10) / 12;
-    ctx.beginPath();
-    ctx.moveTo(fx, fy); ctx.lineTo(fx, fy - 11);
-    ctx.stroke();
-  }
+  // (The iron fence under the manor was removed — same lesson as the
+  // player-zone line: long thin strokes on the playfield read as artifacts.)
 
   // (The dashed player-zone boundary line was removed — it read as a
   // rendering artifact. The zone is already communicated by where the

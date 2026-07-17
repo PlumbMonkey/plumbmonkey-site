@@ -262,6 +262,30 @@ const player = {
   powerupTime: 0     // frames remaining on current power-up
 };
 
+// ---------- World & camera ----------
+// The playfield is a WRAPPING world four screens wide (true Defender space):
+// fly in either direction forever and you come back around. Everything —
+// player, enemies, fans, bullets — lives in world coordinates; the camera
+// follows the ship, leading in the facing direction.
+const WORLD_W = W * 4;
+let camX = 0;
+
+function wrapX(x) { return ((x % WORLD_W) + WORLD_W) % WORLD_W; }
+// shortest signed distance a→b around the wrap (result in [-WORLD_W/2, +WORLD_W/2])
+function wrapDX(b, a) {
+  let d = (b - a) % WORLD_W;
+  if (d > WORLD_W / 2) d -= WORLD_W;
+  if (d < -WORLD_W / 2) d += WORLD_W;
+  return d;
+}
+// world x → screen x (shortest wrap relative to camera)
+function toScreen(wx) {
+  let r = (wx - camX) % WORLD_W;
+  if (r < -WORLD_W / 2) r += WORLD_W;
+  if (r > WORLD_W / 2) r -= WORLD_W;
+  return r;
+}
+
 // ---------- Entities ----------
 let bullets = [];
 let enemyShots = [];  // aimed bolts + charged beams fired BY enemies
@@ -336,6 +360,7 @@ function startGame() {
   player.bank = 0;
   player.facing = 1;
   player.shieldTimer = 0;
+  camX = 0;
   player.shotType = 0;
   player.powerupTime = 0;
   gameRunning = true;
@@ -369,10 +394,14 @@ function spawnPowerup(x, y) {
 }
 
 function spawnFans() {
-  // Place fans along the ground (concert crowd outside the manor)
-  for (let i = 0; i < 12; i++) {
+  // Fans are scattered across the WHOLE world (Defender humanoids) — a
+  // cluster near the concert stage plus stragglers all the way around
+  for (let i = 0; i < 20; i++) {
+    const nearStage = i < 8;
     fans.push({
-      x: 80 + i * 75 + Math.random() * 30,
+      x: wrapX(nearStage
+        ? 80 + i * 75 + Math.random() * 30                  // the stage crowd
+        : Math.random() * WORLD_W),                          // world wanderers
       y: H - 60,
       w: 10,
       h: 16,
@@ -390,7 +419,8 @@ function spawnWave() {
   for (let i = 0; i < count; i++) {
     const t = types[Math.floor(Math.random() * types.length)];
     enemies.push({
-      x: W + 50 + Math.random() * 400,
+      // spawn spread around the world, never within ~¾ screen of the player
+      x: wrapX(player.x + W * 0.75 + Math.random() * (WORLD_W - W * 1.5)),
       y: 60 + Math.random() * (H - 160),
       w: t === 'capsule' ? 36 : 28,
       h: t === 'capsule' ? 16 : 22,
@@ -464,16 +494,18 @@ function hitPlayer() {
 // close on — otherwise every wave becomes a bullet hell.
 function enemyFire(e) {
   const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
-  const px = player.x + player.w / 2, py = player.y + player.h / 2;
+  const py = player.y + player.h / 2;
+  // aim around the wrap — the shortest way to the player
+  const dx = wrapDX(player.x + player.w / 2, ex);
   if (e.type === 'sphere') {
-    const dx = px - ex, dy = py - ey;
+    const dy = py - ey;
     const d = Math.hypot(dx, dy) || 1;
     const sp = 4.2;
     enemyShots.push({ x: ex, y: ey, vx: (dx / d) * sp, vy: (dy / d) * sp, r: 4, life: 200, kind: 'bolt' });
     sfx.spread();
   } else if (e.type === 'pyramid') {
     // fires along its current row — dodge by changing altitude
-    enemyShots.push({ x: ex, y: ey, vx: (px < ex ? -1 : 1) * 9, vy: 0, r: 5, life: 140, kind: 'beam' });
+    enemyShots.push({ x: ex, y: ey, vx: (dx < 0 ? -1 : 1) * 9, vy: 0, r: 5, life: 140, kind: 'beam' });
     sfx.heavy();
   }
 }
@@ -521,14 +553,15 @@ function update() {
     shake.intensity = 0;
   }
 
-  // Parallax layers keep drifting gently even when paused/over (subtle life)
-  // Slower speeds push the scenery further into the background
-  if (gameRunning) {
-    parallax.stars = (parallax.stars + 0.1) % W;
-    parallax.hillsFar = (parallax.hillsFar + 0.28) % (W * 2);
-    parallax.manor = (parallax.manor + 0.5) % (W + 320);
-    parallax.ground = (parallax.ground + 1.8) % (W + 120);
-  }
+  // Parallax now tracks the CAMERA (the world only moves when you fly).
+  // Factors are chosen so each layer's scroll is a whole number of its own
+  // wrap-span per world lap — otherwise the scenery would visibly snap when
+  // camX wraps at WORLD_W. (stars ¼ → 960≡0 mod 960; hills ½ → 1920≡0 mod
+  // 1920; manor ⅔ → 2560≡0 mod 1280; ground 1 → 3840≡0 mod 1280.)
+  parallax.stars = (camX * 0.25) % W;
+  parallax.hillsFar = (camX * 0.5) % (W * 2);
+  parallax.manor = (camX * (2 / 3)) % 1280;
+  parallax.ground = camX % 1280;
 
   if (!gameRunning) {
     // Still update death blast particles when game freezes on death
@@ -566,8 +599,14 @@ function update() {
   if (keys['ArrowUp'] || keys['KeyW']) player.vy = -player.speed;
   if (keys['ArrowDown'] || keys['KeyS']) player.vy = player.speed;
 
-  player.x = Math.max(10, Math.min(W - 90, player.x + player.vx));
+  // Free horizontal flight around the wrapping world; only altitude is clamped
+  player.x = wrapX(player.x + player.vx);
   player.y = Math.max(30, Math.min(H - 55, player.y + player.vy));
+
+  // Camera follows with a facing lead: the ship sits ~1/3 from the trailing
+  // edge so most of the screen shows where you're GOING (classic Defender)
+  const camTarget = wrapX(player.x + player.w / 2 - W * (player.facing > 0 ? 0.32 : 0.68));
+  camX = wrapX(camX + wrapDX(camTarget, camX) * 0.08);
 
   // Smooth banking tilt (target based on vertical movement)
   const targetBank = player.vy * 0.045;
@@ -600,8 +639,11 @@ function update() {
 
   // Bullets (support vy for spread) + short neon trail particles
   bullets.forEach(b => {
-    b.x += b.speed * (b.dir || 1);   // travel in the direction the ship was facing
+    b.x = wrapX(b.x + b.speed * (b.dir || 1));   // travel in the direction the ship was facing
     if (b.vy) b.y += b.vy;
+    // world coords wrap, so lasers die by range instead of screen edges
+    if (b.range === undefined) b.range = W * 1.15;
+    b.range -= b.speed;
 
     // Optional short trail sparks behind lasers
     if (Math.random() > 0.45) {
@@ -615,7 +657,7 @@ function update() {
       });
     }
   });
-  bullets = bullets.filter(b => b.x < W + 30 && b.x > -40 && b.y > -20 && b.y < H + 20);
+  bullets = bullets.filter(b => b.range > 0 && b.y > -20 && b.y < H + 20);
 
   laserTrails.forEach(t => { t.life--; t.x -= 1.5; });
   laserTrails = laserTrails.filter(t => t.life > 0);
@@ -641,27 +683,31 @@ function update() {
   // Enemies AI + movement
   enemies.forEach(e => {
     if (e.carrying) {
-      // Carrying a fan → fly upward and left to abduct
+      // Carrying a fan → fly upward and away to abduct
       e.y -= 1.6;
-      e.x -= e.speed * 0.7;
-      // If they reach the top, fan is lost forever
+      e.x = wrapX(e.x - e.speed * 0.7);
+      // If they reach the top, the fan is lost forever — and the abductor
+      // comes back down MEANER to hunt another one (mutant rules: survivors
+      // keep attacking and abducting until you destroy them)
       if (e.y < -30) {
         abducted++;
         const idx = fans.indexOf(e.carrying);
         if (idx > -1) fans.splice(idx, 1);
         e.carrying = null;
+        e.seeking = true;
+        e.speed += 0.45;
         score = Math.max(0, score - 100);
         sfx.abduct();
         triggerShake(3, 12);
         updateHUD();
       }
     } else if (e.seeking) {
-      // Look for nearest ground fan
+      // Look for the nearest ground fan — around the wrap
       let nearest = null;
       let nearestDist = 9999;
       fans.forEach(f => {
         if (f.state === 'ground') {
-          const dx = f.x - e.x;
+          const dx = wrapDX(f.x, e.x);
           const dy = f.y - e.y;
           const d = Math.sqrt(dx * dx + dy * dy);
           if (d < nearestDist) {
@@ -671,11 +717,11 @@ function update() {
         }
       });
       if (nearest && nearestDist < 280) {
-        // Move toward the fan
-        const dx = nearest.x - (e.x + e.w / 2);
+        // Move toward the fan (wrap-aware)
+        const dx = wrapDX(nearest.x, e.x + e.w / 2);
         const dy = nearest.y - (e.y + e.h);
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        e.x += (dx / dist) * e.speed * 0.9;
+        e.x = wrapX(e.x + (dx / dist) * e.speed * 0.9);
         e.y += (dy / dist) * e.speed * 0.9;
 
         // Grab if close enough
@@ -686,23 +732,31 @@ function update() {
           e.seeking = false;
         }
       } else {
-        // Default sweep along its current heading
-        e.x += e.speed * e.dir;
+        // Default sweep along its current heading (world wraps — fly forever)
+        e.x = wrapX(e.x + e.speed * e.dir);
       }
     } else {
-      e.x += e.speed * e.dir;
+      e.x = wrapX(e.x + e.speed * e.dir);
       if (e.type === 'ghost') e.y += Math.sin(Date.now() * 0.004 + e.x) * 0.6;
-      // Looped-back attackers drift toward the player's altitude so they
-      // actually threaten from behind rather than sailing harmlessly past
-      if (e.dir > 0) {
+      // Attackers near the player drift toward their altitude so a pass is a
+      // genuine threat, whichever side it comes from
+      const gap = wrapDX(player.x, e.x);
+      if (Math.abs(gap) < W * 1.2) {
         const py = player.y + player.h / 2;
         e.y += Math.sign(py - (e.y + e.h / 2)) * Math.min(0.7, e.speed * 0.35);
       }
+      // Persistent hunters: an undestroyed enemy far away occasionally turns
+      // to come back at you — nothing left alive stays gone for long
+      if (Math.abs(gap) > W * 1.4 && Math.random() < 0.004) {
+        e.dir = Math.sign(gap) || 1;
+        e.loops++;
+      }
     }
 
-    // ---- Shooting (spheres + pyramids only) ----
+    // ---- Shooting (spheres + pyramids only, when visible) ----
     if (!e.carrying && (e.type === 'sphere' || e.type === 'pyramid')) {
-      const onScreen = e.x > -40 && e.x < W + 40;
+      const esx = toScreen(e.x);
+      const onScreen = esx > -40 && esx < W + 40;
       if (onScreen) {
         e.shootTimer--;
         if (e.type === 'pyramid' && e.shootTimer <= 30 && e.shootTimer > 0) {
@@ -714,30 +768,20 @@ function update() {
           const base = e.type === 'pyramid' ? 260 : 170;
           e.shootTimer = base + Math.random() * 180 - wave * 6;
         }
-      }
-    }
-
-    // ---- Circle back and attack from behind ----
-    // An enemy that sweeps past you doesn't vanish any more: it loops around
-    // and re-enters from the opposite edge, which is what forces you to turn.
-    if (!e.carrying) {
-      if (e.dir < 0 && e.x < -60) {
-        e.dir = 1; e.x = -55; e.loops++;
-        e.y = 60 + Math.random() * (H - 160);
-      } else if (e.dir > 0 && e.x > W + 60) {
-        e.dir = -1; e.x = W + 55; e.loops++;
-        e.y = 60 + Math.random() * (H - 160);
+      } else {
+        e.charge = 0;
       }
     }
   });
 
   // ---- Enemy shots ----
-  enemyShots.forEach(s => { s.x += s.vx; s.y += s.vy; s.life--; });
-  enemyShots = enemyShots.filter(s => s.life > 0 && s.x > -30 && s.x < W + 30 && s.y > -30 && s.y < H + 30);
+  enemyShots.forEach(s => { s.x = wrapX(s.x + s.vx); s.y += s.vy; s.life--; });
+  enemyShots = enemyShots.filter(s => s.life > 0 && s.y > -30 && s.y < H + 30);
   if (player.shieldTimer <= 0) {
     for (let si = enemyShots.length - 1; si >= 0; si--) {
       const s = enemyShots[si];
-      if (s.x > player.x && s.x < player.x + player.w &&
+      const sdx = wrapDX(s.x, player.x);
+      if (sdx > 0 && sdx < player.w &&
           s.y > player.y && s.y < player.y + player.h) {
         enemyShots.splice(si, 1);
         hitPlayer();
@@ -749,7 +793,8 @@ function update() {
   // Collisions: bullets vs enemies
   bullets.forEach((b, bi) => {
     enemies.forEach((e, ei) => {
-      if (b.x < e.x + e.w && b.x + b.w > e.x &&
+      const bdx = wrapDX(b.x, e.x);   // wrap-aware rect overlap
+      if (bdx < e.w && bdx > -b.w &&
           b.y < e.y + e.h && b.y + b.h > e.y) {
         createExplosion(e.x + e.w / 2, e.y + e.h / 2, e.type === 'ghost' ? '#c084fc' : '#22d3ee');
         sfx.explosion();
@@ -787,7 +832,8 @@ function update() {
   // Player vs enemies (with shield flicker)
   enemies.forEach((e, ei) => {
     if (player.shieldTimer > 0) return;
-    if (player.x < e.x + e.w && player.x + player.w > e.x &&
+    const pdx = wrapDX(player.x, e.x);   // wrap-aware rect overlap
+    if (pdx < e.w && pdx > -player.w &&
         player.y < e.y + e.h && player.y + player.h > e.y) {
       // Drop fan if carrying
       if (e.carrying) {
@@ -802,20 +848,9 @@ function update() {
     }
   });
 
-  // Only ABDUCTORS leave the field — they fly the fan off-screen and are gone.
-  // Everyone else loops back around (handled above), so the wave keeps coming
-  // at you from both sides instead of quietly despawning.
-  enemies = enemies.filter(e => {
-    if (e.carrying && e.x < -50) {
-      abducted++;
-      const idx = fans.indexOf(e.carrying);
-      if (idx > -1) fans.splice(idx, 1);
-      sfx.abduct();
-      triggerShake(3, 12);
-      return false;
-    }
-    return true;
-  });
+  // Nothing despawns any more: the world wraps, and even successful abductors
+  // dive back in to hunt again (see the carrying branch). The only way an
+  // enemy leaves this wave is by being destroyed.
 
   // Next wave — breather: banner shows for a beat before enemies spawn
   if (enemies.length === 0 && waveDelay === 0) {
@@ -824,7 +859,7 @@ function update() {
     if (fans.filter(f => f.state === 'ground' || f.state === 'falling').length < 6) {
       for (let i = 0; i < 4; i++) {
         fans.push({
-          x: 100 + Math.random() * (W - 200),
+          x: Math.random() * WORLD_W,
           y: H - 60,
           w: 10, h: 16,
           state: 'ground',
@@ -854,8 +889,9 @@ function update() {
     p.y += Math.sin(p.bob) * 0.6;
     p.life--;
 
-    // Player pickup
-    if (player.x < p.x + p.w && player.x + player.w > p.x &&
+    // Player pickup (wrap-aware)
+    const pudx = wrapDX(player.x, p.x);
+    if (pudx < p.w && pudx > -player.w &&
         player.y < p.y + p.h && player.y + player.h > p.y) {
       player.shotType = p.type;
       player.powerupTime = 480; // ~8 seconds
@@ -950,7 +986,7 @@ function createDeathBlast(x, y) {
 function drawStars() {
   ctx.fillStyle = '#e0d4ff';
   for (let i = 0; i < 80; i++) {
-    const sx = (i * 97 + parallax.stars) % W;
+    const sx = (((i * 97 - parallax.stars) % W) + W) % W;   // drift opposite the camera
     const sy = (i * 53) % (H - 110);
     ctx.globalAlpha = 0.22 + (i % 5) * 0.14;
     const size = (i % 7 === 0) ? 2 : 1.4;
@@ -1116,7 +1152,8 @@ function drawForegroundGround() {
   ctx.stroke();
 
   // Deterministic scrolling features, seamless across the wrap span
-  const span = W + 120;
+  // (1280 divides WORLD_W exactly — see the parallax comment in update())
+  const span = 1280;
   const off = parallax.ground;
   const SPACING = 68;
   const count = Math.ceil(span / SPACING);
@@ -1152,9 +1189,11 @@ function drawForegroundGround() {
   }
 }
 
-/** Concert stage (sits on foreground ground, not scrolling independently) */
+/** Concert stage — a fixed landmark in the WORLD (world x 180), so flying a
+ *  full lap brings you back to it. Skipped entirely when off-screen. */
 function drawConcertStage() {
-  const stageX = 180;
+  const stageX = toScreen(180);
+  if (stageX < -320 || stageX > W + 100) return;
   const stageY = H - 78;
 
   // Stage platform
@@ -1238,7 +1277,7 @@ function drawConcertStage() {
  */
 function drawPlayer() {
   ctx.save();
-  ctx.translate(player.x + 22, player.y + 10); // pivot near center
+  ctx.translate(toScreen(player.x) + 22, player.y + 10); // pivot near center (screen coords)
   ctx.rotate(player.bank * player.facing);     // bank reads correctly when mirrored
   ctx.scale(player.facing, 1);                 // mirror the whole ship when facing left
   ctx.translate(-22, -10);
@@ -1394,23 +1433,25 @@ function drawPlayer() {
 // (hot red/orange vs cyan/magenta) so incoming vs outgoing reads instantly.
 function drawEnemyShots() {
   enemyShots.forEach(s => {
+    const sx = toScreen(s.x);
+    if (sx < -40 || sx > W + 40) return;
     if (s.kind === 'beam') {
       ctx.shadowColor = '#f97316';
       ctx.shadowBlur = 16;
       ctx.fillStyle = '#fb923c';
-      ctx.fillRect(s.x - 14, s.y - 2.5, 28, 5);
+      ctx.fillRect(sx - 14, s.y - 2.5, 28, 5);
       ctx.fillStyle = '#fef3c7';
-      ctx.fillRect(s.x - 10, s.y - 1, 20, 2);
+      ctx.fillRect(sx - 10, s.y - 1, 20, 2);
     } else {
       ctx.shadowColor = '#ef4444';
       ctx.shadowBlur = 12;
       ctx.fillStyle = '#f87171';
       ctx.beginPath();
-      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.arc(sx, s.y, s.r, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#fee2e2';
       ctx.beginPath();
-      ctx.arc(s.x, s.y, s.r * 0.45, 0, Math.PI * 2);
+      ctx.arc(sx, s.y, s.r * 0.45, 0, Math.PI * 2);
       ctx.fill();
     }
   });
@@ -1420,40 +1461,44 @@ function drawEnemyShots() {
 function drawBullets() {
   // Short trail particles first (behind beams)
   laserTrails.forEach(t => {
+    const sx = toScreen(t.x);
+    if (sx < -20 || sx > W + 20) return;
     const a = t.life / t.maxLife;
     ctx.globalAlpha = a * 0.7;
     ctx.fillStyle = t.color;
     ctx.beginPath();
-    ctx.arc(t.x, t.y, t.size * a, 0, Math.PI * 2);
+    ctx.arc(sx, t.y, t.size * a, 0, Math.PI * 2);
     ctx.fill();
   });
   ctx.globalAlpha = 1;
 
   bullets.forEach(b => {
+    const bx = toScreen(b.x);
+    if (bx < -30 || bx > W + 30) return;
     if (b.type === 'heavy') {
       // Heavy = thick magenta/pink laser
       ctx.shadowColor = '#ff00aa';
       ctx.shadowBlur = 18;
       ctx.fillStyle = '#ff66cc';
-      ctx.fillRect(b.x, b.y - 1, b.w + 4, b.h + 2);
+      ctx.fillRect(bx, b.y - 1, b.w + 4, b.h + 2);
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(b.x + 2, b.y + 1, b.w - 2, b.h - 2);
+      ctx.fillRect(bx + 2, b.y + 1, b.w - 2, b.h - 2);
     } else {
       // Bright cyan/green core + strong glow (Defender neon)
       ctx.shadowColor = '#00ff99';
       ctx.shadowBlur = 16;
       // Outer green glow
       ctx.fillStyle = 'rgba(0, 255, 136, 0.55)';
-      ctx.fillRect(b.x - 1, b.y - 2, b.w + 8, b.h + 4);
+      ctx.fillRect(bx - 1, b.y - 2, b.w + 8, b.h + 4);
       // Mid cyan body
       ctx.fillStyle = '#00ff88';
-      ctx.fillRect(b.x, b.y - 1, b.w + 5, b.h + 2);
+      ctx.fillRect(bx, b.y - 1, b.w + 5, b.h + 2);
       // Hot cyan-white core
       ctx.fillStyle = '#ccffee';
-      ctx.fillRect(b.x + 1, b.y, b.w + 2, b.h);
+      ctx.fillRect(bx + 1, b.y, b.w + 2, b.h);
       // Bright tip
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(b.x + b.w - 1, b.y, 7, b.h);
+      ctx.fillRect(bx + b.w - 1, b.y, 7, b.h);
     }
   });
   ctx.shadowBlur = 0;
@@ -1463,10 +1508,13 @@ function drawBullets() {
 function drawAbductionBeams() {
   enemies.forEach(e => {
     if (!e.carrying) return;
+    const esx = toScreen(e.x);
+    if (esx < -60 || esx > W + 60) return;
+    const shiftX = esx - e.x;   // same shift for both ends keeps the beam joined
     const fan = e.carrying;
-    const topX = e.x + e.w / 2;
+    const topX = e.x + e.w / 2 + shiftX;
     const topY = e.y + e.h;
-    const botX = fan.x + 5;
+    const botX = fan.x + 5 + shiftX;
     const botY = fan.y;
 
     // Soft outer glow
@@ -1532,11 +1580,13 @@ function draw() {
 
   // Engine trails (behind ship)
   trails.forEach(t => {
+    const sx = toScreen(t.x);
+    if (sx < -20 || sx > W + 20) return;
     const alpha = t.life / t.maxLife;
     ctx.globalAlpha = alpha * 0.7;
     ctx.fillStyle = alpha > 0.5 ? '#67e8f9' : '#c084fc';
     ctx.beginPath();
-    ctx.arc(t.x, t.y, t.size * alpha, 0, Math.PI * 2);
+    ctx.arc(sx, t.y, t.size * alpha, 0, Math.PI * 2);
     ctx.fill();
   });
   ctx.globalAlpha = 1;
@@ -1556,6 +1606,12 @@ function draw() {
   // Enemies — alien attackers: pilots in glowing cockpits, running lights, a wraith
   const blinkOn = Math.floor(Date.now() / 250) % 2 === 0;
   enemies.forEach(e => {
+    // World → screen: shift the whole context so the sprite code below can
+    // keep drawing in world coordinates. Off-screen enemies are skipped.
+    const shiftX = toScreen(e.x) - e.x;
+    if (toScreen(e.x) < -90 || toScreen(e.x) > W + 90) return;
+    ctx.save();
+    ctx.translate(shiftX, 0);
     const cx = e.x + e.w / 2;
     const cy = e.y + e.h / 2;
 
@@ -1713,7 +1769,7 @@ function draw() {
       // in front of the eye. (The old version was a dashed line across the
       // whole row, which read as a rendering glitch rather than an attack tell.)
       if (charging) {
-        const aim = player.x < cx ? -1 : 1;
+        const aim = wrapDX(player.x, cx) < 0 ? -1 : 1;
         const reach = (40 + e.charge * 130) * aim;   // grows with the wind-up
         const grad = ctx.createLinearGradient(cx, 0, cx + reach, 0);
         grad.addColorStop(0, `rgba(248,113,113,${0.25 + e.charge * 0.65})`);
@@ -1726,6 +1782,7 @@ function draw() {
         ctx.stroke();
       }
     }
+    ctx.restore(); // end world→screen shift for this enemy
   });
 
   // Purple abduction beams (UAP → fan)
@@ -1733,6 +1790,8 @@ function draw() {
 
   // Power-ups
   powerups.forEach(p => {
+    const px = toScreen(p.x);
+    if (px < -30 || px > W + 30) return;
     const alpha = Math.min(1, p.life / 60);
     ctx.globalAlpha = alpha;
     ctx.shadowColor = p.color;
@@ -1740,25 +1799,27 @@ function draw() {
     ctx.strokeStyle = p.color;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(p.x + 11, p.y + 11, 12, 0, Math.PI * 2);
+    ctx.arc(px + 11, p.y + 11, 12, 0, Math.PI * 2);
     ctx.stroke();
     ctx.fillStyle = 'rgba(10, 6, 18, 0.85)';
     ctx.beginPath();
-    ctx.arc(p.x + 11, p.y + 11, 10, 0, Math.PI * 2);
+    ctx.arc(px + 11, p.y + 11, 10, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = p.color;
     ctx.font = 'bold 8px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(p.label, p.x + 11, p.y + 11);
+    ctx.fillText(p.label, px + 11, p.y + 11);
     ctx.shadowBlur = 0;
   });
   ctx.globalAlpha = 1;
 
   // Fans (concert crowd) — little humans: head, hair, torso, arms, legs
   fans.forEach((f, fi) => {
+    const fsx = toScreen(f.x);
+    if (fsx < -30 || fsx > W + 30) return;
     ctx.save();
-    const cx = f.x + f.w / 2;
+    const cx = fsx + f.w / 2;
     const scared = f.state === 'grabbed' || f.state === 'falling';
     // each fan dances to their own beat
     const beat = Math.sin(Date.now() * 0.008 + fi * 1.9);
@@ -1822,9 +1883,11 @@ function draw() {
 
   // Particles
   particles.forEach(p => {
+    const px = toScreen(p.x);
+    if (px < -10 || px > W + 10) return;
     ctx.globalAlpha = p.life / 30;
     ctx.fillStyle = p.color;
-    ctx.fillRect(p.x, p.y, 3, 3);
+    ctx.fillRect(px, p.y, 3, 3);
   });
   ctx.globalAlpha = 1;
 
@@ -1838,7 +1901,7 @@ function draw() {
     ctx.strokeStyle = `rgba(255, 100, 255, ${1 - progress})`;
     ctx.lineWidth = 8 - progress * 6;
     ctx.beginPath();
-    ctx.arc(deathBlast.x, deathBlast.y, progress * 500, 0, Math.PI * 2);
+    ctx.arc(toScreen(deathBlast.x), deathBlast.y, progress * 500, 0, Math.PI * 2);
     ctx.stroke();
     deathBlast.particles.forEach(p => {
       ctx.globalAlpha = Math.min(1, p.life / 20);
@@ -1846,7 +1909,7 @@ function draw() {
       ctx.shadowBlur = 12;
       ctx.fillStyle = p.color;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.arc(toScreen(p.x), p.y, p.size, 0, Math.PI * 2);
       ctx.fill();
     });
     ctx.shadowBlur = 0;
@@ -1874,22 +1937,22 @@ function draw() {
     ctx.restore();
   }
 
-  // Radar strip — with enemies looping in from behind you need to know what's
-  // off-screen. Shows a wider slice of the field than the viewport does.
+  // Radar strip — now maps the ENTIRE wrapping world, Defender-style.
+  // You are always the white blip in the center; the bracket is your viewport.
   if (gameRunning) {
     const rw = 220, rh = 26, rx = W / 2 - rw / 2, ry = 8;
-    const RANGE = W * 2;                       // world span the radar covers
     ctx.save();
     ctx.fillStyle = 'rgba(10,6,18,0.72)';
     ctx.strokeStyle = 'rgba(124,58,237,0.7)';
     ctx.lineWidth = 1;
     ctx.fillRect(rx, ry, rw, rh);
     ctx.strokeRect(rx, ry, rw, rh);
-    // viewport bracket = the part of the field you can actually see
-    const vpW = (W / RANGE) * rw;
+    // viewport bracket = the part of the world you can actually see
+    const vpW = (W / WORLD_W) * rw;
     ctx.strokeStyle = 'rgba(192,132,252,0.5)';
     ctx.strokeRect(rx + rw / 2 - vpW / 2, ry + 1, vpW, rh - 2);
-    const toRadar = (wx) => rx + rw / 2 + ((wx - (player.x + player.w / 2)) / RANGE) * rw;
+    // shortest wrapped offset from the player → [-WORLD_W/2, +WORLD_W/2]
+    const toRadar = (wx) => rx + rw / 2 + (wrapDX(wx, player.x + player.w / 2) / WORLD_W) * rw;
     // fans
     fans.forEach(f => {
       const bx = toRadar(f.x);
