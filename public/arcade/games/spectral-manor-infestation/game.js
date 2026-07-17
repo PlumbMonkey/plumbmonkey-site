@@ -673,14 +673,9 @@ function draw() {
     ctx.stroke();
   }
 
-  // player-zone boundary hint
-  ctx.strokeStyle = 'rgba(124,58,237,0.25)';
-  ctx.setLineDash([6, 10]);
-  ctx.beginPath();
-  ctx.moveTo(0, PLAYER_ZONE_ROW * CELL);
-  ctx.lineTo(W, PLAYER_ZONE_ROW * CELL);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  // (The dashed player-zone boundary line was removed — it read as a
+  // rendering artifact. The zone is already communicated by where the
+  // toadstool field ends and by movement clamping.)
 
   // Tombstones (drawn under the toadstools so overlaps read correctly)
   Object.keys(tombstones).forEach(k => {

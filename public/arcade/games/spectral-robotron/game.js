@@ -344,6 +344,10 @@ function update() {
   if (!insideObstacle(player.x, ny, player.w, player.h)) player.y = ny;
   player.angle = Math.atan2(mouse.y - (player.y + player.h/2), mouse.x - (player.x + player.w/2));
 
+  // walking animation state
+  player.moving = !!(vx || vy);
+  if (player.moving) player.walkPhase = (player.walkPhase || 0) + 0.32;
+
   if ((mouse.down || keys['Space']) && player.fireCooldown <= 0) fire();
   if (player.fireCooldown > 0) player.fireCooldown--;
   if (player.invuln > 0) player.invuln--;
@@ -462,6 +466,7 @@ function update() {
   // Monsters AI — hunt nearest fan, or player if close
   monsters.forEach(m => {
     const prevX = m.x, prevY = m.y; // for obstacle sliding
+    m.walkPhase = (m.walkPhase || 0) + m.speed * 0.14; // limb animation
 
     // ----- Specters are casters: keep range and hurl bolts -----
     if (m.type === 'specter' && !m.carrying) {
@@ -886,61 +891,168 @@ function draw() {
     ctx.restore();
   });
 
-  // Monsters
+  // Monsters — five distinct silhouettes with animated limbs
   monsters.forEach(m => {
     ctx.save();
     ctx.translate(m.x + m.w/2, m.y + m.h/2);
+    const S = m.size;
+    const stride = Math.sin(m.walkPhase || 0) * 5 * S;
 
     ctx.fillStyle = m.color;
     ctx.shadowColor = m.color;
     ctx.shadowBlur = 12;
 
     if (m.type === 'specter') {
+      // hooded wraith — floats (no legs), hem ripples
       ctx.globalAlpha = 0.8;
       ctx.beginPath();
-      ctx.ellipse(0, 0, 13 * m.size, 16 * m.size, 0, 0, Math.PI*2);
-      ctx.fill();
-    } else if (m.type === 'brute') {
-      ctx.fillRect(-14 * m.size, -12 * m.size, 28 * m.size, 28 * m.size);
-    } else if (m.type === 'hunter') {
-      ctx.beginPath();
-      ctx.moveTo(0, -14 * m.size);
-      ctx.lineTo(14 * m.size, 12 * m.size);
-      ctx.lineTo(-14 * m.size, 12 * m.size);
+      ctx.arc(0, -4 * S, 11 * S, Math.PI, 0);
+      const hem = 10 * S;
+      ctx.lineTo(11 * S, hem);
+      for (let i = 0; i < 3; i++) {
+        const sx = 11 * S - (i + 0.5) * (22 * S / 3);
+        ctx.quadraticCurveTo(sx + 3.5 * S, hem + 5 * S + Math.sin((m.walkPhase || 0) + i) * 2.5, sx - 3.5 * S, hem);
+      }
       ctx.closePath();
       ctx.fill();
-    } else {
-      // grunt / horror
+      // hood shadow
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(8,10,20,0.7)';
       ctx.beginPath();
-      ctx.ellipse(0, 2, 12 * m.size, 14 * m.size, 0, 0, Math.PI*2);
+      ctx.arc(0, -5 * S, 6.5 * S, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (m.type === 'brute') {
+      // hulking golem — short legs, massive swinging fists
+      ctx.strokeStyle = m.color;
+      ctx.lineWidth = 5 * S;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); // legs
+      ctx.moveTo(-6 * S, 12 * S); ctx.lineTo(-6 * S + stride * 0.6, 19 * S);
+      ctx.moveTo(6 * S, 12 * S);  ctx.lineTo(6 * S - stride * 0.6, 19 * S);
+      ctx.stroke();
+      ctx.fillRect(-13 * S, -12 * S, 26 * S, 26 * S); // slab body
+      // crack across the chest
+      ctx.strokeStyle = 'rgba(15,10,26,0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-8 * S, -2 * S); ctx.lineTo(-2 * S, 3 * S); ctx.lineTo(4 * S, 0);
+      ctx.stroke();
+      // giant fists, counter-swinging
+      ctx.fillStyle = m.color;
+      ctx.beginPath();
+      ctx.arc(-17 * S, 2 * S + stride, 6 * S, 0, Math.PI * 2);
+      ctx.arc(17 * S, 2 * S - stride, 6 * S, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (m.type === 'hunter') {
+      // lean sprinting hound — forward lunge, running legs, ears
+      ctx.strokeStyle = m.color;
+      ctx.lineWidth = 3 * S;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); // sprinting legs
+      ctx.moveTo(-3 * S, 8 * S); ctx.lineTo(-4 * S + stride, 17 * S);
+      ctx.moveTo(4 * S, 8 * S);  ctx.lineTo(5 * S - stride, 17 * S);
+      ctx.stroke();
+      ctx.beginPath(); // lunging wedge body
+      ctx.moveTo(0, -13 * S);
+      ctx.lineTo(11 * S, 10 * S);
+      ctx.lineTo(-11 * S, 10 * S);
+      ctx.closePath();
+      ctx.fill();
+      // ears
+      ctx.beginPath();
+      ctx.moveTo(-5 * S, -10 * S); ctx.lineTo(-8 * S, -18 * S); ctx.lineTo(-1 * S, -12 * S);
+      ctx.moveTo(5 * S, -10 * S);  ctx.lineTo(8 * S, -18 * S);  ctx.lineTo(1 * S, -12 * S);
+      ctx.fill();
+    } else if (m.type === 'horror') {
+      // pulsing blob with wriggling tentacles
+      const pulse = 1 + Math.sin((m.walkPhase || 0) * 0.7) * 0.08;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 12 * S * pulse, 12 * S / pulse, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = m.color;
+      ctx.lineWidth = 2.5 * S;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const bx = (i - 1.5) * 6 * S;
+        const wig = Math.sin((m.walkPhase || 0) + i * 1.4) * 4 * S;
+        ctx.moveTo(bx, 9 * S);
+        ctx.quadraticCurveTo(bx + wig, 15 * S, bx - wig, 20 * S);
+      }
+      ctx.stroke();
+    } else {
+      // grunt — horned imp with stubby limbs
+      ctx.strokeStyle = m.color;
+      ctx.lineWidth = 3 * S;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); // waddling legs + swinging arms
+      ctx.moveTo(-4 * S, 12 * S); ctx.lineTo(-5 * S + stride, 18 * S);
+      ctx.moveTo(4 * S, 12 * S);  ctx.lineTo(5 * S - stride, 18 * S);
+      ctx.moveTo(-10 * S, 0);     ctx.lineTo(-13 * S, 6 * S - stride);
+      ctx.moveTo(10 * S, 0);      ctx.lineTo(13 * S, 6 * S + stride);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(0, 2, 11 * S, 13 * S, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // horns
+      ctx.beginPath();
+      ctx.moveTo(-7 * S, -9 * S); ctx.lineTo(-10 * S, -17 * S); ctx.lineTo(-3 * S, -11 * S);
+      ctx.moveTo(7 * S, -9 * S);  ctx.lineTo(10 * S, -17 * S);  ctx.lineTo(3 * S, -11 * S);
       ctx.fill();
     }
 
-    // eyes
+    // eyes (specter gets glowing hollow eyes inside the hood instead)
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(-6 * m.size, -6 * m.size, 4 * m.size, 4 * m.size);
-    ctx.fillRect(2 * m.size, -6 * m.size, 4 * m.size, 4 * m.size);
-    ctx.fillStyle = '#000';
-    ctx.fillRect(-5 * m.size, -5 * m.size, 2 * m.size, 2 * m.size);
-    ctx.fillRect(3 * m.size, -5 * m.size, 2 * m.size, 2 * m.size);
+    if (m.type === 'specter') {
+      ctx.fillStyle = '#67e8f9';
+      ctx.fillRect(-4 * S, -7 * S, 3 * S, 3 * S);
+      ctx.fillRect(1.5 * S, -7 * S, 3 * S, 3 * S);
+    } else if (m.type === 'horror') {
+      // three mismatched eyes
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(-7 * S, -5 * S, 4 * S, 4 * S);
+      ctx.fillRect(2 * S, -6 * S, 4 * S, 4 * S);
+      ctx.fillRect(-2 * S, -1 * S, 3 * S, 3 * S);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(-6 * S, -4 * S, 2 * S, 2 * S);
+      ctx.fillRect(3 * S, -5 * S, 2 * S, 2 * S);
+      ctx.fillRect(-1.5 * S, 0, 1.5 * S, 1.5 * S);
+    } else {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(-6 * S, -6 * S, 4 * S, 4 * S);
+      ctx.fillRect(2 * S, -6 * S, 4 * S, 4 * S);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(-5 * S, -5 * S, 2 * S, 2 * S);
+      ctx.fillRect(3 * S, -5 * S, 2 * S, 2 * S);
+    }
 
     // HP bar
     if (m.maxHp > 1) {
       ctx.fillStyle = '#333';
-      ctx.fillRect(-12, 16 * m.size, 24, 3);
+      ctx.fillRect(-12, 20 * S, 24, 3);
       ctx.fillStyle = '#ef4444';
-      ctx.fillRect(-12, 16 * m.size, 24 * (m.hp / m.maxHp), 3);
+      ctx.fillRect(-12, 20 * S, 24 * (m.hp / m.maxHp), 3);
     }
 
     ctx.restore();
   });
 
-  // Player
+  // Player — hero with running legs, off-arm, and the aiming gun arm
   ctx.save();
   ctx.translate(player.x + player.w/2, player.y + player.h/2);
   if (player.invuln > 0 && Math.floor(player.invuln/3) % 2 === 0) ctx.globalAlpha = 0.35;
+
+  const hStride = player.moving ? Math.sin(player.walkPhase || 0) * 6 : 0;
+
+  // legs — running stride while moving, planted when still
+  ctx.strokeStyle = '#7c3aed';
+  ctx.lineWidth = 4.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-4, 11); ctx.lineTo(-4 + hStride, 20);
+  ctx.moveTo(4, 11);  ctx.lineTo(4 - hStride, 20);
+  ctx.stroke();
 
   // body
   ctx.fillStyle = '#c084fc';
@@ -955,6 +1067,15 @@ function draw() {
   ctx.beginPath();
   ctx.arc(0, -11, 8, 0, Math.PI*2);
   ctx.fill();
+
+  // off-arm — counter-swings away from the gun side while running
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#a78bfa';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-Math.cos(player.angle) * 7, 1 - Math.sin(player.angle) * 7);
+  ctx.lineTo(-Math.cos(player.angle) * 13, 9 - Math.sin(player.angle) * 9 - hStride * 0.6);
+  ctx.stroke();
 
   // gun arm
   ctx.strokeStyle = '#a78bfa';

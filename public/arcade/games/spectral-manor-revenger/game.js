@@ -1709,16 +1709,21 @@ function draw() {
       ctx.beginPath();
       ctx.arc(cx, cy + 3, 1.8, 0, Math.PI * 2);
       ctx.fill();
-      // firing-line tracer so the threatened row is unmistakable
+      // Targeting beam while charging — a short, growing, gradient-faded ray
+      // in front of the eye. (The old version was a dashed line across the
+      // whole row, which read as a rendering glitch rather than an attack tell.)
       if (charging) {
-        ctx.strokeStyle = `rgba(248,113,113,${e.charge * 0.5})`;
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([6, 8]);
+        const aim = player.x < cx ? -1 : 1;
+        const reach = (40 + e.charge * 130) * aim;   // grows with the wind-up
+        const grad = ctx.createLinearGradient(cx, 0, cx + reach, 0);
+        grad.addColorStop(0, `rgba(248,113,113,${0.25 + e.charge * 0.65})`);
+        grad.addColorStop(1, 'rgba(248,113,113,0)');
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 2 + e.charge * 2;
         ctx.beginPath();
-        const tx = player.x < cx ? 0 : W;
-        ctx.moveTo(cx, cy + 3); ctx.lineTo(tx, cy + 3);
+        ctx.moveTo(cx + 8 * aim, cy + 3);
+        ctx.lineTo(cx + reach, cy + 3);
         ctx.stroke();
-        ctx.setLineDash([]);
       }
     }
   });
