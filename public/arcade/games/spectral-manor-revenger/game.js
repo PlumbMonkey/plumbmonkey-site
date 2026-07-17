@@ -429,6 +429,7 @@ function spawnWave() {
       hp: 1,
       rot: Math.random() * Math.PI * 2,
       carrying: null,     // fan currently being abducted
+      target: null,       // committed hunt target (lander behavior)
       seeking: Math.random() < 0.55, // some enemies actively hunt fans
       dir: -1,            // -1 = sweeping left (normal), +1 = looped back from behind
       loops: 0,           // how many times it has circled around
@@ -681,6 +682,10 @@ function update() {
   });
 
   // Enemies AI + movement
+  // "Cover fire": while any comrade is hauling a fan skyward, the shooters
+  // press the attack to keep you off the rescue — killing the abductor fast
+  // means flying INTO that fire. That's the risk/reward.
+  const coverFire = enemies.some(en => en.carrying);
   enemies.forEach(e => {
     if (e.carrying) {
       // Carrying a fan → fly upward and away to abduct
@@ -702,38 +707,44 @@ function update() {
         updateHUD();
       }
     } else if (e.seeking) {
-      // Look for the nearest ground fan — around the wrap
-      let nearest = null;
-      let nearestDist = 9999;
-      fans.forEach(f => {
-        if (f.state === 'ground') {
-          const dx = wrapDX(f.x, e.x);
-          const dy = f.y - e.y;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          if (d < nearestDist) {
-            nearestDist = d;
-            nearest = f;
-          }
+      // Defender-lander hunt: COMMIT to a target fan, cruise to its column,
+      // then descend and grab. (The old version only dived when a fan was
+      // within 280 units straight-line — but cruise altitude alone is ~350px
+      // above the ground, so seekers never actually descended.)
+      if (!e.target || e.target.state !== 'ground' || !fans.includes(e.target)) {
+        e.target = null;
+        let best = Infinity;
+        fans.forEach(f => {
+          if (f.state !== 'ground') return;
+          const d = Math.abs(wrapDX(f.x, e.x));
+          if (d < best) { best = d; e.target = f; }
+        });
+      }
+      if (e.target) {
+        const dx = wrapDX(e.target.x, e.x + e.w / 2);
+        if (Math.abs(dx) > 14) {
+          // travel leg — fly toward the fan's column at hunting speed
+          e.dir = Math.sign(dx);
+          e.x = wrapX(e.x + e.dir * e.speed);
         }
-      });
-      if (nearest && nearestDist < 280) {
-        // Move toward the fan (wrap-aware)
-        const dx = wrapDX(nearest.x, e.x + e.w / 2);
-        const dy = nearest.y - (e.y + e.h);
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        e.x = wrapX(e.x + (dx / dist) * e.speed * 0.9);
-        e.y += (dy / dist) * e.speed * 0.9;
-
-        // Grab if close enough
-        if (dist < 28) {
-          nearest.state = 'grabbed';
-          nearest.grabber = e;
-          e.carrying = nearest;
-          e.seeking = false;
+        if (Math.abs(dx) < 110) {
+          // over the target — DESCEND for the grab
+          const hover = e.target.y - e.h - 4;
+          e.y += Math.min(hover - e.y, e.speed * 0.85);
+          if (Math.abs(dx) < 20 && e.y > hover - 12) {
+            e.target.state = 'grabbed';
+            e.target.grabber = e;
+            e.carrying = e.target;
+            e.target = null;
+            e.seeking = false;
+          }
+        } else if (e.y > 90 + (e.x % 70)) {
+          // long way to go — climb back to cruise altitude while traveling
+          e.y -= e.speed * 0.4;
         }
       } else {
-        // Default sweep along its current heading (world wraps — fly forever)
-        e.x = wrapX(e.x + e.speed * e.dir);
+        // No fans left on the ground → become a pure attacker
+        e.seeking = false;
       }
     } else {
       e.x = wrapX(e.x + e.speed * e.dir);
@@ -745,11 +756,18 @@ function update() {
         const py = player.y + player.h / 2;
         e.y += Math.sign(py - (e.y + e.h / 2)) * Math.min(0.7, e.speed * 0.35);
       }
-      // Persistent hunters: an undestroyed enemy far away occasionally turns
-      // to come back at you — nothing left alive stays gone for long
-      if (Math.abs(gap) > W * 1.4 && Math.random() < 0.004) {
-        e.dir = Math.sign(gap) || 1;
-        e.loops++;
+      // Persistent hunters: an undestroyed enemy far away turns back toward
+      // you — sooner by chance, or FORCED after ~4s so nothing loiters in the
+      // empty half of the world where you can't fight it
+      if (Math.abs(gap) > W * 1.2) {
+        e.awayTime = (e.awayTime || 0) + 1;
+        if ((Math.random() < 0.01 || e.awayTime > 240) && Math.sign(gap) !== e.dir) {
+          e.dir = Math.sign(gap) || 1;
+          e.loops++;
+          e.awayTime = 0;
+        }
+      } else {
+        e.awayTime = 0;
       }
     }
 
@@ -758,7 +776,8 @@ function update() {
       const esx = toScreen(e.x);
       const onScreen = esx > -40 && esx < W + 40;
       if (onScreen) {
-        e.shootTimer--;
+        // shooters fire ~2x faster while a comrade is hauling a fan away
+        e.shootTimer -= coverFire ? 2 : 1;
         if (e.type === 'pyramid' && e.shootTimer <= 30 && e.shootTimer > 0) {
           e.charge = 1 - e.shootTimer / 30;   // eye glows as it winds up
         }
