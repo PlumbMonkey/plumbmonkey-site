@@ -6,6 +6,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8123"],
       "port": 8123
+    },
+    {
+      "name": "visual-static",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8127"],
+      "port": 8127
     }
   ]
 }

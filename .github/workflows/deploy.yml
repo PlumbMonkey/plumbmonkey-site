@@ -42,6 +42,14 @@ jobs:
           cp -r out/arcade.txt ./arcade.txt || true
           cp -r out/music ./ || true
           cp -r out/music.html ./music.html || true
+          # Regenerate ALL built pages every deploy so root snapshots can't go
+          # stale (stale snapshots hydrate the OLD NavBar from old _next chunks
+          # and silently wipe nav updates). index.html stays hand-written.
+          for p in how-it-works pricing-scope pricing upload contact onboarding portfolio sales-hub 404; do
+            cp out/$p.html ./$p.html || true
+            cp out/$p.txt ./$p.txt || true
+          done
+          cp -r out/sales-hub ./ || true
 
   deploy:
     environment:
@@ -72,6 +80,14 @@ jobs:
           cp -r out/arcade.txt ./arcade.txt || true
           cp -r out/music ./ || true
           cp -r out/music.html ./music.html || true
+          # Regenerate ALL built pages every deploy so root snapshots can't go
+          # stale (stale snapshots hydrate the OLD NavBar from old _next chunks
+          # and silently wipe nav updates). index.html stays hand-written.
+          for p in how-it-works pricing-scope pricing upload contact onboarding portfolio sales-hub 404; do
+            cp out/$p.html ./$p.html || true
+            cp out/$p.txt ./$p.txt || true
+          done
+          cp -r out/sales-hub ./ || true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

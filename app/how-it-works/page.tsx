@@ -115,7 +115,7 @@ export default function HowItWorksPage() {
             Let's build something cinematic.
           </p>
           <Link
-            href="/onboarding"
+            href="/onboarding/orientation"
             className="inline-block px-8 py-4 rounded-lg bg-teal-600 text-white font-semibold hover:bg-teal-500 transition"
           >
             Start Your Project

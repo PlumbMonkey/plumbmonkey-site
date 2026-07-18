@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>Ghost Circuit Light Lab | Plumbmonkey</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      background: #05030a; color: #dbeafe;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden; user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Full-bleed stage */
+    #stageWrap { position: fixed; inset: 0; }
+    #stage { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+
+    /* Back-links (same idiom as the arcade games) */
+    .nav { position: fixed; top: 10px; left: 10px; display: flex; gap: .5rem; font-size: .78rem; z-index: 20; }
+    .nav a { color: #c084fc; text-decoration: none; padding: .3rem .7rem; border-radius: 6px;
+      background: rgba(26,16,37,.8); border: 1px solid #3b2660; backdrop-filter: blur(4px);
+      transition: all .15s; white-space: nowrap; }
+    .nav a:hover { color: #fff; border-color: #c084fc; box-shadow: 0 0 12px rgba(192,132,252,.5); }
+
+    /* Title, fades out so the canvas owns the screen */
+    .title {
+      position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+      text-align: center; z-index: 10; pointer-events: none;
+      animation: fadeTitle 6s ease forwards;
+    }
+    .title h1 { font-size: 1.15rem; letter-spacing: 3px; color: #c084fc; text-shadow: 0 0 18px #a855f7; }
+    .title p { font-size: .72rem; color: #d8b4fe; opacity: .85; }
+    @keyframes fadeTitle { 0%, 70% { opacity: 1; } 100% { opacity: 0.25; } }
+
+    /* Fullscreen button (top-right, arcade pattern) */
+    #fsBtn { position: fixed; top: 10px; right: 10px; z-index: 20;
+      background: rgba(26,16,37,.8); border: 1px solid #3b2660; color: #c084fc;
+      border-radius: 6px; padding: .3rem .7rem; font-size: .78rem; cursor: pointer; }
+    #fsBtn:hover { color: #fff; border-color: #c084fc; }
+
+    /* Control drawer — bottom sheet, collapses on mobile */
+    #drawerBtn { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+      z-index: 30; background: rgba(26,16,37,.85); border: 1px solid #3b2660; color: #e9d5ff;
+      border-radius: 999px; padding: .45rem 1.3rem; font-size: .8rem; font-weight: 600;
+      cursor: pointer; backdrop-filter: blur(6px); }
+    #drawerBtn:hover { border-color: #c084fc; box-shadow: 0 0 14px rgba(192,132,252,.5); }
+
+    #drawer { position: fixed; left: 50%; bottom: -320px; transform: translateX(-50%);
+      width: min(720px, calc(100% - 16px)); z-index: 25;
+      background: rgba(13,8,22,.92); border: 1px solid #3b2660; border-radius: 16px 16px 0 0;
+      padding: .9rem 1.1rem 3.2rem; backdrop-filter: blur(10px);
+      transition: bottom .25s ease; }
+    #drawer.open { bottom: 0; }
+
+    .row { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; margin-bottom: .7rem; }
+    .row-label { font-size: .64rem; letter-spacing: 2px; color: #a78bfa; text-transform: uppercase;
+      width: 100%; margin-bottom: .1rem; }
+    .mode-chip, .src-chip { background: #1e1b4b; color: #c4b5fd; border: 1px solid #3b2660;
+      border-radius: 999px; padding: .34rem .8rem; font-size: .74rem; font-weight: 600; cursor: pointer;
+      transition: all .15s; font-family: inherit; }
+    .mode-chip:hover, .src-chip:hover { border-color: #c084fc; color: #fff; }
+    .mode-chip.active, .src-chip.active { background: #4c1d95; color: #fff; border-color: #a855f7;
+      box-shadow: 0 0 12px rgba(168,85,247,.45); }
+
+    .sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .8rem; }
+    .ctl { display: flex; flex-direction: column; gap: .25rem; font-size: .7rem; color: #d8b4fe; }
+    .ctl label { display: flex; justify-content: space-between; }
+    .ctl span { color: #f0abfc; }
+    input[type=range] { width: 100%; accent-color: #c084fc; }
+    select { font-family: inherit; background: #2e1065; color: #e9d5ff; border: 1px solid #7c3aed;
+      border-radius: 6px; padding: .28rem; font-size: .74rem; }
+
+    #vsStatus { position: fixed; bottom: 54px; left: 50%; transform: translateX(-50%);
+      font-size: .72rem; color: #d8b4fe; z-index: 20; pointer-events: none;
+      background: rgba(13,8,22,.6); padding: .2rem .8rem; border-radius: 999px; }
+
+    /* Transport bar — appears only while a music file is loaded */
+    #transport { position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
+      display: none; align-items: center; gap: .55rem; z-index: 26;
+      width: min(540px, calc(100% - 24px));
+      background: rgba(13,8,22,.88); border: 1px solid #3b2660; border-radius: 999px;
+      padding: .4rem .9rem; backdrop-filter: blur(8px); }
+    #transport.show { display: flex; }
+    #transport button { background: none; border: none; color: #e9d5ff; font-size: 1rem;
+      cursor: pointer; padding: .1rem .3rem; line-height: 1; font-family: inherit; }
+    #transport button:hover { color: #fff; }
+    #tLoop { opacity: .4; }
+    #tLoop.on { opacity: 1; color: #f0abfc; text-shadow: 0 0 8px #c084fc; }
+    #seek { flex: 1; accent-color: #c084fc; min-width: 80px; }
+    #tTime { font-size: .66rem; color: #d8b4fe; white-space: nowrap;
+      font-variant-numeric: tabular-nums; }
+
+    /* Clean mode: nothing but the canvas */
+    body.clean .nav, body.clean .title, body.clean #fsBtn, body.clean #vsStatus,
+    body.clean #drawerBtn, body.clean #drawer, body.clean #transport { display: none !important; }
+    #cleanHint { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 40;
+      font-size: .74rem; color: #d8b4fe; background: rgba(13,8,22,.78); border: 1px solid #3b2660;
+      padding: .32rem .95rem; border-radius: 999px; opacity: 0; pointer-events: none;
+      transition: opacity .6s; }
+    #cleanHint.show { opacity: 1; }
+    #cleanExit { position: fixed; top: 0; right: 0; width: 56px; height: 56px; z-index: 41;
+      background: none; border: none; cursor: pointer; display: none; }
+    body.clean #cleanExit { display: block; }
+
+    /* Record chip while recording */
+    #recBtn.rec { background: #7f1d1d; border-color: #ef4444; color: #fff;
+      box-shadow: 0 0 12px rgba(239,68,68,.6); font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <div id="stageWrap"><canvas id="stage"></canvas></div>
+
+  <div class="nav">
+    <a href="/">← Plumbmonkey Home</a>
+    <a href="/arcade">Arcade</a>
+    <a href="/music">Sound Stage</a>
+  </div>
+
+  <div class="title">
+    <h1>GHOST CIRCUIT LIGHT LAB</h1>
+    <p>Drag, swipe &amp; hold — or feed it music</p>
+  </div>
+
+  <button id="fsBtn">⛶ Fullscreen</button>
+  <div id="vsStatus">Touch mode — drag, swipe and hold anywhere</div>
+
+  <div id="transport">
+    <button id="tPlay" title="Play / pause (freezes the visual too)">⏸</button>
+    <input type="range" id="seek" min="0" max="1000" value="0" />
+    <div id="tTime">0:00 / 0:00</div>
+    <button id="tLoop" class="on" title="Loop">⟳</button>
+  </div>
+
+  <div id="cleanHint">Esc or tap top-right corner to exit &nbsp;·&nbsp; R starts/stops recording</div>
+  <button id="cleanExit" aria-label="Exit clean mode"></button>
+
+  <button id="drawerBtn">✦ Controls</button>
+  <div id="drawer">
+    <div class="row">
+      <div class="row-label">Mode</div>
+      <button class="mode-chip active" data-mode="firefly-nebula">Firefly Nebula</button>
+      <button class="mode-chip" data-mode="neural-strings">Neural Strings</button>
+      <button class="mode-chip" data-mode="geometric-pulse">Geometric Pulse</button>
+      <button class="mode-chip" data-mode="fractal-warp">Fractal Warp</button>
+      <button class="mode-chip" data-mode="auto" title="Cycle modes on strong beats">✦ Auto</button>
+    </div>
+    <div class="row">
+      <div class="row-label">Source</div>
+      <button class="src-chip active" id="srcTouch">Touch Only</button>
+      <button class="src-chip" id="srcMic">Microphone</button>
+      <button class="src-chip" id="srcFile">Music File…</button>
+      <input type="file" id="fileInput" accept="audio/*" style="display:none" />
+      <select id="palette" title="Color palette"></select>
+    </div>
+    <div class="row">
+      <div class="row-label">Capture</div>
+      <button class="src-chip" id="recBtn" title="Record the canvas (plus audio) to a .webm video — max 5 min">● Record</button>
+      <button class="src-chip" id="cleanBtn" title="Hide every control for a clean screen-capture frame">🎬 Clean View</button>
+    </div>
+    <div class="sliders">
+      <div class="ctl"><label>Segments <span id="segmentsVal"></span></label><input type="range" id="segments" min="4" max="12" step="2" value="8" /></div>
+      <div class="ctl"><label>Sensitivity <span id="sensitivityVal"></span></label><input type="range" id="sensitivity" min="5" max="30" value="15" /></div>
+      <div class="ctl"><label>Trails <span id="trailsVal"></span></label><input type="range" id="trails" min="10" max="120" value="25" /></div>
+      <div class="ctl"><label>Spin <span id="spinVal"></span></label><input type="range" id="spin" min="0" max="30" value="10" /></div>
+    </div>
+  </div>
+
+  <script src="visual.js"></script>
+</body>
+</html>

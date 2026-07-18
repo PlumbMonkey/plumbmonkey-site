@@ -49,7 +49,7 @@ export default function PricingScopePage() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/onboarding"
+              href="/onboarding/orientation"
               className="inline-block px-8 py-4 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold hover:shadow-lg hover:shadow-orange-500/50 transition-all duration-200"
             >
               Start Your Brief
@@ -78,7 +78,7 @@ export default function PricingScopePage() {
               <div className="mb-6">
                 <h3 className="text-2xl font-bold mb-2">Clean Cut</h3>
                 <p className="text-3xl font-bold text-orange-400">$150–$350</p>
-                <p className="text-sm text-zinc-400 mt-2">per video</p>
+                <p className="text-sm text-zinc-400 mt-2">per video · CAD</p>
               </div>
 
               <p className="text-zinc-300 mb-6">
@@ -143,7 +143,7 @@ export default function PricingScopePage() {
               <div className="mb-6">
                 <h3 className="text-2xl font-bold mb-2">Impact Cut</h3>
                 <p className="text-3xl font-bold text-orange-400">$350–$900</p>
-                <p className="text-sm text-zinc-400 mt-2">per video</p>
+                <p className="text-sm text-zinc-400 mt-2">per video · CAD</p>
               </div>
 
               <p className="text-zinc-300 mb-6">
@@ -202,7 +202,7 @@ export default function PricingScopePage() {
               <div className="mb-6">
                 <h3 className="text-2xl font-bold mb-2">Signature Edit</h3>
                 <p className="text-3xl font-bold text-orange-400">$900–$3,500+</p>
-                <p className="text-sm text-zinc-400 mt-2">per video</p>
+                <p className="text-sm text-zinc-400 mt-2">per video · CAD</p>
               </div>
 
               <p className="text-zinc-300 mb-6">
@@ -457,7 +457,7 @@ export default function PricingScopePage() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/onboarding"
+              href="/onboarding/orientation"
               className="inline-block px-8 py-4 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold hover:shadow-lg hover:shadow-orange-500/50 transition-all"
             >
               Start Your Brief

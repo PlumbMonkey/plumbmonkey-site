@@ -51,7 +51,7 @@ export default function UploadPage() {
     <main className="min-h-screen bg-zinc-950 text-zinc-50">
       <section className="max-w-3xl mx-auto px-4 py-12">
         <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
-          upload your assets
+          Upload Your Assets
         </h1>
         <p className="mt-2 text-sm text-zinc-400">
           Paste Drive/Dropbox/WeTransfer links. Direct file uploads can be added later.
@@ -144,7 +144,7 @@ export default function UploadPage() {
               href="/onboarding.html"
               className="inline-flex items-center justify-center rounded-lg border border-zinc-700 px-5 py-2.5 font-medium"
             >
-              Back to assessment
+              Back to Project Brief
             </a>
           </div>
         </div>
