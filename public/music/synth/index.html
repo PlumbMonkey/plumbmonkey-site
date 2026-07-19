@@ -3,81 +3,170 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ghost Circuit Soft Synth | Plumbmonkey</title>
+  <title>SY-1 Soft Synth | Plumbmonkey</title>
   <style>
+    /* ============================================================
+       SY-1 hardware skin — matches the Blender SY-1 model renders:
+       warm dark-gray chassis, orange LCD + accents, rendered knob
+       sprite (assets/sy1_knob.png) rotated live per control.
+       All original control IDs preserved — synth.js is untouched;
+       the knob layer proxies to the hidden range inputs.
+       ============================================================ */
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: radial-gradient(ellipse at top, #10182e 0%, #07040f 70%);
-      color: #dbeafe; font-family: 'Segoe UI', system-ui, sans-serif;
-      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-      padding: 2.5rem 1rem 3rem; user-select: none;
+    :root {
+      --chassis: #4c4845; --chassis-dark: #2b2826; --chassis-edge: #211f1d;
+      --panel-line: #5c5754; --engrave: #a49c95; --engrave-dim: #7d766f;
+      --amber: #f2c18f; --amber-deep: #e89a5f; --amber-glow: rgba(240,170,110,.55);
+      --key-white: #e9e7e3; --key-black: #4a453f;
     }
-    h1 { font-size: 1.6rem; letter-spacing: 2px; color: #c084fc; text-shadow: 0 0 18px #a855f7; margin-bottom: .2rem; }
-    .subtitle { color: #d8b4fe; font-size: .82rem; margin-bottom: 1.4rem; }
+    body {
+      background: radial-gradient(ellipse at 50% -10%, #3a3634 0%, #171514 62%, #0d0c0b 100%);
+      color: #d8d2cc; font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+      padding: 2.2rem 1rem 3rem; user-select: none; -webkit-user-select: none;
+    }
     .nav { position: fixed; top: 10px; left: 10px; display: flex; gap: .5rem; font-size: .78rem; z-index: 20; }
-    .nav a { color: #c084fc; text-decoration: none; padding: .3rem .7rem; border-radius: 6px;
-      background: rgba(26,16,37,.8); border: 1px solid #3b2660; }
-    .nav a:hover { color: #fff; border-color: #c084fc; box-shadow: 0 0 12px rgba(192,132,252,.5); }
+    .nav a { color: #e0b184; text-decoration: none; padding: .3rem .7rem; border-radius: 6px;
+      background: rgba(30,26,23,.85); border: 1px solid #4a4038; }
+    .nav a:hover { color: #fff; border-color: #e0b184; box-shadow: 0 0 12px var(--amber-glow); }
 
-    .rack { max-width: 720px; width: 100%; margin-bottom: 1.1rem; }
-    fieldset.section { border: 1px solid #3b2660; border-radius: 12px; padding: .9rem 1.1rem 1rem;
-      margin-bottom: .9rem; background: rgba(26,16,37,.55); }
-    fieldset.section legend { font-size: .68rem; letter-spacing: 2px; color: #a78bfa; padding: 0 .5rem;
-      text-transform: uppercase; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; }
-    .ctl { display: flex; flex-direction: column; gap: .3rem; font-size: .72rem; color: #d8b4fe; }
-    .ctl label { display: flex; justify-content: space-between; }
-    .ctl span { color: #f0abfc; }
-    input[type=range] { width: 100%; accent-color: #c084fc; }
-    select { font-family: inherit; background: #2e1065; color: #e9d5ff; border: 1px solid #7c3aed;
-      border-radius: 6px; padding: .3rem; }
+    /* ---------- Chassis ---------- */
+    .chassis {
+      width: 100%; max-width: 860px;
+      background: linear-gradient(172deg, #57524e 0%, var(--chassis) 34%, #43403d 78%, #383532 100%);
+      border-radius: 14px;
+      border: 1px solid var(--chassis-edge);
+      box-shadow:
+        0 2px 0 #6a6560 inset, 0 -3px 0 #1c1a18 inset,
+        0 22px 60px rgba(0,0,0,.65), 0 6px 18px rgba(0,0,0,.5);
+      padding: 1.3rem 1.6rem 1.5rem;
+    }
 
-    .presets { display: flex; flex-wrap: wrap; gap: .5rem; max-width: 720px; width: 100%;
-      margin-bottom: 1rem; align-items: center; }
-    .preset-chip { background: #2e1065; color: #e9d5ff; border: 1px solid #7c3aed; border-radius: 999px;
-      padding: .38rem .9rem; font-size: .75rem; font-weight: 600; cursor: pointer; transition: all .15s; }
-    .preset-chip:hover { background: #4c1d95; box-shadow: 0 0 12px rgba(168,85,247,.5); }
+    /* ---------- Top bar: logo · LCD · model ---------- */
+    .topbar { display: flex; align-items: center; gap: 1.2rem; margin-bottom: 1.1rem; }
+    .brand { font-size: .82rem; letter-spacing: 3px; font-weight: 700; color: #ded8d2;
+      text-shadow: 0 1px 0 #1e1c1a, 0 -1px 0 rgba(255,255,255,.12); white-space: nowrap; }
+    .model { font-size: 1.5rem; letter-spacing: 2px; font-weight: 700; color: var(--amber-deep);
+      text-shadow: 0 0 14px var(--amber-glow), 0 1px 0 #1e1c1a; white-space: nowrap; margin-left: auto; }
+
+    .lcd-bezel { flex: 1; max-width: 420px; margin: 0 auto;
+      background: linear-gradient(#8b8683, #b3aeab 12%, #9b9693);
+      border-radius: 6px; padding: 5px 6px 7px;
+      box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 -2px 4px rgba(0,0,0,.35) inset, 0 2px 6px rgba(0,0,0,.4); }
+    .lcd { position: relative; height: 44px; border-radius: 3px; overflow: hidden;
+      background: linear-gradient(#f6d3a4, #f0bd85 60%, #eab278);
+      box-shadow: 0 0 18px rgba(240,180,120,.35), inset 0 0 14px rgba(150,90,40,.35);
+      display: flex; align-items: center; justify-content: center; }
+    .lcd::after { content: ''; position: absolute; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent 0 2px, rgba(120,70,30,.05) 2px 3px); }
+    #synthStatus { font-family: Consolas, 'Courier New', monospace; font-size: .78rem; font-weight: 700;
+      color: #5a3413; text-shadow: 0 0 6px rgba(90,52,19,.25); letter-spacing: .5px;
+      padding: 0 .9rem; text-align: center; line-height: 1.2; }
+    #lcdParam { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+      background: linear-gradient(#f6d3a4, #f0bd85 60%, #eab278);
+      font-family: Consolas, 'Courier New', monospace; font-size: .92rem; font-weight: 700;
+      color: #4d2c0e; letter-spacing: 1px; z-index: 2; }
+    #lcdParam.show { display: flex; }
+
+    /* ---------- Preset row ---------- */
+    .presets { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.1rem; align-items: center; }
+    .preset-chip, .mini-btn {
+      background: linear-gradient(#605b57, #4a4642 70%, #403c39); color: #d8d2cc;
+      border: 1px solid #262422; border-radius: 6px; padding: .4rem .85rem;
+      font-size: .72rem; font-weight: 700; letter-spacing: .5px; cursor: pointer; font-family: inherit;
+      box-shadow: 0 1px 0 rgba(255,255,255,.14) inset, 0 2px 4px rgba(0,0,0,.4); transition: all .12s; }
+    .preset-chip:hover, .mini-btn:hover { color: #fff; border-color: var(--amber-deep);
+      box-shadow: 0 1px 0 rgba(255,255,255,.14) inset, 0 0 12px var(--amber-glow); }
+    .preset-chip:active, .mini-btn:active { transform: translateY(1px); }
     .preset-sep { flex: 1; }
-    .mini-btn { background: #1e1b4b; color: #c4b5fd; border: 1px solid #3b2660; border-radius: 8px;
-      padding: .38rem .8rem; font-size: .72rem; font-weight: 600; cursor: pointer; }
-    .mini-btn:hover { border-color: #c084fc; color: #fff; }
 
-    #scope { display: block; width: 100%; max-width: 720px; height: 70px; border: 1px solid #3b2660;
-      border-radius: 10px; background: #07040f; margin-bottom: 1rem; }
+    /* ---------- Control sections ---------- */
+    .rack { margin-bottom: 1rem; }
+    fieldset.section { border: none; border-top: 1px solid var(--panel-line); border-radius: 0;
+      padding: .55rem .2rem .8rem; margin-bottom: .1rem; background: none; }
+    fieldset.section legend { font-size: .64rem; letter-spacing: 3px; color: var(--engrave); padding: 0 .6rem 0 0;
+      text-transform: uppercase; font-weight: 700; text-shadow: 0 1px 0 #1e1c1a; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: .9rem .6rem; }
 
-    .kb-head { display: flex; align-items: center; justify-content: space-between; max-width: 720px;
-      width: 100%; margin-bottom: .5rem; }
-    .octave { display: flex; align-items: center; gap: .5rem; font-size: .74rem; color: #d8b4fe; }
-    .octave button { padding: .25rem .7rem; background: #4c1d95; }
-    #octaveVal { color: #f0abfc; min-width: 82px; text-align: center; }
-    .key-label { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center;
-      font-size: .62rem; color: #6d28d9; pointer-events: none; }
+    .ctl { display: flex; flex-direction: column; align-items: center; gap: .3rem;
+      font-size: .66rem; color: var(--engrave-dim); }
+    .ctl label { display: flex; flex-direction: column; align-items: center; gap: .1rem;
+      letter-spacing: 1px; text-transform: uppercase; font-weight: 600; text-align: center; }
+    .ctl span { color: var(--amber-deep); font-family: Consolas, monospace; font-size: .7rem; }
+    .ctl input[type=range] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
-    .kb-wrap { width: 100%; max-width: 720px; }
-    #keyboard { position: relative; height: 170px; background: #0f0a18; border: 1px solid #3b2660;
-      border-radius: 10px; overflow: hidden; box-shadow: 0 0 40px rgba(168,85,247,.15); }
+    /* The rendered knob sprite, rotated live */
+    .knob { width: 64px; height: 64px; cursor: ns-resize; touch-action: none; position: relative;
+      filter: drop-shadow(0 5px 6px rgba(0,0,0,.55)); }
+    .knob img { width: 100%; height: 100%; display: block; pointer-events: none;
+      transition: filter .15s; }
+    .knob:hover img, .knob.dragging img { filter: drop-shadow(0 0 10px var(--amber-glow)); }
+
+    /* Wave selector as hardware buttons */
+    .wave-btns { display: flex; gap: .4rem; }
+    .wave-btn { width: 52px; padding: .45rem 0; font-size: .64rem; font-weight: 700; letter-spacing: 1px;
+      font-family: inherit; color: #cfc9c3; cursor: pointer; border-radius: 5px;
+      background: linear-gradient(#5d5854, #47433f); border: 1px solid #262422;
+      box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 2px 4px rgba(0,0,0,.4); transition: all .12s; }
+    .wave-btn.active { color: #3c220c; background: linear-gradient(#f4c793, #e8a05f);
+      box-shadow: 0 0 14px var(--amber-glow), 0 1px 0 rgba(255,255,255,.4) inset; border-color: #a06a35; }
+    .ctl select { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+    /* ---------- Scope ---------- */
+    #scope { display: block; width: 100%; height: 64px; border-radius: 5px; margin-bottom: 1rem;
+      background: #191512;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.07); }
+
+    /* ---------- Keyboard ---------- */
+    .kb-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
+    .hint { font-size: .68rem; color: var(--engrave-dim); }
+    .octave { display: flex; align-items: center; gap: .5rem; font-size: .72rem; color: var(--engrave); }
+    .octave button { padding: .3rem .7rem; }
+    #octaveVal { color: var(--amber-deep); min-width: 82px; text-align: center; font-family: Consolas, monospace; }
+
+    #keyboard { position: relative; height: 175px; border-radius: 8px; overflow: hidden;
+      background: #211e1c; border: 1px solid #191715;
+      box-shadow: inset 0 4px 10px rgba(0,0,0,.6); }
     .key { position: absolute; top: 0; cursor: pointer; }
-    .key.white { height: 100%; background: linear-gradient(#f5f3ff, #e9d5ff); border: 1px solid #1e1b4b;
-      border-radius: 0 0 6px 6px; }
-    .key.white.down { background: linear-gradient(#d8b4fe, #c084fc);
-      box-shadow: 0 0 18px rgba(192,132,252,.9), inset 0 0 10px rgba(168,85,247,.5); }
-    .key.black { height: 62%; background: linear-gradient(#3b2660, #1a1025); border: 1px solid #000;
-      border-radius: 0 0 5px 5px; z-index: 2; }
-    .key.black.down { background: linear-gradient(#a855f7, #7c3aed);
-      box-shadow: 0 0 18px rgba(168,85,247,.95); }
+    .key.white { height: 100%; background: linear-gradient(#f2f0ec, var(--key-white) 60%, #d6d3cd);
+      border: 1px solid #34302c; border-radius: 0 0 5px 5px;
+      box-shadow: 0 -2px 0 rgba(0,0,0,.12) inset; }
+    .key.white.down { background: linear-gradient(#f6cf9e, #eeb37c);
+      box-shadow: 0 0 22px var(--amber-glow), inset 0 0 12px rgba(200,120,50,.45); }
+    .key.black { height: 62%; background: linear-gradient(#5a544d, var(--key-black) 70%, #3a3630);
+      border: 1px solid #14120f; border-radius: 0 0 4px 4px; z-index: 2;
+      box-shadow: 0 3px 6px rgba(0,0,0,.5); }
+    .key.black.down { background: linear-gradient(#e8a05f, #cf7f3e);
+      box-shadow: 0 0 20px var(--amber-glow); }
+    .key-label { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center;
+      font-size: .6rem; color: #8d867e; pointer-events: none; }
 
+    /* ---------- Transport ---------- */
     .transport { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .8rem;
-      margin-top: 1rem; }
-    button { font-family: inherit; font-weight: 600; cursor: pointer; border: none; border-radius: 8px;
-      padding: .5rem 1rem; background: #4c1d95; color: #e9d5ff; transition: all .15s; }
-    button:hover { background: #5b21b6; box-shadow: 0 0 14px rgba(168,85,247,.45); }
-    #recordBtn { background: #7c3aed; min-width: 100px; }
-    #recordBtn.recording { background: #ef4444; color: #fff; box-shadow: 0 0 16px rgba(239,68,68,.7); }
-    #synthStatus { margin-top: .6rem; min-height: 1.1rem; font-size: .8rem; color: #d8b4fe; text-align: center; }
-    .hint { margin-top: .8rem; font-size: .72rem; color: #64748b; text-align: center; }
-    .footer { margin-top: 1.6rem; text-align: center; font-size: .8rem; color: #64748b; line-height: 1.6; }
-    .footer a { color: #c084fc; text-decoration: none; }
+      margin-top: 1.1rem; }
+    button { font-family: inherit; font-weight: 700; cursor: pointer; border-radius: 6px;
+      padding: .5rem 1.05rem; font-size: .78rem; letter-spacing: .5px;
+      background: linear-gradient(#605b57, #4a4642 70%, #403c39); color: #d8d2cc;
+      border: 1px solid #262422;
+      box-shadow: 0 1px 0 rgba(255,255,255,.14) inset, 0 2px 5px rgba(0,0,0,.45); transition: all .12s; }
+    button:hover { color: #fff; border-color: var(--amber-deep); box-shadow: 0 0 14px var(--amber-glow); }
+    button:active { transform: translateY(1px); }
+    #recordBtn { min-width: 104px; background: linear-gradient(#f4c793, #e8a05f); color: #3c220c;
+      border-color: #a06a35; }
+    #recordBtn.recording { background: linear-gradient(#f87171, #dc2626); color: #fff;
+      border-color: #7f1d1d; box-shadow: 0 0 18px rgba(239,68,68,.75); }
+
+    .under-hints { margin-top: .7rem; text-align: center; }
+    .footer { margin-top: 1.5rem; text-align: center; font-size: .78rem; color: #8d867e; line-height: 1.7; }
+    .footer a { color: var(--amber-deep); text-decoration: none; }
     .footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 640px) {
+      .chassis { padding: 1rem .8rem 1.1rem; }
+      .topbar { flex-wrap: wrap; }
+      .lcd-bezel { order: 3; min-width: 100%; }
+      .knob { width: 54px; height: 54px; }
+    }
   </style>
 </head>
 <body>
@@ -87,107 +176,222 @@
     <a href="/">Plumbmonkey Home</a>
   </div>
 
-  <h1>GHOST CIRCUIT SOFT SYNTH</h1>
-  <div class="subtitle">Polyphonic subtractive synth · played in your browser</div>
-
-  <div class="presets">
-    <button class="preset-chip" data-preset="Init">Init</button>
-    <button class="preset-chip" data-preset="Neon Lead">Neon Lead</button>
-    <button class="preset-chip" data-preset="Ghost Pad">Ghost Pad</button>
-    <button class="preset-chip" data-preset="Grave Bass">Grave Bass</button>
-    <button class="preset-chip" data-preset="Haunted Bell">Haunted Bell</button>
-    <span class="preset-sep"></span>
-    <button class="mini-btn" id="savePatchBtn">Save</button>
-    <button class="mini-btn" id="loadPatchBtn">Load</button>
-  </div>
-
-  <div class="rack">
-    <fieldset class="section">
-      <legend>Osc</legend>
-      <div class="grid">
-        <div class="ctl">
-          <label>Waveform</label>
-          <select id="wave">
-            <option value="sawtooth">Saw</option>
-            <option value="square">Square</option>
-            <option value="triangle">Triangle</option>
-            <option value="sine">Sine</option>
-          </select>
+  <div class="chassis">
+    <div class="topbar">
+      <div class="brand">PLUMBMONKEY</div>
+      <div class="lcd-bezel">
+        <div class="lcd">
+          <div id="synthStatus">SY-1 READY · PRESS RECORD, PLAY, EXPORT</div>
+          <div id="lcdParam"></div>
         </div>
       </div>
-    </fieldset>
+      <div class="model">SY-1</div>
+    </div>
 
-    <fieldset class="section">
-      <legend>Filter</legend>
-      <div class="grid">
-        <div class="ctl"><label>Cutoff <span id="cutoffVal"></span></label><input type="range" id="cutoff" min="200" max="9000" value="2200" /></div>
-        <div class="ctl"><label>Resonance <span id="resonanceVal"></span></label><input type="range" id="resonance" min="0" max="20" step="0.5" value="6" /></div>
+    <div class="presets">
+      <button class="preset-chip" data-preset="Init">Init</button>
+      <button class="preset-chip" data-preset="Neon Lead">Neon Lead</button>
+      <button class="preset-chip" data-preset="Ghost Pad">Ghost Pad</button>
+      <button class="preset-chip" data-preset="Grave Bass">Grave Bass</button>
+      <button class="preset-chip" data-preset="Haunted Bell">Haunted Bell</button>
+      <span class="preset-sep"></span>
+      <button class="mini-btn" id="savePatchBtn">Save</button>
+      <button class="mini-btn" id="loadPatchBtn">Load</button>
+    </div>
+
+    <div class="rack">
+      <fieldset class="section">
+        <legend>Osc</legend>
+        <div class="grid">
+          <div class="ctl" id="waveCtl">
+            <div class="wave-btns" role="group" aria-label="Waveform">
+              <button type="button" class="wave-btn" data-wave="sawtooth">SAW</button>
+              <button type="button" class="wave-btn" data-wave="square">SQR</button>
+              <button type="button" class="wave-btn" data-wave="triangle">TRI</button>
+              <button type="button" class="wave-btn" data-wave="sine">SIN</button>
+            </div>
+            <label>Waveform</label>
+            <select id="wave">
+              <option value="sawtooth">Saw</option>
+              <option value="square">Square</option>
+              <option value="triangle">Triangle</option>
+              <option value="sine">Sine</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="section">
+        <legend>Filter</legend>
+        <div class="grid">
+          <div class="ctl"><label>Cutoff <span id="cutoffVal"></span></label><input type="range" id="cutoff" min="200" max="9000" value="2200" /></div>
+          <div class="ctl"><label>Resonance <span id="resonanceVal"></span></label><input type="range" id="resonance" min="0" max="20" step="0.5" value="6" /></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="section">
+        <legend>Envelope</legend>
+        <div class="grid">
+          <div class="ctl"><label>Attack <span id="attackVal"></span></label><input type="range" id="attack" min="1" max="1000" value="20" data-scale="0.001" /></div>
+          <div class="ctl"><label>Decay <span id="decayVal"></span></label><input type="range" id="decay" min="1" max="1500" value="200" data-scale="0.001" /></div>
+          <div class="ctl"><label>Sustain <span id="sustainVal"></span></label><input type="range" id="sustain" min="0" max="100" value="60" data-scale="0.01" /></div>
+          <div class="ctl"><label>Release <span id="releaseVal"></span></label><input type="range" id="release" min="1" max="2000" value="350" data-scale="0.001" /></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="section">
+        <legend>FX</legend>
+        <div class="grid">
+          <div class="ctl"><label>Vib Rate <span id="vibRateVal"></span></label><input type="range" id="vibRate" min="3" max="8" step="0.1" value="5" /></div>
+          <div class="ctl"><label>Vib Depth <span id="vibDepthVal"></span></label><input type="range" id="vibDepth" min="0" max="25" step="1" value="0" /></div>
+          <div class="ctl"><label>Drive <span id="driveVal"></span></label><input type="range" id="drive" min="0" max="100" value="0" /></div>
+          <div class="ctl"><label>Chorus <span id="chorusVal"></span></label><input type="range" id="chorus" min="0" max="100" value="0" /></div>
+          <div class="ctl"><label>Dly Time <span id="delayTimeVal"></span></label><input type="range" id="delayTime" min="60" max="800" value="320" data-scale="0.001" /></div>
+          <div class="ctl"><label>Dly Fbk <span id="delayFeedbackVal"></span></label><input type="range" id="delayFeedback" min="0" max="75" value="0" data-scale="0.01" /></div>
+          <div class="ctl"><label>Dly Wet <span id="delayWetVal"></span></label><input type="range" id="delayWet" min="0" max="60" value="0" data-scale="0.01" /></div>
+          <div class="ctl"><label>Rev Size <span id="reverbSizeVal"></span></label><input type="range" id="reverbSize" min="80" max="350" value="180" data-scale="0.01" /></div>
+          <div class="ctl"><label>Rev Wet <span id="reverbWetVal"></span></label><input type="range" id="reverbWet" min="0" max="50" value="0" data-scale="0.01" /></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="section">
+        <legend>Out</legend>
+        <div class="grid">
+          <div class="ctl"><label>Volume <span id="volumeVal"></span></label><input type="range" id="volume" min="0" max="60" value="25" data-scale="0.01" /></div>
+        </div>
+      </fieldset>
+    </div>
+
+    <canvas id="scope" width="720" height="70"></canvas>
+
+    <div class="kb-head">
+      <div class="hint">Z / X shift octave</div>
+      <div class="octave">
+        <button id="octDown">– Oct</button>
+        <span id="octaveVal"></span>
+        <button id="octUp">Oct +</button>
       </div>
-    </fieldset>
+    </div>
 
-    <fieldset class="section">
-      <legend>Envelope</legend>
-      <div class="grid">
-        <div class="ctl"><label>Attack <span id="attackVal"></span></label><input type="range" id="attack" min="1" max="1000" value="20" data-scale="0.001" /></div>
-        <div class="ctl"><label>Decay <span id="decayVal"></span></label><input type="range" id="decay" min="1" max="1500" value="200" data-scale="0.001" /></div>
-        <div class="ctl"><label>Sustain <span id="sustainVal"></span></label><input type="range" id="sustain" min="0" max="100" value="60" data-scale="0.01" /></div>
-        <div class="ctl"><label>Release <span id="releaseVal"></span></label><input type="range" id="release" min="1" max="2000" value="350" data-scale="0.001" /></div>
-      </div>
-    </fieldset>
+    <div class="kb-wrap">
+      <div id="keyboard"></div>
+    </div>
 
-    <fieldset class="section">
-      <legend>FX</legend>
-      <div class="grid">
-        <div class="ctl"><label>Vibrato Rate <span id="vibRateVal"></span></label><input type="range" id="vibRate" min="3" max="8" step="0.1" value="5" /></div>
-        <div class="ctl"><label>Vibrato Depth <span id="vibDepthVal"></span></label><input type="range" id="vibDepth" min="0" max="25" step="1" value="0" /></div>
-        <div class="ctl"><label>Drive <span id="driveVal"></span></label><input type="range" id="drive" min="0" max="100" value="0" /></div>
-        <div class="ctl"><label>Chorus <span id="chorusVal"></span></label><input type="range" id="chorus" min="0" max="100" value="0" /></div>
-        <div class="ctl"><label>Delay Time <span id="delayTimeVal"></span></label><input type="range" id="delayTime" min="60" max="800" value="320" data-scale="0.001" /></div>
-        <div class="ctl"><label>Delay Fbk <span id="delayFeedbackVal"></span></label><input type="range" id="delayFeedback" min="0" max="75" value="0" data-scale="0.01" /></div>
-        <div class="ctl"><label>Delay Wet <span id="delayWetVal"></span></label><input type="range" id="delayWet" min="0" max="60" value="0" data-scale="0.01" /></div>
-        <div class="ctl"><label>Reverb Size <span id="reverbSizeVal"></span></label><input type="range" id="reverbSize" min="80" max="350" value="180" data-scale="0.01" /></div>
-        <div class="ctl"><label>Reverb Wet <span id="reverbWetVal"></span></label><input type="range" id="reverbWet" min="0" max="50" value="0" data-scale="0.01" /></div>
-      </div>
-    </fieldset>
-
-    <fieldset class="section">
-      <legend>Out</legend>
-      <div class="grid">
-        <div class="ctl"><label>Volume <span id="volumeVal"></span></label><input type="range" id="volume" min="0" max="60" value="25" data-scale="0.01" /></div>
-      </div>
-    </fieldset>
-  </div>
-
-  <canvas id="scope" width="720" height="70"></canvas>
-
-  <div class="kb-head">
-    <div class="hint" style="margin:0">Z / X shift octave</div>
-    <div class="octave">
-      <button id="octDown">– Oct</button>
-      <span id="octaveVal"></span>
-      <button id="octUp">Oct +</button>
+    <div class="transport">
+      <button id="recordBtn">● Record</button>
+      <button id="exportWavBtn" title="Render your recorded notes to a WAV file">Export WAV</button>
+      <button id="exportMidiBtn" title="Export your recorded notes as a MIDI file">Export MIDI</button>
+    </div>
+    <div class="under-hints">
+      <div class="hint">Effects apply to the whole take as currently set (vibrato is baked per note)</div>
+      <div class="hint">Play with the mouse/touch, or your computer keys: A W S E D F T G Y H U J K …</div>
     </div>
   </div>
 
-  <div class="kb-wrap">
-    <div id="keyboard"></div>
-  </div>
-
-  <div class="transport">
-    <button id="recordBtn">● Record</button>
-    <button id="exportWavBtn" title="Render your recorded notes to a WAV file">Export WAV</button>
-    <button id="exportMidiBtn" title="Export your recorded notes as a MIDI file">Export MIDI</button>
-  </div>
-  <div id="synthStatus">Press ● Record, then play — export when you're happy with the take</div>
-  <div class="hint">Effects apply to the whole take as currently set (vibrato is baked per note)</div>
-
-  <div class="hint">Play with the mouse/touch, or your computer keys: A W S E D F T G Y H U J K …</div>
-
   <div class="footer">
-    Part of the <strong style="color:#d8b4fe">Ghost Circuit</strong> sound lab · Built by Plumbmonkey Media
+    <strong style="color:#d8d2cc">SY-1</strong> · part of the Ghost Circuit sound lab · Built by Plumbmonkey Media
   </div>
 
   <script src="../shared/export-utils.js"></script>
   <script src="synth.js"></script>
+  <script>
+  // ============================================================
+  // SY-1 knob layer — turns every hidden range input into a
+  // rendered-knob control (assets/sy1_knob.png from the Blender
+  // model). Proxies input events so synth.js needs no changes.
+  // ============================================================
+  (function () {
+    const SPRITE = 'assets/sy1_knob.png';
+    // The sprite's pointer mark is rendered at ~12° clockwise from 12
+    // o'clock; counter-rotate so "mark up" = center of travel.
+    const SPRITE_OFFSET = -12;
+    const SWEEP = 135;           // degrees each way from center
+    const knobs = [];
+    const lcdParam = document.getElementById('lcdParam');
+    let lcdTimer = null;
+
+    function showParam(label, text) {
+      lcdParam.textContent = label.toUpperCase() + '  ' + text;
+      lcdParam.classList.add('show');
+      clearTimeout(lcdTimer);
+      lcdTimer = setTimeout(() => lcdParam.classList.remove('show'), 1100);
+    }
+
+    function angleFor(input) {
+      const min = +input.min, max = +input.max, v = +input.value;
+      const t = (v - min) / (max - min || 1);
+      return SPRITE_OFFSET - SWEEP + t * SWEEP * 2;
+    }
+
+    document.querySelectorAll('.ctl input[type=range]').forEach(input => {
+      const ctl = input.closest('.ctl');
+      const knob = document.createElement('div');
+      knob.className = 'knob';
+      const img = document.createElement('img');
+      img.src = SPRITE; img.alt = ''; img.draggable = false;
+      knob.appendChild(img);
+      ctl.insertBefore(knob, ctl.firstChild);
+
+      const labelText = () => ctl.querySelector('label').childNodes[0].textContent.trim();
+      const valSpan = ctl.querySelector('label span');
+      const refresh = () => { img.style.transform = 'rotate(' + angleFor(input) + 'deg)'; };
+      refresh();
+      knobs.push(refresh);
+      input.addEventListener('input', refresh);
+
+      let dragging = false, startY = 0, startVal = 0;
+      knob.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        knob.setPointerCapture(e.pointerId);
+        dragging = true; knob.classList.add('dragging');
+        startY = e.clientY; startVal = +input.value;
+      });
+      knob.addEventListener('pointermove', e => {
+        if (!dragging) return;
+        const min = +input.min, max = +input.max;
+        const step = +input.step || 1;
+        const range = max - min;
+        let v = startVal + (startY - e.clientY) * (range / 160);   // 160px = full sweep
+        v = Math.min(max, Math.max(min, Math.round(v / step) * step));
+        if (v !== +input.value) {
+          input.value = v;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          showParam(labelText(), valSpan ? valSpan.textContent : String(v));
+        }
+        refresh();
+      });
+      const drop = e => { dragging = false; knob.classList.remove('dragging'); };
+      knob.addEventListener('pointerup', drop);
+      knob.addEventListener('pointercancel', drop);
+      // double-click resets to the input's original default
+      const def = input.defaultValue;
+      knob.addEventListener('dblclick', () => {
+        input.value = def;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        refresh();
+      });
+    });
+
+    // Wave buttons proxy the hidden <select id="wave">
+    const waveSel = document.getElementById('wave');
+    const waveBtns = document.querySelectorAll('.wave-btn');
+    const syncWave = () => waveBtns.forEach(b =>
+      b.classList.toggle('active', b.dataset.wave === waveSel.value));
+    waveBtns.forEach(b => b.addEventListener('click', () => {
+      waveSel.value = b.dataset.wave;
+      waveSel.dispatchEvent(new Event('change', { bubbles: true }));
+      waveSel.dispatchEvent(new Event('input', { bubbles: true }));
+      syncWave();
+      showParam('WAVE', b.textContent);
+    }));
+    syncWave();
+
+    // Presets / Load set input values programmatically (no events) —
+    // refresh every knob + wave state on the next tick after those clicks
+    const refreshAll = () => setTimeout(() => { knobs.forEach(f => f()); syncWave(); }, 0);
+    document.querySelectorAll('.preset-chip, #loadPatchBtn').forEach(el =>
+      el.addEventListener('click', refreshAll));
+  })();
+  </script>
 </body>
 </html>

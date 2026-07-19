@@ -578,10 +578,10 @@ function startScope() {
     scopeRAF = requestAnimationFrame(draw);
     analyser.getByteTimeDomainData(buf);
     const w = canvas.width, h = canvas.height;
-    g.fillStyle = '#07040f';
+    g.fillStyle = '#191512';
     g.fillRect(0, 0, w, h);
     g.lineWidth = 2;
-    g.strokeStyle = '#67e8f9';
+    g.strokeStyle = '#f0b478';
     g.shadowColor = '#67e8f9';
     g.shadowBlur = 8;
     g.beginPath();
