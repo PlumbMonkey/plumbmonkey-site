@@ -1,0 +1,72 @@
+/* ============================================================
+   GHOST CIRCUIT — shared Sound Stage chrome
+   One nav treatment for the Drum Machine, Synth and Song view.
+
+   The old nav was `position: fixed` at the top-left of each page, which
+   on a phone sat ON TOP of the title and first controls and could not be
+   scrolled away. It is now a real sticky bar that occupies its own row,
+   scrolls horizontally if the links don't fit, and collapses to icons-plus
+   -short-labels on narrow screens.
+   ============================================================ */
+
+.nav {
+  position: sticky;
+  top: 0;
+  left: auto;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  /* Full-bleed regardless of the body's centring. width = content box + both
+     paddings, pulled out by matching negative side margins, so the bar spans
+     the whole viewport instead of stopping at the centred content column.
+     Pages whose body padding differs from the 2.5rem / 1rem default set
+     --ss-pad-top / --ss-pad-x on <body>. */
+  box-sizing: border-box;
+  align-self: stretch;
+  width: calc(100% + 2 * var(--ss-pad-x, 1rem));
+  margin: calc(-1 * var(--ss-pad-top, 2.5rem)) calc(-1 * var(--ss-pad-x, 1rem)) 1rem;
+  padding: .55rem 1rem;
+  font-size: .78rem;
+  background: rgba(8, 10, 20, .82);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(120, 130, 180, .18);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.nav::-webkit-scrollbar { display: none; }
+.nav a {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: .35rem .7rem;
+  border-radius: 6px;
+  text-decoration: none;
+}
+.nav .nav-sep { flex: 1 1 auto; }
+
+@media (max-width: 720px) {
+  .nav { font-size: .72rem; gap: .3rem; padding: .45rem .5rem; }
+  .nav a { padding: .3rem .55rem; }
+  /* Long labels are the reason the bar overflowed — shorten the wordiest one */
+  .nav a[data-short]::after { content: attr(data-short); }
+  .nav a[data-short] .nav-long { display: none; }
+}
+
+/* ---------- Panel collapse (shared by synth + song view) ----------
+   Any <section class="panel"> with a .panel-head toggles closed. Collapsing
+   is what keeps the keyboard on screen without scrolling. */
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  cursor: pointer;
+  user-select: none;
+}
+.panel-head .panel-caret {
+  transition: transform .18s;
+  font-size: .7rem;
+  opacity: .7;
+}
+.panel.collapsed .panel-head .panel-caret { transform: rotate(-90deg); }
+.panel.collapsed .panel-body { display: none; }

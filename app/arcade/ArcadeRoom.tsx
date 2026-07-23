@@ -30,6 +30,7 @@ export default function ArcadeRoom() {
   const [boards, setBoards] = useState<Record<string, Entry[]>>({});
   const [hof, setHof] = useState<HofRow[]>([]);
   const [live, setLive] = useState(false); // desktop → live iframes
+  const [vrCapable, setVrCapable] = useState(false);
 
   function refresh() {
     const b: Record<string, Entry[]> = {};
@@ -51,6 +52,8 @@ export default function ArcadeRoom() {
     const apply = () => setLive(mq.matches);
     apply();
     mq.addEventListener?.("change", apply);
+    const xr = (navigator as Navigator & { xr?: { isSessionSupported(mode: string): Promise<boolean> } }).xr;
+    xr?.isSessionSupported("immersive-vr").then(setVrCapable).catch(() => {});
     // re-read boards when returning from a game
     const onFocus = () => refresh();
     window.addEventListener("focus", onFocus);
@@ -66,6 +69,13 @@ export default function ArcadeRoom() {
     <div className="sm-room">
       <style>{CSS}</style>
 
+      {vrCapable && (
+        <div className="sm-vr-banner">
+          <span><strong>Quest detected</strong> Choose a cabinet, then select <em>Enter VR Theater</em>.</span>
+          <span>Seated mode · Touch controllers · Adjustable screen</span>
+        </div>
+      )}
+
       <div className="sm-cabinets">
         {GAMES.map((g) => {
           const rows = boards[g.slug] || [];
@@ -73,6 +83,7 @@ export default function ArcadeRoom() {
             <div className="sm-cab" key={g.slug} style={{ ["--accent" as string]: g.accent }}>
               {/* marquee */}
               <div className="sm-marquee">{g.title}</div>
+              <div className="sm-vr-ready">VR READY</div>
 
               {/* screen */}
               <div className="sm-screen-wrap">
@@ -147,6 +158,12 @@ export default function ArcadeRoom() {
 
 const CSS = `
 .sm-room { max-width: 1100px; margin: 0 auto; padding: 0 1rem 4rem; }
+.sm-vr-banner { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:0 0 1.4rem;
+  padding:.85rem 1rem; border:1px solid rgba(217,255,99,.35); border-radius:12px;
+  background:linear-gradient(90deg,rgba(217,255,99,.09),rgba(124,58,237,.1)); color:#ddd6fe; font-size:.8rem; }
+.sm-vr-banner strong { color:#d9ff63; margin-right:.45rem; }
+.sm-vr-banner span:last-child { color:#9f94bb; font-size:.7rem; white-space:nowrap; }
+@media(max-width:620px){.sm-vr-banner{align-items:flex-start;flex-direction:column}.sm-vr-banner span:last-child{white-space:normal}}
 
 .sm-cabinets {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.6rem;
@@ -172,6 +189,9 @@ const CSS = `
   text-shadow: 0 1px 0 rgba(255,255,255,.3);
   box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 55%, transparent);
 }
+.sm-vr-ready { position:absolute; right:.72rem; top:2.72rem; z-index:4; border:1px solid rgba(217,255,99,.45);
+  border-radius:999px; padding:.14rem .38rem; background:rgba(5,7,10,.82); color:#d9ff63;
+  font:700 .5rem ui-monospace,monospace; letter-spacing:.08em; pointer-events:none; }
 
 .sm-screen-wrap { position: relative; }
 .sm-screen {

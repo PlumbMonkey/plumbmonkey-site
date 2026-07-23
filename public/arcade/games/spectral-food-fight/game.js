@@ -163,6 +163,14 @@ document.getElementById('startOverlay').addEventListener('click', () => {
   if (!gameRunning) startGame();
 });
 
+// Twin-stick touch: left thumb moves, right thumb aims and throws.
+TouchPad.init(canvas, {
+  accent: '#c084fc',
+  aimAccent: '#f0abfc',
+  targets: () => chefs,
+  onStart: () => { initAudio(); if (!gameRunning) startGame(); }
+});
+
 // ---------- Core ----------
 function startGame() {
   score = 0; lives = 3; level = 1; ammo = 12;
@@ -324,6 +332,13 @@ function update() {
   if (player.vx && player.vy) {
     player.vx *= 0.707;
     player.vy *= 0.707;
+  }
+
+  // Touch stick overrides the keys — analog, already magnitude-clamped to 1
+  TouchPad.sync(mouse, player.x + player.w/2, player.y + player.h/2);
+  if (TouchPad.moveActive) {
+    player.vx = TouchPad.mx * player.speed;
+    player.vy = TouchPad.my * player.speed;
   }
 
   let nx = player.x + player.vx;
@@ -1093,6 +1108,8 @@ function draw() {
     ctx.fillText('COMBO ×' + comboMult(), W/2, 48);
     ctx.restore();
   }
+
+  TouchPad.draw(ctx);
 }
 
 function updateHUD() {

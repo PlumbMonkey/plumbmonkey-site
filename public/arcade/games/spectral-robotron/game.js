@@ -199,6 +199,14 @@ document.getElementById('startOverlay').addEventListener('click', () => {
   if (!gameRunning) startGame();
 });
 
+// Twin-stick touch: left thumb moves, right thumb aims and auto-fires.
+TouchPad.init(canvas, {
+  accent: '#c084fc',
+  aimAccent: '#f0abfc',
+  targets: () => monsters,
+  onStart: () => { initAudio(); if (!gameRunning) startGame(); }
+});
+
 // ---------- Core ----------
 function startGame() {
   score = 0; lives = 3; wave = 1; saved = 0; lost = 0;
@@ -336,6 +344,9 @@ function update() {
   if (keys['ArrowUp'] || keys['KeyW']) vy = -player.speed;
   if (keys['ArrowDown'] || keys['KeyS']) vy = player.speed;
   if (vx && vy) { vx *= 0.707; vy *= 0.707; }
+  // Touch stick overrides the keys — analog, already magnitude-clamped to 1
+  TouchPad.sync(mouse, player.x + player.w/2, player.y + player.h/2);
+  if (TouchPad.moveActive) { vx = TouchPad.mx * player.speed; vy = TouchPad.my * player.speed; }
 
   // Move with obstacle sliding (try X and Y separately)
   let nx = Math.max(8, Math.min(W - player.w - 8, player.x + vx));
@@ -1172,6 +1183,8 @@ function draw() {
     ctx.fillRect(W/2 - 40, 76, 80 * (player.powerTime / 480), 4);
     ctx.restore();
   }
+
+  TouchPad.draw(ctx);
 }
 
 function updateHUD() {

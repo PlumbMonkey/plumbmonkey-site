@@ -49,6 +49,9 @@ function audioBufferToWav(buffer) {
 }
 
 function downloadBlob(blob, filename) {
+  if (window.CreativeHandoff && blob.type.startsWith('audio/')) {
+    window.CreativeHandoff.saveAudio(blob, filename).catch(() => {});
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = filename;

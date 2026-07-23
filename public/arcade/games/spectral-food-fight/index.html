@@ -71,6 +71,7 @@
     }
     .start-overlay p { color: #d8b4fe; margin-bottom: 0.4rem; }
     .hidden { display: none !important; }
+    .touch-only { display: none; }
     .crt-overlay {
       position: absolute;
       inset: 0;
@@ -94,7 +95,8 @@
       <p>The manor cafeteria has gone insane.</p>
       <p>Throw food. Hit the monsters. And above all —</p>
       <p><strong>PROTECT THE GRAND BUFFET.</strong> Thieves will grab dishes and run.</p>
-      <p style="font-size:0.85rem; opacity:0.75; margin-top:1rem;">Click or press SPACE to start</p>
+      <p class="touch-only">Left thumb to move · Right thumb to aim &amp; throw</p>
+      <p style="font-size:0.85rem; opacity:0.75; margin-top:1rem;"><span class="kbd-only">Click or press SPACE to start</span><span class="touch-only">Tap to start</span></p>
     </div>
   </div>
 
@@ -113,6 +115,7 @@
   </div>
 
   <script src="../leaderboard.js"></script>
+  <script src="../touch-controls.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

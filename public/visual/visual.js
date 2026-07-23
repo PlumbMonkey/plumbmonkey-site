@@ -127,6 +127,7 @@ class VisualEngine {
     this.bgCtx = this.bgCanvas.getContext('2d');
     this.bgRot = 0;
     this.palette = PALETTES[0];
+    this.overlay = { show:false, artist:'', track:'' };
     /** When true (recording), adaptive resolution must not resize the canvas */
     this.resolutionLock = false;
   }
@@ -177,6 +178,10 @@ class VisualEngine {
     if (mode === 'firefly-nebula' && this.fireflies.length !== this.config.fireflyCount) {
       this.initFireflies();
     }
+  }
+
+  setOverlay(overlay) {
+    this.overlay = { ...this.overlay, ...overlay };
   }
 
   applyRenderSize() {
@@ -341,7 +346,8 @@ class VisualEngine {
     const bassScale = 1.0 + bass * audioSensitivity * 0.05;
     const speedMult = 1 + treble * audioSensitivity * 3.5;
 
-    this.rotKaleido = (this.rotKaleido + rotSpeed * (0.006 + bass * 0.012)) % (Math.PI * 2);
+    const rotationBoost = audioMapping.mid === 'rotation' ? 1 + mid * 2.5 : 1;
+    this.rotKaleido = (this.rotKaleido + rotSpeed * rotationBoost * (0.006 + bass * 0.012)) % (Math.PI * 2);
 
     // Fade each layer at its own persistence
     const bsz = this.bufferSize;
@@ -364,6 +370,14 @@ class VisualEngine {
       case 'geometric-pulse': this.renderGeometricPulse(bass, mid, treble, beat, speedMult); break;
       case 'fractal-warp':    this.renderFractalWarp(bass, mid, treble, beat, params.warp); break;
       case 'firefly-nebula':  this.renderFireflyNebula(bass, mid, treble); break;
+      case 'spectrum-ring':   this.renderSpectrumRing(bass, mid, treble, beat); break;
+      case 'wave-mirror':     this.renderWaveMirror(bass, mid, treble); break;
+      case 'particle-galaxy': this.renderParticleGalaxy(bass, mid, treble, speedMult); break;
+      case 'laser-grid':      this.renderLaserGrid(bass, mid, treble, beat); break;
+      case 'liquid-ribbons':  this.renderLiquidRibbons(bass, mid, treble); break;
+      case 'aurora-curtains': this.renderAuroraCurtains(bass, mid, treble); break;
+      case 'tunnel-flight':   this.renderTunnelFlight(bass, mid, treble, beat); break;
+      case 'starfield-pulse': this.renderStarfieldPulse(bass, mid, treble, speedMult); break;
     }
 
     const ctx = this.ctx;
@@ -384,7 +398,68 @@ class VisualEngine {
     this.stampLayer(this.layerWeb,   segments, angleStep, this.rotKaleido);
     this.stampLayer(this.layerCloud, segments, angleStep, this.rotKaleido);
     ctx.restore();
-    this.applyBloom(W, H, treble);
+    if (effectState.bloom) this.applyBloom(W, H, treble);
+    this.drawOverlay(W, H);
+    this.applyEffects(W, H, beat);
+  }
+
+  drawOverlay(W, H) {
+    const o = this.overlay;
+    if (!o.show || (!o.artist && !o.track)) return;
+    const ctx = this.ctx;
+    const scale = Math.max(.7, Math.min(W, H) / 700);
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0,0,0,.9)';
+    ctx.shadowBlur = 18 * scale;
+    ctx.fillStyle = '#f4f7f3';
+    ctx.font = `700 ${Math.round(28*scale)}px system-ui,sans-serif`;
+    ctx.fillText((o.track || 'Untitled track').toUpperCase(), W/2, H*.84);
+    ctx.fillStyle = '#d7dfdc';
+    ctx.font = `600 ${Math.round(12*scale)}px system-ui,sans-serif`;
+    ctx.fillText((o.artist || 'Unknown artist').toUpperCase(), W/2, H*.84 + 24*scale);
+    ctx.restore();
+  }
+
+  applyEffects(W, H, beat) {
+    const s = effectState.strength;
+    const ctx = this.ctx;
+    if (effectState.mirrorX || effectState.flipY || effectState.blur || effectState.chromatic) {
+      this.bloomCanvas.width = W; this.bloomCanvas.height = H;
+      this.bloomCtx.clearRect(0,0,W,H);
+      this.bloomCtx.drawImage(this.canvas,0,0);
+      ctx.save();
+      ctx.clearRect(0,0,W,H);
+      ctx.translate(effectState.mirrorX ? W : 0, effectState.flipY ? H : 0);
+      ctx.scale(effectState.mirrorX ? -1 : 1, effectState.flipY ? -1 : 1);
+      ctx.filter = effectState.blur ? `blur(${(1+s*4).toFixed(1)}px)` : 'none';
+      ctx.drawImage(this.bloomCanvas,0,0);
+      ctx.filter='none'; ctx.restore();
+      if (effectState.chromatic) {
+        ctx.save(); ctx.globalCompositeOperation='screen'; ctx.globalAlpha=.18*s;
+        ctx.drawImage(this.bloomCanvas,-5*s,0); ctx.drawImage(this.bloomCanvas,5*s,0); ctx.restore();
+      }
+    }
+    if (effectState.vignette) {
+      const g=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*.2,W/2,H/2,Math.max(W,H)*.7);
+      g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,`rgba(0,0,0,${.35+.45*s})`);
+      ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    }
+    if (effectState.grain) {
+      ctx.save();ctx.globalAlpha=.08*s;
+      for(let i=0;i<Math.min(900,W*H/900);i++){const v=Math.random()>0.5?255:80;ctx.fillStyle=`rgb(${v},${v},${v})`;ctx.fillRect(Math.random()*W,Math.random()*H,1.5,1.5);}
+      ctx.restore();
+    }
+    if (effectState.glitch && Math.random()<.06+s*.08) {
+      const y=Math.random()*H,h=4+Math.random()*H*.06,dx=(Math.random()-.5)*35*s;
+      ctx.drawImage(this.canvas,0,y,W,h,dx,y,W,h);
+    }
+    if (effectState.flicker) {
+      ctx.fillStyle=`rgba(255,255,255,${Math.random()*.025*s})`;ctx.fillRect(0,0,W,H);
+    }
+    if (((effectState.strobe || audioMapping.beat === 'flash') && beat) || performance.now() < sceneFlashUntil) {
+      ctx.fillStyle=`rgba(255,255,255,${.12+.38*s})`;ctx.fillRect(0,0,W,H);
+    }
   }
 
   stampLayer(layer, segments, angleStep, rotOffset) {
@@ -654,6 +729,158 @@ class VisualEngine {
     }
   }
 
+  // ---- Mode: Spectrum Ring ----
+  renderSpectrumRing(bass, mid, treble, beat) {
+    const c = this.layerCoreCtx, w = this.layerWebCtx, cl = this.layerCloudCtx;
+    const cx = this.bufferSize / 2, step = Math.PI * 2 / this.config.segments;
+    const fft = this.fftData;
+    const bars = 72;
+    const base = cx * (0.23 + bass * 0.1);
+    for (let i = 0; i < bars; i++) {
+      const t = i / bars;
+      const mag = fft ? fft[Math.min(fft.length - 1, Math.floor(t * fft.length * .7))] / 255 : .15 + mid * .35;
+      const a = t * step;
+      const len = cx * (.035 + mag * .28);
+      const r1 = base * (beat ? 1.08 : 1);
+      const r2 = r1 + len;
+      const hue = (this.hue + t * 190) % 360;
+      c.beginPath(); c.moveTo(cx + Math.cos(a)*r1, cx + Math.sin(a)*r1); c.lineTo(cx + Math.cos(a)*r2, cx + Math.sin(a)*r2);
+      c.strokeStyle = `hsla(${hue},100%,65%,${.3 + mag * .7})`; c.lineWidth = 1 + mag * 5; c.stroke();
+      cl.beginPath(); cl.arc(cx + Math.cos(a)*r2, cx + Math.sin(a)*r2, 1 + treble*3, 0, Math.PI*2);
+      cl.fillStyle = `hsla(${hue},100%,82%,${.35 + mag*.6})`; cl.fill();
+    }
+    w.beginPath(); w.arc(cx,cx,base,0,step); w.strokeStyle=`hsla(${this.hue},100%,78%,${.35+mid*.5})`; w.lineWidth=2+bass*8; w.stroke();
+  }
+
+  // ---- Mode: Wave Mirror ----
+  renderWaveMirror(bass, mid, treble) {
+    const c = this.layerCoreCtx, w = this.layerWebCtx;
+    const cx = this.bufferSize / 2, step = Math.PI * 2 / this.config.segments;
+    const fft = this.fftData;
+    this.noiseTime += .012;
+    for (let ribbon = 0; ribbon < 5; ribbon++) {
+      c.beginPath();
+      for (let i = 0; i <= 100; i++) {
+        const t = i / 100, a = t * step;
+        const f = fft ? fft[Math.min(fft.length-1, Math.floor(t*fft.length*.65))]/255 : mid;
+        const r = cx * (.12 + ribbon*.105 + f*.12) + Math.sin(t*18 + this.noiseTime*4 + ribbon)*cx*(.012+treble*.025);
+        const x = cx + Math.cos(a)*r, y = cx + Math.sin(a)*r;
+        if (!i) c.moveTo(x,y); else c.lineTo(x,y);
+      }
+      const hue=(this.hue+ribbon*38)%360;
+      c.strokeStyle=`hsla(${hue},100%,70%,${.35+mid*.45})`; c.lineWidth=1.3+bass*5; c.stroke();
+      w.beginPath();
+      for (let i = 0; i <= 100; i++) {
+        const t = i / 100, a = t * step;
+        const f = fft ? fft[Math.min(fft.length-1, Math.floor(t*fft.length*.65))]/255 : mid;
+        const r = cx * (.12 + ribbon*.105 + f*.12) + Math.sin(t*18 + this.noiseTime*4 + ribbon)*cx*(.012+treble*.025);
+        const x = cx + Math.cos(a)*r, y = cx + Math.sin(a)*r;
+        if (!i) w.moveTo(x,y); else w.lineTo(x,y);
+      }
+      w.strokeStyle=`hsla(${hue},100%,55%,.14)`; w.lineWidth=8+treble*16; w.stroke();
+    }
+  }
+
+  // ---- Mode: Particle Galaxy ----
+  renderParticleGalaxy(bass, mid, treble, speedMult) {
+    const c = this.layerCoreCtx, w = this.layerWebCtx, cx=this.bufferSize/2;
+    const step=Math.PI*2/this.config.segments;
+    this.noiseTime += .0025*speedMult;
+    for (let i=0;i<this.particles.length;i+=2) {
+      const p=this.particles[i];
+      p.theta=(p.theta + .0008*speedMult*(1+p.r/cx))%step;
+      p.r += Math.sin(this.noiseTime*4+i)*(.04+bass*.25);
+      if(p.r>cx)p.r=0;if(p.r<0)p.r=cx;
+      const spiral=p.theta + p.r/cx*1.8 + this.noiseTime;
+      const x=cx+Math.cos(spiral)*p.r, y=cx+Math.sin(spiral)*p.r;
+      const hue=(this.hue+p.r/cx*160)%360;
+      c.beginPath();c.arc(x,y,.5+p.size*(.45+treble),0,Math.PI*2);
+      c.fillStyle=`hsla(${hue},100%,78%,${.35+mid*.55})`;c.fill();
+      if(i%18===0){w.beginPath();w.moveTo(cx, cx);w.lineTo(x,y);w.strokeStyle=`hsla(${hue},100%,65%,.08)`;w.stroke();}
+    }
+  }
+
+  // ---- Mode: Laser Grid ----
+  renderLaserGrid(bass, mid, treble, beat) {
+    const c=this.layerCoreCtx,w=this.layerWebCtx,cl=this.layerCloudCtx,cx=this.bufferSize/2;
+    const step=Math.PI*2/this.config.segments;
+    this.noiseTime += .009;
+    const lines=12;
+    for(let i=0;i<lines;i++){
+      const t=i/(lines-1), a=t*step + Math.sin(this.noiseTime+i)*.025;
+      const r=cx*(.08+t*.82)*(1+bass*.16);
+      const hue=(this.hue+i*18)%360;
+      c.beginPath();c.moveTo(cx,cx);c.lineTo(cx+Math.cos(a)*r,cx+Math.sin(a)*r);
+      c.strokeStyle=`hsla(${hue},100%,70%,${.25+mid*.65})`;c.lineWidth=1+treble*3;c.stroke();
+      w.beginPath();w.arc(cx,cx,r,0,step);w.strokeStyle=`hsla(${hue},100%,62%,${.08+mid*.2})`;w.lineWidth=beat?4:1;w.stroke();
+      if(i%3===0){cl.beginPath();cl.arc(cx+Math.cos(a)*r,cx+Math.sin(a)*r,2+treble*5,0,Math.PI*2);cl.fillStyle=`hsla(${hue},100%,85%,.8)`;cl.fill();}
+    }
+  }
+
+  renderLiquidRibbons(bass, mid, treble) {
+    const c=this.layerCoreCtx,w=this.layerWebCtx,cx=this.bufferSize/2,step=Math.PI*2/this.config.segments;
+    this.noiseTime+=.006+mid*.01;
+    for(let r=0;r<8;r++){
+      const hue=(this.hue+r*27)%360;
+      for(const target of [w,c]){
+        target.beginPath();
+        for(let i=0;i<=90;i++){
+          const t=i/90,a=t*step;
+          const wave=Math.sin(t*12+r*.8+this.noiseTime*3)*cx*(.025+mid*.055);
+          const radius=cx*(.12+r*.09+bass*.08)+wave;
+          const x=cx+Math.cos(a)*radius,y=cx+Math.sin(a)*radius;
+          if(!i)target.moveTo(x,y);else target.lineTo(x,y);
+        }
+        target.strokeStyle=`hsla(${hue},100%,${target===c?72:48}%,${target===c?.5:.13})`;
+        target.lineWidth=target===c?1+treble*4:10+mid*18;target.stroke();
+      }
+    }
+  }
+
+  renderAuroraCurtains(bass, mid, treble) {
+    const c=this.layerCloudCtx,w=this.layerWebCtx,cx=this.bufferSize/2,step=Math.PI*2/this.config.segments;
+    this.noiseTime+=.003+mid*.004;
+    for(let band=0;band<7;band++){
+      const hue=(this.hue+band*35)%360;
+      c.beginPath();w.beginPath();
+      for(let i=0;i<=80;i++){
+        const t=i/80,a=t*step;
+        const noise=this.perlin.noise2D(t*3+this.noiseTime,band*.37);
+        const r=cx*(.17+band*.1+bass*.08)+noise*cx*(.04+mid*.08);
+        const x=cx+Math.cos(a)*r,y=cx+Math.sin(a)*r;
+        if(!i){c.moveTo(x,y);w.moveTo(x,y);}else{c.lineTo(x,y);w.lineTo(x,y);}
+      }
+      c.strokeStyle=`hsla(${hue},90%,70%,${.16+treble*.22})`;c.lineWidth=18+mid*34;c.stroke();
+      w.strokeStyle=`hsla(${hue},100%,78%,${.3+treble*.45})`;w.lineWidth=1.2+treble*3;w.stroke();
+    }
+  }
+
+  renderTunnelFlight(bass, mid, treble, beat) {
+    const c=this.layerCoreCtx,w=this.layerWebCtx,cx=this.bufferSize/2,step=Math.PI*2/this.config.segments;
+    this.noiseTime+=.012+treble*.025;
+    for(let i=0;i<16;i++){
+      const phase=(i/16+this.noiseTime*.08)%1;
+      const r=cx*(.04+phase*.92)*(beat?1.04:1);
+      const hue=(this.hue+phase*180)%360;
+      c.beginPath();c.arc(cx,cx,r,0,step);c.strokeStyle=`hsla(${hue},100%,70%,${1-phase*.65})`;c.lineWidth=1+phase*3+bass*4;c.stroke();
+      if(i%3===0){for(let k=0;k<5;k++){const a=k/5*step+this.noiseTime*.04;w.beginPath();w.moveTo(cx,cx);w.lineTo(cx+Math.cos(a)*r,cx+Math.sin(a)*r);w.strokeStyle=`hsla(${hue},100%,60%,.12)`;w.stroke();}}
+    }
+  }
+
+  renderStarfieldPulse(bass, mid, treble, speedMult) {
+    const c=this.layerCoreCtx,w=this.layerWebCtx,cx=this.bufferSize/2,step=Math.PI*2/this.config.segments;
+    for(let i=0;i<this.particles.length;i+=2){
+      const p=this.particles[i];p.r+=1.2*speedMult+bass*8;
+      if(p.r>cx){p.r=Math.random()*cx*.08;p.theta=Math.random()*step;}
+      const x=cx+Math.cos(p.theta)*p.r,y=cx+Math.sin(p.theta)*p.r;
+      const tail=Math.max(2,p.r/cx*22);
+      const hue=(this.hue+p.hueOffset)%360;
+      w.beginPath();w.moveTo(x-Math.cos(p.theta)*tail,y-Math.sin(p.theta)*tail);w.lineTo(x,y);
+      w.strokeStyle=`hsla(${hue},100%,72%,${.22+treble*.6})`;w.lineWidth=.5+p.r/cx*2;w.stroke();
+      if(i%14===0){c.beginPath();c.arc(x,y,1+bass*3,0,Math.PI*2);c.fillStyle=`hsla(${hue},100%,88%,.8)`;c.fill();}
+    }
+  }
+
   // ---- Mode: Firefly Nebula ----
   renderFireflyNebula(bass, mid, treble) {
     const { audioSensitivity } = this.config;
@@ -735,6 +962,10 @@ let audioCtx = null, analyser = null, freqData = null;
 let mediaSource = null, micStream = null, audioEl = null;
 let lastBeatAt = 0;
 let sourceMode = 'touch';   // 'touch' | 'mic' | 'file'
+let bassGain = 1.15, midGain = 1, trebleGain = 1.05, beatThreshold = .62;
+const effectState = { bloom:true, grain:false, vignette:false, chromatic:false, blur:false,
+  flicker:false, strobe:false, glitch:false, mirrorX:false, flipY:false, strength:.45 };
+const audioMapping = { bass:'scale', mid:'warp', treble:'glow', beat:'pulse' };
 
 function initAudioAnalyser() {
   if (audioCtx) { if (audioCtx.state === 'suspended') audioCtx.resume(); return; }
@@ -840,12 +1071,12 @@ function getBands() {
   // Live audio path
   if (sourceMode !== 'touch' && analyser) {
     analyser.getByteFrequencyData(freqData);
-    const bass = bandAverage(0, 0.08);
-    const mid = bandAverage(0.08, 0.34);
-    const treble = bandAverage(0.34, 1);
+    const bass = clamp(bandAverage(0, 0.08) * bassGain, 0, 1);
+    const mid = clamp(bandAverage(0.08, 0.34) * midGain, 0, 1);
+    const treble = clamp(bandAverage(0.34, 1) * trebleGain, 0, 1);
     const overall = (bass + mid + treble) / 3;
     const now = performance.now();
-    let beat = bass > 0.62 && overall > 0.38 && now - lastBeatAt > 180;
+    let beat = bass > beatThreshold && overall > beatThreshold * .61 && now - lastBeatAt > 180;
     if (beat) lastBeatAt = now;
     // Touch still layers on top of audio (finger = extra excitement)
     return {
@@ -877,12 +1108,19 @@ let frameCount = 0;
 let fpsEMA = 60;
 let lastFrameT = 0;
 let visualPaused = false;   // transport pause freezes the FRAME, not just audio
+let sceneAdvanceHook = null, lastBeatSceneAt = 0, sceneFlashUntil = 0;
 
 // Auto mode: cycle render modes on strong beats (or a timer), using the
 // engine's soft no-clear transitions so it feels alive with no input
-const MODE_ORDER = ['firefly-nebula', 'neural-strings', 'geometric-pulse', 'fractal-warp'];
+const MODE_ORDER = ['firefly-nebula', 'neural-strings', 'geometric-pulse', 'fractal-warp',
+  'spectrum-ring', 'wave-mirror', 'particle-galaxy', 'laser-grid',
+  'liquid-ribbons', 'aurora-curtains', 'tunnel-flight', 'starfield-pulse'];
 const MODE_LABEL = { 'firefly-nebula': 'Firefly Nebula', 'neural-strings': 'Neural Strings',
-                     'geometric-pulse': 'Geometric Pulse', 'fractal-warp': 'Fractal Warp' };
+  'geometric-pulse': 'Geometric Pulse', 'fractal-warp': 'Fractal Warp',
+  'spectrum-ring': 'Spectrum Ring', 'wave-mirror': 'Wave Mirror',
+  'particle-galaxy': 'Particle Galaxy', 'laser-grid': 'Laser Grid',
+  'liquid-ribbons': 'Liquid Ribbons', 'aurora-curtains': 'Aurora Curtains',
+  'tunnel-flight': 'Tunnel Flight', 'starfield-pulse': 'Starfield Pulse' };
 let autoMode = false;
 let autoIdx = 0;
 let lastModeSwitch = 0;
@@ -902,6 +1140,10 @@ function frame(now) {
 
   const bands = getBands();
   tapBeat = false;
+  if (bands.beat && audioMapping.beat === 'scene' && sceneAdvanceHook && now - lastBeatSceneAt > 2500) {
+    lastBeatSceneAt = now;
+    sceneAdvanceHook();
+  }
 
   // Auto mode: advance on a strong beat once settled, or force after 30s
   if (autoMode) {
@@ -911,14 +1153,21 @@ function frame(now) {
       engine.setMode(MODE_ORDER[autoIdx]);
       lastModeSwitch = now;
       setStatus('Auto — ' + MODE_LABEL[MODE_ORDER[autoIdx]]);
+      const badge = document.getElementById('modeBadge');
+      if (badge) badge.textContent = MODE_LABEL[MODE_ORDER[autoIdx]].toUpperCase();
     }
   }
 
   // Same param mapping as V2's MappingEngine defaults
+  const mappedBass = audioMapping.bass === 'speed' ? bands.bass * .55 : bands.bass;
+  const mappedMid = audioMapping.mid === 'color' ? bands.mid * .45 : bands.mid;
+  const mappedTreble = audioMapping.treble === 'speed' ? bands.treble * .55 : bands.treble;
+  engine.config.shakeIntensity = audioMapping.bass === 'shake' ? .4 + bands.bass * 2.4 : 1;
+  if (audioMapping.treble === 'color') engine.hue = (engine.hue + bands.treble * 3) % 360;
   const params = {
-    warp: 1.2 + bands.mid * 1.2,
-    glow: 1.0 + bands.treble * 0.8,
-    pulse: bands.bass,
+    warp: 1.2 + mappedMid * (audioMapping.mid === 'density' ? .7 : 1.2),
+    glow: 1.0 + mappedTreble * (audioMapping.treble === 'distortion' ? .45 : .8),
+    pulse: mappedBass,
     intensity: 1.0 + bands.overall * 0.8
   };
   engine.render(params, bands.beat, bands.fft);
@@ -1008,6 +1257,307 @@ window.addEventListener('DOMContentLoaded', () => {
   bindSlider('sensitivity', v => engine.setConfig({ audioSensitivity: v / 10 }));
   bindSlider('trails', v => engine.setConfig({ trailIntensity: v / 1000 }));
   bindSlider('spin', v => engine.setConfig({ rotSpeed: v / 10 }));
+  bindSlider('colorSpeed', v => engine.setConfig({ colorSpeed: v / 10 }));
+  bindSlider('bassGain', v => { bassGain = v / 100; });
+  bindSlider('midGain', v => { midGain = v / 100; });
+  bindSlider('trebleGain', v => { trebleGain = v / 100; });
+  bindSlider('beatThreshold', v => { beatThreshold = v / 100; });
+
+  // Creator Studio helpers
+  const modeBadge = document.getElementById('modeBadge');
+  document.querySelectorAll('.mode-chip').forEach(btn => btn.addEventListener('click', () => {
+    modeBadge.textContent = btn.dataset.mode === 'auto' ? 'AUTO SCENES' : (MODE_LABEL[btn.dataset.mode] || btn.textContent).toUpperCase();
+  }));
+
+  const PRESETS = {
+    neon:    { mode:'firefly-nebula', palette:0, segments:8,  spin:10, trails:25, sensitivity:15 },
+    haunted: { mode:'neural-strings',  palette:6, segments:10, spin:7,  trails:42, sensitivity:18 },
+    dream:   { mode:'wave-mirror',     palette:5, segments:8,  spin:4,  trails:55, sensitivity:12 },
+    inferno: { mode:'laser-grid',      palette:2, segments:6,  spin:14, trails:18, sensitivity:21 },
+    ocean:   { mode:'particle-galaxy', palette:4, segments:12, spin:5,  trails:48, sensitivity:13 },
+    mono:    { mode:'spectrum-ring',   palette:7, segments:8,  spin:2,  trails:30, sensitivity:17 }
+  };
+  const setRange = (id, value) => {
+    const el = document.getElementById(id);
+    el.value = value;
+    el.dispatchEvent(new Event('input'));
+  };
+  document.querySelectorAll('.preset').forEach(btn => btn.addEventListener('click', () => {
+    const p = PRESETS[btn.dataset.preset];
+    if (!p) return;
+    document.querySelectorAll('.preset').forEach(x => x.classList.toggle('active', x === btn));
+    const modeBtn = document.querySelector(`.mode-chip[data-mode="${p.mode}"]`);
+    if (modeBtn) modeBtn.click();
+    palSel.value = p.palette;
+    palSel.dispatchEvent(new Event('change'));
+    setRange('segments', p.segments);
+    setRange('spin', p.spin);
+    setRange('trails', p.trails);
+    setRange('sensitivity', p.sensitivity);
+    setStatus(btn.textContent.trim() + ' preset loaded');
+  }));
+
+  const hexToRgb = hex => {
+    const n = parseInt(hex.slice(1), 16);
+    return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  };
+  document.getElementById('applyColors').addEventListener('click', () => {
+    const colors = ['color1','color2','color3'].map(id => hexToRgb(document.getElementById(id).value));
+    engine.setPalette({ name:'Custom', colors });
+    palSel.value = '';
+    setStatus('Custom palette applied');
+  });
+
+  const stageShell = document.getElementById('stageShell');
+  let activeRatio = 16 / 9;
+  const applyRatio = () => {
+    const sw = stageShell.clientWidth, sh = stageShell.clientHeight;
+    let w = sw, h = w / activeRatio;
+    if (h > sh) { h = sh; w = h * activeRatio; }
+    mount.style.width = Math.max(1, w) + 'px';
+    mount.style.height = Math.max(1, h) + 'px';
+    doResize();
+  };
+  document.querySelectorAll('.ratio-btn').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.ratio-btn').forEach(x => x.classList.toggle('active', x === btn));
+    const [a,b] = btn.dataset.ratio.split('/').map(Number);
+    activeRatio = a / b;
+    applyRatio();
+  }));
+  if (window.ResizeObserver) new ResizeObserver(applyRatio).observe(stageShell);
+  requestAnimationFrame(applyRatio);
+
+  const refreshOverlay = () => {
+    const on = document.getElementById('showTitles').checked;
+    const artist = document.getElementById('artistText').value.trim();
+    const title = document.getElementById('trackText').value.trim();
+    const preview = document.getElementById('overlayPreview');
+    preview.replaceChildren();
+    engine.setOverlay({ show:on, artist, track:title });
+  };
+  ['artistText','trackText'].forEach(id => document.getElementById(id).addEventListener('input', refreshOverlay));
+  document.getElementById('showTitles').addEventListener('change', refreshOverlay);
+
+  document.getElementById('pngBtn').addEventListener('click', () => {
+    canvas.toBlob(blob => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'light-lab-still.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+      setStatus('PNG still saved');
+    }, 'image/png');
+  });
+
+  document.getElementById('saveBtn').addEventListener('click', () => {
+    const setup = {
+      version:2, mode:engine.mode, palette:+palSel.value || 0, ratio:activeRatio,
+      controls:Object.fromEntries(['segments','sensitivity','trails','spin','colorSpeed','bassGain','midGain','trebleGain','beatThreshold']
+        .map(id => [id, document.getElementById(id).value])),
+      titles:{ artist:document.getElementById('artistText').value, track:document.getElementById('trackText').value,
+        show:document.getElementById('showTitles').checked },
+      effects:{...effectState}, mapping:{...audioMapping},
+      scenes:typeof scenes!=='undefined'?scenes:[], activeScene:typeof activeScene!=='undefined'?activeScene:0
+    };
+    localStorage.setItem('lightLabSetup', JSON.stringify(setup));
+    const blob = new Blob([JSON.stringify(setup, null, 2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='light-lab-setup.json'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+    setStatus('Setup saved on this device and downloaded');
+  });
+
+  document.getElementById('loadSetupBtn').addEventListener('click', () => document.getElementById('setupInput').click());
+  document.getElementById('setupInput').addEventListener('change', async function () {
+    const file = this.files && this.files[0];
+    if (!file) return;
+    try {
+      const setup = JSON.parse(await file.text());
+      if (![1,2].includes(setup.version) || !MODE_LABEL[setup.mode]) throw new Error('unsupported setup');
+      const modeBtn = document.querySelector(`.mode-chip[data-mode="${setup.mode}"]`);
+      if (modeBtn) modeBtn.click();
+      if (Number.isInteger(setup.palette) && PALETTES[setup.palette]) {
+        palSel.value = setup.palette;
+        palSel.dispatchEvent(new Event('change'));
+      }
+      if (setup.controls) {
+        Object.entries(setup.controls).forEach(([id, value]) => {
+          if (document.getElementById(id)) setRange(id, value);
+        });
+      }
+      if (setup.titles) {
+        document.getElementById('artistText').value = setup.titles.artist || '';
+        document.getElementById('trackText').value = setup.titles.track || '';
+        document.getElementById('showTitles').checked = !!setup.titles.show;
+        refreshOverlay();
+      }
+      if (setup.version===2) {
+        Object.assign(effectState,setup.effects||{});
+        Object.assign(audioMapping,setup.mapping||{});
+        if(Array.isArray(setup.scenes)&&setup.scenes.length){scenes=setup.scenes;activeScene=Math.min(setup.activeScene||0,scenes.length-1);renderScenes();}
+      }
+      const ratioBtn = Array.from(document.querySelectorAll('.ratio-btn')).find(btn => {
+        const [a,b] = btn.dataset.ratio.split('/').map(Number);
+        return Math.abs(a / b - setup.ratio) < .001;
+      });
+      if (ratioBtn) ratioBtn.click();
+      localStorage.setItem('lightLabSetup', JSON.stringify(setup));
+      setStatus('Saved setup loaded');
+    } catch (e) {
+      setStatus('That setup file could not be loaded');
+    }
+    this.value = '';
+  });
+
+  // Phase 2 effects and frequency mapping
+  bindSlider('effectStrength', v => { effectState.strength = v / 100; });
+  document.querySelectorAll('.effect-toggle').forEach(el => {
+    effectState[el.dataset.effect] = el.checked;
+    el.addEventListener('change', () => {
+      if (el.dataset.effect === 'strobe' && el.checked && !confirm('Strobe uses rapid flashes that may affect photosensitive viewers. Enable it?')) {
+        el.checked = false;
+      }
+      effectState[el.dataset.effect] = el.checked;
+    });
+  });
+  ['bass','mid','treble','beat'].forEach(band => {
+    const el = document.getElementById(band + 'Map');
+    el.addEventListener('change', () => { audioMapping[band] = el.value; });
+  });
+
+  // Scene sequencer: each card stores a complete visual snapshot.
+  const captureScene = (name, duration = 16) => ({
+    id: Date.now() + Math.random(), name, duration, transition:document.getElementById('sceneTransition').value,
+    mode:engine.mode, palette:Number.isInteger(+palSel.value) ? +palSel.value : 0,
+    controls:Object.fromEntries(['segments','sensitivity','trails','spin','colorSpeed','bassGain','midGain','trebleGain','beatThreshold']
+      .map(id => [id, document.getElementById(id).value])),
+    effects:{...effectState}, mapping:{...audioMapping}
+  });
+  let scenes = [captureScene('Scene 1',16), {...captureScene('Scene 2',16), mode:'wave-mirror', palette:5}];
+  let activeScene = 0, sceneStartedAt = performance.now();
+  const applyScene = index => {
+    if (!scenes.length) return;
+    const outgoingTransition = scenes[activeScene] ? scenes[activeScene].transition : 'crossfade';
+    activeScene = (index + scenes.length) % scenes.length;
+    const scene = scenes[activeScene];
+    if (outgoingTransition === 'cut') {
+      [engine.layerCoreCtx,engine.layerWebCtx,engine.layerCloudCtx].forEach(ctx=>ctx.clearRect(0,0,engine.bufferSize,engine.bufferSize));
+    } else if (outgoingTransition === 'flash') {
+      sceneFlashUntil = performance.now() + 180;
+    }
+    const modeBtn = document.querySelector(`.mode-chip[data-mode="${scene.mode}"]`);
+    if (modeBtn) modeBtn.click();
+    if (PALETTES[scene.palette]) { palSel.value=scene.palette; palSel.dispatchEvent(new Event('change')); }
+    Object.entries(scene.controls || {}).forEach(([id,v]) => { if(document.getElementById(id)) setRange(id,v); });
+    Object.assign(effectState, scene.effects || {});
+    document.querySelectorAll('.effect-toggle').forEach(el => { el.checked=!!effectState[el.dataset.effect]; });
+    Object.assign(audioMapping, scene.mapping || {});
+    ['bass','mid','treble','beat'].forEach(b => { document.getElementById(b+'Map').value=audioMapping[b]; });
+    document.getElementById('sceneDuration').value=scene.duration;
+    document.getElementById('sceneDuration').dispatchEvent(new Event('input'));
+    document.getElementById('sceneTransition').value=scene.transition || 'crossfade';
+    sceneStartedAt=performance.now();
+    renderScenes();
+    setStatus(`${scene.name} — ${MODE_LABEL[scene.mode]}`);
+  };
+  const renderScenes = () => {
+    const list=document.getElementById('sceneList');list.replaceChildren();
+    scenes.forEach((scene,i)=>{
+      const btn=document.createElement('button');btn.className='scene-card'+(i===activeScene?' active':'');
+      const strong=document.createElement('strong');strong.textContent=scene.name;
+      const small=document.createElement('small');small.textContent=`${scene.duration}s · ${MODE_LABEL[scene.mode]}`;
+      btn.append(strong,small);btn.addEventListener('click',()=>applyScene(i));list.append(btn);
+    });
+  };
+  const advanceScene = () => {
+    if (!scenes.length) return;
+    scenes[activeScene] = {...captureScene(scenes[activeScene].name, scenes[activeScene].duration), id:scenes[activeScene].id};
+    applyScene(activeScene+1);
+  };
+  sceneAdvanceHook = advanceScene;
+  bindSlider('sceneDuration', v => { if(scenes[activeScene]) scenes[activeScene].duration=v; });
+  document.getElementById('sceneTransition').addEventListener('change', e => { if(scenes[activeScene]) scenes[activeScene].transition=e.target.value; });
+  document.getElementById('addScene').addEventListener('click',()=>{
+    if(scenes.length>=12){setStatus('A sequence can contain up to 12 scenes');return;}
+    scenes.push(captureScene('Scene '+(scenes.length+1),16));applyScene(scenes.length-1);
+  });
+  document.getElementById('duplicateScene').addEventListener('click',()=>{
+    const copy=JSON.parse(JSON.stringify(scenes[activeScene]));copy.id=Date.now();copy.name+=' copy';scenes.splice(activeScene+1,0,copy);applyScene(activeScene+1);
+  });
+  document.getElementById('deleteScene').addEventListener('click',()=>{
+    if(scenes.length===1){setStatus('Keep at least one scene');return;}scenes.splice(activeScene,1);applyScene(Math.min(activeScene,scenes.length-1));
+  });
+  document.getElementById('renameScene').addEventListener('click',()=>{
+    const name=prompt('Scene name',scenes[activeScene].name);
+    if(name&&name.trim()){scenes[activeScene].name=name.trim().slice(0,32);renderScenes();}
+  });
+  const moveScene=delta=>{
+    const next=activeScene+delta;if(next<0||next>=scenes.length)return;
+    [scenes[activeScene],scenes[next]]=[scenes[next],scenes[activeScene]];activeScene=next;renderScenes();
+  };
+  document.getElementById('moveSceneLeft').addEventListener('click',()=>moveScene(-1));
+  document.getElementById('moveSceneRight').addEventListener('click',()=>moveScene(1));
+  setInterval(()=>{
+    if(document.getElementById('runScenes').checked && scenes[activeScene] &&
+      performance.now()-sceneStartedAt>=scenes[activeScene].duration*1000) advanceScene();
+  },500);
+  renderScenes();
+
+  // Selection range, waveform, and export estimate.
+  const rangeStart=document.getElementById('rangeStart'), rangeEnd=document.getElementById('rangeEnd');
+  const updateRange=()=>{
+    if(+rangeStart.value>=+rangeEnd.value) {
+      if(document.activeElement===rangeStart) rangeStart.value=Math.max(0,+rangeEnd.value-1);
+      else rangeEnd.value=Math.min(100,+rangeStart.value+1);
+    }
+    document.getElementById('rangeStartVal').textContent=rangeStart.value+'%';
+    document.getElementById('rangeEndVal').textContent=rangeEnd.value+'%';
+    const pct=(+rangeEnd.value-+rangeStart.value)/100;
+    const seconds=audioEl&&isFinite(audioEl.duration)?audioEl.duration*pct:0;
+    const quality=document.getElementById('quality').value;
+    const mbps=quality==='high'?8:quality==='standard'?5:2.5;
+    document.getElementById('exportEstimate').textContent=seconds
+      ? `${fmtTime(seconds)} selected · approximately ${Math.ceil(seconds*mbps/8)} MB`
+      : `${Math.round(pct*100)}% of the loaded track will export`;
+  };
+  [rangeStart,rangeEnd,document.getElementById('quality')].forEach(el=>el.addEventListener('input',updateRange));
+  updateRange();
+
+  let waveformSamples=null;
+  const renderWaveform=()=>{
+    const canvasWave=document.getElementById('waveform'),ctx=canvasWave.getContext('2d');
+    if(!waveformSamples)return;
+    const data=waveformSamples,W=canvasWave.width,H=canvasWave.height,zoom=+document.getElementById('waveZoom').value;
+    const visible=Math.floor(data.length/zoom),step=Math.max(1,Math.ceil(visible/W));
+    ctx.clearRect(0,0,W,H);ctx.fillStyle='#101418';ctx.fillRect(0,0,W,H);ctx.strokeStyle='#d9ff63';ctx.beginPath();
+    for(let x=0;x<W;x++){let min=1,max=-1;for(let j=0;j<step;j++){const v=data[x*step+j]||0;if(v<min)min=v;if(v>max)max=v;}ctx.moveTo(x,(1+min)*H/2);ctx.lineTo(x,(1+max)*H/2);}
+    ctx.stroke();
+  };
+  document.getElementById('waveZoom').addEventListener('input',renderWaveform);
+  async function drawWaveform(file) {
+    const canvasWave=document.getElementById('waveform'),ctx=canvasWave.getContext('2d');
+    try{
+      const tempCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const buf=await tempCtx.decodeAudioData(await file.arrayBuffer());
+      waveformSamples=buf.getChannelData(0);renderWaveform();await tempCtx.close();
+    }catch(e){ctx.clearRect(0,0,canvasWave.width,canvasWave.height);}
+  }
+  window.lightLabDrawWaveform=drawWaveform;
+
+  // Automatic local recovery for accidental refreshes.
+  const captureSession=()=>({version:2,scenes,activeScene,mode:engine.mode,palette:+palSel.value||0,
+    controls:Object.fromEntries(['segments','sensitivity','trails','spin','colorSpeed','bassGain','midGain','trebleGain','beatThreshold','effectStrength'].map(id=>[id,document.getElementById(id).value])),
+    effects:{...effectState},mapping:{...audioMapping}});
+  setInterval(()=>localStorage.setItem('lightLabSession',JSON.stringify(captureSession())),2000);
+  try{
+    const recovered=JSON.parse(localStorage.getItem('lightLabSession'));
+    if(recovered&&recovered.version===2){
+      if(Array.isArray(recovered.scenes)&&recovered.scenes.length){scenes=recovered.scenes;activeScene=Math.min(recovered.activeScene||0,scenes.length-1);}
+      Object.entries(recovered.controls||{}).forEach(([id,v])=>{if(document.getElementById(id))setRange(id,v);});
+      Object.assign(effectState,recovered.effects||{});Object.assign(audioMapping,recovered.mapping||{});
+      applyScene(activeScene);setStatus('Last Light Lab session restored');
+    }
+  }catch(e){}
 
   // ---------- Transport bar (file playback only) ----------
   const transport = document.getElementById('transport');
@@ -1101,11 +1651,39 @@ window.addEventListener('DOMContentLoaded', () => {
       visualPaused = false;
       wireTransport();
       selectChip('.src-chip', document.getElementById('srcFile'));
+      document.getElementById('trackName').textContent = f.name;
+      if (window.lightLabDrawWaveform) window.lightLabDrawWaveform(f);
       setStatus('Playing: ' + f.name);
     } catch (e) {
       setStatus('Could not play that file');
     }
     this.value = '';   // re-selecting the same file fires change again
+  });
+  const handoffBtn = document.getElementById('srcHandoff');
+  let latestHandoff = null;
+  if (window.CreativeHandoff) {
+    window.CreativeHandoff.getLatestAudio().then(item => {
+      if (!item || !item.blob) return;
+      latestHandoff = item;
+      handoffBtn.hidden = false;
+      handoffBtn.textContent = 'Use ' + item.name.replace(/\.[^.]+$/, '');
+      if (new URLSearchParams(location.search).get('handoff') === '1') handoffBtn.click();
+    }).catch(() => {});
+  }
+  handoffBtn.addEventListener('click', async () => {
+    if (!latestHandoff) return;
+    try {
+      const file = new File([latestHandoff.blob], latestHandoff.name, { type: latestHandoff.blob.type || 'audio/wav' });
+      await useAudioFile(file);
+      visualPaused = false;
+      wireTransport();
+      selectChip('.src-chip', handoffBtn);
+      document.getElementById('trackName').textContent = file.name;
+      if (window.lightLabDrawWaveform) window.lightLabDrawWaveform(file);
+      setStatus('Sound Stage export loaded: ' + file.name);
+    } catch (e) {
+      setStatus('The latest Sound Stage export could not be loaded');
+    }
   });
 
   // Fullscreen (feature-detected, like the arcade)
@@ -1115,8 +1693,10 @@ window.addEventListener('DOMContentLoaded', () => {
       if (!document.fullscreenElement) document.documentElement.requestFullscreen();
       else document.exitFullscreen();
     });
+    document.getElementById('fsBtn2').addEventListener('click', () => fsBtn.click());
   } else {
     fsBtn.style.display = 'none';
+    document.getElementById('fsBtn2').style.display = 'none';
   }
 
   // Drawer toggle (mobile keeps the canvas full-bleed)
@@ -1140,6 +1720,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
   document.getElementById('cleanBtn').addEventListener('click', () => setClean(true));
+  document.getElementById('cleanBtnBottom').addEventListener('click', () => setClean(true));
   document.getElementById('cleanExit').addEventListener('click', () => setClean(false));
   window.addEventListener('keydown', e => {
     if (e.key === 'Escape') setClean(false);
@@ -1151,8 +1732,8 @@ window.addEventListener('DOMContentLoaded', () => {
   // WebM by design: browsers can't encode MP4 in JS without a ~30MB WASM
   // encoder — against the no-libraries rule. Any free converter makes MP4.
   const recBtn = document.getElementById('recBtn');
-  const REC_MAX_MS = 5 * 60 * 1000;   // safety cap: an unattended recorder fills memory
-  let recorder = null, recChunks = [], recTick = null, recStartedAt = 0, audioDest = null;
+  const REC_MAX_MS = 30 * 60 * 1000;
+  let recorder = null, recChunks = [], recTick = null, recStartedAt = 0, audioDest = null, wakeLock = null, selectedEnd = null;
 
   function stopRecording() {
     if (recorder && recorder.state !== 'inactive') recorder.stop();
@@ -1160,7 +1741,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function toggleRecording() {
     if (recorder) { stopRecording(); return; }
-    const stream = canvas.captureStream(60);
+    const fps = +document.getElementById('exportFps').value;
+    const stream = canvas.captureStream(fps);
     // Mix in the live audio graph (file or mic) alongside the canvas track
     if (analyser && sourceMode !== 'touch') {
       if (!audioDest) audioDest = audioCtx.createMediaStreamDestination();
@@ -1170,7 +1752,9 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
       .find(m => MediaRecorder.isTypeSupported(m)) || '';
-    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 });
+    const quality = document.getElementById('quality').value;
+    const bitRate = quality === 'high' ? 8_000_000 : quality === 'standard' ? 5_000_000 : 2_500_000;
+    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitRate });
     recChunks = [];
     recorder.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data); };
     recorder.onstop = () => {
@@ -1180,6 +1764,8 @@ window.addEventListener('DOMContentLoaded', () => {
       const blob = new Blob(recChunks, { type: 'video/webm' });
       recChunks = [];
       recorder = null;
+      selectedEnd = null;
+      if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock=null; }
       const a = document.createElement('a');
       const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
       a.href = URL.createObjectURL(blob);
@@ -1188,25 +1774,52 @@ window.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       recBtn.classList.remove('rec');
       recBtn.textContent = '● Record';
+      document.getElementById('recBtnBottom').classList.remove('rec');
+      document.getElementById('recBtnBottom').textContent = 'Export video';
       setStatus('Saved .webm — drop it in any free converter if you need MP4');
     };
     engine.resolutionLock = true;   // canvas resize mid-capture breaks the stream
+    if (audioEl && document.getElementById('exportRange').value === 'selection' && isFinite(audioEl.duration)) {
+      audioEl.currentTime = audioEl.duration * (+document.getElementById('rangeStart').value / 100);
+      selectedEnd = audioEl.duration * (+document.getElementById('rangeEnd').value / 100);
+      audioEl.play();
+    }
     recorder.start(250);
+    if (navigator.wakeLock) navigator.wakeLock.request('screen').then(lock=>{wakeLock=lock;}).catch(()=>{});
     recStartedAt = performance.now();
     recBtn.classList.add('rec');
+    document.getElementById('recBtnBottom').classList.add('rec');
     recTick = setInterval(() => {
       const el = (performance.now() - recStartedAt) / 1000;
       recBtn.textContent = '■ ' + fmtTime(el);
-      if (el * 1000 >= REC_MAX_MS) stopRecording();
+      document.getElementById('recBtnBottom').textContent = 'Stop ' + fmtTime(el);
+      if (el * 1000 >= REC_MAX_MS || (selectedEnd!==null && audioEl && audioEl.currentTime>=selectedEnd)) stopRecording();
     }, 500);
     setStatus('Recording… press R or the button to stop (max 5:00)');
   }
 
   if (typeof MediaRecorder === 'undefined' || !canvas.captureStream) {
     recBtn.style.display = 'none';
+    document.getElementById('recBtnBottom').style.display = 'none';
   } else {
     recBtn.addEventListener('click', toggleRecording);
+    document.getElementById('recBtnBottom').addEventListener('click', toggleRecording);
   }
+
+  document.getElementById('uploadIcon').addEventListener('click', () => document.getElementById('fileInput').click());
+  document.getElementById('mobileControls').addEventListener('click', () => {
+    document.getElementById('inspector').scrollIntoView({ behavior:'smooth', block:'start' });
+  });
+
+  window.addEventListener('beforeunload', e => {
+    if (!recorder) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && !recorder) visualPaused = true;
+    else if (!document.hidden) visualPaused = false;
+  });
 
   running = true;
   requestAnimationFrame(loop);

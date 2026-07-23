@@ -603,5 +603,11 @@
   if (typeof document !== 'undefined') {
     if (document.head) injectStyle();
     else window.addEventListener('DOMContentLoaded', injectStyle);
+    if (!attract) {
+      const vrScript = document.createElement('script');
+      vrScript.src = '../vr-arcade.js';
+      vrScript.defer = true;
+      document.head.appendChild(vrScript);
+    }
   }
 })();

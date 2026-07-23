@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Song View | Ghost Circuit Sound Stage</title>
+  <link rel="stylesheet" href="../shared/sound-stage.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: radial-gradient(ellipse at top, #10182e 0%, #07040f 70%);
+      color: #dbeafe; font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+      padding: 2.5rem 1rem 3rem; user-select: none;
+    }
+    .nav a { color: #67e8f9; background: rgba(16,24,46,.8); border: 1px solid #164e63; }
+    .nav a:hover { color: #fff; border-color: #22d3ee; box-shadow: 0 0 12px rgba(34,211,238,.5); }
+
+    h1 { font-size: 1.5rem; letter-spacing: 2px; color: #67e8f9; text-shadow: 0 0 18px #22d3ee; }
+    .subtitle { color: #7dd3fc; font-size: .8rem; margin-bottom: 1.1rem; text-align: center; }
+
+    .stage { width: 100%; max-width: 1180px; display: flex; flex-direction: column; align-items: center; }
+
+    /* ---------- Transport ---------- */
+    .transport { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .7rem;
+      background: rgba(16,24,46,.6); border: 1px solid #164e63; border-radius: 12px;
+      padding: .7rem 1rem; margin-bottom: 1rem; width: 100%; }
+    button { font-family: inherit; font-weight: 600; cursor: pointer; border: none; border-radius: 8px;
+      padding: .45rem .9rem; background: #155e75; color: #e0f2fe; transition: all .15s; font-size: .82rem; }
+    button:hover { background: #0e7490; box-shadow: 0 0 14px rgba(34,211,238,.4); }
+    button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+    #playBtn { background: #22d3ee; color: #06121f; min-width: 92px; font-size: .95rem; }
+    #playBtn:hover { background: #67e8f9; }
+    .toggle.on { background: #22d3ee; color: #06121f; }
+    .ctl { display: flex; flex-direction: column; align-items: center; font-size: .68rem; color: #7dd3fc; gap: .15rem; }
+    input[type=range] { width: 120px; accent-color: #22d3ee; }
+    .spacer { flex: 1 1 auto; min-width: 0; }
+
+    /* ---------- Work area ---------- */
+    .work { display: grid; grid-template-columns: 232px 1fr; gap: 1rem; width: 100%; align-items: start; }
+    .panel { background: rgba(16,24,46,.5); border: 1px solid #164e63; border-radius: 12px; padding: .8rem; }
+    .panel-head { font-size: .68rem; letter-spacing: 2px; text-transform: uppercase; color: #7dd3fc;
+      margin-bottom: .6rem; }
+    .panel-head .count { opacity: .55; font-size: .62rem; letter-spacing: 0; }
+
+    .clip-group + .clip-group { margin-top: .9rem; }
+    .clip-group h3 { font-size: .62rem; letter-spacing: 2px; text-transform: uppercase;
+      color: #64748b; margin-bottom: .35rem; }
+    .clip { display: flex; align-items: center; gap: .4rem; padding: .4rem .5rem; border-radius: 7px;
+      background: #0f1e38; border: 1px solid #1e3a5f; margin-bottom: .35rem; cursor: pointer;
+      font-size: .76rem; transition: all .12s; }
+    .clip:hover { border-color: #22d3ee; background: #13284a; }
+    .clip.synth { border-color: #4c1d95; }
+    .clip.synth:hover { border-color: #c084fc; }
+    .clip .clip-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .clip .clip-meta { font-size: .62rem; color: #64748b; }
+    .clip .clip-x { opacity: .4; padding: 0 .2rem; border-radius: 4px; }
+    .clip .clip-x:hover { opacity: 1; color: #f87171; background: rgba(248,113,113,.14); }
+    .empty-note { font-size: .7rem; color: #475569; line-height: 1.5; }
+    .empty-note a { color: #22d3ee; }
+
+    /* ---------- Timeline ---------- */
+    .timeline-wrap { background: rgba(16,24,46,.5); border: 1px solid #164e63; border-radius: 12px;
+      padding: .8rem; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .timeline { position: relative; min-width: 100%; }
+    .ruler { display: flex; height: 22px; margin-left: 74px; position: relative; }
+    .ruler .bar-tick { flex: 0 0 auto; font-size: .6rem; color: #64748b; border-left: 1px solid #1e3a5f;
+      padding-left: 3px; }
+    .lane { display: flex; align-items: stretch; margin-top: .4rem; }
+    .lane-label { flex: 0 0 74px; font-size: .66rem; letter-spacing: 1.5px; text-transform: uppercase;
+      color: #7dd3fc; display: flex; align-items: center; }
+    .lane-track { position: relative; height: 58px; border-radius: 8px; background: #0b1526;
+      border: 1px solid #1e3a5f; flex: 0 0 auto; }
+    .lane-track .bar-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #16304f; }
+    .lane-track .bar-line.beat4 { background: #1e4a75; }
+
+    .block { position: absolute; top: 4px; bottom: 4px; border-radius: 6px; cursor: grab;
+      background: linear-gradient(#155e75, #0e4a5f); border: 1px solid #22d3ee;
+      box-shadow: 0 0 12px rgba(34,211,238,.25); overflow: hidden; touch-action: none;
+      display: flex; align-items: center; padding: 0 .45rem; font-size: .7rem; color: #e0f2fe; }
+    .block.synth { background: linear-gradient(#5b21b6, #3b1275); border-color: #c084fc;
+      box-shadow: 0 0 12px rgba(192,132,252,.25); }
+    .block.selected { outline: 2px solid #f0abfc; outline-offset: 1px; }
+    .block.dragging { cursor: grabbing; opacity: .85; }
+    .block .block-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      pointer-events: none; }
+    .block .grip { position: absolute; top: 0; bottom: 0; right: 0; width: 12px; cursor: ew-resize;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.18)); touch-action: none; }
+    .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #f0abfc;
+      box-shadow: 0 0 10px #f0abfc; pointer-events: none; display: none; z-index: 5; }
+
+    /* ---------- Inline drum editor ---------- */
+    #editor { margin-top: 1rem; width: 100%; display: none; }
+    #editor.show { display: block; }
+    #editorGrid { display: grid; grid-template-columns: 86px repeat(16, 1fr); gap: 4px; min-width: 640px; }
+    #editor .ed-scroll { overflow-x: auto; }
+    .ed-label { display: flex; align-items: center; justify-content: flex-end; padding-right: .4rem;
+      font-size: .68rem; color: #bae6fd; }
+    .ed-cell { aspect-ratio: 1; min-width: 22px; border-radius: 5px; background: #0f1e38;
+      border: 1px solid #1e3a5f; cursor: pointer; }
+    .ed-cell.beat { background: #13284a; }
+    .ed-cell.on { background: #22d3ee; box-shadow: 0 0 9px rgba(34,211,238,.6); }
+    .ed-cell.playing { outline: 2px solid #f0abfc; outline-offset: -2px; }
+
+    .flash { margin-top: .9rem; min-height: 1.2rem; color: #67e8f9; font-size: .82rem; opacity: 0;
+      transition: opacity .2s; }
+    .flash.show { opacity: 1; }
+    .hint { margin-top: .5rem; font-size: .72rem; color: #475569; text-align: center; line-height: 1.6; }
+    .footer { margin-top: 1.4rem; text-align: center; font-size: .78rem; color: #64748b; line-height: 1.6; }
+    .footer a { color: #22d3ee; text-decoration: none; }
+
+    @media (max-width: 860px) {
+      body { padding: 2.5rem .6rem 2rem; }
+      .work { grid-template-columns: 1fr; }
+      .lane-label { flex-basis: 52px; font-size: .58rem; }
+      .ruler { margin-left: 52px; }
+      .transport { gap: .5rem; padding: .6rem .7rem; }
+      input[type=range] { width: 96px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="/music">← Sound Stage</a>
+    <a href="../drum-machine/index.html">Drum Machine</a>
+    <a href="../synth/index.html">Synth</a>
+    <a href="/visual/index.html">Light Lab</a>
+    <span class="nav-sep"></span>
+    <a href="/arcade">Arcade</a>
+    <a href="/" data-short="Home"><span class="nav-long">Plumbmonkey Home</span></a>
+  </div>
+
+  <h1>SONG VIEW</h1>
+  <div class="subtitle">Arrange your beats and riffs into a track</div>
+
+  <div class="stage">
+    <div class="transport">
+      <button id="playBtn">▶ Play</button>
+      <button id="loopBtn" class="toggle on">↻ Loop</button>
+      <div class="ctl">
+        <label>Tempo · <span id="tempoVal">120</span> BPM</label>
+        <input type="range" id="tempo" min="60" max="200" value="120" />
+      </div>
+      <div class="ctl">
+        <label>Length · <span id="barsVal">8</span> bars</label>
+        <input type="range" id="bars" min="1" max="32" value="8" />
+      </div>
+      <span class="spacer"></span>
+      <button id="exportWavBtn" title="Render the whole arrangement to a WAV file">Export WAV</button>
+      <button id="exportMidiBtn" title="Export the arrangement as a MIDI file">Export MIDI</button>
+      <button id="clearBtn" title="Remove every block from the timeline">Clear</button>
+    </div>
+
+    <div class="work">
+      <section class="panel">
+        <div class="panel-head">Clips <span class="count" id="clipCount"></span></div>
+        <div class="clip-group">
+          <h3>Beats</h3>
+          <div id="drumClips"></div>
+        </div>
+        <div class="clip-group">
+          <h3>Riffs</h3>
+          <div id="synthClips"></div>
+        </div>
+        <div class="clip-group" id="emptyNote" style="display:none">
+          <p class="empty-note">
+            No clips yet. Build a beat in the
+            <a href="../drum-machine/index.html">Drum Machine</a> or record a riff on the
+            <a href="../synth/index.html">Synth</a>, then press <strong>→ Song</strong>.
+          </p>
+        </div>
+      </section>
+
+      <div class="timeline-wrap">
+        <div class="timeline" id="timeline">
+          <div class="ruler" id="ruler"></div>
+          <div class="lane">
+            <div class="lane-label">Drums</div>
+            <div class="lane-track" id="laneDrum"></div>
+          </div>
+          <div class="lane">
+            <div class="lane-label">Synth</div>
+            <div class="lane-track" id="laneSynth"></div>
+          </div>
+          <div class="playhead" id="playhead"></div>
+        </div>
+      </div>
+    </div>
+
+    <section class="panel" id="editor">
+      <div class="panel-head">
+        Editing <span id="editorName" style="color:#67e8f9"></span>
+        <button id="editorClose" style="float:right;padding:.2rem .6rem;font-size:.7rem">Close</button>
+      </div>
+      <div class="ed-scroll"><div id="editorGrid"></div></div>
+      <div class="hint" style="text-align:left">Edits apply to this clip everywhere it appears in the song.</div>
+    </section>
+
+    <div id="flash" class="flash"></div>
+    <div class="hint">
+      Click a clip to drop it at the end of its lane · drag a block to move it · drag its right edge to repeat it over more bars<br>
+      Click a beat block to edit its steps below · Delete/Backspace removes the selected block · Spacebar plays &amp; stops
+    </div>
+  </div>
+
+  <div class="footer">
+    Part of the <strong style="color:#7dd3fc">Ghost Circuit</strong> sound lab · Built by Plumbmonkey Media<br>
+    Everything here exports to WAV &amp; MIDI —
+    <a href="https://plumbmonkey.gumroad.com/" target="_blank" rel="noopener noreferrer">get the desktop Drum Machine on Gumroad →</a>
+  </div>
+
+  <script src="/shared/creative-handoff.js"></script>
+  <script src="../shared/export-utils.js"></script>
+  <script src="../shared/drum-engine.js"></script>
+  <script src="../shared/synth-engine.js"></script>
+  <script src="../shared/song-store.js"></script>
+  <script src="song.js"></script>
+</body>
+</html>

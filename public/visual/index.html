@@ -2,173 +2,377 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="robots" content="noindex" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#08090b" />
   <title>Ghost Circuit Light Lab | Plumbmonkey</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
-      background: #05030a; color: #dbeafe;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      overflow: hidden; user-select: none;
-      -webkit-user-select: none;
+    :root {
+      --bg:#08090b; --panel:#101215; --panel2:#171a1e; --line:#292e34;
+      --text:#f4f7f3; --muted:#92999f; --acid:#d9ff63; --cyan:#5ce6db;
+      --violet:#a67cff; --danger:#ff5c70; --radius:14px;
     }
-
-    /* Full-bleed stage */
-    #stageWrap { position: fixed; inset: 0; }
-    #stage { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
-
-    /* Back-links (same idiom as the arcade games) */
-    .nav { position: fixed; top: 10px; left: 10px; display: flex; gap: .5rem; font-size: .78rem; z-index: 20; }
-    .nav a { color: #c084fc; text-decoration: none; padding: .3rem .7rem; border-radius: 6px;
-      background: rgba(26,16,37,.8); border: 1px solid #3b2660; backdrop-filter: blur(4px);
-      transition: all .15s; white-space: nowrap; }
-    .nav a:hover { color: #fff; border-color: #c084fc; box-shadow: 0 0 12px rgba(192,132,252,.5); }
-
-    /* Title, fades out so the canvas owns the screen */
-    .title {
-      position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
-      text-align: center; z-index: 10; pointer-events: none;
-      animation: fadeTitle 6s ease forwards;
+    * { box-sizing:border-box; }
+    html, body { margin:0; min-height:100%; background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,system-ui,sans-serif; }
+    body { overflow:hidden; }
+    button, input, select { font:inherit; }
+    button { color:inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline:2px solid var(--acid); outline-offset:2px; }
+    .app { height:100dvh; display:grid; grid-template-rows:64px minmax(0,1fr) 104px; }
+    .topbar { display:flex; align-items:center; gap:18px; padding:0 20px; border-bottom:1px solid var(--line); background:#0b0d0f; }
+    .brand { display:flex; align-items:center; gap:11px; min-width:max-content; }
+    .brand-mark { width:30px; height:30px; display:grid; place-items:center; border:1px solid #4b5930; border-radius:9px; color:var(--acid); box-shadow:inset 0 0 18px #d9ff6322; }
+    .brand strong { display:block; font-size:.78rem; letter-spacing:.18em; }
+    .brand small { display:block; color:var(--muted); font-size:.61rem; letter-spacing:.16em; text-transform:uppercase; }
+    .top-status { color:var(--muted); font-size:.76rem; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .top-actions { margin-left:auto; display:flex; gap:8px; }
+    .tool-menu { position:relative; }
+    .tool-menu summary { list-style:none; cursor:pointer; border:1px solid var(--line); background:var(--panel2); border-radius:9px; padding:.56rem .76rem; font-size:.76rem; }
+    .tool-menu summary::-webkit-details-marker { display:none; }
+    .tool-menu nav { position:absolute; top:calc(100% + 8px); left:0; z-index:50; min-width:180px; padding:7px; border:1px solid var(--line); border-radius:11px; background:#101215f7; box-shadow:0 18px 50px #000a; }
+    .tool-menu a { display:block; padding:.62rem .7rem; border-radius:7px; color:#d4d9dc; text-decoration:none; font-size:.74rem; }
+    .tool-menu a:hover { background:#ffffff0c; color:var(--acid); }
+    .btn, .chip { border:1px solid var(--line); background:var(--panel2); border-radius:9px; padding:.56rem .76rem; cursor:pointer; transition:.15s ease; }
+    .btn:hover, .chip:hover { border-color:#596168; background:#1c2024; }
+    .btn.primary { background:var(--acid); color:#111509; border-color:var(--acid); font-weight:800; }
+    .btn.ghost { background:transparent; }
+    .studio { min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 360px; }
+    .workspace { min-width:0; min-height:0; padding:18px; display:flex; flex-direction:column; gap:12px; }
+    .stage-toolbar { display:flex; align-items:center; gap:8px; min-height:34px; }
+    .stage-toolbar .label { color:var(--muted); font-size:.68rem; letter-spacing:.13em; text-transform:uppercase; }
+    .ratio-group { display:flex; gap:4px; margin-left:auto; }
+    .ratio-btn { border:1px solid transparent; background:transparent; color:var(--muted); border-radius:7px; padding:.32rem .52rem; font-size:.72rem; cursor:pointer; }
+    .ratio-btn.active { color:var(--acid); border-color:#4d592d; background:#d9ff630e; }
+    .stage-shell { position:relative; min-height:0; flex:1; display:grid; place-items:center; overflow:hidden; border:1px solid #24282c; border-radius:var(--radius); background:#030405; box-shadow:0 22px 70px #0008; }
+    #stageWrap { position:relative; width:100%; height:100%; transition:.25s ease; }
+    #stage { display:block; width:100%; height:100%; cursor:crosshair; touch-action:none; }
+    .stage-badge { position:absolute; top:12px; left:12px; z-index:3; padding:.32rem .54rem; border-radius:7px; background:#07090bbd; border:1px solid #ffffff18; color:#dce2e0; font:600 .64rem ui-monospace,monospace; letter-spacing:.08em; pointer-events:none; }
+    .overlay-copy { position:absolute; z-index:2; left:50%; bottom:8%; transform:translateX(-50%); width:85%; text-align:center; text-shadow:0 2px 20px #000; pointer-events:none; }
+    .overlay-copy strong { display:block; font-size:clamp(1rem,3vw,2.5rem); letter-spacing:.12em; text-transform:uppercase; }
+    .overlay-copy span { color:#d7dfdc; font-size:clamp(.65rem,1.2vw,.9rem); letter-spacing:.22em; text-transform:uppercase; }
+    .overlay-copy:empty { display:none; }
+    .inspector { min-height:0; overflow:auto; border-left:1px solid var(--line); background:var(--panel); scrollbar-width:thin; }
+    .inspector-head { position:sticky; top:0; z-index:3; display:flex; align-items:center; justify-content:space-between; padding:15px 16px; background:#101215ed; backdrop-filter:blur(12px); border-bottom:1px solid var(--line); }
+    .inspector-head strong { font-size:.77rem; letter-spacing:.13em; text-transform:uppercase; }
+    .panel { border-bottom:1px solid var(--line); }
+    .panel summary { list-style:none; display:flex; align-items:center; justify-content:space-between; padding:15px 16px; cursor:pointer; font-size:.76rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+    .panel summary::-webkit-details-marker { display:none; }
+    .panel summary::after { content:"+"; color:var(--muted); font-size:1rem; }
+    .panel[open] summary::after { content:"−"; color:var(--acid); }
+    .panel-body { padding:0 16px 16px; }
+    .preset-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .preset { min-height:72px; text-align:left; border:1px solid var(--line); border-radius:10px; padding:10px; background:linear-gradient(145deg,#1a1d22,#0d0f12); cursor:pointer; }
+    .preset.active { border-color:var(--acid); box-shadow:0 0 0 1px #d9ff6340; }
+    .preset-swatch { display:block; height:20px; margin-bottom:8px; border-radius:5px; }
+    .preset strong { font-size:.72rem; }
+    .mode-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .mode-chip, .src-chip { border:1px solid var(--line); border-radius:8px; background:#171a1e; color:#bcc3c7; min-height:40px; padding:.55rem .5rem; font-size:.7rem; cursor:pointer; }
+    .mode-chip.active, .src-chip.active { border-color:#667738; background:#d9ff6311; color:var(--acid); }
+    .field { margin-top:13px; }
+    .field:first-child { margin-top:0; }
+    .field label { display:flex; align-items:center; justify-content:space-between; margin-bottom:7px; color:#c4cacd; font-size:.7rem; }
+    .field label span { color:var(--acid); font-family:ui-monospace,monospace; }
+    input[type=range] { width:100%; accent-color:var(--acid); }
+    select, input[type=text] { width:100%; border:1px solid var(--line); border-radius:8px; background:#171a1e; color:var(--text); padding:.62rem .7rem; }
+    .palette-row { display:flex; gap:7px; margin-top:10px; }
+    .color-input { width:36px; height:36px; border:1px solid var(--line); padding:2px; border-radius:9px; background:#171a1e; }
+    .source-row { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+    .text-stack { display:grid; gap:8px; }
+    .toggle { display:flex; align-items:center; justify-content:space-between; color:#c4cacd; font-size:.72rem; }
+    .transport { display:grid; grid-template-columns:minmax(220px,340px) minmax(0,1fr) auto; align-items:center; gap:18px; padding:13px 20px max(13px,env(safe-area-inset-bottom)); border-top:1px solid var(--line); background:#0b0d0f; }
+    .upload-zone { display:flex; align-items:center; gap:11px; min-width:0; }
+    .upload-icon { width:42px; height:42px; display:grid; place-items:center; flex:none; border-radius:10px; background:#d9ff6312; border:1px solid #4b5930; color:var(--acid); }
+    .track-meta { min-width:0; }
+    .track-meta strong, .track-meta small { display:block; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .track-meta strong { font-size:.76rem; }
+    .track-meta small { color:var(--muted); font-size:.65rem; margin-top:3px; }
+    .timeline { min-width:0; }
+    .timeline-row { display:flex; align-items:center; gap:10px; }
+    .transport button { border:0; background:transparent; cursor:pointer; }
+    #tPlay { width:38px; height:38px; border-radius:50%; background:var(--acid); color:#12150b; font-weight:900; }
+    #seek { flex:1; }
+    #tTime { color:var(--muted); font:600 .66rem ui-monospace,monospace; white-space:nowrap; }
+    #tLoop { color:var(--acid); opacity:.4; }
+    #tLoop.on { opacity:1; }
+    .capture { display:flex; gap:7px; }
+    .effect-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+    .effect { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:38px; padding:7px 9px; border:1px solid var(--line); border-radius:8px; color:#c5cbce; font-size:.68rem; }
+    .effect input { accent-color:var(--acid); }
+    .mapping-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .mapping-grid label { color:var(--muted); font-size:.65rem; }
+    .mapping-grid select { margin-top:5px; padding:.48rem; font-size:.68rem; }
+    .scene-list { display:flex; gap:7px; overflow-x:auto; padding-bottom:6px; }
+    .scene-card { min-width:112px; padding:9px; border:1px solid var(--line); border-radius:9px; background:#171a1e; text-align:left; cursor:pointer; }
+    .scene-card.active { border-color:var(--acid); color:var(--acid); }
+    .scene-card strong,.scene-card small { display:block; }
+    .scene-card strong { font-size:.68rem; }
+    .scene-card small { margin-top:4px; color:var(--muted); font-size:.6rem; }
+    .scene-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:8px; }
+    .scene-actions .btn { padding:.48rem .35rem; font-size:.66rem; }
+    .waveform { width:100%; height:28px; display:block; margin-bottom:5px; border-radius:5px; background:#111418; }
+    .range-pair { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    #recBtn.rec { background:var(--danger); color:white; border-color:var(--danger); }
+    #mobileControls { display:none; }
+    body.clean .topbar, body.clean .inspector, body.clean .transport, body.clean .stage-toolbar { display:none !important; }
+    body.clean .app { display:block; height:100dvh; }
+    body.clean .studio, body.clean .workspace, body.clean .stage-shell { width:100%; height:100%; padding:0; border:0; border-radius:0; }
+    #cleanExit { display:none; position:fixed; inset:0 0 auto auto; z-index:20; width:64px; height:64px; border:0; background:transparent; }
+    body.clean #cleanExit { display:block; }
+    #cleanHint { position:fixed; top:16px; left:50%; z-index:30; transform:translateX(-50%); opacity:0; pointer-events:none; padding:.45rem .8rem; border-radius:99px; background:#090b0de6; border:1px solid var(--line); color:#cbd1ce; font-size:.7rem; transition:.3s; }
+    #cleanHint.show { opacity:1; }
+    #transport.show { display:grid; }
+    #drawer, #drawerBtn, #fsBtn { display:none; }
+    @media (max-width: 900px) {
+      body { overflow:auto; }
+      .app { height:auto; min-height:100dvh; display:block; padding-bottom:92px; }
+      .topbar { height:58px; padding:0 12px; position:sticky; top:0; z-index:20; }
+      .brand small, .top-status, #saveBtn { display:none; }
+      .studio { display:block; }
+      .workspace { padding:10px; gap:8px; }
+      .stage-toolbar { min-height:30px; }
+      .stage-shell { height:min(58vw,52dvh); min-height:260px; border-radius:11px; }
+      .inspector { border-left:0; border-top:1px solid var(--line); overflow:visible; }
+      .inspector-head { top:58px; }
+      .preset-grid, .mode-grid { display:flex; overflow-x:auto; padding-bottom:5px; scroll-snap-type:x proximity; }
+      .preset { min-width:148px; scroll-snap-align:start; }
+      .mode-chip { min-width:126px; }
+      .transport { position:fixed; z-index:18; left:0; right:0; bottom:0; grid-template-columns:minmax(0,1fr) auto; padding:10px 12px max(10px,env(safe-area-inset-bottom)); gap:10px; box-shadow:0 -16px 40px #000b; }
+      .upload-zone { display:none; }
+      .timeline { min-width:0; }
+      .capture .btn { padding:.52rem .64rem; }
+      .capture #cleanBtn { display:none; }
+      .source-row { grid-template-columns:1fr; }
+      .panel summary, .panel-body { padding-left:13px; padding-right:13px; }
+      #mobileControls { display:inline-flex; }
+      body.clean .stage-shell { height:100dvh; min-height:100dvh; }
     }
-    .title h1 { font-size: 1.15rem; letter-spacing: 3px; color: #c084fc; text-shadow: 0 0 18px #a855f7; }
-    .title p { font-size: .72rem; color: #d8b4fe; opacity: .85; }
-    @keyframes fadeTitle { 0%, 70% { opacity: 1; } 100% { opacity: 0.25; } }
-
-    /* Fullscreen button (top-right, arcade pattern) */
-    #fsBtn { position: fixed; top: 10px; right: 10px; z-index: 20;
-      background: rgba(26,16,37,.8); border: 1px solid #3b2660; color: #c084fc;
-      border-radius: 6px; padding: .3rem .7rem; font-size: .78rem; cursor: pointer; }
-    #fsBtn:hover { color: #fff; border-color: #c084fc; }
-
-    /* Control drawer — bottom sheet, collapses on mobile */
-    #drawerBtn { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
-      z-index: 30; background: rgba(26,16,37,.85); border: 1px solid #3b2660; color: #e9d5ff;
-      border-radius: 999px; padding: .45rem 1.3rem; font-size: .8rem; font-weight: 600;
-      cursor: pointer; backdrop-filter: blur(6px); }
-    #drawerBtn:hover { border-color: #c084fc; box-shadow: 0 0 14px rgba(192,132,252,.5); }
-
-    #drawer { position: fixed; left: 50%; bottom: -320px; transform: translateX(-50%);
-      width: min(720px, calc(100% - 16px)); z-index: 25;
-      background: rgba(13,8,22,.92); border: 1px solid #3b2660; border-radius: 16px 16px 0 0;
-      padding: .9rem 1.1rem 3.2rem; backdrop-filter: blur(10px);
-      transition: bottom .25s ease; }
-    #drawer.open { bottom: 0; }
-
-    .row { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; margin-bottom: .7rem; }
-    .row-label { font-size: .64rem; letter-spacing: 2px; color: #a78bfa; text-transform: uppercase;
-      width: 100%; margin-bottom: .1rem; }
-    .mode-chip, .src-chip { background: #1e1b4b; color: #c4b5fd; border: 1px solid #3b2660;
-      border-radius: 999px; padding: .34rem .8rem; font-size: .74rem; font-weight: 600; cursor: pointer;
-      transition: all .15s; font-family: inherit; }
-    .mode-chip:hover, .src-chip:hover { border-color: #c084fc; color: #fff; }
-    .mode-chip.active, .src-chip.active { background: #4c1d95; color: #fff; border-color: #a855f7;
-      box-shadow: 0 0 12px rgba(168,85,247,.45); }
-
-    .sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .8rem; }
-    .ctl { display: flex; flex-direction: column; gap: .25rem; font-size: .7rem; color: #d8b4fe; }
-    .ctl label { display: flex; justify-content: space-between; }
-    .ctl span { color: #f0abfc; }
-    input[type=range] { width: 100%; accent-color: #c084fc; }
-    select { font-family: inherit; background: #2e1065; color: #e9d5ff; border: 1px solid #7c3aed;
-      border-radius: 6px; padding: .28rem; font-size: .74rem; }
-
-    #vsStatus { position: fixed; bottom: 54px; left: 50%; transform: translateX(-50%);
-      font-size: .72rem; color: #d8b4fe; z-index: 20; pointer-events: none;
-      background: rgba(13,8,22,.6); padding: .2rem .8rem; border-radius: 999px; }
-
-    /* Transport bar — appears only while a music file is loaded */
-    #transport { position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
-      display: none; align-items: center; gap: .55rem; z-index: 26;
-      width: min(540px, calc(100% - 24px));
-      background: rgba(13,8,22,.88); border: 1px solid #3b2660; border-radius: 999px;
-      padding: .4rem .9rem; backdrop-filter: blur(8px); }
-    #transport.show { display: flex; }
-    #transport button { background: none; border: none; color: #e9d5ff; font-size: 1rem;
-      cursor: pointer; padding: .1rem .3rem; line-height: 1; font-family: inherit; }
-    #transport button:hover { color: #fff; }
-    #tLoop { opacity: .4; }
-    #tLoop.on { opacity: 1; color: #f0abfc; text-shadow: 0 0 8px #c084fc; }
-    #seek { flex: 1; accent-color: #c084fc; min-width: 80px; }
-    #tTime { font-size: .66rem; color: #d8b4fe; white-space: nowrap;
-      font-variant-numeric: tabular-nums; }
-
-    /* Clean mode: nothing but the canvas */
-    body.clean .nav, body.clean .title, body.clean #fsBtn, body.clean #vsStatus,
-    body.clean #drawerBtn, body.clean #drawer, body.clean #transport { display: none !important; }
-    #cleanHint { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 40;
-      font-size: .74rem; color: #d8b4fe; background: rgba(13,8,22,.78); border: 1px solid #3b2660;
-      padding: .32rem .95rem; border-radius: 999px; opacity: 0; pointer-events: none;
-      transition: opacity .6s; }
-    #cleanHint.show { opacity: 1; }
-    #cleanExit { position: fixed; top: 0; right: 0; width: 56px; height: 56px; z-index: 41;
-      background: none; border: none; cursor: pointer; display: none; }
-    body.clean #cleanExit { display: block; }
-
-    /* Record chip while recording */
-    #recBtn.rec { background: #7f1d1d; border-color: #ef4444; color: #fff;
-      box-shadow: 0 0 12px rgba(239,68,68,.6); font-variant-numeric: tabular-nums; }
+    @media (max-width: 520px) {
+      .top-actions #fsBtn2, .top-actions #pngBtn { display:none; }
+      .ratio-group .ratio-btn:nth-child(4) { display:none; }
+      .stage-shell { min-height:230px; }
+      .overlay-copy strong { font-size:1rem; }
+      .capture .btn { font-size:.68rem; }
+      #tTime { display:none; }
+    }
+    @media (prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; transition-duration:.01ms !important; } }
   </style>
 </head>
 <body>
-  <div id="stageWrap"><canvas id="stage"></canvas></div>
+  <div class="app">
+    <header class="topbar">
+      <a class="brand" href="/music" aria-label="Back to Sound Stage">
+        <span class="brand-mark">✦</span><span><strong>GHOST CIRCUIT</strong><small>Light Lab</small></span>
+      </a>
+      <details class="tool-menu">
+        <summary>Creative tools</summary>
+        <nav aria-label="Creative tools">
+          <a href="/music">Sound Stage</a>
+          <a href="/music/drum-machine/index.html">Drum Machine</a>
+          <a href="/music/synth/index.html">Soft Synth</a>
+          <a href="/music/song/index.html">Song View</a>
+          <a href="/arcade">Arcade</a>
+          <a href="/">Plumbmonkey Home</a>
+        </nav>
+      </details>
+      <div class="top-status" id="vsStatus">Ready — upload a track or explore with touch</div>
+      <div class="top-actions">
+        <button class="btn ghost" id="saveBtn">Save setup</button>
+        <button class="btn ghost" id="pngBtn">PNG still</button>
+        <button class="btn ghost" id="fsBtn2">Fullscreen</button>
+        <button class="btn primary" id="mobileControls">Controls</button>
+      </div>
+    </header>
 
-  <div class="nav">
-    <a href="/">← Plumbmonkey Home</a>
-    <a href="/arcade">Arcade</a>
-    <a href="/music">Sound Stage</a>
+    <main class="studio">
+      <section class="workspace" aria-label="Visualizer preview">
+        <div class="stage-toolbar">
+          <span class="label">Live preview</span>
+          <span class="stage-badge" style="position:static">1080P · 60 FPS</span>
+          <div class="ratio-group" aria-label="Aspect ratio">
+            <button class="ratio-btn active" data-ratio="16/9">16:9</button>
+            <button class="ratio-btn" data-ratio="9/16">9:16</button>
+            <button class="ratio-btn" data-ratio="1/1">1:1</button>
+            <button class="ratio-btn" data-ratio="4/5">4:5</button>
+          </div>
+        </div>
+        <div class="stage-shell" id="stageShell">
+          <div id="stageWrap">
+            <canvas id="stage"></canvas>
+            <div class="stage-badge" id="modeBadge">FIREFLY NEBULA</div>
+            <div class="overlay-copy" id="overlayPreview"></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="inspector" id="inspector" aria-label="Visualizer controls">
+        <div class="inspector-head"><strong>Design controls</strong><span style="color:var(--acid);font-size:.66rem">LIVE</span></div>
+        <details class="panel" open>
+          <summary>Looks</summary>
+          <div class="panel-body">
+            <div class="preset-grid" id="presetGrid">
+              <button class="preset active" data-preset="neon"><span class="preset-swatch" style="background:linear-gradient(90deg,#18f8f2,#a747ff,#ff3b9d)"></span><strong>Neon Cathedral</strong></button>
+              <button class="preset" data-preset="haunted"><span class="preset-swatch" style="background:linear-gradient(90deg,#82ff74,#174634,#b9ffc3)"></span><strong>Haunted Pulse</strong></button>
+              <button class="preset" data-preset="dream"><span class="preset-swatch" style="background:linear-gradient(90deg,#9e8cff,#f5a9dc,#65d9ff)"></span><strong>Dreamwave</strong></button>
+              <button class="preset" data-preset="inferno"><span class="preset-swatch" style="background:linear-gradient(90deg,#a20a00,#ff5a00,#ffe469)"></span><strong>Inferno</strong></button>
+              <button class="preset" data-preset="ocean"><span class="preset-swatch" style="background:linear-gradient(90deg,#04175f,#00b8c6,#8aeaff)"></span><strong>Deep Ocean</strong></button>
+              <button class="preset" data-preset="mono"><span class="preset-swatch" style="background:linear-gradient(90deg,#222,#eee,#777)"></span><strong>Monochrome Film</strong></button>
+            </div>
+          </div>
+        </details>
+        <details class="panel" open>
+          <summary>Visual style</summary>
+          <div class="panel-body">
+            <div class="mode-grid">
+              <button class="mode-chip active" data-mode="firefly-nebula">Firefly Nebula</button>
+              <button class="mode-chip" data-mode="neural-strings">Neural Strings</button>
+              <button class="mode-chip" data-mode="geometric-pulse">Geometric Pulse</button>
+              <button class="mode-chip" data-mode="fractal-warp">Fractal Warp</button>
+              <button class="mode-chip" data-mode="spectrum-ring">Spectrum Ring</button>
+              <button class="mode-chip" data-mode="wave-mirror">Wave Mirror</button>
+              <button class="mode-chip" data-mode="particle-galaxy">Particle Galaxy</button>
+              <button class="mode-chip" data-mode="laser-grid">Laser Grid</button>
+              <button class="mode-chip" data-mode="liquid-ribbons">Liquid Ribbons</button>
+              <button class="mode-chip" data-mode="aurora-curtains">Aurora Curtains</button>
+              <button class="mode-chip" data-mode="tunnel-flight">Tunnel Flight</button>
+              <button class="mode-chip" data-mode="starfield-pulse">Starfield Pulse</button>
+              <button class="mode-chip" data-mode="auto">✦ Auto scenes</button>
+            </div>
+            <div class="field"><label>Symmetry <span id="segmentsVal"></span></label><input type="range" id="segments" min="4" max="16" step="2" value="8" /></div>
+            <div class="field"><label>Motion <span id="spinVal"></span></label><input type="range" id="spin" min="0" max="30" value="10" /></div>
+            <div class="field"><label>Trails <span id="trailsVal"></span></label><input type="range" id="trails" min="8" max="120" value="25" /></div>
+          </div>
+        </details>
+        <details class="panel">
+          <summary>Effects stack</summary>
+          <div class="panel-body">
+            <div class="effect-grid">
+              <label class="effect">Bloom <input type="checkbox" class="effect-toggle" data-effect="bloom" checked /></label>
+              <label class="effect">Film grain <input type="checkbox" class="effect-toggle" data-effect="grain" /></label>
+              <label class="effect">Vignette <input type="checkbox" class="effect-toggle" data-effect="vignette" /></label>
+              <label class="effect">Chromatic <input type="checkbox" class="effect-toggle" data-effect="chromatic" /></label>
+              <label class="effect">Soft blur <input type="checkbox" class="effect-toggle" data-effect="blur" /></label>
+              <label class="effect">Flicker <input type="checkbox" class="effect-toggle" data-effect="flicker" /></label>
+              <label class="effect" title="Rapid flashes can affect photosensitive viewers">Strobe ⚠ <input type="checkbox" class="effect-toggle" data-effect="strobe" /></label>
+              <label class="effect">Glitch <input type="checkbox" class="effect-toggle" data-effect="glitch" /></label>
+              <label class="effect">Mirror X <input type="checkbox" class="effect-toggle" data-effect="mirrorX" /></label>
+              <label class="effect">Flip Y <input type="checkbox" class="effect-toggle" data-effect="flipY" /></label>
+            </div>
+            <div class="field"><label>Effect strength <span id="effectStrengthVal"></span></label><input type="range" id="effectStrength" min="0" max="100" value="45" /></div>
+          </div>
+        </details>
+        <details class="panel">
+          <summary>Audio mapping</summary>
+          <div class="panel-body mapping-grid">
+            <label>Bass controls<select id="bassMap"><option value="scale">Scale &amp; pulse</option><option value="shake">Camera shake</option><option value="speed">Motion speed</option><option value="glow">Glow</option></select></label>
+            <label>Mids control<select id="midMap"><option value="warp">Warp</option><option value="rotation">Rotation</option><option value="density">Density</option><option value="color">Color</option></select></label>
+            <label>Treble controls<select id="trebleMap"><option value="glow">Glow &amp; sparkle</option><option value="color">Color shift</option><option value="distortion">Distortion</option><option value="speed">Motion speed</option></select></label>
+            <label>Beat triggers<select id="beatMap"><option value="pulse">Pulse</option><option value="burst">Particle burst</option><option value="flash">Flash</option><option value="scene">Next scene</option></select></label>
+          </div>
+        </details>
+        <details class="panel">
+          <summary>Scene sequencer</summary>
+          <div class="panel-body">
+            <div class="scene-list" id="sceneList"></div>
+            <div class="scene-actions">
+              <button class="btn" id="addScene">＋ Add</button>
+              <button class="btn" id="duplicateScene">Duplicate</button>
+              <button class="btn" id="deleteScene">Delete</button>
+              <button class="btn" id="renameScene">Rename</button>
+              <button class="btn" id="moveSceneLeft">← Move</button>
+              <button class="btn" id="moveSceneRight">Move →</button>
+            </div>
+            <div class="range-pair">
+              <div class="field"><label>Duration <span id="sceneDurationVal"></span></label><input type="range" id="sceneDuration" min="4" max="60" value="16" /></div>
+              <div class="field"><label>Transition</label><select id="sceneTransition"><option value="crossfade">Crossfade</option><option value="flash">Flash</option><option value="cut">Hard cut</option></select></div>
+            </div>
+            <label class="toggle" style="margin-top:10px">Run sequence <input type="checkbox" id="runScenes" /></label>
+          </div>
+        </details>
+        <details class="panel" open>
+          <summary>Color</summary>
+          <div class="panel-body">
+            <select id="palette" aria-label="Color palette"></select>
+            <div class="palette-row" aria-label="Custom palette">
+              <input class="color-input" type="color" id="color1" value="#10f5ee" aria-label="Primary color" />
+              <input class="color-input" type="color" id="color2" value="#a847ff" aria-label="Secondary color" />
+              <input class="color-input" type="color" id="color3" value="#ff3d9f" aria-label="Accent color" />
+              <button class="btn" id="applyColors" style="flex:1">Apply custom</button>
+            </div>
+            <div class="field"><label>Color movement <span id="colorSpeedVal"></span></label><input type="range" id="colorSpeed" min="0" max="30" value="10" /></div>
+          </div>
+        </details>
+        <details class="panel" open>
+          <summary>Audio response</summary>
+          <div class="panel-body">
+            <div class="source-row">
+              <button class="src-chip active" id="srcTouch">Touch</button>
+              <button class="src-chip" id="srcMic">Mic</button>
+              <button class="src-chip" id="srcFile">Upload audio</button>
+              <button class="src-chip" id="srcHandoff" hidden>Latest Sound Stage audio</button>
+            </div>
+            <input type="file" id="fileInput" accept="audio/*" hidden />
+            <div class="field"><label>Overall sensitivity <span id="sensitivityVal"></span></label><input type="range" id="sensitivity" min="5" max="30" value="15" /></div>
+            <div class="field"><label>Bass <span id="bassGainVal"></span></label><input type="range" id="bassGain" min="0" max="200" value="115" /></div>
+            <div class="field"><label>Mids <span id="midGainVal"></span></label><input type="range" id="midGain" min="0" max="200" value="100" /></div>
+            <div class="field"><label>Treble <span id="trebleGainVal"></span></label><input type="range" id="trebleGain" min="0" max="200" value="105" /></div>
+            <div class="field"><label>Beat punch <span id="beatThresholdVal"></span></label><input type="range" id="beatThreshold" min="35" max="85" value="62" /></div>
+          </div>
+        </details>
+        <details class="panel">
+          <summary>Titles &amp; overlays</summary>
+          <div class="panel-body text-stack">
+            <input type="text" id="artistText" placeholder="Artist name" maxlength="50" />
+            <input type="text" id="trackText" placeholder="Track title" maxlength="70" />
+            <label class="toggle">Show titles <input type="checkbox" id="showTitles" /></label>
+          </div>
+        </details>
+        <details class="panel">
+          <summary>Export</summary>
+          <div class="panel-body">
+            <div class="field"><label>Quality</label><select id="quality"><option value="high">1080p / High</option><option value="standard">720p / Standard</option><option value="mobile">Mobile / Smaller file</option></select></div>
+            <div class="range-pair">
+              <div class="field"><label>Frame rate</label><select id="exportFps"><option value="60">60 FPS</option><option value="30">30 FPS</option></select></div>
+              <div class="field"><label>Export range</label><select id="exportRange"><option value="full">Entire track</option><option value="selection">Selected range</option></select></div>
+            </div>
+            <div class="range-pair">
+              <div class="field"><label>Start <span id="rangeStartVal">0%</span></label><input type="range" id="rangeStart" min="0" max="99" value="0" /></div>
+              <div class="field"><label>End <span id="rangeEndVal">100%</span></label><input type="range" id="rangeEnd" min="1" max="100" value="100" /></div>
+            </div>
+            <div id="exportEstimate" style="color:var(--muted);font-size:.66rem;margin-top:10px">Ready to export the complete track.</div>
+            <p style="color:var(--muted);font-size:.68rem;line-height:1.5">Video exports as WebM with the active audio. PNG stills and setup files download instantly.</p>
+            <button class="btn" id="loadSetupBtn" style="width:100%;margin-bottom:8px">Load saved setup</button>
+            <input type="file" id="setupInput" accept="application/json,.json" hidden />
+            <button class="btn primary" id="recBtn" style="width:100%">● Start video export</button>
+            <button class="btn" id="cleanBtn" style="width:100%;margin-top:8px">Clean preview</button>
+          </div>
+        </details>
+      </aside>
+    </main>
+
+    <footer class="transport" id="transport">
+      <div class="upload-zone">
+        <button class="upload-icon" id="uploadIcon" aria-label="Upload audio">＋</button>
+        <div class="track-meta"><strong id="trackName">No audio loaded</strong><small>Upload MP3, WAV, M4A or OGG</small></div>
+      </div>
+      <div class="timeline">
+        <canvas id="waveform" class="waveform" width="900" height="56" aria-label="Audio waveform"></canvas>
+        <input type="range" id="waveZoom" min="1" max="8" value="1" aria-label="Waveform zoom" style="width:100%;height:8px" />
+        <div class="timeline-row">
+          <button id="tPlay" aria-label="Play or pause">▶</button>
+          <input type="range" id="seek" min="0" max="1000" value="0" aria-label="Audio position" />
+          <div id="tTime">0:00 / 0:00</div>
+          <button id="tLoop" class="on" aria-label="Loop audio">↻</button>
+        </div>
+      </div>
+      <div class="capture">
+        <button class="btn" id="cleanBtnBottom">Clean</button>
+        <button class="btn primary" id="recBtnBottom">Export video</button>
+      </div>
+    </footer>
   </div>
-
-  <div class="title">
-    <h1>GHOST CIRCUIT LIGHT LAB</h1>
-    <p>Drag, swipe &amp; hold — or feed it music</p>
-  </div>
-
-  <button id="fsBtn">⛶ Fullscreen</button>
-  <div id="vsStatus">Touch mode — drag, swipe and hold anywhere</div>
-
-  <div id="transport">
-    <button id="tPlay" title="Play / pause (freezes the visual too)">⏸</button>
-    <input type="range" id="seek" min="0" max="1000" value="0" />
-    <div id="tTime">0:00 / 0:00</div>
-    <button id="tLoop" class="on" title="Loop">⟳</button>
-  </div>
-
-  <div id="cleanHint">Esc or tap top-right corner to exit &nbsp;·&nbsp; R starts/stops recording</div>
-  <button id="cleanExit" aria-label="Exit clean mode"></button>
-
-  <button id="drawerBtn">✦ Controls</button>
-  <div id="drawer">
-    <div class="row">
-      <div class="row-label">Mode</div>
-      <button class="mode-chip active" data-mode="firefly-nebula">Firefly Nebula</button>
-      <button class="mode-chip" data-mode="neural-strings">Neural Strings</button>
-      <button class="mode-chip" data-mode="geometric-pulse">Geometric Pulse</button>
-      <button class="mode-chip" data-mode="fractal-warp">Fractal Warp</button>
-      <button class="mode-chip" data-mode="auto" title="Cycle modes on strong beats">✦ Auto</button>
-    </div>
-    <div class="row">
-      <div class="row-label">Source</div>
-      <button class="src-chip active" id="srcTouch">Touch Only</button>
-      <button class="src-chip" id="srcMic">Microphone</button>
-      <button class="src-chip" id="srcFile">Music File…</button>
-      <input type="file" id="fileInput" accept="audio/*" style="display:none" />
-      <select id="palette" title="Color palette"></select>
-    </div>
-    <div class="row">
-      <div class="row-label">Capture</div>
-      <button class="src-chip" id="recBtn" title="Record the canvas (plus audio) to a .webm video — max 5 min">● Record</button>
-      <button class="src-chip" id="cleanBtn" title="Hide every control for a clean screen-capture frame">🎬 Clean View</button>
-    </div>
-    <div class="sliders">
-      <div class="ctl"><label>Segments <span id="segmentsVal"></span></label><input type="range" id="segments" min="4" max="12" step="2" value="8" /></div>
-      <div class="ctl"><label>Sensitivity <span id="sensitivityVal"></span></label><input type="range" id="sensitivity" min="5" max="30" value="15" /></div>
-      <div class="ctl"><label>Trails <span id="trailsVal"></span></label><input type="range" id="trails" min="10" max="120" value="25" /></div>
-      <div class="ctl"><label>Spin <span id="spinVal"></span></label><input type="range" id="spin" min="0" max="30" value="10" /></div>
-    </div>
-  </div>
-
+  <div id="cleanHint">Esc or tap the top-right corner to return · R records</div>
+  <button id="cleanExit" aria-label="Exit clean preview"></button>
+  <button id="fsBtn" hidden></button><button id="drawerBtn" hidden></button><div id="drawer"></div>
+  <script src="/shared/creative-handoff.js"></script>
   <script src="visual.js"></script>
 </body>
 </html>

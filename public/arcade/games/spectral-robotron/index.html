@@ -70,6 +70,7 @@
     }
     .start-overlay p { color: #d8b4fe; margin: 0.25rem 0; }
     .hidden { display: none !important; }
+    .touch-only { display: none; }
     .crt-overlay {
       position: absolute;
       inset: 0;
@@ -91,8 +92,9 @@
     <div id="startOverlay" class="start-overlay">
       <h2>SPECTRAL MANOR SWARM</h2>
       <p>Monsters are hunting Ghost Circuit fans.</p>
-      <p>Move with WASD · Aim & shoot with the mouse</p>
-      <p style="margin-top:0.9rem; opacity:0.75; font-size:0.85rem">Click or SPACE to start</p>
+      <p class="kbd-only">Move with WASD · Aim &amp; shoot with the mouse</p>
+      <p class="touch-only">Left thumb to move · Right thumb to aim &amp; fire</p>
+      <p style="margin-top:0.9rem; opacity:0.75; font-size:0.85rem"><span class="kbd-only">Click or SPACE to start</span><span class="touch-only">Tap to start</span></p>
     </div>
   </div>
 
@@ -111,6 +113,7 @@
   </div>
 
   <script src="../leaderboard.js"></script>
+  <script src="../touch-controls.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

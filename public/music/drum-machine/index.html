@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ghost Circuit Drum Machine | Plumbmonkey</title>
+  <link rel="stylesheet" href="../shared/sound-stage.css" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -14,9 +15,8 @@
     }
     h1 { font-size: 1.6rem; letter-spacing: 2px; color: #67e8f9; text-shadow: 0 0 18px #22d3ee; margin-bottom: .2rem; }
     .subtitle { color: #7dd3fc; font-size: .82rem; margin-bottom: 1.4rem; }
-    .nav { position: fixed; top: 10px; left: 10px; display: flex; gap: .5rem; font-size: .78rem; z-index: 20; }
-    .nav a { color: #67e8f9; text-decoration: none; padding: .3rem .7rem; border-radius: 6px;
-      background: rgba(16,24,46,.8); border: 1px solid #164e63; }
+    /* .nav base lives in shared/sound-stage.css — colours only here */
+    .nav a { color: #67e8f9; text-decoration: none; background: rgba(16,24,46,.8); border: 1px solid #164e63; }
     .nav a:hover { color: #fff; border-color: #22d3ee; box-shadow: 0 0 12px rgba(34,211,238,.5); }
 
     .transport { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 1.2rem;
@@ -57,8 +57,12 @@
 <body>
   <div class="nav">
     <a href="/music">← Sound Stage</a>
+    <a href="../synth/index.html">Synth</a>
+    <a href="../song/index.html">Song</a>
+    <a href="/visual/index.html">Light Lab</a>
+    <span class="nav-sep"></span>
     <a href="/arcade">Arcade</a>
-    <a href="/">Plumbmonkey Home</a>
+    <a href="/" data-short="Home"><span class="nav-long">Plumbmonkey Home</span></a>
   </div>
 
   <h1>GHOST CIRCUIT DRUM MACHINE</h1>
@@ -80,6 +84,7 @@
     </div>
     <button id="exportWavBtn" title="Render the loop to a WAV file">Export WAV</button>
     <button id="exportMidiBtn" title="Export the loop as a MIDI file (GM drum map)">Export MIDI</button>
+    <button id="toSongBtn" title="Save this beat as a clip for the Song view" style="background:#7c3aed">→ Song</button>
   </div>
 
   <div class="machine">
@@ -95,7 +100,10 @@
     <a href="https://plumbmonkey.gumroad.com/" target="_blank" rel="noopener noreferrer">Get the Drum Machine on Gumroad →</a>
   </div>
 
+  <script src="/shared/creative-handoff.js"></script>
   <script src="../shared/export-utils.js"></script>
+  <script src="../shared/drum-engine.js"></script>
+  <script src="../shared/song-store.js"></script>
   <script src="drum.js"></script>
 </body>
 </html>

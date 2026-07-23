@@ -14,14 +14,41 @@ let master = null;
 // plain master level low enough that even the busiest realistic step
 // (kick+snare+hat+clap all landing together) stays under 1.0. Verified: the
 // demo pattern's worst step peaks ~0.66 at this level, with no coloration.
+const MASTER_LEVEL = 0.6;
 function initAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     master = audioCtx.createGain();
-    master.gain.value = 0.6;
+    master.gain.value = MASTER_LEVEL;
     master.connect(audioCtx.destination);
   }
   if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+// Safety net for exports: guarantee a rendered file never hard-clips, without
+// a compressor (which colours single hits — see above). We scan the rendered
+// peak and, ONLY if it would clip, apply one linear gain to the whole buffer.
+// That's transparent — it changes level, not shape — so a dense pattern whose
+// overlapping voice tails stack past 1.0 exports undistorted instead of
+// clipped. Patterns already under the ceiling are left untouched and match
+// live playback exactly. (The single-step headroom above doesn't account for
+// tails ringing across several 16th steps, which is where real clipping came
+// from.)
+function normalizePeak(buffer, ceiling) {
+  ceiling = ceiling || 0.99;
+  let peak = 0;
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const d = buffer.getChannelData(c);
+    for (let i = 0; i < d.length; i++) { const a = Math.abs(d[i]); if (a > peak) peak = a; }
+  }
+  if (peak > ceiling) {
+    const g = ceiling / peak;
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      const d = buffer.getChannelData(c);
+      for (let i = 0; i < d.length; i++) d[i] *= g;
+    }
+  }
+  return peak;
 }
 
 // Offline render uses the same headroom-only bus, so exports match live playback.
@@ -31,95 +58,10 @@ function makeLimitedBus(ctx) {
   return bus;
 }
 
-// ---------- Drum voices (all synthesized) ----------
-// Every voice takes (ctx, dest, t, v) rather than closing over the live
-// audioCtx/master, so the exact same functions can render live playback
-// OR an offline render for WAV/one-shot export.
-function noiseBuffer(ctx, dur) {
-  const len = Math.floor(ctx.sampleRate * dur);
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-  return buf;
-}
-function env(gain, t, peak, dur, release) {
-  gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.exponentialRampToValueAtTime(peak, t + 0.002);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + dur + (release || 0));
-}
-
-const VOICES = {
-  kick(ctx, dest, t, v) {
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.frequency.setValueAtTime(150, t);
-    o.frequency.exponentialRampToValueAtTime(50, t + 0.12);
-    env(g, t, 0.9 * v, 0.28);
-    o.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.4);
-  },
-  snare(ctx, dest, t, v) {
-    const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, 0.2);
-    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800;
-    const ng = ctx.createGain(); env(ng, t, 0.6 * v, 0.12);
-    n.connect(bp); bp.connect(ng); ng.connect(dest); n.start(t); n.stop(t + 0.2);
-    const o = ctx.createOscillator(), og = ctx.createGain();
-    o.type = 'triangle'; o.frequency.value = 200; env(og, t, 0.4 * v, 0.09);
-    o.connect(og); og.connect(dest); o.start(t); o.stop(t + 0.15);
-  },
-  clap(ctx, dest, t, v) {
-    [0, 0.012, 0.024].forEach(off => {
-      const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, 0.1);
-      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1200;
-      const g = ctx.createGain(); env(g, t + off, 0.5 * v, 0.06);
-      n.connect(bp); bp.connect(g); g.connect(dest); n.start(t + off); n.stop(t + off + 0.1);
-    });
-  },
-  chat(ctx, dest, t, v) {
-    const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, 0.05);
-    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
-    const g = ctx.createGain(); env(g, t, 0.35 * v, 0.03);
-    n.connect(hp); hp.connect(g); g.connect(dest); n.start(t); n.stop(t + 0.06);
-  },
-  ohat(ctx, dest, t, v) {
-    const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, 0.35);
-    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
-    const g = ctx.createGain(); env(g, t, 0.3 * v, 0.28);
-    n.connect(hp); hp.connect(g); g.connect(dest); n.start(t); n.stop(t + 0.4);
-  },
-  ltom(ctx, dest, t, v) {
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(65, t + 0.2);
-    env(g, t, 0.7 * v, 0.24); o.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.35);
-  },
-  htom(ctx, dest, t, v) {
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(120, t + 0.16);
-    env(g, t, 0.7 * v, 0.2); o.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.3);
-  },
-  cowbell(ctx, dest, t, v) {
-    [560, 845].forEach(f => {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = 'square'; o.frequency.value = f; env(g, t, 0.28 * v, 0.18);
-      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700;
-      o.connect(bp); bp.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.25);
-    });
-  }
-};
-
-// GM percussion map (channel 10) — used for MIDI export
-const GM_NOTE = { kick: 36, snare: 38, clap: 39, chat: 42, ohat: 46, ltom: 45, htom: 50, cowbell: 56 };
-
-// ---------- Tracks & pattern ----------
-const TRACKS = [
-  { id: 'kick',    name: 'Kick' },
-  { id: 'snare',   name: 'Snare' },
-  { id: 'clap',    name: 'Clap' },
-  { id: 'chat',    name: 'Closed Hat' },
-  { id: 'ohat',    name: 'Open Hat' },
-  { id: 'ltom',    name: 'Low Tom' },
-  { id: 'htom',    name: 'Hi Tom' },
-  { id: 'cowbell', name: 'Cowbell' }
-];
-const STEPS = 16;
+// ---------- Drum voices, tracks & GM map ----------
+// All synthesized, and shared with the synth's backing beat and the Song
+// view via shared/drum-engine.js — one definition, three consumers.
+const { VOICES, TRACKS, GM_NOTE, STEPS } = DrumEngine;
 // pattern[track][step] = 0/1 ; mutes[track] = bool
 let pattern = TRACKS.map(() => new Array(STEPS).fill(0));
 let mutes = TRACKS.map(() => false);
@@ -294,7 +236,8 @@ async function renderPatternToBuffer(loops) {
   const totalSeconds = spb * STEPS * loops + 0.6; // pad for voice tails
   const off = new OfflineAudioContext(2, Math.ceil(totalSeconds * sr), sr);
   const offMaster = makeLimitedBus(off);
-  offMaster.gain.value = master ? master.gain.value : 0.9;
+  // Match live playback's level even when audio was never started (export-first).
+  offMaster.gain.value = master ? master.gain.value : MASTER_LEVEL;
   for (let loop = 0; loop < loops; loop++) {
     for (let s = 0; s < STEPS; s++) {
       const stepTime = (loop * STEPS + s) * spb;
@@ -313,6 +256,7 @@ async function exportLoopWav() {
   if (!hasAnyHit) { flash('Nothing to export — add some steps first'); return; }
   flash('Rendering…');
   const buffer = await renderPatternToBuffer(1);
+  normalizePeak(buffer);
   const blob = ExportUtils.audioBufferToWav(buffer);
   ExportUtils.downloadBlob(blob, 'ghost-circuit-beat.wav');
   flash('WAV exported');
@@ -341,6 +285,20 @@ function exportLoopMidi() {
   flash('MIDI exported');
 }
 
+// ---------- Send the current beat to the Song view ----------
+function sendToSong() {
+  const hasAnyHit = pattern.some(track => track.some(s => s));
+  if (!hasAnyHit) { flash('Add some steps before sending to the Song view'); return; }
+  const name = (prompt('Name this beat for the Song view:', SongStore.nextName('drum')) || '').trim();
+  if (name === '') return; // cancelled
+  // Deep-copy the pattern so later edits here don't mutate the saved clip.
+  const clip = SongStore.addClip('drum', name, {
+    pattern: pattern.map(row => row.slice()),
+    swing: swing
+  });
+  flash(clip ? '"' + name + '" sent to the Song view' : 'Could not save — storage full?');
+}
+
 async function exportVoiceOneShot(ti) {
   initAudio();
   const tr = TRACKS[ti];
@@ -349,6 +307,7 @@ async function exportVoiceOneShot(ti) {
   const dest = makeLimitedBus(off); dest.gain.value = 1;
   VOICES[tr.id](off, dest, 0.01, 1);
   const buffer = await off.startRendering();
+  normalizePeak(buffer);   // snare/cowbell sum two sources and can graze 1.0
   const blob = ExportUtils.audioBufferToWav(buffer);
   ExportUtils.downloadBlob(blob, tr.id + '.wav');
   flash(tr.name + ' sample downloaded');
@@ -364,6 +323,7 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('loadBtn').addEventListener('click', loadPattern);
   document.getElementById('exportWavBtn').addEventListener('click', exportLoopWav);
   document.getElementById('exportMidiBtn').addEventListener('click', exportLoopMidi);
+  document.getElementById('toSongBtn').addEventListener('click', sendToSong);
   const tempoEl = document.getElementById('tempo');
   tempoEl.addEventListener('input', e => { tempo = +e.target.value; document.getElementById('tempoVal').textContent = tempo; });
   const swingEl = document.getElementById('swing');

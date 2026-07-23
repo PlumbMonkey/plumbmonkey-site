@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SY-1 Soft Synth | Plumbmonkey</title>
+  <link rel="stylesheet" href="../shared/sound-stage.css" />
   <style>
     /* ============================================================
        SY-1 hardware skin — matches the Blender SY-1 model renders:
@@ -20,14 +21,14 @@
       --key-white: #e9e7e3; --key-black: #4a453f;
     }
     body {
+      --ss-pad-top: 2.2rem; --ss-pad-x: 1rem;
       background: radial-gradient(ellipse at 50% -10%, #3a3634 0%, #171514 62%, #0d0c0b 100%);
       color: #d8d2cc; font-family: 'Segoe UI', system-ui, sans-serif;
       min-height: 100vh; display: flex; flex-direction: column; align-items: center;
       padding: 2.2rem 1rem 3rem; user-select: none; -webkit-user-select: none;
     }
-    .nav { position: fixed; top: 10px; left: 10px; display: flex; gap: .5rem; font-size: .78rem; z-index: 20; }
-    .nav a { color: #e0b184; text-decoration: none; padding: .3rem .7rem; border-radius: 6px;
-      background: rgba(30,26,23,.85); border: 1px solid #4a4038; }
+    /* .nav base lives in shared/sound-stage.css — colours only here */
+    .nav a { color: #e0b184; text-decoration: none; background: rgba(30,26,23,.85); border: 1px solid #4a4038; }
     .nav a:hover { color: #fff; border-color: #e0b184; box-shadow: 0 0 12px var(--amber-glow); }
 
     /* ---------- Chassis ---------- */
@@ -80,8 +81,27 @@
     .preset-chip:active, .mini-btn:active { transform: translateY(1px); }
     .preset-sep { flex: 1; }
 
+    /* ---------- Backing beat bar ---------- */
+    .beatbar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-bottom: 1.1rem;
+      padding: .55rem .7rem; border-radius: 8px; background: rgba(20,30,50,.5);
+      border: 1px solid #2a3a55; }
+    .beat-btn.playing { background: linear-gradient(#67e8f9, #22d3ee); color: #06121f; border-color: #0e7490;
+      box-shadow: 0 0 14px rgba(34,211,238,.55); }
+    .beat-select { background: #10182e; color: #bae6fd; border: 1px solid #2a3a55; border-radius: 6px;
+      padding: .35rem .5rem; font-family: inherit; font-size: .72rem; max-width: 46vw; }
+    .beat-tempo { display: flex; align-items: center; gap: .4rem; font-size: .6rem; letter-spacing: 1px;
+      color: #7dd3fc; text-transform: uppercase; }
+    .beat-tempo input[type=range] { width: 96px; accent-color: #22d3ee; }
+    .beat-tempo span { color: #67e8f9; font-family: Consolas, monospace; min-width: 26px; }
+    .beat-note { font-size: .66rem; color: #64748b; }
+
     /* ---------- Control sections ---------- */
     .rack { margin-bottom: 1rem; }
+    /* Compact view: drop the knob rack + scope so the keyboard sits right under
+       the presets — no scrolling to reach the keys on phone OR desktop. */
+    .chassis.compact .rack,
+    .chassis.compact #scope { display: none; }
+    #viewToggle.active { color: #3c220c; background: linear-gradient(#f4c793, #e8a05f); border-color: #a06a35; }
     fieldset.section { border: none; border-top: 1px solid var(--panel-line); border-radius: 0;
       padding: .55rem .2rem .8rem; margin-bottom: .1rem; background: none; }
     fieldset.section legend { font-size: .64rem; letter-spacing: 3px; color: var(--engrave); padding: 0 .6rem 0 0;
@@ -172,8 +192,12 @@
 <body>
   <div class="nav">
     <a href="/music">← Sound Stage</a>
+    <a href="../drum-machine/index.html">Drum Machine</a>
+    <a href="../song/index.html">Song</a>
+    <a href="/visual/index.html">Light Lab</a>
+    <span class="nav-sep"></span>
     <a href="/arcade">Arcade</a>
-    <a href="/">Plumbmonkey Home</a>
+    <a href="/" data-short="Home"><span class="nav-long">Plumbmonkey Home</span></a>
   </div>
 
   <div class="chassis">
@@ -195,8 +219,20 @@
       <button class="preset-chip" data-preset="Grave Bass">Grave Bass</button>
       <button class="preset-chip" data-preset="Haunted Bell">Haunted Bell</button>
       <span class="preset-sep"></span>
+      <button class="mini-btn" id="viewToggle" title="Hide the knob rack so the keys are reachable without scrolling">▤ Compact</button>
       <button class="mini-btn" id="savePatchBtn">Save</button>
       <button class="mini-btn" id="loadPatchBtn">Load</button>
+    </div>
+
+    <!-- Backing beat: play a saved drum clip under your noodling, toggle on/off -->
+    <div class="beatbar">
+      <button class="mini-btn beat-btn" id="beatToggle" title="Play a saved beat while you play the synth">▶ Backing Beat</button>
+      <select id="beatClip" class="beat-select" title="Choose a beat you saved from the Drum Machine or Song view"></select>
+      <label class="beat-tempo">BEAT BPM
+        <input type="range" id="beatTempo" min="60" max="200" value="120" />
+        <span id="beatTempoVal">120</span>
+      </label>
+      <span class="beat-note" id="beatNote"></span>
     </div>
 
     <div class="rack">
@@ -281,6 +317,7 @@
       <button id="recordBtn">● Record</button>
       <button id="exportWavBtn" title="Render your recorded notes to a WAV file">Export WAV</button>
       <button id="exportMidiBtn" title="Export your recorded notes as a MIDI file">Export MIDI</button>
+      <button id="toSongBtn" title="Save your recorded take as a clip for the Song view">→ Song</button>
     </div>
     <div class="under-hints">
       <div class="hint">Effects apply to the whole take as currently set (vibrato is baked per note)</div>
@@ -292,7 +329,11 @@
     <strong style="color:#d8d2cc">SY-1</strong> · part of the Ghost Circuit sound lab · Built by Plumbmonkey Media
   </div>
 
+  <script src="/shared/creative-handoff.js"></script>
   <script src="../shared/export-utils.js"></script>
+  <script src="../shared/drum-engine.js"></script>
+  <script src="../shared/synth-engine.js"></script>
+  <script src="../shared/song-store.js"></script>
   <script src="synth.js"></script>
   <script>
   // ============================================================
