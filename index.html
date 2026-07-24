@@ -42,13 +42,64 @@
   Plumbmonkey Store
 </a>
         </li>
-        <li><a href="/arcade" class="block px-2 text-purple-400 hover:text-purple-300 underline font-semibold">Spectral Manor Arcade</a></li>
-        <li><a href="/music" class="block px-2 text-cyan-400 hover:text-cyan-300 underline font-semibold">Sound Stage</a></li>
-        <li><a href="/visual/index.html" class="block px-2 text-fuchsia-400 hover:text-fuchsia-300 underline font-semibold">Light Lab</a></li>
+        <!-- The three Ghost Circuit playgrounds live behind one entry, matching
+             the dropdown on the creative-studio pages. -->
+        <li class="relative">
+          <button type="button" id="gcNavBtn" aria-haspopup="true" aria-expanded="false"
+            class="flex items-center gap-1.5 px-2 font-semibold">
+            <span class="bg-gradient-to-r from-cyan-300 to-violet-300 bg-clip-text text-transparent">Ghost Circuit</span>
+            <span id="gcNavCaret" class="text-[10px] text-zinc-400 transition-transform duration-200">▼</span>
+          </button>
+          <div id="gcNavPanel" class="hidden absolute left-0 top-full w-72 pt-3">
+            <div class="overflow-hidden rounded-xl border border-white/10 bg-zinc-950/95 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl">
+              <p class="px-3 pb-1.5 pt-2 text-[10px] uppercase tracking-[0.2em] text-zinc-500">The Ghost Circuit universe</p>
+              <a href="/arcade" class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition hover:bg-white/10">
+                <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-violet-300 ring-1 ring-inset ring-white/10">🕹</span>
+                <span class="min-w-0"><span class="block text-sm font-semibold text-zinc-100">Arcade</span>
+                <span class="block text-xs leading-snug text-zinc-500">Eight games inside the haunted manor</span></span>
+              </a>
+              <a href="/music" class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition hover:bg-white/10">
+                <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-cyan-300 ring-1 ring-inset ring-white/10">♪</span>
+                <span class="min-w-0"><span class="block text-sm font-semibold text-zinc-100">Sound Stage</span>
+                <span class="block text-xs leading-snug text-zinc-500">Drum machine, synth &amp; song arranger</span></span>
+              </a>
+              <a href="/visual/index.html" class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition hover:bg-white/10">
+                <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-fuchsia-300 ring-1 ring-inset ring-white/10">✦</span>
+                <span class="min-w-0"><span class="block text-sm font-semibold text-zinc-100">Light Lab</span>
+                <span class="block text-xs leading-snug text-zinc-500">Audio-reactive kaleidoscope visuals</span></span>
+              </a>
+            </div>
+          </div>
+        </li>
       </ul>
     </nav>
   </div>
 </header>
+
+<script>
+  // Ghost Circuit dropdown — click-only (hover+click hybrids race themselves),
+  // closes on outside click and Escape. Same behaviour as the React NavBar.
+  (function () {
+    var btn = document.getElementById('gcNavBtn');
+    var panel = document.getElementById('gcNavPanel');
+    var caret = document.getElementById('gcNavCaret');
+    function setOpen(open) {
+      panel.classList.toggle('hidden', !open);
+      btn.setAttribute('aria-expanded', String(open));
+      caret.style.transform = open ? 'rotate(180deg)' : '';
+    }
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setOpen(panel.classList.contains('hidden'));
+    });
+    document.addEventListener('click', function (e) {
+      if (!panel.classList.contains('hidden') && !panel.contains(e.target)) setOpen(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') setOpen(false);
+    });
+  })();
+</script>
 
 <!-- Hero Section -->
 <section class="relative h-screen w-full overflow-hidden" id="hero">
