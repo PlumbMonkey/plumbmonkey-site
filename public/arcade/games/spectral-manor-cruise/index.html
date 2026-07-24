@@ -69,6 +69,19 @@
   </div>
 
   <script src="../leaderboard.js"></script>
+  <script src="../arcade-controls.js"></script>
   <script src="game.js"></script>
+  <script>
+    // Racer: stick steers, trigger is the gas — no vertical axis on the stick
+    // so a resting thumb can never accelerate you into a wall.
+    ArcadeControls.init(keys, {
+      accent: '#ef4444',
+      move: 'horizontal',
+      buttons: [
+        { code: 'ArrowUp',   label: 'GAS' },
+        { code: 'ArrowDown', label: 'BRAKE' }
+      ]
+    });
+  </script>
 </body>
 </html>

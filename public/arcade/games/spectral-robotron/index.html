@@ -114,6 +114,20 @@
 
   <script src="../leaderboard.js"></script>
   <script src="../touch-controls.js"></script>
+  <script src="../arcade-controls.js"></script>
   <script src="game.js"></script>
+  <script>
+    // Twin-stick: left stick moves, right stick aims and auto-fires.
+    // autoPad 'quest' — phones already get the analog twin-stick pads from
+    // touch-controls.js, so the D-pad only appears in the headset, where it
+    // pairs with laser-pointer aiming.
+    ArcadeControls.init(keys, {
+      accent: '#c084fc',
+      move: 'full',
+      aim: true,
+      autoPad: 'quest',
+      buttons: [{ code: 'Space', label: 'FIRE' }]
+    });
+  </script>
 </body>
 </html>

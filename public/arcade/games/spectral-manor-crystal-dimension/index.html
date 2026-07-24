@@ -65,6 +65,18 @@
   </div>
 
   <script src="../leaderboard.js"></script>
+  <script src="../arcade-controls.js"></script>
   <script src="game.js"></script>
+  <script>
+    // Asteroids-style: stick left/right rotates, stick up thrusts, A fires.
+    ArcadeControls.init(keys, {
+      accent: '#c084fc',
+      move: 'full',
+      buttons: [
+        { code: 'Space',   label: 'FIRE' },
+        { code: 'ArrowUp', label: 'THRUST' }
+      ]
+    });
+  </script>
 </body>
 </html>

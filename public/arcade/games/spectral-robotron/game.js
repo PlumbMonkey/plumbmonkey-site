@@ -347,6 +347,8 @@ function update() {
   // Touch stick overrides the keys — analog, already magnitude-clamped to 1
   TouchPad.sync(mouse, player.x + player.w/2, player.y + player.h/2);
   if (TouchPad.moveActive) { vx = TouchPad.mx * player.speed; vy = TouchPad.my * player.speed; }
+  // Gamepad right stick wins over both when it's deflected (no-op otherwise)
+  ArcadeControls.applyAim(mouse, player.x + player.w/2, player.y + player.h/2);
 
   // Move with obstacle sliding (try X and Y separately)
   let nx = Math.max(8, Math.min(W - player.w - 8, player.x + vx));

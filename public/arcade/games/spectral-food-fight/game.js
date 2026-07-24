@@ -340,6 +340,8 @@ function update() {
     player.vx = TouchPad.mx * player.speed;
     player.vy = TouchPad.my * player.speed;
   }
+  // Gamepad right stick wins over both when it's deflected (no-op otherwise)
+  ArcadeControls.applyAim(mouse, player.x + player.w/2, player.y + player.h/2);
 
   let nx = player.x + player.vx;
   let ny = player.y + player.vy;

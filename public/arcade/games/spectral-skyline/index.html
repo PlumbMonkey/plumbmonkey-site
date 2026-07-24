@@ -111,6 +111,15 @@
   </div>
 
   <script src="../leaderboard.js"></script>
+  <script src="../arcade-controls.js"></script>
   <script src="game.js"></script>
+  <script>
+    // Joust-style: steer left/right, hold/tap A to flap. No vertical axis.
+    ArcadeControls.init(keys, {
+      accent: '#fbbf24',
+      move: 'horizontal',
+      buttons: [{ code: 'Space', label: 'FLAP' }]
+    });
+  </script>
 </body>
 </html>
