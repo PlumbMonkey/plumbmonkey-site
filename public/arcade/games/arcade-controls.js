@@ -55,13 +55,16 @@ const ArcadeControls = (function () {
     gamepadConnected: false,
     aimActive: false,
     aimAngle: 0,
-    init, applyAim, setPadVisible
+    init, applyAim, setPadVisible, setXrInput, tryStart,
+    get profile() { return opts; }
   };
 
   let keys = null;
   let opts = {};
   let padKeys = new Set();      // codes held by the gamepad this frame
   let screenKeys = new Set();   // codes held by on-screen buttons
+  let xrKeys = new Set();       // codes held by Quest Touch controllers (vr-mode.js)
+  let xrAim = null;             // {angle} while the XR right thumbstick is deflected
   let ownedKeys = new Set();    // what WE set last frame, so we only clear our own
   let started = false;
   let autoFire = false;
@@ -104,6 +107,7 @@ const ArcadeControls = (function () {
     const desired = new Set();
     padKeys.forEach(c => desired.add(c));
     screenKeys.forEach(c => desired.add(c));
+    xrKeys.forEach(c => desired.add(c));
     // Auto-fire holds the primary action down. The Quest browser generally
     // gives you ONE laser cursor, so without this you cannot press a movement
     // button and the fire button at the same time in any of the shooters.
@@ -204,9 +208,21 @@ const ArcadeControls = (function () {
     return true;
   }
 
+  // Quest Touch controllers can only be read inside a WebXR session, so
+  // vr-mode.js pushes their state in here rather than writing keys[] itself.
+  // Routing it through this same merge is what keeps a VR release from
+  // cancelling a key the keyboard or an Xbox pad is genuinely holding.
+  function setXrInput(codes, aim) {
+    xrKeys = codes || new Set();
+    xrAim = aim || null;
+  }
+
   function poll() {
     if (startCooldown > 0) startCooldown--;
     pollGamepad();
+    // XR aim wins over the flat gamepad — pollGamepad clears aimActive when no
+    // Bluetooth pad is present, which would otherwise wipe the Touch stick.
+    if (xrAim) { api.aimActive = true; api.aimAngle = xrAim.angle; }
     applyKeys();
     requestAnimationFrame(poll);
   }
