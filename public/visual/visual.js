@@ -309,14 +309,12 @@ class VisualEngine {
    *  Long range pulls IN, close range pushes OUT — bodies orbit the finger in
    *  a living ring instead of stacking into one additive-blend hotspot. */
   applyWellForces(body, radialGain, angularGain) {
-    const nearSq = (this.bufferSize * 0.055) ** 2;   // orbit radius scales with screen
     for (const w of this.wells) {
       const dr = w.r - body.r;
       const dt = (w.theta - body.theta) * Math.max(40, body.r);
       const dSq = dr * dr + dt * dt;
       const falloff = 1 / (1 + dSq * 0.00012);         // soft long-range pull
-      const orbit = dSq < nearSq ? -1.8 : 1;           // flip to repulsion up close
-      const f = w.strength * falloff * orbit;
+      const f = w.strength * falloff;
       body.vr     += dr * f * radialGain;
       body.vtheta += (w.theta - body.theta) * f * angularGain + w.stir * falloff;
     }
@@ -1033,6 +1031,8 @@ const pointers = new Map();     // pointerId -> {x, y, vx, vy, downAt}
 let pointerEnergy = 0;          // smoothed swipe speed 0..1
 let pressEnergy = 0;            // smoothed hold amount 0..1
 let tapBeat = false;            // one-frame beat on pointerdown
+let gravityMode = 'attract';    // 'attract' | 'repel' | 'off'
+let gravityStrength = 0.65;
 const idlePerlin = new PerlinNoise();
 let idleT = Math.random() * 100;
 
@@ -1133,9 +1133,13 @@ function frame(now) {
   pointerEnergy = pointerEnergy * 0.88 + speedNorm * 0.12;
   pressEnergy = pressEnergy * 0.92 + (pointers.size > 0 ? 1 : 0) * 0.08;
 
-  // Feed pointer wells into the engine (attract while held)
+  // Feed pointer wells into the engine. Both gravity toggles may be off;
+  // selecting one direction turns the other off so the force is unambiguous.
   const wellList = [];
-  pointers.forEach(p => { wellList.push({ x: p.x, y: p.y, vx: p.vx, vy: p.vy, strength: 1 }); });
+  const gravitySign = gravityMode === 'attract' ? 1 : gravityMode === 'repel' ? -1 : 0;
+  pointers.forEach(p => {
+    wellList.push({ x: p.x, y: p.y, vx: p.vx, vy: p.vy, strength: gravitySign * gravityStrength });
+  });
   engine.setPointerWells(wellList);
 
   const bands = getBands();
@@ -1411,6 +1415,22 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Phase 2 effects and frequency mapping
   bindSlider('effectStrength', v => { effectState.strength = v / 100; });
+  const gravityAttract = document.getElementById('gravityAttract');
+  const gravityRepel = document.getElementById('gravityRepel');
+  const gravitySlider = document.getElementById('gravityStrength');
+  const gravityLabel = document.getElementById('gravityStrengthVal');
+  const updateGravityMode = changed => {
+    if (changed === gravityAttract && gravityAttract.checked) gravityRepel.checked = false;
+    if (changed === gravityRepel && gravityRepel.checked) gravityAttract.checked = false;
+    gravityMode = gravityAttract.checked ? 'attract' : gravityRepel.checked ? 'repel' : 'off';
+    setStatus(gravityMode === 'off' ? 'Touch gravity off' : 'Touch gravity: ' + gravityMode);
+  };
+  gravityAttract.addEventListener('change', () => updateGravityMode(gravityAttract));
+  gravityRepel.addEventListener('change', () => updateGravityMode(gravityRepel));
+  gravitySlider.addEventListener('input', () => {
+    gravityStrength = +gravitySlider.value / 100;
+    gravityLabel.textContent = gravitySlider.value + '%';
+  });
   document.querySelectorAll('.effect-toggle').forEach(el => {
     effectState[el.dataset.effect] = el.checked;
     el.addEventListener('change', () => {
