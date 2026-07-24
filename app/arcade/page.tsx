@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import ArcadeRoom from "./ArcadeRoom";
+import NeonCursor from "../components/NeonCursor";
 
 export const metadata: Metadata = {
   title: "Spectral Manor Arcade | Plumbmonkey Media",
@@ -22,6 +23,11 @@ export const metadata: Metadata = {
 export default function ArcadePage() {
   return (
     <main className="min-h-screen bg-[#07040f] text-purple-100">
+      {/* Neon trail — the arcade lobby only. The games themselves opt out:
+          Swarm and Mess Hall aim with the mouse, and a glowing ribbon over
+          the reticle would fight the gameplay. */}
+      <NeonCursor />
+
       {/* Hero */}
       <section className="max-w-5xl mx-auto px-6 pt-14 pb-10 text-center">
         <p className="text-purple-400 text-sm tracking-[0.3em] uppercase mb-3">

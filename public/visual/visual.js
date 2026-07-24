@@ -289,6 +289,9 @@ class VisualEngine {
   // wells: [{x, y, strength (-1 repel .. +1 attract), vx, vy}] in CANVAS pixels.
   // ---------------------------------------------------------------------------
   setPointerWells(pointerList) {
+    // Neon Comet draws in SCREEN space (it has to literally sit under the
+    // finger), so it needs the untransformed list as well as the polar wells.
+    this.rawPointers = pointerList;
     const cx = this.width / 2, cy = this.height / 2;
     const angleStep = (Math.PI * 2) / this.config.segments;
     this.wells = pointerList.map(p => {
@@ -396,9 +399,185 @@ class VisualEngine {
     this.stampLayer(this.layerWeb,   segments, angleStep, this.rotKaleido);
     this.stampLayer(this.layerCloud, segments, angleStep, this.rotKaleido);
     ctx.restore();
+    // Screen-space pass — must land after the kaleidoscope stamp but before
+    // bloom, so the comet picks up the same glow as everything else.
+    if (this.mode === 'neon-comet') this.renderNeonComet(W, H, bass, mid, treble, beat);
     if (effectState.bloom) this.applyBloom(W, H, treble);
     this.drawOverlay(W, H);
     this.applyEffects(W, H, beat);
+  }
+
+  // ---------------------------------------------------------------------------
+  // NEON COMET — a glowing ribbon that literally follows the pointer, ported
+  // from the Wraithveil Neon Mouse effect. Unlike the other twelve modes this
+  // one draws in SCREEN space after the kaleidoscope stamp: a mirrored comet
+  // would no longer be "following your finger", which is the whole point.
+  //
+  // It still belongs to the Light Lab rather than being a bolt-on: the ribbon
+  // is tinted from the active palette, its width and glow ride the audio
+  // bands, and a beat (or a fresh touch) detonates the head into particles
+  // that swirl back together. Multi-touch gets one ribbon per finger.
+  // ---------------------------------------------------------------------------
+  paletteColor(i) {
+    const cols = this.palette.colors;
+    const c = cols[((i % cols.length) + cols.length) % cols.length];
+    return [Math.round(c[0] * 255), Math.round(c[1] * 255), Math.round(c[2] * 255)];
+  }
+
+  renderNeonComet(W, H, bass, mid, treble, beat) {
+    const ctx = this.ctx;
+    const now = performance.now();
+    if (!this.cometTrails) {
+      this.cometTrails = new Map();
+      this.cometParticles = [];
+      this.cometSeen = new Set();
+      this.cometIdleT = Math.random() * 100;
+    }
+
+    const pts = this.rawPointers || [];
+    const TRAIL_MS = 260 + mid * 220;      // busier mix = longer streak
+
+    // With nothing touching the screen the mode would be empty, so an idle
+    // comet drifts on Perlin paths — it also keeps the scene alive in the
+    // auto-rotation and on desktop before the visitor moves the mouse.
+    let heads;
+    if (pts.length) {
+      heads = pts.map(p => ({ id: p.id, x: p.x, y: p.y }));
+    } else {
+      this.cometIdleT += 0.0016 + bass * 0.004;
+      const nx = this.perlin.noise2D(this.cometIdleT, 0);
+      const ny = this.perlin.noise2D(0, this.cometIdleT * 1.13);
+      heads = [{
+        id: '__idle',
+        x: W / 2 + nx * W * 0.36,
+        y: H / 2 + ny * H * 0.34
+      }];
+    }
+
+    // Extend each head's ribbon, and detonate on a brand-new contact.
+    const live = new Set();
+    for (const h of heads) {
+      live.add(h.id);
+      let tr = this.cometTrails.get(h.id);
+      if (!tr) { tr = []; this.cometTrails.set(h.id, tr); }
+      tr.push({ x: h.x, y: h.y, t: now });
+      while (tr.length && now - tr[0].t > TRAIL_MS) tr.shift();
+      if (!this.cometSeen.has(h.id) && h.id !== '__idle') this.explodeComet(h.x, h.y, 18);
+    }
+    if (beat && heads.length) {
+      const h = heads[0];
+      this.explodeComet(h.x, h.y, 12 + Math.round(bass * 14));
+    }
+    this.cometSeen = live;
+
+    // Retire ribbons whose finger has lifted (let them age out, not vanish).
+    this.cometTrails.forEach((tr, id) => {
+      if (live.has(id)) return;
+      while (tr.length && now - tr[0].t > TRAIL_MS) tr.shift();
+      if (!tr.length) this.cometTrails.delete(id);
+    });
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    // ---- ribbons ----
+    let ci = 0;
+    this.cometTrails.forEach(tr => {
+      const [r, g, b] = this.paletteColor(ci++);
+      for (let i = 1; i < tr.length; i++) {
+        const a = tr[i - 1], c = tr[i];
+        const age = clamp((now - c.t) / TRAIL_MS, 0, 1);
+        const alpha = (0.42 * (1 - age) + 0.08) * (0.55 + treble * 0.75);
+        ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha.toFixed(3) + ')';
+        ctx.shadowColor = 'rgba(' + r + ',' + g + ',' + b + ',' + (alpha * 0.9).toFixed(3) + ')';
+        ctx.shadowBlur = 12 + 30 * (1 - age) * (0.5 + bass);
+        ctx.lineWidth = (7 * (1 - age) + 1.5) * (0.7 + bass * 0.9);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(c.x, c.y);
+        ctx.stroke();
+      }
+    });
+
+    // ---- glowing head on each ribbon ----
+    ci = 0;
+    this.cometTrails.forEach(tr => {
+      const [r, g, b] = this.paletteColor(ci++);
+      const head = tr[tr.length - 1];
+      if (!head) return;
+      const rad = (7 + bass * 16) * (1 + treble * 0.5);
+      ctx.beginPath();
+      ctx.arc(head.x, head.y, rad, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.30)';
+      ctx.shadowColor = 'rgba(' + r + ',' + g + ',' + b + ',0.95)';
+      ctx.shadowBlur = 34 * (1 + bass * 1.6);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(head.x, head.y, rad * 0.36, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.shadowBlur = 14;
+      ctx.fill();
+    });
+
+    // ---- particles: fly out, swirl, return to the nearest head ----
+    const target = this.cometTrails.size
+      ? (this.cometTrails.values().next().value.slice(-1)[0] || null) : null;
+    for (let i = this.cometParticles.length - 1; i >= 0; i--) {
+      const p = this.cometParticles[i];
+      const el = now - p.born;
+      if (el > 2600) { this.cometParticles.splice(i, 1); continue; }
+
+      if (el < p.delay) {
+        p.x += p.vx; p.y += p.vy;
+        p.vx *= 0.95; p.vy *= 0.95;
+      } else if (target) {
+        const dx = target.x - p.x, dy = target.y - p.y;
+        const dist = Math.hypot(dx, dy) + 0.1;
+        const swirl = 0.5 * Math.exp(-(el - p.delay) / 420);
+        const sa = Math.atan2(dy, dx) + Math.PI / 2;
+        p.vx += (dx / dist) * 0.42 + Math.cos(sa) * swirl;
+        p.vy += (dy / dist) * 0.42 + Math.sin(sa) * swirl;
+        p.vx *= 0.90; p.vy *= 0.90;
+        p.x += p.vx; p.y += p.vy;
+        if (dist < 9) { this.cometParticles.splice(i, 1); continue; }
+      } else {
+        p.x += p.vx; p.y += p.vy;
+        p.vx *= 0.97; p.vy *= 0.97;
+      }
+
+      const life = 1 - clamp(el / 2600, 0, 1);
+      const [r, g, b] = this.paletteColor(p.ci);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(0.8, 3.1 * life * (0.6 + treble)), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + (0.85 * life).toFixed(3) + ')';
+      ctx.shadowColor = 'rgba(' + r + ',' + g + ',' + b + ',' + life.toFixed(3) + ')';
+      ctx.shadowBlur = 18 * life;
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  explodeComet(x, y, count) {
+    if (!this.cometParticles) this.cometParticles = [];
+    // Hard cap — a fast tapper on a phone can otherwise stack bursts until the
+    // additive fill rate tanks the frame rate. Trim the batch, don't overshoot.
+    const room = 300 - this.cometParticles.length;
+    if (room <= 0) return;
+    count = Math.min(count, room);
+    const now = performance.now();
+    for (let i = 0; i < count; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const sp = 4 + Math.random() * 6;
+      this.cometParticles.push({
+        x, y,
+        vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
+        born: now,
+        delay: 260 + i * 22 + Math.random() * 120,
+        ci: Math.floor(Math.random() * this.palette.colors.length)
+      });
+    }
   }
 
   drawOverlay(W, H) {
@@ -1114,13 +1293,14 @@ let sceneAdvanceHook = null, lastBeatSceneAt = 0, sceneFlashUntil = 0;
 // engine's soft no-clear transitions so it feels alive with no input
 const MODE_ORDER = ['firefly-nebula', 'neural-strings', 'geometric-pulse', 'fractal-warp',
   'spectrum-ring', 'wave-mirror', 'particle-galaxy', 'laser-grid',
-  'liquid-ribbons', 'aurora-curtains', 'tunnel-flight', 'starfield-pulse'];
+  'liquid-ribbons', 'aurora-curtains', 'tunnel-flight', 'starfield-pulse', 'neon-comet'];
 const MODE_LABEL = { 'firefly-nebula': 'Firefly Nebula', 'neural-strings': 'Neural Strings',
   'geometric-pulse': 'Geometric Pulse', 'fractal-warp': 'Fractal Warp',
   'spectrum-ring': 'Spectrum Ring', 'wave-mirror': 'Wave Mirror',
   'particle-galaxy': 'Particle Galaxy', 'laser-grid': 'Laser Grid',
   'liquid-ribbons': 'Liquid Ribbons', 'aurora-curtains': 'Aurora Curtains',
-  'tunnel-flight': 'Tunnel Flight', 'starfield-pulse': 'Starfield Pulse' };
+  'tunnel-flight': 'Tunnel Flight', 'starfield-pulse': 'Starfield Pulse',
+  'neon-comet': 'Neon Comet' };
 let autoMode = false;
 let autoIdx = 0;
 let lastModeSwitch = 0;
@@ -1137,8 +1317,10 @@ function frame(now) {
   // selecting one direction turns the other off so the force is unambiguous.
   const wellList = [];
   const gravitySign = gravityMode === 'attract' ? 1 : gravityMode === 'repel' ? -1 : 0;
-  pointers.forEach(p => {
-    wellList.push({ x: p.x, y: p.y, vx: p.vx, vy: p.vy, strength: gravitySign * gravityStrength });
+  pointers.forEach((p, id) => {
+    // id travels with the well so Neon Comet can keep a separate ribbon per
+    // finger instead of stitching two touches into one streak.
+    wellList.push({ id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, strength: gravitySign * gravityStrength });
   });
   engine.setPointerWells(wellList);
 

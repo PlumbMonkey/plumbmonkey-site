@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import NeonCursor from "../components/NeonCursor";
 import MusicContinue from "./MusicContinue";
 
 export const metadata: Metadata = {
@@ -72,6 +73,10 @@ const accentStyles: Record<string, { border: string; text: string; glow: string 
 export default function MusicPage() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#07080c] text-slate-100">
+      {/* Neon trail — the Sound Stage hub. The instrument pages opt out: the
+          synth and drum machine need precise knob/step dragging. */}
+      <NeonCursor />
+
       <section className="relative border-b border-white/10 px-5 pb-16 pt-16 text-center sm:px-6 md:pb-24 md:pt-24">
         <div className="pointer-events-none absolute inset-0 opacity-60" aria-hidden="true">
           <div className="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-400/15 shadow-[0_0_120px_#22d3ee22]" />
