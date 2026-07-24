@@ -69,10 +69,13 @@
   <script src="../vr-mode.js"></script>
   <script src="game.js"></script>
   <script>
-    // Asteroids-style: stick left/right rotates, stick up thrusts, A fires.
+    // Asteroids-style. The stick ROTATES only (left/right); thrust and fire
+    // are dedicated buttons. move:'horizontal' ignores the stick's vertical
+    // axis so nudging up while steering no longer also thrusts — otherwise
+    // thrust fired from both the stick and the THRUST button at once.
     ArcadeControls.init(keys, {
       accent: '#c084fc',
-      move: 'full',
+      move: 'horizontal',
       buttons: [
         { code: 'Space',   label: 'FIRE' },
         { code: 'ArrowUp', label: 'THRUST' }

@@ -21,82 +21,134 @@
 </head>
 <body class="bg-zinc-950 text-zinc-100 font-inter leading-relaxed">
 
-<header class="fixed top-0 inset-x-0 bg-zinc-900/80 backdrop-blur-sm z-50 h-10">
+<!-- Responsive header: full link row on laptops/desktops (lg+), a brand +
+     hamburger that opens a clean stacked panel on phones & tablets. Below lg
+     the old flex-col row overflowed the fixed 40px bar in portrait — hence the
+     chaotic overlap. -->
+<header class="fixed top-0 inset-x-0 z-50 bg-zinc-900/85 backdrop-blur-sm border-b border-white/5">
+  <div class="mx-auto flex h-12 max-w-6xl items-center justify-between gap-3 px-4">
+    <a href="#hero" class="shrink-0 font-bold lowercase tracking-wide">plumbmonkey</a>
 
-  <div class="flex items-center justify-start h-full px-4">
-    <nav class="w-full">
-      <ul class="flex flex-col sm:flex-row sm:space-x-6 space-y-2 sm:space-y-0 items-center text-sm w-full">
-        <li><a href="#about" class="block px-2 hover:underline">About</a></li>
-        <li><a href="#services" class="block px-2 hover:underline">Services</a></li>
-        <li><a href="#portfolio" class="block px-2 hover:underline">Portfolio</a></li>
-        <li><a href="#contact" class="block px-2 hover:underline">Contact</a></li>
-        <li><a href="/how-it-works.html" class="block px-2 text-teal-400 hover:text-teal-300 underline font-semibold">How It Works</a></li>
-        <li><a href="/pricing-scope.html" class="block px-2 text-teal-400 hover:text-teal-300 underline font-semibold">Pricing</a></li>
-        <li><a href="/onboarding/orientation" class="block px-2 text-teal-400 hover:text-teal-300 underline font-semibold">Start Project</a></li>
-        <li>
-          <a href="https://plumbmonkey.gumroad.com/"
-   target="_blank"
-   rel="noopener noreferrer"
-   class="block px-2 text-teal-400 hover:text-teal-300 underline font-semibold"
->
-  Plumbmonkey Store
-</a>
-        </li>
-        <!-- The three Ghost Circuit playgrounds live behind one entry, matching
-             the dropdown on the creative-studio pages. -->
-        <li class="relative">
-          <button type="button" id="gcNavBtn" aria-haspopup="true" aria-expanded="false"
-            class="flex items-center gap-1.5 px-2 font-semibold">
-            <span class="bg-gradient-to-r from-cyan-300 to-violet-300 bg-clip-text text-transparent">Ghost Circuit</span>
-            <span id="gcNavCaret" class="text-[10px] text-zinc-400 transition-transform duration-200">▼</span>
-          </button>
-          <div id="gcNavPanel" class="hidden absolute left-0 top-full w-72 pt-3">
-            <div class="overflow-hidden rounded-xl border border-white/10 bg-zinc-950/95 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl">
-              <p class="px-3 pb-1.5 pt-2 text-[10px] uppercase tracking-[0.2em] text-zinc-500">The Ghost Circuit universe</p>
-              <a href="/arcade" class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition hover:bg-white/10">
-                <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-violet-300 ring-1 ring-inset ring-white/10">🕹</span>
-                <span class="min-w-0"><span class="block text-sm font-semibold text-zinc-100">Arcade</span>
-                <span class="block text-xs leading-snug text-zinc-500">Eight games inside the haunted manor</span></span>
-              </a>
-              <a href="/music" class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition hover:bg-white/10">
-                <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-cyan-300 ring-1 ring-inset ring-white/10">♪</span>
-                <span class="min-w-0"><span class="block text-sm font-semibold text-zinc-100">Sound Stage</span>
-                <span class="block text-xs leading-snug text-zinc-500">Drum machine, synth &amp; song arranger</span></span>
-              </a>
-              <a href="/visual/index.html" class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition hover:bg-white/10">
-                <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-fuchsia-300 ring-1 ring-inset ring-white/10">✦</span>
-                <span class="min-w-0"><span class="block text-sm font-semibold text-zinc-100">Light Lab</span>
-                <span class="block text-xs leading-snug text-zinc-500">Audio-reactive kaleidoscope visuals</span></span>
-              </a>
-            </div>
+    <!-- desktop / laptop nav -->
+    <nav class="hidden items-center gap-4 text-sm lg:flex">
+      <a href="#about" class="hover:underline">About</a>
+      <a href="#services" class="hover:underline">Services</a>
+      <a href="#portfolio" class="hover:underline">Portfolio</a>
+      <a href="#contact" class="hover:underline">Contact</a>
+      <a href="/how-it-works.html" class="font-semibold text-teal-400 hover:text-teal-300">How It Works</a>
+      <a href="/pricing-scope.html" class="font-semibold text-teal-400 hover:text-teal-300">Pricing</a>
+      <a href="/onboarding/orientation" class="font-semibold text-teal-400 hover:text-teal-300">Start Project</a>
+      <a href="https://plumbmonkey.gumroad.com/" target="_blank" rel="noopener noreferrer" class="font-semibold text-teal-400 hover:text-teal-300">Store</a>
+      <div class="relative">
+        <button type="button" id="gcNavBtn" aria-haspopup="true" aria-expanded="false"
+          class="flex items-center gap-1.5 font-semibold">
+          <span class="bg-gradient-to-r from-cyan-300 to-violet-300 bg-clip-text text-transparent">Ghost Circuit</span>
+          <span id="gcNavCaret" class="text-[10px] text-zinc-400 transition-transform duration-200">▼</span>
+        </button>
+        <div id="gcNavPanel" class="absolute right-0 top-full hidden w-72 pt-3">
+          <div class="overflow-hidden rounded-xl border border-white/10 bg-zinc-950/95 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl">
+            <p class="px-3 pb-1.5 pt-2 text-[10px] uppercase tracking-[0.2em] text-zinc-500">The Ghost Circuit universe</p>
+            <a href="/arcade" class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition hover:bg-white/10">
+              <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-violet-300 ring-1 ring-inset ring-white/10">🕹</span>
+              <span class="min-w-0"><span class="block text-sm font-semibold text-zinc-100">Arcade</span>
+              <span class="block text-xs leading-snug text-zinc-500">Eight games inside the haunted manor</span></span>
+            </a>
+            <a href="/music" class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition hover:bg-white/10">
+              <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-cyan-300 ring-1 ring-inset ring-white/10">♪</span>
+              <span class="min-w-0"><span class="block text-sm font-semibold text-zinc-100">Sound Stage</span>
+              <span class="block text-xs leading-snug text-zinc-500">Drum machine, synth &amp; song arranger</span></span>
+            </a>
+            <a href="/visual/index.html" class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition hover:bg-white/10">
+              <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-fuchsia-300 ring-1 ring-inset ring-white/10">✦</span>
+              <span class="min-w-0"><span class="block text-sm font-semibold text-zinc-100">Light Lab</span>
+              <span class="block text-xs leading-snug text-zinc-500">Audio-reactive kaleidoscope visuals</span></span>
+            </a>
           </div>
-        </li>
-      </ul>
+        </div>
+      </div>
     </nav>
+
+    <!-- phone / tablet hamburger -->
+    <button type="button" id="navToggle" aria-label="Open menu" aria-controls="mobileNav" aria-expanded="false"
+      class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-lg leading-none lg:hidden">
+      <span id="navToggleIcon">☰</span>
+    </button>
+  </div>
+
+  <!-- phone / tablet panel -->
+  <div id="mobileNav" class="hidden border-t border-white/10 bg-zinc-950/95 px-4 pb-4 pt-2 backdrop-blur lg:hidden">
+    <div class="mx-auto grid max-w-6xl gap-0.5 text-sm">
+      <a href="#about" class="rounded-lg px-3 py-2.5 hover:bg-white/5">About</a>
+      <a href="#services" class="rounded-lg px-3 py-2.5 hover:bg-white/5">Services</a>
+      <a href="#portfolio" class="rounded-lg px-3 py-2.5 hover:bg-white/5">Portfolio</a>
+      <a href="#contact" class="rounded-lg px-3 py-2.5 hover:bg-white/5">Contact</a>
+      <a href="/how-it-works.html" class="rounded-lg px-3 py-2.5 font-semibold text-teal-300 hover:bg-white/5">How It Works</a>
+      <a href="/pricing-scope.html" class="rounded-lg px-3 py-2.5 font-semibold text-teal-300 hover:bg-white/5">Pricing</a>
+      <a href="/onboarding/orientation" class="rounded-lg px-3 py-2.5 font-semibold text-teal-300 hover:bg-white/5">Start Project</a>
+      <a href="https://plumbmonkey.gumroad.com/" target="_blank" rel="noopener noreferrer" class="rounded-lg px-3 py-2.5 font-semibold text-teal-300 hover:bg-white/5">Plumbmonkey Store</a>
+      <p class="mt-3 px-3 pb-1 text-[10px] uppercase tracking-[0.2em] text-zinc-500">Ghost Circuit</p>
+      <div class="grid gap-0.5 border-l border-white/10 pl-2">
+        <a href="/arcade" class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5">
+          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-violet-300 ring-1 ring-inset ring-white/10">🕹</span>
+          <span><span class="block font-medium text-zinc-100">Arcade</span><span class="block text-xs text-zinc-500">Eight games in the haunted manor</span></span>
+        </a>
+        <a href="/music" class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5">
+          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-cyan-300 ring-1 ring-inset ring-white/10">♪</span>
+          <span><span class="block font-medium text-zinc-100">Sound Stage</span><span class="block text-xs text-zinc-500">Drum machine, synth &amp; songs</span></span>
+        </a>
+        <a href="/visual/index.html" class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5">
+          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-fuchsia-300 ring-1 ring-inset ring-white/10">✦</span>
+          <span><span class="block font-medium text-zinc-100">Light Lab</span><span class="block text-xs text-zinc-500">Audio-reactive visuals</span></span>
+        </a>
+      </div>
+    </div>
   </div>
 </header>
 
 <script>
-  // Ghost Circuit dropdown — click-only (hover+click hybrids race themselves),
-  // closes on outside click and Escape. Same behaviour as the React NavBar.
   (function () {
+    // ---- Ghost Circuit dropdown (desktop) — click-only, closes on outside
+    //      click and Escape. Same behaviour as the React NavBar. ----
     var btn = document.getElementById('gcNavBtn');
     var panel = document.getElementById('gcNavPanel');
     var caret = document.getElementById('gcNavCaret');
-    function setOpen(open) {
+    function setGcOpen(open) {
       panel.classList.toggle('hidden', !open);
       btn.setAttribute('aria-expanded', String(open));
       caret.style.transform = open ? 'rotate(180deg)' : '';
     }
     btn.addEventListener('click', function (e) {
       e.stopPropagation();
-      setOpen(panel.classList.contains('hidden'));
+      setGcOpen(panel.classList.contains('hidden'));
     });
     document.addEventListener('click', function (e) {
-      if (!panel.classList.contains('hidden') && !panel.contains(e.target)) setOpen(false);
+      if (!panel.classList.contains('hidden') && !panel.contains(e.target)) setGcOpen(false);
     });
+
+    // ---- Hamburger (phone / tablet) — toggles the stacked panel. ----
+    var toggle = document.getElementById('navToggle');
+    var mobileNav = document.getElementById('mobileNav');
+    var icon = document.getElementById('navToggleIcon');
+    function setNavOpen(open) {
+      mobileNav.classList.toggle('hidden', !open);
+      toggle.setAttribute('aria-expanded', String(open));
+      icon.textContent = open ? '✕' : '☰';
+    }
+    toggle.addEventListener('click', function () {
+      setNavOpen(mobileNav.classList.contains('hidden'));
+    });
+    // Any link tap closes the panel so the destination isn't left behind it.
+    mobileNav.querySelectorAll('a').forEach(function (a) {
+      a.addEventListener('click', function () { setNavOpen(false); });
+    });
+    // Growing past the lg breakpoint (rotate to landscape / resize) reveals the
+    // desktop row — make sure the mobile panel isn't left hanging open.
+    window.matchMedia('(min-width: 1024px)').addEventListener('change', function (e) {
+      if (e.matches) setNavOpen(false);
+    });
+
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') { setGcOpen(false); setNavOpen(false); }
     });
   })();
 </script>

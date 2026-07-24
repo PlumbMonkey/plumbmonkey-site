@@ -146,6 +146,26 @@ function rectsOverlap(a, b) {
 function insideObstacle(x, y, w, h) {
   return obstacles.some(o => x < o.x + o.w && x + w > o.x && y < o.y + o.h && y + h > o.y);
 }
+// If the hero ends up INSIDE a block — knockback shoved them in, or a block
+// spawned on them between waves — eject them along the axis of least
+// penetration. The per-axis slide-collision in the move step can't do this on
+// its own: from inside a block every small step is still inside, so it rejects
+// every move and the hero is trapped. This runs each frame and is a no-op
+// whenever they're already clear.
+function pushOutOfObstacles() {
+  for (const o of obstacles) {
+    if (!(player.x < o.x + o.w && player.x + player.w > o.x &&
+          player.y < o.y + o.h && player.y + player.h > o.y)) continue;
+    const pcx = player.x + player.w / 2, pcy = player.y + player.h / 2;
+    const ocx = o.x + o.w / 2, ocy = o.y + o.h / 2;
+    const ox = (player.w / 2 + o.w / 2) - Math.abs(pcx - ocx);
+    const oy = (player.h / 2 + o.h / 2) - Math.abs(pcy - ocy);
+    if (ox < oy) player.x += pcx < ocx ? -ox : ox;
+    else         player.y += pcy < ocy ? -oy : oy;
+  }
+  player.x = Math.max(8, Math.min(W - player.w - 8, player.x));
+  player.y = Math.max(28, Math.min(H - player.h - 8, player.y));
+}
 function spawnObstacles() {
   obstacles = [];
   const count = 4 + Math.min(wave, 3);
@@ -275,17 +295,24 @@ function spawnWave() {
   ];
 
   const mCount = 5 + wave * 3;
+  // Keep fresh monsters a clear distance from wherever the hero currently is,
+  // so a new wave never spawns one right on top of them (the hero holds their
+  // position between waves, so on wave 2+ they may be sitting near an edge).
+  const SAFE_SPAWN = 170;
+  const pcx = player.x + player.w / 2, pcy = player.y + player.h / 2;
   for (let i = 0; i < mCount; i++) {
     const m = monsterTypes[Math.floor(Math.random() * monsterTypes.length)];
-    // spawn near edges
-    let x, y;
-    if (Math.random() < 0.5) {
-      x = Math.random() < 0.5 ? 20 : W - 40;
-      y = 40 + Math.random() * (H - 80);
-    } else {
-      x = 40 + Math.random() * (W - 80);
-      y = Math.random() < 0.5 ? 30 : H - 50;
-    }
+    // spawn near edges, but not on the hero
+    let x, y, tries = 0;
+    do {
+      if (Math.random() < 0.5) {
+        x = Math.random() < 0.5 ? 20 : W - 40;
+        y = 40 + Math.random() * (H - 80);
+      } else {
+        x = 40 + Math.random() * (W - 80);
+        y = Math.random() < 0.5 ? 30 : H - 50;
+      }
+    } while (Math.hypot((x + 12) - pcx, (y + 13) - pcy) < SAFE_SPAWN && tries++ < 40);
     monsters.push({
       x, y,
       w: 24 * m.size, h: 26 * m.size,
@@ -641,11 +668,13 @@ function update() {
     monsters.forEach(m => {
       if (player.x < m.x + m.w && player.x + player.w > m.x &&
           player.y < m.y + m.h && player.y + player.h > m.y) {
-        // knockback away from the monster
+        // knockback away from the monster — clamped to the arena so a hit
+        // near an edge can't fling the hero off-screen. pushOutOfObstacles()
+        // at the end of the frame ejects them if this lands them in a block.
         const dx = player.x - m.x, dy = player.y - m.y;
         const d = Math.sqrt(dx*dx + dy*dy) || 1;
-        player.x += (dx / d) * 30;
-        player.y += (dy / d) * 30;
+        player.x = Math.max(8, Math.min(W - player.w - 8, player.x + (dx / d) * 30));
+        player.y = Math.max(28, Math.min(H - player.h - 8, player.y + (dy / d) * 30));
         hurtPlayer();
       }
     });
@@ -663,6 +692,9 @@ function update() {
     waveDelay = 75;
     updateHUD();
   }
+
+  // Safety net: never let the hero stay trapped inside a crypt block.
+  pushOutOfObstacles();
 
   // Particles
   particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });

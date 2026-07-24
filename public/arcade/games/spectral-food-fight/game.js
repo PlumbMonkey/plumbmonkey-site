@@ -218,6 +218,25 @@ function spawnTables() {
   ];
 }
 
+// If a hit knocks the hero INTO a table (or the central buffet), eject them
+// along the axis of least penetration. Same reason as Swarm: the per-axis
+// slide-collision can't climb out of a table from the inside, so without this
+// a knockback near the buffet could trap them. No-op when already clear.
+function pushOutOfTables() {
+  for (const t of tables) {
+    if (!(player.x < t.x + t.w && player.x + player.w > t.x &&
+          player.y < t.y + t.h && player.y + player.h > t.y)) continue;
+    const pcx = player.x + player.w / 2, pcy = player.y + player.h / 2;
+    const tcx = t.x + t.w / 2, tcy = t.y + t.h / 2;
+    const ox = (player.w / 2 + t.w / 2) - Math.abs(pcx - tcx);
+    const oy = (player.h / 2 + t.h / 2) - Math.abs(pcy - tcy);
+    if (ox < oy) player.x += pcx < tcx ? -ox : ox;
+    else         player.y += pcy < tcy ? -oy : oy;
+  }
+  player.x = Math.max(10, Math.min(W - player.w - 10, player.x));
+  player.y = Math.max(40, Math.min(H - player.h - 10, player.y));
+}
+
 function spawnLevel() {
   chefs = [];
   pickups = [];
@@ -232,11 +251,21 @@ function spawnLevel() {
   ];
 
   const count = 4 + level * 2;
+  // Keep new monsters clear of the hero's start/current spot so none spawns
+  // right on them (the hero starts at the left edge, x=80, where the old
+  // x>=100 spawn band could land a chef almost on top of them).
+  const SAFE_SPAWN = 150;
+  const pcx = player.x + player.w / 2, pcy = player.y + player.h / 2;
   for (let i = 0; i < count; i++) {
     const m = monsterTypes[Math.floor(Math.random() * monsterTypes.length)];
+    let cx, cy, tries = 0;
+    do {
+      cx = 100 + Math.random() * (W - 200);
+      cy = 70 + Math.random() * (H - 160);
+    } while (Math.hypot((cx + 15) - pcx, (cy + 17) - pcy) < SAFE_SPAWN && tries++ < 40);
     chefs.push({
-      x: 100 + Math.random() * (W - 200),
-      y: 70 + Math.random() * (H - 160),
+      x: cx,
+      y: cy,
       w: 30, h: 34,
       speed: m.speed + level * 0.12,
       hp: m.hp + Math.floor(level / 4),
@@ -583,9 +612,10 @@ function update() {
         triggerShake(9, 18);
         sfx.hurt();
         createParticles(player.x + 14, player.y + 16, '#f472b6', 14);
-        // knockback
-        player.x += (player.x - c.x) * 0.4;
-        player.y += (player.y - c.y) * 0.4;
+        // knockback — clamped to the arena; pushOutOfTables() at the end of
+        // the frame ejects the hero if this shoves them into a table.
+        player.x = Math.max(10, Math.min(W - player.w - 10, player.x + (player.x - c.x) * 0.4));
+        player.y = Math.max(40, Math.min(H - player.h - 10, player.y + (player.y - c.y) * 0.4));
         updateHUD();
         if (lives <= 0) endGame('KITCHEN CLOSED', 'A monster caught you in the chaos.');
       }
@@ -616,6 +646,9 @@ function update() {
     waveDelay = 75;
     updateHUD();
   }
+
+  // Safety net: never let the hero stay trapped inside a table/the buffet.
+  pushOutOfTables();
 
   // Particles
   particles.forEach(p => {

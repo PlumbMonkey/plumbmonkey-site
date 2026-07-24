@@ -44,6 +44,12 @@ const ArcadeControls = (function () {
   const isTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
   const isCoarse = isTouch && mq('(pointer: coarse)') && !mq('(any-pointer: fine)');
 
+  // Attract-mode cabinet previews (?attract=1) are tiny, non-interactive
+  // iframes on the arcade landing page — they must show only clean gameplay.
+  // leaderboard.js already strips the game's own chrome there; this module
+  // must likewise not add its control bar or on-screen pad on top.
+  const isAttract = /[?&]attract\b/.test(location.search);
+
   // Deadzones: generous for digital conversion (a resting thumb must not walk
   // the player), tighter for aiming where small deflections are meaningful.
   const MOVE_DEAD = 0.35;
@@ -78,6 +84,11 @@ const ArcadeControls = (function () {
     opts.accent = opts.accent || '#c084fc';
     opts.move = opts.move || 'full';
     opts.buttons = opts.buttons || [];
+
+    // Preview iframe: build no chrome, no pad, no polling. The API stays live
+    // as no-ops (applyAim/setXrInput do nothing), so the games' per-frame calls
+    // are harmless and the cabinet shows only the attract gameplay.
+    if (isAttract) return api;
 
     injectStyles();
     buildChrome();
