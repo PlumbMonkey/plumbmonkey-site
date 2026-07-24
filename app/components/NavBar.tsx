@@ -42,8 +42,9 @@ const store = {
 };
 
 export default function NavBar() {
-  const [open, setOpen] = useState(false);      // mobile sheet
-  const [gcOpen, setGcOpen] = useState(false);  // Ghost Circuit dropdown
+  const [open, setOpen] = useState(false);            // mobile sheet
+  const [gcOpen, setGcOpen] = useState(false);        // Ghost Circuit dropdown
+  const [gcMobileOpen, setGcMobileOpen] = useState(false); // sheet accordion
   const gcRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
@@ -53,10 +54,11 @@ export default function NavBar() {
       : pathname === item.href || pathname?.startsWith(item.href + "/")
   );
 
-  // Any navigation closes both menus.
+  // Any navigation closes every menu.
   useEffect(() => {
     setOpen(false);
     setGcOpen(false);
+    setGcMobileOpen(false);
   }, [pathname]);
 
   // Click-outside and Escape. Without these a dropdown opened by touch has no
@@ -106,13 +108,19 @@ export default function NavBar() {
             <a
               key={link.href}
               href={link.href}
-              className={`rounded-lg px-3 py-2 text-sm transition ${
+              className={`relative rounded-lg px-3 py-2 text-sm transition ${
                 isActive(link.href)
                   ? "bg-white/10 text-white"
                   : "text-zinc-300 hover:bg-white/5 hover:text-white"
               }`}
             >
               {link.label}
+              {isActive(link.href) && (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-x-2.5 -bottom-[3px] h-0.5 rounded-full bg-gradient-to-r from-cyan-400 to-violet-400"
+                />
+              )}
             </a>
           ))}
 
@@ -127,7 +135,7 @@ export default function NavBar() {
               aria-haspopup="true"
               aria-expanded={gcOpen}
               onClick={() => setGcOpen((v) => !v)}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition ${
+              className={`relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition ${
                 gcOpen || inGhostCircuit
                   ? "bg-white/10 text-white"
                   : "text-zinc-300 hover:bg-white/5 hover:text-white"
@@ -144,6 +152,12 @@ export default function NavBar() {
               >
                 ▼
               </span>
+              {inGhostCircuit && (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-x-2.5 -bottom-[3px] h-0.5 rounded-full bg-gradient-to-r from-cyan-400 to-violet-400"
+                />
+              )}
             </button>
 
             {gcOpen && (
@@ -219,33 +233,53 @@ export default function NavBar() {
               </a>
             ))}
 
-            {/* Ghost Circuit stays expanded rather than becoming an accordion —
-                three items don't justify burying them behind another tap. */}
-            <p className="mt-3 px-3 pb-1 text-[10px] uppercase tracking-[0.2em] text-zinc-500">
-              Ghost Circuit
-            </p>
-            <div className="grid gap-1 border-l border-white/10 pl-2">
-              {ghostCircuit.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition hover:bg-white/5"
-                >
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-cyan-300 ring-1 ring-inset ring-white/10">
-                    {item.glyph}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-zinc-100">
-                      {item.label}
+            {/* Ghost Circuit collapses behind one entry here too, mirroring the
+                desktop dropdown — the three playgrounds never appear as loose
+                top-level links on any surface. */}
+            <button
+              type="button"
+              aria-expanded={gcMobileOpen}
+              onClick={() => setGcMobileOpen((v) => !v)}
+              className={`flex items-center justify-between rounded-lg px-3 py-3 text-sm transition ${
+                gcMobileOpen || inGhostCircuit ? "bg-white/5" : "hover:bg-white/5"
+              }`}
+            >
+              <span className="bg-gradient-to-r from-cyan-300 to-violet-300 bg-clip-text font-semibold text-transparent">
+                Ghost Circuit
+              </span>
+              <span
+                className={`text-[10px] text-zinc-400 transition-transform duration-200 ${
+                  gcMobileOpen ? "rotate-180" : ""
+                }`}
+                aria-hidden="true"
+              >
+                ▼
+              </span>
+            </button>
+            {gcMobileOpen && (
+              <div className="grid gap-1 border-l border-white/10 pl-2">
+                {ghostCircuit.map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition hover:bg-white/5"
+                  >
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-sm text-cyan-300 ring-1 ring-inset ring-white/10">
+                      {item.glyph}
                     </span>
-                    <span className="block truncate text-xs text-zinc-500">
-                      {item.blurb}
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-zinc-100">
+                        {item.label}
+                      </span>
+                      <span className="block truncate text-xs text-zinc-500">
+                        {item.blurb}
+                      </span>
                     </span>
-                  </span>
-                </a>
-              ))}
-            </div>
+                  </a>
+                ))}
+              </div>
+            )}
 
             <a
               href={store.href}
