@@ -52,6 +52,8 @@
     .clip:hover { border-color: #22d3ee; background: #13284a; }
     .clip.synth { border-color: #4c1d95; }
     .clip.synth:hover { border-color: #c084fc; }
+    .clip.vocal { border-color: #9f1239; }
+    .clip.vocal:hover { border-color: #fb7185; }
     .clip .clip-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .clip .clip-meta { font-size: .62rem; color: #64748b; }
     .clip .clip-x { opacity: .4; padding: 0 .2rem; border-radius: 4px; }
@@ -80,6 +82,8 @@
       display: flex; align-items: center; padding: 0 .45rem; font-size: .7rem; color: #e0f2fe; }
     .block.synth { background: linear-gradient(#5b21b6, #3b1275); border-color: #c084fc;
       box-shadow: 0 0 12px rgba(192,132,252,.25); }
+    .block.vocal { background: linear-gradient(#9f1239, #701a35); border-color: #fb7185;
+      box-shadow: 0 0 12px rgba(251,113,133,.25); }
     .block.selected { outline: 2px solid #f0abfc; outline-offset: 1px; }
     .block.dragging { cursor: grabbing; opacity: .85; }
     .block .block-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -101,6 +105,13 @@
     .ed-cell.beat { background: #13284a; }
     .ed-cell.on { background: #22d3ee; box-shadow: 0 0 9px rgba(34,211,238,.6); }
     .ed-cell.playing { outline: 2px solid #f0abfc; outline-offset: -2px; }
+    #editorTools { display:flex; flex-wrap:wrap; align-items:center; gap:.55rem; margin-bottom:.65rem; }
+    #editorTools select { background:#0f1e38; color:#dbeafe; border:1px solid #1e3a5f;
+      border-radius:7px; padding:.4rem .55rem; }
+    .lane-picker { width:100%; margin:.15rem 0 .45rem; background:#0b1526; color:#bae6fd;
+      border:1px solid #1e3a5f; border-radius:7px; padding:.38rem; }
+    #recordVocalBtn.recording { background:#be123c; color:white; animation:pulse 1s infinite; }
+    @keyframes pulse { 50% { box-shadow:0 0 18px rgba(251,113,133,.75); } }
 
     .flash { margin-top: .9rem; min-height: 1.2rem; color: #67e8f9; font-size: .82rem; opacity: 0;
       transition: opacity .2s; }
@@ -137,6 +148,7 @@
     <div class="transport">
       <button id="playBtn">▶ Play</button>
       <button id="loopBtn" class="toggle on">↻ Loop</button>
+      <button id="recordVocalBtn" title="Record with this device's microphone">● Record mic</button>
       <div class="ctl">
         <label>Tempo · <span id="tempoVal">120</span> BPM</label>
         <input type="range" id="tempo" min="60" max="200" value="120" />
@@ -160,7 +172,16 @@
         </div>
         <div class="clip-group">
           <h3>Riffs</h3>
+          <select id="synthTarget" class="lane-picker" aria-label="Lane for the next synth clip">
+            <option value="bass">Add riffs to Bass</option>
+            <option value="chords">Add riffs to Chords</option>
+            <option value="melody" selected>Add riffs to Melody</option>
+          </select>
           <div id="synthClips"></div>
+        </div>
+        <div class="clip-group">
+          <h3>Vocals &amp; recordings</h3>
+          <div id="vocalClips"></div>
         </div>
         <div class="clip-group" id="emptyNote" style="display:none">
           <p class="empty-note">
@@ -179,8 +200,20 @@
             <div class="lane-track" id="laneDrum"></div>
           </div>
           <div class="lane">
-            <div class="lane-label">Synth</div>
-            <div class="lane-track" id="laneSynth"></div>
+            <div class="lane-label">Bass</div>
+            <div class="lane-track" id="laneBass"></div>
+          </div>
+          <div class="lane">
+            <div class="lane-label">Chords</div>
+            <div class="lane-track" id="laneChords"></div>
+          </div>
+          <div class="lane">
+            <div class="lane-label">Melody</div>
+            <div class="lane-track" id="laneMelody"></div>
+          </div>
+          <div class="lane">
+            <div class="lane-label">Vocals</div>
+            <div class="lane-track" id="laneVocal"></div>
           </div>
           <div class="playhead" id="playhead"></div>
         </div>
@@ -192,6 +225,7 @@
         Editing <span id="editorName" style="color:#67e8f9"></span>
         <button id="editorClose" style="float:right;padding:.2rem .6rem;font-size:.7rem">Close</button>
       </div>
+      <div id="editorTools"></div>
       <div class="ed-scroll"><div id="editorGrid"></div></div>
       <div class="hint" style="text-align:left">Edits apply to this clip everywhere it appears in the song.</div>
     </section>
@@ -199,7 +233,7 @@
     <div id="flash" class="flash"></div>
     <div class="hint">
       Click a clip to drop it at the end of its lane · drag a block to move it · drag its right edge to repeat it over more bars<br>
-      Click a beat block to edit its steps below · Delete/Backspace removes the selected block · Spacebar plays &amp; stops
+      Click any block to edit it below · Delete/Backspace removes the selected block · Spacebar plays &amp; stops
     </div>
   </div>
 

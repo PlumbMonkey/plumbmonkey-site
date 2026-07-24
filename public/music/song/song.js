@@ -9,14 +9,47 @@
 
 const STEPS_PER_BAR = 16;
 const BEATS_PER_BAR = 4;
+const LANES = [
+  { id: 'drum', el: 'laneDrum', label: 'Drums', kind: 'drum' },
+  { id: 'bass', el: 'laneBass', label: 'Bass', kind: 'synth' },
+  { id: 'chords', el: 'laneChords', label: 'Chords', kind: 'synth' },
+  { id: 'melody', el: 'laneMelody', label: 'Melody', kind: 'synth' },
+  { id: 'vocal', el: 'laneVocal', label: 'Vocals', kind: 'vocal' }
+];
 
 let doc = SongStore.load();
+doc.blocks.forEach(block => { if (block.lane === 'synth') block.lane = 'melody'; });
 let selected = null;          // block id
 let editingClipId = null;
 
 // ---------- Audio ----------
 let audioCtx = null, master = null;
 const liveFx = {};            // clipId -> fx chain on the live context
+const vocalBuffers = {};
+
+const RecordingStore = (() => {
+  const open = () => new Promise((resolve, reject) => {
+    const request = indexedDB.open('ghost-circuit-song-audio', 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('recordings');
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  const access = async (mode, action) => {
+    const db = await open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('recordings', mode);
+      const req = action(tx.objectStore('recordings'));
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => db.close();
+    });
+  };
+  return {
+    put: (id, blob) => access('readwrite', store => store.put(blob, id)),
+    get: id => access('readonly', store => store.get(id)),
+    remove: id => access('readwrite', store => store.delete(id))
+  };
+})();
 
 function initAudio() {
   if (!audioCtx) {
@@ -51,6 +84,7 @@ function totalSteps() { return doc.bars * STEPS_PER_BAR; }
 
 // How many bars one pass of a synth take occupies at the current tempo.
 function takeBars(clip) {
+  if (clip.kind === 'vocal') return Math.max(1, Math.ceil((clip.data.duration || 0) / barSeconds()));
   const dur = SynthEngine.takeDuration(clip.data.events);
   return Math.max(1, Math.ceil(dur / barSeconds()));
 }
@@ -73,20 +107,22 @@ function render() {
 function renderLibrary() {
   const drumWrap = document.getElementById('drumClips');
   const synthWrap = document.getElementById('synthClips');
+  const vocalWrap = document.getElementById('vocalClips');
   drumWrap.innerHTML = '';
   synthWrap.innerHTML = '';
+  vocalWrap.innerHTML = '';
   doc.clips.forEach(clip => {
     const el = document.createElement('div');
-    el.className = 'clip' + (clip.kind === 'synth' ? ' synth' : '');
-    el.title = 'Add to the ' + (clip.kind === 'drum' ? 'drums' : 'synth') + ' lane';
+    el.className = 'clip ' + clip.kind;
+    el.title = clip.kind === 'synth' ? 'Add to the selected instrument lane' : 'Add to the ' + clip.kind + ' lane';
     const name = document.createElement('span');
     name.className = 'clip-name';
     name.textContent = clip.name;
     const meta = document.createElement('span');
     meta.className = 'clip-meta';
-    meta.textContent = clip.kind === 'drum'
-      ? hitCount(clip) + ' hits'
-      : (clip.data.events || []).length + ' notes';
+    meta.textContent = clip.kind === 'drum' ? hitCount(clip) + ' hits'
+      : clip.kind === 'synth' ? (clip.data.events || []).length + ' notes'
+      : Math.round(clip.data.duration || 0) + ' sec';
     const x = document.createElement('span');
     x.className = 'clip-x';
     x.textContent = '×';
@@ -94,7 +130,7 @@ function renderLibrary() {
     x.addEventListener('click', e => { e.stopPropagation(); deleteClip(clip.id); });
     el.appendChild(name); el.appendChild(meta); el.appendChild(x);
     el.addEventListener('click', () => addBlock(clip));
-    (clip.kind === 'drum' ? drumWrap : synthWrap).appendChild(el);
+    (clip.kind === 'drum' ? drumWrap : clip.kind === 'synth' ? synthWrap : vocalWrap).appendChild(el);
   });
   document.getElementById('clipCount').textContent = doc.clips.length ? '(' + doc.clips.length + ')' : '';
   document.getElementById('emptyNote').style.display = doc.clips.length ? 'none' : '';
@@ -118,8 +154,9 @@ function renderTimeline() {
     ruler.appendChild(t);
   }
 
-  ['drum', 'synth'].forEach(lane => {
-    const track = document.getElementById(lane === 'drum' ? 'laneDrum' : 'laneSynth');
+  LANES.forEach(laneInfo => {
+    const lane = laneInfo.id;
+    const track = document.getElementById(laneInfo.el);
     track.innerHTML = '';
     track.style.width = width + 'px';
     for (let b = 1; b < doc.bars; b++) {
@@ -132,7 +169,7 @@ function renderTimeline() {
       const clip = clipById(bl.clipId);
       if (!clip) return;
       const el = document.createElement('div');
-      el.className = 'block' + (lane === 'synth' ? ' synth' : '') + (bl.id === selected ? ' selected' : '');
+      el.className = 'block ' + clip.kind + (bl.id === selected ? ' selected' : '');
       el.style.left = (bl.startBar * px) + 'px';
       el.style.width = (bl.bars * px - 3) + 'px';
       el.dataset.id = bl.id;
@@ -165,7 +202,9 @@ function firstFreeBar(lane, len) {
 }
 
 function addBlock(clip) {
-  const lane = clip.kind === 'drum' ? 'drum' : 'synth';
+  const lane = clip.kind === 'drum' ? 'drum'
+    : clip.kind === 'vocal' ? 'vocal'
+    : document.getElementById('synthTarget').value;
   const len = clipBars(clip);
   const startBar = firstFreeBar(lane, len);
   if (startBar + len > doc.bars) {
@@ -189,6 +228,7 @@ function deleteClip(id) {
   doc.clips = doc.clips.filter(c => c.id !== id);
   doc.blocks = doc.blocks.filter(b => b.clipId !== id);
   if (editingClipId === id) closeEditor();
+  if (clip && clip.kind === 'vocal' && clip.data.recordingId) RecordingStore.remove(clip.data.recordingId);
   persist(); render();
   flash((clip ? clip.name : 'Clip') + ' deleted');
 }
@@ -234,8 +274,7 @@ function bindBlock(el, grip, bl) {
     // A click that never moved is a selection — open the editor for beats.
     if (!moved) {
       const clip = clipById(bl.clipId);
-      if (clip && clip.kind === 'drum') openEditor(clip);
-      else closeEditor();
+      if (clip) openEditor(clip);
     }
     render();
   };
@@ -248,11 +287,16 @@ function renderSelection() {
     el.classList.toggle('selected', el.dataset.id === selected));
 }
 
-// ---------- Inline drum-clip editor ----------
+// ---------- Inline clip editors ----------
 function openEditor(clip) {
   editingClipId = clip.id;
   document.getElementById('editorName').textContent = clip.name;
+  document.getElementById('editorTools').innerHTML = '';
+  document.getElementById('editor').classList.add('show');
+  if (clip.kind === 'synth') return openSynthEditor(clip);
+  if (clip.kind === 'vocal') return openVocalEditor(clip);
   const grid = document.getElementById('editorGrid');
+  grid.style.gridTemplateColumns = '86px repeat(16, 1fr)';
   grid.innerHTML = '';
   DrumEngine.TRACKS.forEach((tr, ti) => {
     const label = document.createElement('div');
@@ -260,12 +304,15 @@ function openEditor(clip) {
     label.textContent = tr.name;
     grid.appendChild(label);
     for (let s = 0; s < STEPS_PER_BAR; s++) {
-      const cell = document.createElement('div');
+      const cell = document.createElement('button');
+      cell.type = 'button';
       cell.className = 'ed-cell col-' + s + (s % 4 === 0 ? ' beat' : '');
       if (clip.data.pattern[ti] && clip.data.pattern[ti][s]) cell.classList.add('on');
+      cell.setAttribute('aria-label', tr.name + ' step ' + (s + 1));
       cell.addEventListener('click', () => {
-        clip.data.pattern[ti][s] ^= 1;
+        clip.data.pattern[ti][s] = clip.data.pattern[ti][s] ? 0 : 1;
         cell.classList.toggle('on', !!clip.data.pattern[ti][s]);
+        cell.setAttribute('aria-pressed', String(!!clip.data.pattern[ti][s]));
         if (clip.data.pattern[ti][s]) {
           initAudio();
           DrumEngine.VOICES[tr.id](audioCtx, master, audioCtx.currentTime, 1);
@@ -276,8 +323,89 @@ function openEditor(clip) {
       grid.appendChild(cell);
     }
   });
-  document.getElementById('editor').classList.add('show');
 }
+
+function noteName(midi) {
+  const names = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+  return names[midi % 12] + (Math.floor(midi / 12) - 1);
+}
+
+function defaultSnapshot(clip) {
+  return (clip.data.events[0] && clip.data.events[0].snap) || {
+    wave: 'sawtooth', cutoff: 1800, resonance: 2, attack: .01,
+    decay: .18, sustain: .55, release: .3
+  };
+}
+
+function openSynthEditor(clip) {
+  const tools = document.getElementById('editorTools');
+  const select = document.createElement('select');
+  for (let midi = 36; midi <= 84; midi++) {
+    const option = document.createElement('option');
+    option.value = midi;
+    option.textContent = noteName(midi);
+    if (midi === 60) option.selected = true;
+    select.appendChild(option);
+  }
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.textContent = 'Add pitch row';
+  add.addEventListener('click', () => {
+    const midi = +select.value;
+    clip.data.editorPitches = Array.from(new Set([...(clip.data.editorPitches || []), midi]));
+    persist(); openEditor(clip);
+  });
+  tools.append('Choose a pitch:', select, add);
+
+  const pitches = Array.from(new Set([
+    ...(clip.data.events || []).map(event => event.midi),
+    ...(clip.data.editorPitches || []),
+    60
+  ])).sort((a, b) => b - a);
+  const grid = document.getElementById('editorGrid');
+  grid.style.gridTemplateColumns = '86px repeat(16, 1fr)';
+  grid.innerHTML = '';
+  const stepSeconds = secondsPerStep();
+  pitches.forEach(midi => {
+    const label = document.createElement('div');
+    label.className = 'ed-label';
+    label.textContent = noteName(midi);
+    grid.appendChild(label);
+    for (let step = 0; step < STEPS_PER_BAR; step++) {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      const findEvent = () => (clip.data.events || []).find(event =>
+        event.midi === midi && Math.round(event.onT / stepSeconds) % STEPS_PER_BAR === step);
+      cell.className = 'ed-cell col-' + step + (step % 4 === 0 ? ' beat' : '') + (findEvent() ? ' on' : '');
+      cell.setAttribute('aria-label', noteName(midi) + ' step ' + (step + 1));
+      cell.addEventListener('click', () => {
+        const existing = findEvent();
+        if (existing) {
+          clip.data.events = clip.data.events.filter(event => event !== existing);
+        } else {
+          const onT = step * stepSeconds;
+          clip.data.events.push({ midi, onT, offT: onT + stepSeconds * .9, snap: defaultSnapshot(clip) });
+          initAudio();
+          const chain = fxForClip(clip);
+          SynthEngine.scheduleVoice(audioCtx, chain.input, midi, audioCtx.currentTime, audioCtx.currentTime + .18, defaultSnapshot(clip));
+        }
+        persist(); openEditor(clip); renderLibrary();
+      });
+      grid.appendChild(cell);
+    }
+  });
+}
+
+function openVocalEditor(clip) {
+  const grid = document.getElementById('editorGrid');
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = '1fr';
+  const info = document.createElement('p');
+  info.className = 'empty-note';
+  info.textContent = 'Microphone recording · ' + (clip.data.duration || 0).toFixed(1) + ' seconds. Drag its block to place it, or drag the right edge to repeat it.';
+  grid.appendChild(info);
+}
+
 function closeEditor() {
   editingClipId = null;
   document.getElementById('editor').classList.remove('show');
@@ -299,14 +427,22 @@ function scheduleSongStep(step, time) {
     if (bar < bl.startBar || bar >= bl.startBar + bl.bars) return;
     const clip = clipById(bl.clipId);
     if (!clip) return;
-    if (bl.lane === 'drum') {
+    if (clip.kind === 'drum') {
       DrumEngine.scheduleStep(audioCtx, master, clip.data.pattern, s, time,
         { secondsPerStep: spb, swing: doc.swing });
-    } else if (s === 0) {
+    } else if (clip.kind === 'synth' && s === 0) {
       // Synth takes retrigger every `takeBars` so a stretched block repeats
       // the riff instead of leaving silence after the first pass.
       const tb = takeBars(clip);
       if ((bar - bl.startBar) % tb === 0) scheduleTake(clip, time);
+    } else if (clip.kind === 'vocal' && s === 0) {
+      const tb = takeBars(clip);
+      if ((bar - bl.startBar) % tb === 0 && vocalBuffers[clip.data.recordingId]) {
+        const source = audioCtx.createBufferSource();
+        source.buffer = vocalBuffers[clip.data.recordingId];
+        source.connect(master);
+        source.start(time);
+      }
     }
   });
   drawQueue.push({ step, time });
@@ -333,10 +469,22 @@ function scheduler() {
   }
 }
 
-function play() {
+async function prepareVocalBuffers() {
+  initAudio();
+  const clips = doc.clips.filter(clip => clip.kind === 'vocal');
+  await Promise.all(clips.map(async clip => {
+    const id = clip.data.recordingId;
+    if (!id || vocalBuffers[id]) return;
+    const blob = await RecordingStore.get(id);
+    if (blob) vocalBuffers[id] = await audioCtx.decodeAudioData(await blob.arrayBuffer());
+  }));
+}
+
+async function play() {
   initAudio();
   if (isPlaying) return;
   if (!doc.blocks.length) { flash('Nothing to play — add a clip to the timeline first'); return; }
+  await prepareVocalBuffers();
   isPlaying = true;
   songStep = 0; endAt = null; drawQueue = [];
   nextNoteTime = audioCtx.currentTime + 0.06;
@@ -382,6 +530,7 @@ function drawPlayhead() {
 
 // ---------- Export ----------
 async function renderSongToBuffer() {
+  await prepareVocalBuffers();
   const sr = (audioCtx && audioCtx.sampleRate) || 44100;
   const spb = secondsPerStep();
   const songSeconds = totalSteps() * spb;
@@ -407,10 +556,10 @@ async function renderSongToBuffer() {
   doc.blocks.forEach(bl => {
     const clip = clipById(bl.clipId);
     if (!clip) return;
-    if (bl.lane === 'drum') {
+    if (clip.kind === 'drum') {
       DrumEngine.schedulePattern(off, bus, clip.data.pattern,
         bl.startBar * barSeconds(), doc.tempo, doc.swing, bl.bars);
-    } else {
+    } else if (clip.kind === 'synth') {
       const tb = takeBars(clip);
       const chain = chainFor(clip);
       for (let rep = 0; rep * tb < bl.bars; rep++) {
@@ -419,6 +568,14 @@ async function renderSongToBuffer() {
           const offT = ev.offT != null ? ev.offT : ev.onT + 0.5;
           SynthEngine.scheduleVoice(off, chain.input, ev.midi, at + ev.onT, at + offT, ev.snap);
         });
+      }
+    } else if (clip.kind === 'vocal' && vocalBuffers[clip.data.recordingId]) {
+      const tb = takeBars(clip);
+      for (let rep = 0; rep * tb < bl.bars; rep++) {
+        const source = off.createBufferSource();
+        source.buffer = vocalBuffers[clip.data.recordingId];
+        source.connect(bus);
+        source.start((bl.startBar + rep * tb) * barSeconds());
       }
     }
   });
@@ -444,7 +601,7 @@ function exportMidi() {
   doc.blocks.forEach(bl => {
     const clip = clipById(bl.clipId);
     if (!clip) return;
-    if (bl.lane === 'drum') {
+    if (clip.kind === 'drum') {
       for (let rep = 0; rep < bl.bars; rep++) {
         for (let s = 0; s < STEPS_PER_BAR; s++) {
           const swingTicks = (s % 2 === 1) ? Math.round(ticksPerStep * doc.swing) : 0;
@@ -458,7 +615,7 @@ function exportMidi() {
           });
         }
       }
-    } else {
+    } else if (clip.kind === 'synth') {
       const tb = takeBars(clip);
       for (let rep = 0; rep * tb < bl.bars; rep++) {
         const at = (bl.startBar + rep * tb) * barSeconds();
@@ -474,6 +631,64 @@ function exportMidi() {
   if (!events.length) { flash('Nothing to export — your clips are empty'); return; }
   ExportUtils.downloadBlob(ExportUtils.buildMidiFile(events, division, doc.tempo), 'ghost-circuit-song.mid');
   flash('MIDI exported');
+}
+
+// ---------- Microphone recording ----------
+let mediaRecorder = null;
+let recordingStream = null;
+let recordingChunks = [];
+let recordingStartedAt = 0;
+
+function preferredRecordingType() {
+  return ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus']
+    .find(type => window.MediaRecorder && MediaRecorder.isTypeSupported(type)) || '';
+}
+
+async function toggleRecording() {
+  const button = document.getElementById('recordVocalBtn');
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    return;
+  }
+  if (!navigator.mediaDevices || !window.MediaRecorder) {
+    flash('Microphone recording is not supported in this browser');
+    return;
+  }
+  try {
+    recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordingChunks = [];
+    const mimeType = preferredRecordingType();
+    mediaRecorder = new MediaRecorder(recordingStream, mimeType ? { mimeType } : undefined);
+    mediaRecorder.ondataavailable = event => { if (event.data.size) recordingChunks.push(event.data); };
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(recordingChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      const recordingId = SongStore.newId();
+      await RecordingStore.put(recordingId, blob);
+      initAudio();
+      const buffer = await audioCtx.decodeAudioData(await blob.arrayBuffer());
+      vocalBuffers[recordingId] = buffer;
+      const clip = {
+        id: SongStore.newId(), kind: 'vocal',
+        name: 'Mic take ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        created: Date.now(),
+        data: { recordingId, duration: buffer.duration, mimeType: blob.type }
+      };
+      doc.clips.push(clip);
+      addBlock(clip);
+      recordingStream.getTracks().forEach(track => track.stop());
+      recordingStream = null;
+      button.classList.remove('recording');
+      button.textContent = '● Record mic';
+      flash('Recording added to the Vocals lane');
+    };
+    recordingStartedAt = Date.now();
+    mediaRecorder.start();
+    button.classList.add('recording');
+    button.textContent = '■ Stop recording';
+    flash('Recording… tap Stop when finished');
+  } catch (error) {
+    flash(error && error.name === 'NotAllowedError' ? 'Microphone permission was not granted' : 'Could not start the microphone');
+  }
 }
 
 // ---------- Chrome ----------
@@ -519,6 +734,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('exportWavBtn').addEventListener('click', exportWav);
   document.getElementById('exportMidiBtn').addEventListener('click', exportMidi);
+  document.getElementById('recordVocalBtn').addEventListener('click', toggleRecording);
   document.getElementById('editorClose').addEventListener('click', closeEditor);
 
   window.addEventListener('keydown', e => {

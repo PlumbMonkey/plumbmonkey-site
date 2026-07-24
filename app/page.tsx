@@ -37,6 +37,23 @@ export default function HomePage() {
           Visit the Plumbmonkey Store
         </a>
       </div>
+      <section className="mt-16 w-full max-w-5xl">
+        <p className="mb-5 text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">Creative playgrounds</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <a href="/music" className="rounded-2xl border border-cyan-900 bg-cyan-950/40 p-6 text-left transition hover:-translate-y-1 hover:border-cyan-400">
+            <span className="text-xl font-bold text-cyan-200">Sound Stage</span>
+            <span className="mt-2 block text-sm text-zinc-400">Build beats, synth parts, songs, and recordings.</span>
+          </a>
+          <a href="/visual/index.html" className="rounded-2xl border border-fuchsia-900 bg-fuchsia-950/40 p-6 text-left transition hover:-translate-y-1 hover:border-fuchsia-400">
+            <span className="text-xl font-bold text-fuchsia-200">Light Lab</span>
+            <span className="mt-2 block text-sm text-zinc-400">Turn your audio into customizable visuals for video.</span>
+          </a>
+          <a href="/arcade" className="rounded-2xl border border-violet-900 bg-violet-950/40 p-6 text-left transition hover:-translate-y-1 hover:border-violet-400">
+            <span className="text-xl font-bold text-violet-200">Arcade</span>
+            <span className="mt-2 block text-sm text-zinc-400">Play the Ghost Circuit collection on desktop, mobile, or VR.</span>
+          </a>
+        </div>
+      </section>
     </main>
   );
 }
