@@ -1,6 +1,6 @@
 // ============================================================
 // SPECTRAL MANOR INFESTATION
-// Centipede-style · Haunted toadstool field · Splitting Hauntipede
+// Haunted toadstool field · Splitting Hauntipede
 // Ghost Circuit / Plumbmonkey Media
 // ============================================================
 
@@ -157,7 +157,7 @@ function spawnMoth() {
 
 // ---------- Bone scorpion: poisons toadstools it walks over. A hauntipede
 // segment that hits a poisoned toadstool dives straight at the player — the
-// classic Centipede pressure valve that makes late levels dangerous. ----------
+// A pressure valve that makes late levels increasingly dangerous. ----------
 function spawnScorpion() {
   const fromLeft = Math.random() < 0.5;
   scorpions.push({

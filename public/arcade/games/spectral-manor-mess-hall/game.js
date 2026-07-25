@@ -1,6 +1,6 @@
 // ============================================================
 // SPECTRAL MANOR MESS HALL
-// Ghost Circuit themed Food Fight clone
+// Defend the haunted manor cafeteria from spectral chefs
 // Throw food at spectral chefs in the haunted manor cafeteria
 // ============================================================
 

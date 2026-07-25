@@ -11,8 +11,8 @@
   // Canonical game list (slug + display title) — used by the hub Hall of Fame
   const GAMES = [
     { slug: 'spectral-manor-revenger',          title: 'Revenger' },
-    { slug: 'spectral-food-fight',              title: 'Mess Hall' },
-    { slug: 'spectral-robotron',                title: 'Swarm' },
+    { slug: 'spectral-manor-mess-hall',         title: 'Mess Hall' },
+    { slug: 'spectral-manor-swarm',             title: 'Swarm' },
     { slug: 'spectral-skyline',                 title: "Luno's Flight" },
     { slug: 'spectral-manor-soul-circuit',      title: 'Soul Circuit' },
     { slug: 'spectral-manor-crystal-dimension', title: 'Crystal Dimension' },
@@ -23,7 +23,17 @@
   function keyFor(slug) { return PREFIX + slug; }
 
   function get(slug) {
-    try { return JSON.parse(localStorage.getItem(keyFor(slug))) || []; }
+    const legacy = {
+      'spectral-manor-mess-hall': 'spectral-food-fight',
+      'spectral-manor-swarm': 'spectral-robotron'
+    };
+    try {
+      const current = JSON.parse(localStorage.getItem(keyFor(slug))) || [];
+      if (current.length || !legacy[slug]) return current;
+      const old = JSON.parse(localStorage.getItem(keyFor(legacy[slug]))) || [];
+      if (old.length) save(slug, old);
+      return old;
+    }
     catch (e) { return []; }
   }
   function save(slug, arr) {
@@ -277,8 +287,8 @@
   // per-game layout: pad = 'dpad' (4-way) | 'lr' (steer only); actions = [[label, code]]
   const CONTROL_LAYOUTS = {
     'spectral-manor-revenger':          { pad: 'dpad', actions: [['FIRE', 'Space']] },
-    'spectral-food-fight':              { pad: 'dpad', actions: [['THROW', 'Space']], aim: true },
-    'spectral-robotron':                { pad: 'dpad', actions: [['FIRE', 'Space']], aim: true },
+    'spectral-manor-mess-hall':         { pad: 'dpad', actions: [['THROW', 'Space']], aim: true },
+    'spectral-manor-swarm':             { pad: 'dpad', actions: [['FIRE', 'Space']], aim: true },
     'spectral-skyline':                 { pad: 'lr',   actions: [['FLAP', 'Space']] },
     'spectral-manor-soul-circuit':      { pad: 'dpad', actions: [] },
     'spectral-manor-crystal-dimension': { pad: 'lr',   actions: [['THRUST', 'ArrowUp'], ['FIRE', 'Space']] },

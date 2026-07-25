@@ -1,6 +1,6 @@
 // ============================================================
 // SPECTRAL MANOR CRYSTAL DIMENSION
-// Asteroids-style · Zero-G · Flying rocks · Space Ghosts
+// Zero-G · Flying rocks · Space Ghosts
 // Ghost Circuit / Plumbmonkey Media
 // ============================================================
 

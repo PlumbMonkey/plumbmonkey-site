@@ -1,6 +1,6 @@
 # Spectral Manor Mess Hall
 
-**Ghost Circuit** themed Food Fight arcade game  
+An original Ghost Circuit arcade game.
 Throw food at spectral chefs in the haunted manor cafeteria!
 
 ---
@@ -36,7 +36,7 @@ Throw food at spectral chefs in the haunted manor cafeteria!
 ## Files
 
 ```
-spectral-food-fight/
+spectral-manor-mess-hall/
 ├── index.html
 ├── game.js
 └── README.md

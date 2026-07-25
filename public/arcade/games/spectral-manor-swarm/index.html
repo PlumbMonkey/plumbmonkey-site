@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Spectral Manor: Luno's Flight | Ghost Circuit</title>
+  <title>Swarm | Spectral Manor Arcade</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #05030c;
+      background: #07040f;
       color: #e0d4ff;
       font-family: 'Segoe UI', system-ui, sans-serif;
       display: flex;
@@ -19,34 +19,34 @@
       user-select: none;
     }
     h1 {
-      font-size: 1.55rem;
+      font-size: 1.6rem;
       letter-spacing: 3px;
       text-shadow: 0 0 18px #c084fc;
       margin-bottom: 0.15rem;
     }
     .subtitle {
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       color: #a78bfa;
-      margin-bottom: 0.65rem;
+      margin-bottom: 0.7rem;
     }
     #gameCanvas {
       border: 2px solid #7c3aed;
-      box-shadow: 0 0 50px rgba(124, 58, 237, 0.45);
-      background: #0a0618;
+      box-shadow: 0 0 45px rgba(124, 58, 237, 0.5);
+      background: #0b0614;
       max-width: 100%;
       image-rendering: pixelated;
     }
     .hud {
       display: flex;
-      gap: 1.5rem;
-      margin-top: 0.6rem;
-      font-size: 0.92rem;
+      gap: 1.6rem;
+      margin-top: 0.65rem;
+      font-size: 0.95rem;
       font-weight: 600;
     }
     .hud span { color: #c084fc; }
     .controls {
-      margin-top: 0.65rem;
-      font-size: 0.76rem;
+      margin-top: 0.7rem;
+      font-size: 0.78rem;
       color: #9ca3af;
       text-align: center;
       line-height: 1.45;
@@ -54,7 +54,7 @@
     .start-overlay {
       position: absolute;
       inset: 0;
-      background: rgba(5, 3, 12, 0.9);
+      background: rgba(7, 4, 15, 0.9);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -63,13 +63,14 @@
       cursor: pointer;
     }
     .start-overlay h2 {
-      font-size: 2rem;
+      font-size: 2.1rem;
       color: #c084fc;
       text-shadow: 0 0 22px #c084fc;
-      margin-bottom: 0.6rem;
+      margin-bottom: 0.7rem;
     }
-    .start-overlay p { color: #d8b4fe; margin: 0.22rem 0; }
+    .start-overlay p { color: #d8b4fe; margin: 0.25rem 0; }
     .hidden { display: none !important; }
+    .touch-only { display: none; }
     .crt-overlay {
       position: absolute;
       inset: 0;
@@ -82,17 +83,18 @@
   </style>
 </head>
 <body>
-  <h1>SPECTRAL MANOR: LUNO'S FLIGHT</h1>
-  <div class="subtitle">Ghost Circuit · Ride Luno · Haunt the Heights</div>
+  <h1>SPECTRAL MANOR SWARM</h1>
+  <div class="subtitle">Ghost Circuit · Save the Fans</div>
 
   <div style="position:relative">
     <canvas id="gameCanvas" width="960" height="540"></canvas>
     <div class="crt-overlay"></div>
     <div id="startOverlay" class="start-overlay">
-      <h2>SPECTRAL MANOR: LUNO'S FLIGHT</h2>
-      <p>Ride Luno across the haunted manor skyline.</p>
-      <p>Flap to stay aloft. Bump witches from above to turn them into crystals.</p>
-      <p style="margin-top:0.85rem; opacity:0.75; font-size:0.84rem">Click or SPACE to start</p>
+      <h2>SPECTRAL MANOR SWARM</h2>
+      <p>Monsters are hunting Ghost Circuit fans.</p>
+      <p class="kbd-only">Move with WASD · Aim &amp; shoot with the mouse</p>
+      <p class="touch-only">Left thumb to move · Right thumb to aim &amp; fire</p>
+      <p style="margin-top:0.9rem; opacity:0.75; font-size:0.85rem"><span class="kbd-only">Click or SPACE to start</span><span class="touch-only">Tap to start</span></p>
     </div>
   </div>
 
@@ -100,27 +102,33 @@
     <div>SCORE: <span id="score">0</span></div>
     <div>LIVES: <span id="lives">3</span></div>
     <div>WAVE: <span id="wave">1</span></div>
-    <div>CRYSTALS: <span id="crystals">0</span></div>
+    <div>SAVED: <span id="saved">0</span></div>
+    <div>LOST: <span id="lost">0</span></div>
     <div>BEST: <span id="best">0</span></div>
   </div>
 
   <div class="controls">
-    ← → or A D : Fly / run left, right &nbsp;&nbsp;•&nbsp;&nbsp; Space / W / ↑ : Flap (fly up)<br>
-    Bump witches from above to shatter them • Wave 3: steal platform crystals before witches mount them<br>
-    Wave 4: witches shoot hex bolts • Dawdle too long and THE SHRIEKER comes for you
+    WASD / Arrows : Move &nbsp;&nbsp;•&nbsp;&nbsp; Mouse : Aim &nbsp;&nbsp;•&nbsp;&nbsp; Click or Space : Fire<br>
+    Rescue the screaming fans before the monsters drag them away
   </div>
 
   <script src="../leaderboard.js"></script>
+  <script src="../touch-controls.js"></script>
   <script src="../arcade-controls.js?v=2"></script>
   <script src="../arcade-audio.js?v=1"></script>
   <script src="../vr-mode.js?v=2"></script>
   <script src="game.js"></script>
   <script>
-    // Steer left/right, hold/tap A to flap. No vertical axis.
+    // Twin-stick: left stick moves, right stick aims and auto-fires.
+    // autoPad 'quest' — phones already get the analog twin-stick pads from
+    // touch-controls.js, so the D-pad only appears in the headset, where it
+    // pairs with laser-pointer aiming.
     ArcadeControls.init(keys, {
-      accent: '#fbbf24',
-      move: 'horizontal',
-      buttons: [{ code: 'Space', label: 'FLAP' }]
+      accent: '#c084fc',
+      move: 'full',
+      aim: true,
+      autoPad: 'quest',
+      buttons: [{ code: 'Space', label: 'FIRE' }]
     });
   </script>
 </body>

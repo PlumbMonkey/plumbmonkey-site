@@ -12,7 +12,7 @@
 // Aim is a DIRECTION relative to where the thumb touched down, not an absolute
 // point, so the aiming hand can live in a corner and stay out of the action.
 //
-// Usage (see spectral-robotron / spectral-food-fight):
+// Usage (see Swarm and Mess Hall):
 //   TouchPad.init(canvas, { onStart, targets: () => monsters });
 //   TouchPad.sync(mouse, playerCx, playerCy);   // once per update()
 //   if (TouchPad.moveActive) { vx = TouchPad.mx * speed; ... }

@@ -1,6 +1,6 @@
 // ============================================================
 // SPECTRAL MANOR REVENGER
-// Ghost Circuit Themed Defender Clone
+// Ghost Circuit aerial rescue game
 // Ghosts + UAPs (Capsule / Cylinder / Sphere / Pyramid)
 // Abducting fans at the Ghost Circuit concert outside the manor
 // ============================================================
@@ -116,7 +116,7 @@ function playLaserCannon(pan = 0) {
   n.start(t);
 }
 
-// Generic layered cannon blast — the '80s Defender recipe: noise crack +
+// Generic layered cannon blast: noise crack +
 // exponential pitch dive + detuned body + low sine thump. All three fire
 // modes use this so every trigger pull sounds like ARTILLERY, with the
 // parameters giving each weapon its own character.
@@ -260,14 +260,14 @@ const player = {
   vy: 0,
   fireCooldown: 0,
   bank: 0,           // banking tilt
-  facing: 1,         // 1 = facing right, -1 = facing left (Defender turn-around)
+  facing: 1,         // 1 = facing right, -1 = facing left
   shieldTimer: 0,    // frames of shield flicker after hit
   shotType: 0,       // 0 = dual, 1 = heavy, 2 = spread
   powerupTime: 0     // frames remaining on current power-up
 };
 
 // ---------- World & camera ----------
-// The playfield is a WRAPPING world four screens wide (true Defender space):
+// The playfield is a wrapping world four screens wide:
 // fly in either direction forever and you come back around. Everything —
 // player, enemies, fans, bullets — lives in world coordinates; the camera
 // follows the ship, leading in the facing direction.
@@ -398,7 +398,7 @@ function spawnPowerup(x, y) {
 }
 
 function spawnFans() {
-  // Fans are scattered across the WHOLE world (Defender humanoids) — a
+  // Fans are scattered across the whole world — a
   // cluster near the concert stage plus stragglers all the way around
   for (let i = 0; i < 20; i++) {
     const nearStage = i < 8;
@@ -478,7 +478,7 @@ function hitPlayer() {
           <p>Rescued: ${rescued} &nbsp;|&nbsp; Abducted: ${abducted}</p>
           <p style="margin-top:0.5rem">Final Score: ${finalScore}</p>
           <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-          <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP DEFENDERS</p>
+          <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP REVENGERS</p>
           ${Arcade.boardHTML(Arcade.slug)}
           <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to defend again</p>
         `;
@@ -525,7 +525,7 @@ function fire() {
   const pan = soundPan(toScreen(player.x) + player.w / 2);
 
   if (player.shotType === 0) {
-    // Dual neon lasers — longer Defender-style beams
+    // Dual long-form neon lasers
     bullets.push({ x: noseX, y: baseY - 7, w: 38, h: 3, speed: 16, dir: f, type: 'normal' });
     bullets.push({ x: noseX, y: baseY + 4, w: 38, h: 3, speed: 16, dir: f, type: 'normal' });
     player.fireCooldown = 7;
@@ -597,7 +597,7 @@ function update() {
 
   // Player movement + banking. Holding a direction turns the ship to face it —
   // enemies loop around and attack from behind, so you must be able to fight
-  // left as well as right (classic Defender turn-around).
+  // left as well as right.
   player.vx = 0;
   player.vy = 0;
   if (keys['ArrowLeft'] || keys['KeyA']) { player.vx = -player.speed; player.facing = -1; }
@@ -610,7 +610,7 @@ function update() {
   player.y = Math.max(30, Math.min(H - 55, player.y + player.vy));
 
   // Camera follows with a facing lead: the ship sits ~1/3 from the trailing
-  // edge so most of the screen shows where you're GOING (classic Defender)
+  // edge so most of the screen shows where you're going.
   const camTarget = wrapX(player.x + player.w / 2 - W * (player.facing > 0 ? 0.32 : 0.68));
   camX = wrapX(camX + wrapDX(camTarget, camX) * 0.08);
 
@@ -712,7 +712,7 @@ function update() {
         updateHUD();
       }
     } else if (e.seeking) {
-      // Defender-lander hunt: COMMIT to a target fan, cruise to its column,
+      // Target hunt: commit to a fan, cruise to its column,
       // then descend and grab. (The old version only dived when a fan was
       // within 280 units straight-line — but cruise altitude alone is ~350px
       // above the ground, so seekers never actually descended.)
@@ -1452,7 +1452,7 @@ function drawPlayer() {
   ctx.restore();
 }
 
-/** Classic Defender-style neon lasers + optional trails */
+/** Neon lasers with optional trails */
 // Enemy fire — deliberately a different colour language from your neon lasers
 // (hot red/orange vs cyan/magenta) so incoming vs outgoing reads instantly.
 function drawEnemyShots() {
@@ -1508,7 +1508,7 @@ function drawBullets() {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(bx + 2, b.y + 1, b.w - 2, b.h - 2);
     } else {
-      // Bright cyan/green core + strong glow (Defender neon)
+      // Bright cyan/green core with a strong glow
       ctx.shadowColor = '#00ff99';
       ctx.shadowBlur = 16;
       // Outer green glow
@@ -1961,7 +1961,7 @@ function draw() {
     ctx.restore();
   }
 
-  // Radar strip — now maps the ENTIRE wrapping world, Defender-style.
+  // Radar strip maps the entire wrapping world.
   // You are always the white blip in the center; the bracket is your viewport.
   if (gameRunning) {
     const rw = 220, rh = 26, rx = W / 2 - rw / 2, ry = 8;

@@ -1,6 +1,6 @@
 # Spectral Manor Revenger
 
-**Ghost Circuit** themed Defender-style arcade game  
+An original Ghost Circuit arcade game.
 Built for Plumbmonkey Media / plumbmonkey.online
 
 ---

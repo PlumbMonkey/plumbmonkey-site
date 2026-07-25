@@ -5,7 +5,7 @@ import NeonCursor from "../components/NeonCursor";
 export const metadata: Metadata = {
   title: "Spectral Manor Arcade | Plumbmonkey Media",
   description:
-    "Play the Spectral Manor Series — eight Ghost Circuit arcade games across two waves. Defender, Food Fight, Robotron, Joust, Racing, Asteroids, Centipede & Pac-Man reborn inside the haunted manor.",
+    "Play eight original games from the Spectral Manor series, each with its own world, challenges, characters and leaderboard.",
   keywords: [
     "spectral manor arcade",
     "ghost circuit games",
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     title: "Spectral Manor Arcade",
-    description: "Eight classic arcade games reborn inside the Ghost Circuit universe.",
+    description: "Eight original games set inside the Ghost Circuit universe.",
     type: "website",
   },
 };
@@ -40,7 +40,7 @@ export default function ArcadePage() {
           Spectral Manor Arcade
         </h1>
         <p className="text-purple-300/80 max-w-2xl mx-auto text-lg">
-          Eight classic arcade experiences reborn inside the Ghost Circuit universe.
+          Eight original arcade experiences from inside the Ghost Circuit universe.
           <br className="hidden sm:block" />
           Step up to a cabinet — high scores are kept for every game.
         </p>

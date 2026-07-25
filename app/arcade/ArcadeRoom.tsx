@@ -7,9 +7,9 @@ type HofRow = Entry & { game: string };
 
 const GAMES = [
   { slug: "spectral-manor-revenger",          title: "Revenger",         tag: "Defend the concert",   accent: "#c084fc", bg: "#0a0612" },
-  { slug: "spectral-food-fight",              title: "Mess Hall",        tag: "Guard the buffet",     accent: "#f0abfc", bg: "#12091f" },
-  { slug: "spectral-robotron",                title: "Swarm",            tag: "Save the fans",        accent: "#22d3ee", bg: "#0b0614" },
-  { slug: "spectral-skyline",                 title: "Luno's Flight",    tag: "Joust the witches",    accent: "#fbbf24", bg: "#0a0618" },
+  { slug: "spectral-manor-mess-hall",         title: "Mess Hall",        tag: "Guard the buffet",     accent: "#f0abfc", bg: "#12091f" },
+  { slug: "spectral-manor-swarm",             title: "Swarm",            tag: "Save the fans",        accent: "#22d3ee", bg: "#0b0614" },
+  { slug: "spectral-skyline",                 title: "Luno's Flight",    tag: "Battle the witches",   accent: "#fbbf24", bg: "#0a0618" },
   { slug: "spectral-manor-soul-circuit",      title: "Soul Circuit",     tag: "Haunted hedge maze",   accent: "#e879f9", bg: "#0a0614" },
   { slug: "spectral-manor-crystal-dimension", title: "Crystal Dimension",tag: "Zero-G survival",      accent: "#67e8f9", bg: "#06040f" },
   { slug: "spectral-manor-infestation",       title: "Infestation",      tag: "Blast the Hauntipede", accent: "#4ade80", bg: "#0d0618" },

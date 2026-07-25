@@ -1,6 +1,6 @@
 // ============================================================
 // SPECTRAL MANOR SOUL CIRCUIT
-// Pac-Man style · Hedge maze · Crystals · Magic Field
+// Hedge maze · Crystals · Magic Field
 // Ghost Circuit / Plumbmonkey Media
 // ============================================================
 

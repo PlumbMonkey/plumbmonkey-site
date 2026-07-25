@@ -1,6 +1,6 @@
 // ============================================================
 // SPECTRAL MANOR: LUNO'S FLIGHT
-// Ghost Circuit Joust-style game
+// Ghost Circuit aerial battle game
 // Ride Luno the owl-griffin across the haunted manor skyline
 // Bump witches from above → they become crystals
 // Ghosts + aliens on floating platforms
@@ -224,7 +224,7 @@ function spawnWave() {
   boss = null;
   waveTimer = 0;
 
-  // Witches (Joust enemies)
+  // Flying witches
   const wCount = 3 + wave * 2;
   for (let i = 0; i < wCount; i++) {
     witches.push({
@@ -342,7 +342,7 @@ function update() {
   player.x += player.vx;
   player.y += player.vy;
 
-  // Screen wrap (classic Joust style)
+  // Screen wrapping
   if (player.x < -player.w) player.x = W;
   if (player.x > W) player.x = -player.w;
 
@@ -398,7 +398,7 @@ function update() {
     }
   });
 
-  // Walk cycle when running along a surface (Joust-style)
+  // Walk cycle when running along a surface
   if (player.grounded && Math.abs(player.vx) > 0.4) {
     player.walkPhase += Math.abs(player.vx) * 0.09;
   }
@@ -413,7 +413,7 @@ function update() {
     }
   });
 
-  // --- Witches AI (Joust behavior + on-foot crystal racers) ---
+  // --- Witches AI and on-foot crystal racers ---
   witches.forEach(w => {
     // ----- Walking witches: stroll along their platform to the crystal -----
     if (w.state === 'walking') {
@@ -553,7 +553,7 @@ function update() {
     triggerShake(6, 20);
   }
   if (boss) {
-    // relentless Joust-style pursuit — flaps toward Luno
+    // relentless pursuit — flaps toward Luno
     boss.flapTimer--;
     if (boss.flapTimer <= 0) {
       boss.vy = boss.y > player.y ? -6.5 : -3;
@@ -572,7 +572,7 @@ function update() {
     if (boss.x > W + 80) boss.x = -20;
     if (boss.hitFlash > 0) boss.hitFlash--;
 
-    // Joust rules apply to the boss too — but it takes several hits
+    // Height advantage applies to the boss too, but it takes several hits
     if (player.invuln <= 0 &&
         player.x < boss.x + boss.w && player.x + player.w > boss.x &&
         player.y < boss.y + boss.h && player.y + player.h > boss.y) {
@@ -618,7 +618,7 @@ function update() {
     if (g.y > H - 100) g.y = H - 100;
   });
 
-  // --- Player vs Witches (Joust collision: higher one wins) ---
+  // --- Player vs Witches: higher combatant wins ---
   // Applies to walking witches too — swoop them before they mount!
   witches.forEach((w, wi) => {
     if (player.invuln > 0) return;
@@ -1078,7 +1078,7 @@ function draw() {
   ctx.fillStyle = '#a8a29e';
   ctx.shadowColor = '#c084fc';
   ctx.shadowBlur = 12;
-  // legs — running stride when grounded (Joust-style), tucked in flight
+  // legs — running stride when grounded, tucked in flight
   const running = player.grounded && Math.abs(player.vx) > 0.4;
   ctx.strokeStyle = '#f59e0b';
   ctx.lineWidth = 3.5;

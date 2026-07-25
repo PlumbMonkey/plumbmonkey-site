@@ -1,6 +1,6 @@
 # Spectral Manor Swarm
 
-**Ghost Circuit** themed Robotron-style twin-stick arena shooter  
+An original Ghost Circuit twin-stick survival game.
 Save the screaming fans from the monsters!
 
 ---

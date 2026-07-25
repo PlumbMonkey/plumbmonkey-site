@@ -1,6 +1,6 @@
 // ============================================================
 // SPECTRAL MANOR SWARM
-// Ghost Circuit themed Robotron-style twin-stick arena
+// Ghost Circuit twin-stick survival arena
 // Monsters hunt screaming fans — you save them
 // ============================================================
 
@@ -48,7 +48,7 @@ function playNoise(dur, vol, filterType, f0, f1) {
   n.start(t);
 }
 
-// Fast dive zap — sawtooth pitch dive, the Robotron gun voice
+// Fast dive zap — sawtooth pitch dive, the Swarm gun voice
 function playZap(f0, fEnd, dur, vol) {
   if (!audioCtx) return;
   const t = audioCtx.currentTime;
@@ -648,7 +648,7 @@ function update() {
   });
 
   // Player rescues fans by walking into them (if not grabbed)
-  // Robotron-style escalating bonus: 300, 600, 900... up to 1500 per wave chain
+  // Escalating bonus: 300, 600, 900... up to 1500 per wave chain
   fans.forEach((f, fi) => {
     if (f.grabbed) return;
     if (player.x < f.x + f.w && player.x + player.w > f.x &&
