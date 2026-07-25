@@ -13,7 +13,7 @@ let audioCtx = null;
 let engineOsc = null, engineGain = null;
 function initAudio() {
   if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx = ArcadeAudio.context();
     engineOsc = audioCtx.createOscillator();
     engineGain = audioCtx.createGain();
     engineOsc.type = 'sawtooth';
@@ -21,10 +21,10 @@ function initAudio() {
     engineGain.gain.value = 0;
     const lp = audioCtx.createBiquadFilter();
     lp.type = 'lowpass'; lp.frequency.value = 400;
-    engineOsc.connect(lp); lp.connect(engineGain); engineGain.connect(audioCtx.destination);
+    engineOsc.connect(lp); lp.connect(engineGain); engineGain.connect(ArcadeAudio.output('sfx'));
     engineOsc.start();
   }
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  ArcadeAudio.resume();
 }
 function tone(f, d, t = 'square', v = 0.05, s = 0) {
   if (!audioCtx) return;
@@ -33,7 +33,7 @@ function tone(f, d, t = 'square', v = 0.05, s = 0) {
   if (s) o.frequency.linearRampToValueAtTime(Math.max(30, f + s), audioCtx.currentTime + d);
   g.gain.setValueAtTime(v, audioCtx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + d);
-  o.connect(g); g.connect(audioCtx.destination);
+  o.connect(g); g.connect(ArcadeAudio.output('sfx'));
   o.start(); o.stop(audioCtx.currentTime + d);
 }
 const sfx = {

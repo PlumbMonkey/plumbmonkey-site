@@ -15,12 +15,16 @@ let audioCtx = null;
 
 function initAudio() {
   if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx = ArcadeAudio.context();
   }
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  ArcadeAudio.resume();
 }
 
-function playTone(freq, duration, type = 'square', vol = 0.08, slide = 0) {
+function soundPan(screenX) {
+  return Math.max(-0.7, Math.min(0.7, (screenX / W) * 1.4 - 0.7));
+}
+
+function playTone(freq, duration, type = 'square', vol = 0.08, slide = 0, pan = 0) {
   if (!audioCtx) return;
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
@@ -30,12 +34,12 @@ function playTone(freq, duration, type = 'square', vol = 0.08, slide = 0) {
   gain.gain.setValueAtTime(vol, audioCtx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
   osc.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(ArcadeAudio.output('sfx', pan));
   osc.start();
   osc.stop(audioCtx.currentTime + duration);
 }
 
-function playNoise(duration, vol = 0.06) {
+function playNoise(duration, vol = 0.06, pan = 0) {
   if (!audioCtx) return;
   const bufferSize = audioCtx.sampleRate * duration;
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
@@ -51,12 +55,12 @@ function playNoise(duration, vol = 0.06) {
   gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
   noise.connect(filter);
   filter.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(ArcadeAudio.output('sfx', pan));
   noise.start();
 }
 
 // Big laser cannon: noise crack + exponential pitch dive + detuned sub layer
-function playLaserCannon() {
+function playLaserCannon(pan = 0) {
   if (!audioCtx) return;
   const t = audioCtx.currentTime;
   const f0 = 1900 + Math.random() * 400; // slight variation per shot
@@ -71,7 +75,7 @@ function playLaserCannon() {
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
   const hp = audioCtx.createBiquadFilter();
   hp.type = 'highpass'; hp.frequency.value = 220;
-  o.connect(hp); hp.connect(g); g.connect(audioCtx.destination);
+  o.connect(hp); hp.connect(g); g.connect(ArcadeAudio.output('sfx', pan));
   o.start(t); o.stop(t + 0.17);
 
   // detuned body layer — gives the shot weight
@@ -82,7 +86,7 @@ function playLaserCannon() {
   o2.frequency.exponentialRampToValueAtTime(80, t + 0.1);
   g2.gain.setValueAtTime(0.07, t);
   g2.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-  o2.connect(g2); g2.connect(audioCtx.destination);
+  o2.connect(g2); g2.connect(ArcadeAudio.output('sfx', pan));
   o2.start(t); o2.stop(t + 0.13);
 
   // cannon thump — low sine drop for chest punch
@@ -93,7 +97,7 @@ function playLaserCannon() {
   o3.frequency.exponentialRampToValueAtTime(45, t + 0.12);
   g3.gain.setValueAtTime(0.12, t);
   g3.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
-  o3.connect(g3); g3.connect(audioCtx.destination);
+  o3.connect(g3); g3.connect(ArcadeAudio.output('sfx', pan));
   o3.start(t); o3.stop(t + 0.15);
 
   // muzzle crack — high-passed noise transient
@@ -108,7 +112,7 @@ function playLaserCannon() {
   const ng = audioCtx.createGain();
   ng.gain.setValueAtTime(0.1, t);
   ng.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-  n.connect(nhp); nhp.connect(ng); ng.connect(audioCtx.destination);
+  n.connect(nhp); nhp.connect(ng); ng.connect(ArcadeAudio.output('sfx', pan));
   n.start(t);
 }
 
@@ -131,7 +135,7 @@ function playBlast(opts) {
   g.gain.exponentialRampToValueAtTime(0.001, t + opts.dur * 1.25);
   const hp = audioCtx.createBiquadFilter();
   hp.type = 'highpass'; hp.frequency.value = 180;
-  o.connect(hp); hp.connect(g); g.connect(audioCtx.destination);
+  o.connect(hp); hp.connect(g); g.connect(ArcadeAudio.output('sfx', opts.pan));
   o.start(t); o.stop(t + opts.dur * 1.35);
 
   // detuned body layer
@@ -142,7 +146,7 @@ function playBlast(opts) {
   o2.frequency.exponentialRampToValueAtTime(Math.max(50, opts.fEnd * 0.55), t + opts.dur * 0.8);
   g2.gain.setValueAtTime(opts.vol * 0.55, t);
   g2.gain.exponentialRampToValueAtTime(0.001, t + opts.dur);
-  o2.connect(g2); g2.connect(audioCtx.destination);
+  o2.connect(g2); g2.connect(ArcadeAudio.output('sfx', opts.pan));
   o2.start(t); o2.stop(t + opts.dur * 1.1);
 
   // cannon thump — low sine punch
@@ -153,7 +157,7 @@ function playBlast(opts) {
   o3.frequency.exponentialRampToValueAtTime(Math.max(30, opts.subF * 0.3), t + opts.dur);
   g3.gain.setValueAtTime(opts.vol * 0.9, t);
   g3.gain.exponentialRampToValueAtTime(0.001, t + opts.dur * 1.1);
-  o3.connect(g3); g3.connect(audioCtx.destination);
+  o3.connect(g3); g3.connect(ArcadeAudio.output('sfx', opts.pan));
   o3.start(t); o3.stop(t + opts.dur * 1.2);
 
   // muzzle crack — high-passed noise transient
@@ -168,23 +172,23 @@ function playBlast(opts) {
   const ng = audioCtx.createGain();
   ng.gain.setValueAtTime(opts.vol * 0.8, t);
   ng.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-  n.connect(nhp); nhp.connect(ng); ng.connect(audioCtx.destination);
+  n.connect(nhp); nhp.connect(ng); ng.connect(ArcadeAudio.output('sfx', opts.pan));
   n.start(t);
 }
 
 // Sound presets
 const sfx = {
-  shoot: playLaserCannon,
+  shoot: (pan = 0) => playLaserCannon(pan),
   // Heavy bolt — the deepest blast of the three: low dive, big sub, slow decay
-  heavy: () => playBlast({ f0: 900, fEnd: 70, dur: 0.24, subF: 110, vol: 0.14, crackHz: 900 }),
+  heavy: (pan = 0) => playBlast({ f0: 900, fEnd: 70, dur: 0.24, subF: 110, vol: 0.14, crackHz: 900, pan }),
   // Spread — wide triple crack: slightly shorter, brighter, doubled zap
-  spread: () => {
-    playBlast({ f0: 1500, fEnd: 160, dur: 0.13, subF: 140, vol: 0.11, crackHz: 1500 });
-    setTimeout(() => playBlast({ f0: 1750, fEnd: 200, dur: 0.1, subF: 150, vol: 0.07, crackHz: 2200 }), 25);
+  spread: (pan = 0) => {
+    playBlast({ f0: 1500, fEnd: 160, dur: 0.13, subF: 140, vol: 0.11, crackHz: 1500, pan });
+    setTimeout(() => playBlast({ f0: 1750, fEnd: 200, dur: 0.1, subF: 150, vol: 0.07, crackHz: 2200, pan }), 25);
   },
-  explosion: () => {
-    playNoise(0.25, 0.09);
-    playTone(120, 0.2, 'sawtooth', 0.06, -100);
+  explosion: (pan = 0) => {
+    playNoise(0.25 + Math.random() * 0.05, 0.09, pan);
+    playTone(115 + Math.random() * 15, 0.22, 'sawtooth', 0.06, -95, pan);
   },
   hit: () => {
     playTone(200, 0.12, 'sawtooth', 0.08, -150);
@@ -503,11 +507,11 @@ function enemyFire(e) {
     const d = Math.hypot(dx, dy) || 1;
     const sp = 4.2;
     enemyShots.push({ x: ex, y: ey, vx: (dx / d) * sp, vy: (dy / d) * sp, r: 4, life: 200, kind: 'bolt' });
-    sfx.spread();
+    sfx.spread(soundPan(toScreen(e.x)));
   } else if (e.type === 'pyramid') {
     // fires along its current row — dodge by changing altitude
     enemyShots.push({ x: ex, y: ey, vx: (dx < 0 ? -1 : 1) * 9, vy: 0, r: 5, life: 140, kind: 'beam' });
-    sfx.heavy();
+    sfx.heavy(soundPan(toScreen(e.x)));
   }
 }
 
@@ -518,25 +522,26 @@ function fire() {
   const f = player.facing;                       // 1 = right, -1 = left
   // shots leave from whichever end of the ship is the nose right now
   const noseX = f > 0 ? player.x + 40 : player.x + 4;
+  const pan = soundPan(toScreen(player.x) + player.w / 2);
 
   if (player.shotType === 0) {
     // Dual neon lasers — longer Defender-style beams
     bullets.push({ x: noseX, y: baseY - 7, w: 38, h: 3, speed: 16, dir: f, type: 'normal' });
     bullets.push({ x: noseX, y: baseY + 4, w: 38, h: 3, speed: 16, dir: f, type: 'normal' });
     player.fireCooldown = 7;
-    sfx.shoot();
+    sfx.shoot(pan);
   } else if (player.shotType === 1) {
     // Heavy neon bolt
     bullets.push({ x: noseX, y: baseY - 3, w: 36, h: 8, speed: 11, dir: f, type: 'heavy' });
     player.fireCooldown = 13;
-    sfx.heavy();
+    sfx.heavy(pan);
   } else {
     // Spread lasers
     bullets.push({ x: noseX, y: baseY - 2, w: 30, h: 3, speed: 15, dir: f, type: 'normal', vy: 0 });
     bullets.push({ x: noseX, y: baseY - 2, w: 28, h: 3, speed: 14, dir: f, type: 'normal', vy: -2.4 });
     bullets.push({ x: noseX, y: baseY - 2, w: 28, h: 3, speed: 14, dir: f, type: 'normal', vy: 2.4 });
     player.fireCooldown = 11;
-    sfx.spread();
+    sfx.spread(pan);
   }
 }
 
@@ -816,7 +821,7 @@ function update() {
       if (bdx < e.w && bdx > -b.w &&
           b.y < e.y + e.h && b.y + b.h > e.y) {
         createExplosion(e.x + e.w / 2, e.y + e.h / 2, e.type === 'ghost' ? '#c084fc' : '#22d3ee');
-        sfx.explosion();
+        sfx.explosion(soundPan(toScreen(e.x + e.w / 2)));
 
         // Free the fan if this enemy was carrying one
         if (e.carrying) {

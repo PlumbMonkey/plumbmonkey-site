@@ -12,10 +12,10 @@ const H = canvas.height;
 // ---------- Audio ----------
 let audioCtx = null;
 function initAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (!audioCtx) audioCtx = ArcadeAudio.context();
+  ArcadeAudio.resume();
 }
-function tone(freq, dur, type='square', vol=0.05, slide=0) {
+  function tone(freq, dur, type='square', vol=0.05, slide=0, bus='sfx') {
   if (!audioCtx) return;
   const o = audioCtx.createOscillator();
   const g = audioCtx.createGain();
@@ -24,7 +24,7 @@ function tone(freq, dur, type='square', vol=0.05, slide=0) {
   if (slide) o.frequency.linearRampToValueAtTime(freq+slide, audioCtx.currentTime+dur);
   g.gain.setValueAtTime(vol, audioCtx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
-  o.connect(g); g.connect(audioCtx.destination);
+  o.connect(g); g.connect(ArcadeAudio.output(bus));
   o.start(); o.stop(audioCtx.currentTime+dur);
 }
 const sfx = {
@@ -50,9 +50,9 @@ const bassLine = [220,0,0,0,174.61,0,0,0, 196,0,0,0,164.81,0,0,0,
 function musicTick() {
   if (!gameRunning || dying > 0 || awaitingReady || !audioCtx) return;
   const n = leadLine[musicStep % leadLine.length];
-  if (n) tone(n, 0.13, 'square', 0.035);
+    if (n) tone(n, 0.13, 'square', 0.035, 0, 'music');
   const b = bassLine[musicStep % bassLine.length];
-  if (b) tone(b, 0.16, 'triangle', 0.045);
+    if (b) tone(b, 0.16, 'triangle', 0.045, 0, 'music');
   musicStep++;
 }
 function startMusic() { if (!musicTimer) musicTimer = setInterval(musicTick, 165); }

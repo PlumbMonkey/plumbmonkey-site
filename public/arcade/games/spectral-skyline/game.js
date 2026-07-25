@@ -14,8 +14,8 @@ const H = canvas.height;
 // ---------- Audio (richer synthesized SFX) ----------
 let audioCtx = null;
 function initAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (!audioCtx) audioCtx = ArcadeAudio.context();
+  ArcadeAudio.resume();
 }
 function playTone(freq, dur, type='square', vol=0.06, slide=0) {
   if (!audioCtx) return;
@@ -26,7 +26,7 @@ function playTone(freq, dur, type='square', vol=0.06, slide=0) {
   if (slide) o.frequency.linearRampToValueAtTime(freq+slide, audioCtx.currentTime+dur);
   g.gain.setValueAtTime(vol, audioCtx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
-  o.connect(g); g.connect(audioCtx.destination);
+  o.connect(g); g.connect(ArcadeAudio.output('sfx'));
   o.start(); o.stop(audioCtx.currentTime+dur);
 }
 function playNoise(dur, vol=0.05, freq=900) {
@@ -43,7 +43,7 @@ function playNoise(dur, vol=0.05, freq=900) {
   const g = audioCtx.createGain();
   g.gain.setValueAtTime(vol, audioCtx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
-  src.connect(filter); filter.connect(g); g.connect(audioCtx.destination);
+  src.connect(filter); filter.connect(g); g.connect(ArcadeAudio.output('sfx'));
   src.start();
 }
 const sfx = {

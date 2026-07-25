@@ -186,6 +186,13 @@
   // In attract mode it skips everything and just runs `done`.
   function submitFlow(score, done) {
     const slug = API.slug;
+    // Initials entry is DOM-only and cannot be seen on the canvas presented
+    // inside WebXR. Bank a headset score and continue to the game-over screen.
+    if (typeof ArcadeVR !== 'undefined' && ArcadeVR.active) {
+      if (qualifies(slug, score)) add(slug, 'VR', score);
+      if (done) done();
+      return;
+    }
     if (attract || !qualifies(slug, score)) { if (done) done(); return; }
     promptInitials(slug, score, done);
   }

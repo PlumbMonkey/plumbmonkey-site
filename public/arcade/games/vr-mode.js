@@ -44,6 +44,7 @@ const ArcadeVR = (function () {
   let lastError = null;        // last caught error, painted into the VR view
   let xrFrames = 0;            // counts XR frames — a frozen counter = frame loop stopped
   let inputStatus = 'controllers 0';
+  let exitHold = 0;
 
   const api = { init, enter, exit, mapInput, schedule, cancel,
                 get active() { return !!session; },
@@ -206,23 +207,6 @@ const ArcadeVR = (function () {
   const pressed = (gp, i) => !!(gp && gp.buttons && gp.buttons[i] && gp.buttons[i].pressed);
 
   let startCooldown = 0;
-  let autoStartCooldown = 0;
-
-  // The start overlay is a DOM element sitting OVER the canvas — the VR screen
-  // only shows the canvas texture, so in the headset there is nothing to click
-  // and no visible "press to start" prompt. Without this the game just sits in
-  // its idle draw (Mess Hall shows a frozen hero; Revenger shows nothing) and
-  // never begins. So while immersed we click that overlay ourselves whenever
-  // it's visible — kicking the game off on entry and restarting it after a
-  // game-over. The cooldown keeps it from re-clicking every frame.
-  function autoStart() {
-    if (autoStartCooldown > 0) { autoStartCooldown--; return; }
-    const ov = document.getElementById('startOverlay');
-    if (ov && !ov.classList.contains('hidden')) {
-      ov.click();
-      autoStartCooldown = 90;   // ~1.5s guard between attempts
-    }
-  }
 
   // Pure mapper: input sources + game profile → {codes, aim, start}. Kept
   // separate from the session so the axis handling (the fiddliest part) can be
@@ -278,6 +262,18 @@ const ArcadeVR = (function () {
     inputStatus = 'controllers ' + sources.length + ' ' +
       sources.map(s => (s.handedness || 'unknown') + (s.gamepad ? ':pad' : ':no-pad')).join(' ');
     const r = mapInput(sources, ArcadeControls.profile);
+    const left = sources.find(s => s.handedness === 'left');
+    const right = sources.find(s => s.handedness === 'right');
+    if (pressed(left && left.gamepad, 5) && pressed(right && right.gamepad, 5)) {
+      exitHold++;
+      if (exitHold >= 75) {
+        exitHold = 0;
+        exit();
+        return;
+      }
+    } else {
+      exitHold = 0;
+    }
     if (r.start) tryStart();
     ArcadeControls.setXrInput(r.codes, r.aim);
   }
@@ -308,11 +304,10 @@ const ArcadeVR = (function () {
     xrFrames++;
     startCooldown = Math.max(0, startCooldown - 1);
     // Input must never be able to freeze the game: read it defensively, then
-    // auto-start (the overlay is invisible in VR), then always run the loop.
+    // always run the loop.
     try { readControllers(); } catch (e) { lastError = e; console.error('[ArcadeVR] input:', e); }
-    try { autoStart(); } catch (e) { lastError = e; console.error('[ArcadeVR] start:', e); }
     drainRaf(t);              // run the game's own loop → repaints gameCanvas
-    drawDiag();               // paint status onto the canvas → visible in VR
+    drawVrHud();              // paint DOM prompts and VR status into the canvas
 
     let pose = null;
     try { pose = frame.getViewerPose(refSpace); } catch (e) {}
@@ -351,7 +346,7 @@ const ArcadeVR = (function () {
   // canvas texture, so this is the one place a message is visible in VR. The
   // frame counter proves the frame loop is alive; any error text says what
   // threw. Temporary diagnostic while we chase the in-headset freeze.
-  function drawDiag() {
+  function drawVrHud() {
     if (!gameCanvas) return;
     try {
       const c = gameCanvas.getContext('2d');
@@ -371,8 +366,50 @@ const ArcadeVR = (function () {
         c.fillStyle = '#ff8a8a';
         c.fillText(msg, 13, 33);
       }
+      drawDomOverlay(c);
+      const exitText = exitHold
+        ? 'EXIT VR  B + Y  ' + Math.min(100, Math.round(exitHold / 75 * 100)) + '%'
+        : 'A / trigger: continue     Hold B + Y: Exit VR';
+      c.font = 'bold 14px system-ui';
+      c.textBaseline = 'bottom';
+      const ew = c.measureText(exitText).width + 28;
+      c.fillStyle = 'rgba(6,3,14,0.78)';
+      c.fillRect((gameCanvas.width - ew) / 2, gameCanvas.height - 36, ew, 28);
+      c.fillStyle = exitHold ? '#fca5a5' : '#d8b4fe';
+      c.fillText(exitText, (gameCanvas.width - ew) / 2 + 14, gameCanvas.height - 13);
       c.restore();
     } catch (e) {}
+  }
+
+  function drawDomOverlay(c) {
+    const ov = document.getElementById('startOverlay');
+    if (!ov || ov.classList.contains('hidden')) return;
+    const heading = ov.querySelector('h2');
+    const paragraphs = Array.from(ov.querySelectorAll('p'))
+      .map(p => p.textContent.trim()).filter(Boolean).slice(0, 4);
+    const w = Math.min(gameCanvas.width * 0.72, 690);
+    const h = 112 + paragraphs.length * 27;
+    const x = (gameCanvas.width - w) / 2;
+    const y = (gameCanvas.height - h) / 2;
+    c.fillStyle = 'rgba(7,3,17,0.92)';
+    c.strokeStyle = '#a855f7';
+    c.lineWidth = 3;
+    c.fillRect(x, y, w, h);
+    c.strokeRect(x, y, w, h);
+    c.textAlign = 'center';
+    c.textBaseline = 'top';
+    c.fillStyle = '#f0abfc';
+    c.font = 'bold 30px system-ui';
+    c.fillText((heading && heading.textContent.trim()) || 'READY?', gameCanvas.width / 2, y + 22);
+    c.font = '16px system-ui';
+    c.fillStyle = '#e9d5ff';
+    paragraphs.forEach((line, i) => {
+      c.fillText(line.replace(/\s+/g, ' ').slice(0, 80), gameCanvas.width / 2, y + 66 + i * 24);
+    });
+    c.font = 'bold 17px system-ui';
+    c.fillStyle = '#d9ff63';
+    c.fillText('Press A or trigger to continue', gameCanvas.width / 2, y + h - 31);
+    c.textAlign = 'left';
   }
 
   // ------------------------------------------------------------ lifecycle
@@ -395,8 +432,11 @@ const ArcadeVR = (function () {
       catch (e) { refSpace = await s.requestReferenceSpace('viewer'); }
 
       s.addEventListener('end', onSessionEnd);
+      s.addEventListener('selectstart', () => {
+        if (typeof ArcadeAudio !== 'undefined') ArcadeAudio.resume();
+      });
       setRafMode('xr');        // the XR frame now pumps the game loop
-      autoStartCooldown = 0;   // auto-start on the very first frame
+      exitHold = 0;
       setBtn(true);
       s.requestAnimationFrame(onXRFrame);
     } catch (err) {

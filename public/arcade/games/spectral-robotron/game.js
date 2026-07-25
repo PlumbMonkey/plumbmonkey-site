@@ -12,8 +12,8 @@ const H = canvas.height;
 // ---------- Audio ----------
 let audioCtx = null;
 function initAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (!audioCtx) audioCtx = ArcadeAudio.context();
+  ArcadeAudio.resume();
 }
 function playTone(freq, dur, type='square', vol=0.06, slide=0) {
   if (!audioCtx) return;
@@ -24,7 +24,7 @@ function playTone(freq, dur, type='square', vol=0.06, slide=0) {
   if (slide) o.frequency.linearRampToValueAtTime(freq + slide, audioCtx.currentTime + dur);
   g.gain.setValueAtTime(vol, audioCtx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
-  o.connect(g); g.connect(audioCtx.destination);
+  o.connect(g); g.connect(ArcadeAudio.output('sfx'));
   o.start(); o.stop(audioCtx.currentTime + dur);
 }
 // Filtered noise burst — the backbone of '80s arcade impact sounds
@@ -44,7 +44,7 @@ function playNoise(dur, vol, filterType, f0, f1) {
   const g = audioCtx.createGain();
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  n.connect(flt); flt.connect(g); g.connect(audioCtx.destination);
+  n.connect(flt); flt.connect(g); g.connect(ArcadeAudio.output('sfx'));
   n.start(t);
 }
 
@@ -59,7 +59,7 @@ function playZap(f0, fEnd, dur, vol) {
   o.frequency.exponentialRampToValueAtTime(fEnd, t + dur);
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur * 1.2);
-  o.connect(g); g.connect(audioCtx.destination);
+  o.connect(g); g.connect(ArcadeAudio.output('sfx'));
   o.start(t); o.stop(t + dur * 1.3);
 }
 

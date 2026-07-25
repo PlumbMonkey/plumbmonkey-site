@@ -10,17 +10,17 @@ const W = canvas.width, H = canvas.height;
 
 let audioCtx = null;
 function initAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (!audioCtx) audioCtx = ArcadeAudio.context();
+  ArcadeAudio.resume();
 }
-function tone(f, d, t='square', v=0.05, s=0) {
+  function tone(f, d, t='square', v=0.05, s=0, bus='sfx') {
   if (!audioCtx) return;
   const o = audioCtx.createOscillator(), g = audioCtx.createGain();
   o.type = t; o.frequency.setValueAtTime(f, audioCtx.currentTime);
   if (s) o.frequency.linearRampToValueAtTime(f+s, audioCtx.currentTime+d);
   g.gain.setValueAtTime(v, audioCtx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+d);
-  o.connect(g); g.connect(audioCtx.destination);
+  o.connect(g); g.connect(ArcadeAudio.output(bus));
   o.start(); o.stop(audioCtx.currentTime+d);
 }
 function noiseBlast(dur, vol, cutoff) {
@@ -38,7 +38,7 @@ function noiseBlast(dur, vol, cutoff) {
   const g = audioCtx.createGain();
   g.gain.setValueAtTime(vol, audioCtx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
-  n.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
+  n.connect(lp); lp.connect(g); g.connect(ArcadeAudio.output('sfx'));
   n.start();
 }
 const sfx = {
@@ -79,10 +79,10 @@ function musicTick() {
   if (!gameRunning || deathFreeze > 0 || !audioCtx) return;
   const n = arp[musicStep % arp.length];
   // gentle bell-like arpeggio
-  tone(n, 0.32, 'triangle', 0.03);
-  tone(n * 2, 0.18, 'sine', 0.014);
+    tone(n, 0.32, 'triangle', 0.03, 0, 'music');
+    tone(n * 2, 0.18, 'sine', 0.014, 0, 'music');
   const d = drone[musicStep % drone.length];
-  if (d) tone(d, 1.1, 'sawtooth', 0.035, 4);
+    if (d) tone(d, 1.1, 'sawtooth', 0.035, 4, 'music');
   musicStep++;
 }
 function startMusic() { if (!musicTimer) musicTimer = setInterval(musicTick, 240); }
