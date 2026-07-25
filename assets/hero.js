@@ -12,9 +12,31 @@ function onYouTubeIframeAPIReady() {
   if (iframeElement) {
     player = new YT.Player('hero-video', {
       events: {
-        'onStateChange': onPlayerStateChange
+        'onReady': onPlayerReady,
+        'onStateChange': onPlayerStateChange,
+        'onError': onPlayerError
       }
     });
+  }
+}
+
+function onPlayerReady(event) {
+  event.target.mute();
+  event.target.playVideo();
+}
+
+function onPlayerError() {
+  const iframe = document.getElementById('hero-video');
+  const posterImg = document.getElementById('hero-poster');
+  const speakerBtn = document.getElementById('speaker-btn');
+  const fallbackLink = document.getElementById('hero-video-fallback');
+
+  if (iframe) iframe.classList.add('hidden');
+  if (posterImg) posterImg.classList.remove('hidden');
+  if (speakerBtn) speakerBtn.classList.add('hidden');
+  if (fallbackLink) {
+    fallbackLink.classList.remove('hidden');
+    fallbackLink.classList.add('flex');
   }
 }
 
@@ -43,17 +65,15 @@ document.addEventListener('DOMContentLoaded', function () {
   // --- AUDIO TOGGLE BUTTON (YouTube video) ---
   if (speakerBtn && iconMuted && iconUnmuted && iframe) {
     speakerBtn.addEventListener('click', () => {
-      const currentSrc = iframe.src;
-      
+      if (!player || typeof player.unMute !== 'function') return;
+
       if (isMuted) {
-        // Switch to unmuted version
-        iframe.src = currentSrc.replace('mute=1', 'mute=0');
+        player.unMute();
         iconMuted.classList.add('hidden');
         iconUnmuted.classList.remove('hidden');
         isMuted = false;
       } else {
-        // Switch to muted version
-        iframe.src = currentSrc.replace('mute=0', 'mute=1');
+        player.mute();
         iconMuted.classList.remove('hidden');
         iconUnmuted.classList.add('hidden');
         isMuted = true;

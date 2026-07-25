@@ -169,9 +169,11 @@
       transform: translate(-50%, -50%);
       border: none;
     "
-    src="https://www.youtube.com/embed/9z97EOMQXiM?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&modestbranding=1&enablejsapi=1&cc_load_policy=0&playsinline=1"
+    src="https://www.youtube.com/embed/9z97EOMQXiM?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&enablejsapi=1&cc_load_policy=0&playsinline=1&origin=https%3A%2F%2Fplumbmonkey.online"
     title="Plumbmonkey Hero Video"
     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    referrerpolicy="strict-origin-when-cross-origin"
+    loading="eager"
     allowfullscreen
   ></iframe>
 
@@ -191,6 +193,16 @@
       transform: translate(-50%, -50%);
     "
   />
+
+  <a
+    id="hero-video-fallback"
+    href="https://youtu.be/9z97EOMQXiM"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="absolute inset-0 z-[5] hidden items-center justify-center bg-black/35 text-sm font-semibold text-white"
+  >
+    Watch the hero video on YouTube
+  </a>
 
   <!-- OFFER (text overlay) -->
   <div class="absolute inset-x-0 pb-8 px-4 flex flex-col items-center text-center z-10"
