@@ -72,6 +72,7 @@ const ArcadeControls = (function () {
   let xrKeys = new Set();       // codes held by Quest Touch controllers (vr-mode.js)
   let xrAim = null;             // {angle} while the XR right thumbstick is deflected
   let ownedKeys = new Set();    // what WE set last frame, so we only clear our own
+  const physicalKeys = new Set();
   let started = false;
   let autoFire = false;
 
@@ -105,8 +106,15 @@ const ArcadeControls = (function () {
 
     window.addEventListener('gamepadconnected', onGamepadChange);
     window.addEventListener('gamepaddisconnected', onGamepadChange);
+    window.addEventListener('keydown', e => {
+      if (e.isTrusted) physicalKeys.add(e.code);
+    }, true);
+    window.addEventListener('keyup', e => {
+      if (e.isTrusted) physicalKeys.delete(e.code);
+    }, true);
+    window.addEventListener('blur', () => physicalKeys.clear());
 
-    requestAnimationFrame(poll);
+    schedulePoll();
     return api;
   }
 
@@ -123,7 +131,9 @@ const ArcadeControls = (function () {
     // gives you ONE laser cursor, so without this you cannot press a movement
     // button and the fire button at the same time in any of the shooters.
     if (autoFire && opts.buttons[0]) desired.add(opts.buttons[0].code);
-    ownedKeys.forEach(c => { if (!desired.has(c)) keys[c] = false; });
+    ownedKeys.forEach(c => {
+      if (!desired.has(c)) keys[c] = physicalKeys.has(c);
+    });
     desired.forEach(c => { keys[c] = true; });
     ownedKeys = desired;
   }
@@ -226,6 +236,13 @@ const ArcadeControls = (function () {
   function setXrInput(codes, aim) {
     xrKeys = codes || new Set();
     xrAim = aim || null;
+    if (xrAim) { api.aimActive = true; api.aimAngle = xrAim.angle; }
+    applyKeys();
+  }
+
+  function schedulePoll() {
+    if (typeof ArcadeVR !== 'undefined' && ArcadeVR.schedule) ArcadeVR.schedule(poll);
+    else requestAnimationFrame(poll);
   }
 
   function poll() {
@@ -235,7 +252,7 @@ const ArcadeControls = (function () {
     // Bluetooth pad is present, which would otherwise wipe the Touch stick.
     if (xrAim) { api.aimActive = true; api.aimAngle = xrAim.angle; }
     applyKeys();
-    requestAnimationFrame(poll);
+    schedulePoll();
   }
 
   // ---------------------------------------------------------------------

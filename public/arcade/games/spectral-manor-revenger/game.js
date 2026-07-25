@@ -2043,7 +2043,7 @@ function updateHUD() {
 function loop() {
   update();
   draw();
-  requestAnimationFrame(loop);
+  ArcadeVR.schedule(loop);
 }
 
 updateHUD();

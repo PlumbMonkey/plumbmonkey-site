@@ -1064,7 +1064,7 @@ function updateHUD() {
 function loop() {
   update();
   draw();
-  requestAnimationFrame(loop);
+  ArcadeVR.schedule(loop);
 }
 loop();
 console.log('Spectral Manor Cruise ready');

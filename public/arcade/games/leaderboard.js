@@ -574,21 +574,8 @@
     if (prevStart) { key('Space', 'keyup'); prevStart = false; }
   }
 
-  if (!attract && typeof window !== 'undefined' && 'getGamepads' in navigator) {
-    window.addEventListener('gamepadconnected', e => {
-      if (gamepadIndex === null) gamepadIndex = e.gamepad.index;
-      gamepadBadge(true);
-      if (!gamepadTimer) gamepadTimer = setInterval(pollGamepad, 16);
-    });
-    window.addEventListener('gamepaddisconnected', e => {
-      if (e.gamepad.index === gamepadIndex) {
-        gamepadIndex = null;
-        releaseAllVK();
-        gamepadBadge(false);
-        if (reticleEl) { reticleEl.remove(); reticleEl = null; }
-      }
-    });
-  }
+  // Standard gamepads are owned by arcade-controls.js. A second poller here
+  // used to dispatch competing key releases and could cancel held input.
 
   const API = {
     slug: deriveSlug(),
@@ -603,11 +590,5 @@
   if (typeof document !== 'undefined') {
     if (document.head) injectStyle();
     else window.addEventListener('DOMContentLoaded', injectStyle);
-    if (!attract) {
-      const vrScript = document.createElement('script');
-      vrScript.src = '../vr-arcade.js';
-      vrScript.defer = true;
-      document.head.appendChild(vrScript);
-    }
   }
 })();

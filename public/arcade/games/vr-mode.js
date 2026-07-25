@@ -34,20 +34,18 @@ const ArcadeVR = (function () {
   let gameCanvas = null;
   let supported = false;
 
-  // rAF router state — see installRafRouter(). This module OWNS
-  // window.requestAnimationFrame for the page's life (installed at load, before
-  // any game.js runs), routing every callback through one queue. In flat mode a
-  // driver on the real clock pumps the queue; inside a VR session the XR frame
-  // pumps it instead. Because the queue — not the browser's internal rAF list —
-  // holds the game loop's pending tick, switching drivers never strands it.
-  let realRaf = null, realCancel = null;
+  // Cooperative scheduling state. Arcade loops opt in through schedule();
+  // the global browser animation API is never replaced.
+  const realRaf = window.requestAnimationFrame.bind(window);
+  const realCancel = window.cancelAnimationFrame.bind(window);
   let rafQueue = [], rafId = 1;
+  const pendingRaf = new Map();
   let rafMode = 'flat';        // 'flat' | 'xr'
-  let flatScheduled = false;
   let lastError = null;        // last caught error, painted into the VR view
   let xrFrames = 0;            // counts XR frames — a frozen counter = frame loop stopped
+  let inputStatus = 'controllers 0';
 
-  const api = { init, enter, exit, mapInput,
+  const api = { init, enter, exit, mapInput, schedule, cancel,
                 get active() { return !!session; },
                 get supported() { return supported; } };
 
@@ -126,34 +124,37 @@ const ArcadeVR = (function () {
     return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]);
   }
 
-  // ------------------------------------------------------------- rAF router
-  // Installed once at page load (before game.js). Every game drives itself with
-  // window.requestAnimationFrame; we collect those callbacks into rafQueue and
-  // decide who runs them. In flat mode flatTick (on the real clock) drains the
-  // queue every frame — identical cadence to native rAF, just one indirection.
-  // Inside a VR session onXRFrame drains it instead, at headset framerate, with
-  // no change to any game.js. The handoff is seamless because the queue is the
-  // single source of truth: the loop's next tick lives here, not in the
-  // browser's rAF list which gets suspended when an immersive session starts.
-  function installRafRouter() {
-    if (realRaf) return;
-    realRaf = window.requestAnimationFrame.bind(window);
-    realCancel = window.cancelAnimationFrame.bind(window);
-    window.requestAnimationFrame = (cb) => {
-      const id = rafId++;
-      rafQueue.push({ id, cb });
-      if (rafMode === 'flat') ensureFlatDriver();
-      return id;
-    };
-    window.cancelAnimationFrame = (id) => {
-      rafQueue = rafQueue.filter((q) => q.id !== id);
-    };
+  // -------------------------------------------------------- frame scheduler
+  // Flat play uses native rAF. During an immersive session only registered
+  // arcade callbacks move to the headset clock; unrelated page code is intact.
+  function schedule(cb) {
+    const id = rafId++;
+    const item = { id, cb, nativeId: null };
+    pendingRaf.set(id, item);
+    if (rafMode === 'xr') {
+      rafQueue.push(item);
+    } else {
+      item.nativeId = realRaf(t => {
+        if (!pendingRaf.delete(id)) return;
+        cb(t);
+      });
+    }
+    return id;
+  }
+
+  function cancel(id) {
+    const item = pendingRaf.get(id);
+    if (!item) return;
+    pendingRaf.delete(id);
+    if (item.nativeId !== null) realCancel(item.nativeId);
+    rafQueue = rafQueue.filter(q => q.id !== id);
   }
 
   function drainRaf(t) {
     const batch = rafQueue;
     rafQueue = [];
     for (const q of batch) {
+      if (!pendingRaf.delete(q.id)) continue;
       try {
         q.cb(t);
       } catch (e) {
@@ -163,26 +164,32 @@ const ArcadeVR = (function () {
         // record the error so the on-canvas readout can surface it in VR.
         lastError = e;
         console.error('[ArcadeVR] frame:', e);
-        rafQueue.push({ id: rafId++, cb: q.cb });
+        schedule(q.cb);
       }
     }
   }
 
-  function ensureFlatDriver() {
-    if (flatScheduled || rafMode !== 'flat' || !realRaf) return;
-    flatScheduled = true;
-    realRaf(flatTick);
-  }
-
-  function flatTick(t) {
-    flatScheduled = false;
-    if (rafMode !== 'flat') return;   // a VR session has taken over pumping
-    drainRaf(t);                      // callbacks reschedule → ensureFlatDriver
-  }
-
   function setRafMode(mode) {
+    if (mode === rafMode) return;
     rafMode = mode;
-    if (mode === 'flat') ensureFlatDriver();  // resume the flat pump on VR exit
+    if (mode === 'xr') {
+      pendingRaf.forEach(item => {
+        if (item.nativeId === null) return;
+        realCancel(item.nativeId);
+        item.nativeId = null;
+        rafQueue.push(item);
+      });
+      return;
+    }
+    const queued = rafQueue;
+    rafQueue = [];
+    queued.forEach(item => {
+      if (!pendingRaf.has(item.id)) return;
+      item.nativeId = realRaf(t => {
+        if (!pendingRaf.delete(item.id)) return;
+        item.cb(t);
+      });
+    });
   }
 
   // --------------------------------------------------------------- input
@@ -267,7 +274,10 @@ const ArcadeVR = (function () {
 
   function readControllers() {
     if (!session || typeof ArcadeControls === 'undefined') return;
-    const r = mapInput(session.inputSources, ArcadeControls.profile);
+    const sources = Array.from(session.inputSources || []);
+    inputStatus = 'controllers ' + sources.length + ' ' +
+      sources.map(s => (s.handedness || 'unknown') + (s.gamepad ? ':pad' : ':no-pad')).join(' ');
+    const r = mapInput(sources, ArcadeControls.profile);
     if (r.start) tryStart();
     ArcadeControls.setXrInput(r.codes, r.aim);
   }
@@ -349,7 +359,7 @@ const ArcadeVR = (function () {
       c.save();
       c.font = 'bold 15px monospace';
       c.textBaseline = 'top';
-      const tag = 'VR ' + xrFrames + '  q' + rafQueue.length;
+      const tag = 'VR ' + xrFrames + '  q' + rafQueue.length + '  ' + inputStatus;
       c.fillStyle = 'rgba(0,0,0,0.6)';
       c.fillRect(6, 6, c.measureText(tag).width + 14, 22);
       c.fillStyle = '#8ef0a0';
@@ -391,6 +401,7 @@ const ArcadeVR = (function () {
       s.requestAnimationFrame(onXRFrame);
     } catch (err) {
       console.error('[ArcadeVR] could not enter VR:', err);
+      lastError = err;
       session = null;
       setRafMode('flat');      // hand the loop back to the real clock
       setBtn(false);
@@ -446,13 +457,6 @@ const ArcadeVR = (function () {
     // the inline script after game.js — so wait a tick for the bar to exist.
     setTimeout(() => init(), 0);
   });
-
-  // Own rAF from the moment this script runs (before game.js), so the game
-  // loop's ticks live in our queue from the very first frame. Gated on
-  // navigator.xr: a browser with no WebXR can never enter VR, so it keeps
-  // native rAF untouched. Desktop/Quest browsers expose navigator.xr and get
-  // the router (a faithful passthrough in flat mode).
-  if (navigator.xr) installRafRouter();
 
   // Read-only-ish hook for diagnosing the loop in-headset (and for tests):
   // mode + queue depth, plus manual mode/pump control.

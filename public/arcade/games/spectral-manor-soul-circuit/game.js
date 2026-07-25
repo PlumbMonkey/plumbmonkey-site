@@ -695,7 +695,7 @@ spawnMonsters();
 function loop() {
   update();
   draw();
-  requestAnimationFrame(loop);
+  ArcadeVR.schedule(loop);
 }
 loop();
 console.log('Spectral Manor Soul Circuit ready');

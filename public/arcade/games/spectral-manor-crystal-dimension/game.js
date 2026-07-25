@@ -701,7 +701,7 @@ resetShip();
 function loop() {
   update();
   draw();
-  requestAnimationFrame(loop);
+  ArcadeVR.schedule(loop);
 }
 loop();
 console.log('Spectral Manor Crystal Dimension ready');
