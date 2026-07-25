@@ -44,6 +44,8 @@ const ArcadeVR = (function () {
   let rafQueue = [], rafId = 1;
   let rafMode = 'flat';        // 'flat' | 'xr'
   let flatScheduled = false;
+  let lastError = null;        // last caught error, painted into the VR view
+  let xrFrames = 0;            // counts XR frames — a frozen counter = frame loop stopped
 
   const api = { init, enter, exit, mapInput,
                 get active() { return !!session; },
@@ -152,7 +154,17 @@ const ArcadeVR = (function () {
     const batch = rafQueue;
     rafQueue = [];
     for (const q of batch) {
-      try { q.cb(t); } catch (e) { console.error('[ArcadeVR] frame:', e); }
+      try {
+        q.cb(t);
+      } catch (e) {
+        // A game loop reschedules itself on its LAST line, so a throw in
+        // update()/draw() would skip that and permanently freeze the game.
+        // Re-queue the callback so one bad frame can't kill the loop, and
+        // record the error so the on-canvas readout can surface it in VR.
+        lastError = e;
+        console.error('[ArcadeVR] frame:', e);
+        rafQueue.push({ id: rafId++, cb: q.cb });
+      }
     }
   }
 
@@ -187,6 +199,23 @@ const ArcadeVR = (function () {
   const pressed = (gp, i) => !!(gp && gp.buttons && gp.buttons[i] && gp.buttons[i].pressed);
 
   let startCooldown = 0;
+  let autoStartCooldown = 0;
+
+  // The start overlay is a DOM element sitting OVER the canvas — the VR screen
+  // only shows the canvas texture, so in the headset there is nothing to click
+  // and no visible "press to start" prompt. Without this the game just sits in
+  // its idle draw (Mess Hall shows a frozen hero; Revenger shows nothing) and
+  // never begins. So while immersed we click that overlay ourselves whenever
+  // it's visible — kicking the game off on entry and restarting it after a
+  // game-over. The cooldown keeps it from re-clicking every frame.
+  function autoStart() {
+    if (autoStartCooldown > 0) { autoStartCooldown--; return; }
+    const ov = document.getElementById('startOverlay');
+    if (ov && !ov.classList.contains('hidden')) {
+      ov.click();
+      autoStartCooldown = 90;   // ~1.5s guard between attempts
+    }
+  }
 
   // Pure mapper: input sources + game profile → {codes, aim, start}. Kept
   // separate from the session so the axis handling (the fiddliest part) can be
@@ -266,38 +295,74 @@ const ArcadeVR = (function () {
     if (!session) return;
     session.requestAnimationFrame(onXRFrame);
 
+    xrFrames++;
     startCooldown = Math.max(0, startCooldown - 1);
-    readControllers();
+    // Input must never be able to freeze the game: read it defensively, then
+    // auto-start (the overlay is invisible in VR), then always run the loop.
+    try { readControllers(); } catch (e) { lastError = e; console.error('[ArcadeVR] input:', e); }
+    try { autoStart(); } catch (e) { lastError = e; console.error('[ArcadeVR] start:', e); }
     drainRaf(t);              // run the game's own loop → repaints gameCanvas
+    drawDiag();               // paint status onto the canvas → visible in VR
 
-    const pose = frame.getViewerPose(refSpace);
+    let pose = null;
+    try { pose = frame.getViewerPose(refSpace); } catch (e) {}
     if (!pose) return;
-    const layer = session.renderState.baseLayer;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
-    gl.clearColor(0.02, 0.01, 0.05, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    try {
+      const layer = session.renderState.baseLayer;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+      gl.clearColor(0.02, 0.01, 0.05, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    gl.useProgram(prog);
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    // Upload the freshly-drawn 2D canvas as this frame's texture.
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, gameCanvas);
+      gl.useProgram(prog);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      // Upload the freshly-drawn 2D canvas as this frame's texture.
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, gameCanvas);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-    gl.enableVertexAttribArray(loc.aPos);
-    gl.vertexAttribPointer(loc.aPos, 3, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
-    gl.enableVertexAttribArray(loc.aUV);
-    gl.vertexAttribPointer(loc.aUV, 2, gl.FLOAT, false, 0, 0);
-    gl.uniform1i(loc.uTex, 0);
-    gl.uniformMatrix4fv(loc.uModel, false, translation(0, 0, -SCREEN_DIST));
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+      gl.enableVertexAttribArray(loc.aPos);
+      gl.vertexAttribPointer(loc.aPos, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+      gl.enableVertexAttribArray(loc.aUV);
+      gl.vertexAttribPointer(loc.aUV, 2, gl.FLOAT, false, 0, 0);
+      gl.uniform1i(loc.uTex, 0);
+      gl.uniformMatrix4fv(loc.uModel, false, translation(0, 0, -SCREEN_DIST));
 
-    for (const view of pose.views) {
-      const vp = layer.getViewport(view);
-      gl.viewport(vp.x, vp.y, vp.width, vp.height);
-      gl.uniformMatrix4fv(loc.uProj, false, view.projectionMatrix);
-      gl.uniformMatrix4fv(loc.uView, false, view.transform.inverse.matrix);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-    }
+      for (const view of pose.views) {
+        const vp = layer.getViewport(view);
+        gl.viewport(vp.x, vp.y, vp.width, vp.height);
+        gl.uniformMatrix4fv(loc.uProj, false, view.projectionMatrix);
+        gl.uniformMatrix4fv(loc.uView, false, view.transform.inverse.matrix);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      }
+    } catch (e) { lastError = e; console.error('[ArcadeVR] render:', e); }
+  }
+
+  // Paint a tiny status line onto the game canvas — the headset shows only the
+  // canvas texture, so this is the one place a message is visible in VR. The
+  // frame counter proves the frame loop is alive; any error text says what
+  // threw. Temporary diagnostic while we chase the in-headset freeze.
+  function drawDiag() {
+    if (!gameCanvas) return;
+    try {
+      const c = gameCanvas.getContext('2d');
+      if (!c) return;
+      c.save();
+      c.font = 'bold 15px monospace';
+      c.textBaseline = 'top';
+      const tag = 'VR ' + xrFrames + '  q' + rafQueue.length;
+      c.fillStyle = 'rgba(0,0,0,0.6)';
+      c.fillRect(6, 6, c.measureText(tag).width + 14, 22);
+      c.fillStyle = '#8ef0a0';
+      c.fillText(tag, 13, 9);
+      if (lastError) {
+        const msg = 'ERR ' + String((lastError && lastError.message) || lastError).slice(0, 74);
+        c.fillStyle = 'rgba(0,0,0,0.75)';
+        c.fillRect(6, 30, c.measureText(msg).width + 14, 22);
+        c.fillStyle = '#ff8a8a';
+        c.fillText(msg, 13, 33);
+      }
+      c.restore();
+    } catch (e) {}
   }
 
   // ------------------------------------------------------------ lifecycle
@@ -321,6 +386,7 @@ const ArcadeVR = (function () {
 
       s.addEventListener('end', onSessionEnd);
       setRafMode('xr');        // the XR frame now pumps the game loop
+      autoStartCooldown = 0;   // auto-start on the very first frame
       setBtn(true);
       s.requestAnimationFrame(onXRFrame);
     } catch (err) {
