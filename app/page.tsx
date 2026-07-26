@@ -74,24 +74,59 @@ export default function HomePage() {
 
       <section id="world" className="relative border-y border-brass-700/25 px-6 py-24">
         <div className="manor-glow pointer-events-none absolute inset-0" aria-hidden="true" />
-        <div className="relative mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+        <div className="relative mx-auto max-w-6xl">
+          <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-brass-400">
+                Private by design
+              </p>
+              <h2 className="font-display text-4xl leading-tight text-moonlit-50 md:text-5xl">
+                Create here. Keep it with you.
+              </h2>
+            </div>
+            <div className="space-y-5 text-lg leading-relaxed text-moonlit-200">
+              <p>
+                Your projects are not uploaded to Plumbmonkey, added to a shared library, or
+                reused by the studio. The creative tools run in your browser and your work
+                remains yours.
+              </p>
+              <p>
+                Download a project file when you finish. Re-upload it later to continue
+                working&mdash;no account or cloud project storage required.
+              </p>
+            </div>
+          </div>
+
+          <ol className="mt-14 grid gap-px overflow-hidden border border-moonlit-700/70 bg-moonlit-700/70 md:grid-cols-3">
+            {[
+              ["01", "Create in your browser", "Use the instruments and creative rooms without sending a project to us."],
+              ["02", "Download your project", "Keep the editable file on your own device, alongside any finished exports."],
+              ["03", "Return when you like", "Upload that project file to continue from where you left off."],
+            ].map(([number, title, copy]) => (
+              <li key={number} className="bg-moonlit-950/95 p-7">
+                <span className="font-display text-lg text-brass-400">{number}</span>
+                <h3 className="mt-5 font-display text-2xl text-white">{title}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-moonlit-300">{copy}</p>
+              </li>
+            ))}
+          </ol>
+
+          <div className="mt-10 grid gap-6 border-t border-brass-700/25 pt-10 lg:grid-cols-[0.8fr_1.2fr]">
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-brass-400">
               One world, many forms
             </p>
-            <h2 className="font-display text-4xl leading-tight text-moonlit-50 md:text-5xl">
-              Nothing created here is used only once.
-            </h2>
+            <h3 className="font-display text-3xl leading-tight text-moonlit-50">
+              Our world grows through connected stories.
+            </h3>
           </div>
-          <div className="space-y-5 text-lg leading-relaxed text-moonlit-200">
+          <div className="text-base leading-relaxed text-moonlit-300">
             <p>
-              A character can begin in a sketch, walk into a comic, star in an animation, and
-              become playable in a game. A song can become an album track, a soundtrack, a
-              Light Lab performance, or the pulse of an arcade room.
+              Plumbmonkey&apos;s own characters, music, stories, and games cross between rooms
+              inside Spectral Manor. That connected universe belongs to the studio; anything
+              you make with the public tools belongs to you.
             </p>
-            <p>
-              Plumbmonkey is the studio building that ecosystem. Spectral Manor is its home.
-            </p>
+          </div>
           </div>
         </div>
       </section>

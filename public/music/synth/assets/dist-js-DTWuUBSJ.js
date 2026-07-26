@@ -1,0 +1,1 @@
+import{zt as e}from"./saveFile-CaTVXve-.js";import{i as t}from"./core-CyKf7_aR.js";var n=e({open:()=>r,save:()=>i});async function r(e={}){return typeof e==`object`&&Object.freeze(e),await t(`plugin:dialog|open`,{options:e})}async function i(e={}){return typeof e==`object`&&Object.freeze(e),await t(`plugin:dialog|save`,{options:e})}export{r as n,i as r,n as t};

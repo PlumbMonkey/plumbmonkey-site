@@ -1,0 +1,1 @@
+async function e(e){let t=new AudioContext,n;try{n=await t.decodeAudioData(e)}finally{t.close()}let{sampleRate:r,numberOfChannels:i,length:a}=n,o=new Float32Array(a);for(let e=0;e<i;e++){let t=n.getChannelData(e);for(let e=0;e<a;e++)o[e]+=t[e]}if(i>1){let e=1/i;for(let t=0;t<a;t++)o[t]*=e}return{mono:o,sampleRate:r,durationSec:a/r,channels:i}}export{e as decodeAudioBuffer};
