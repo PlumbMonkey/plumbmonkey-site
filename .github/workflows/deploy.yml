@@ -14,7 +14,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -26,77 +29,13 @@ jobs:
           node-version: "18"
           cache: "npm"
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build Next.js exports
-        run: npm run build
-
-      - name: Copy Next.js exports to root
-        run: |
-          cp -r out/_next ./ || true
-          cp -r out/onboarding/orientation.html onboarding/orientation.html || true
-          cp -r out/onboarding/orientation.txt onboarding/orientation.txt || true
-          cp -r out/arcade ./ || true
-          cp -r out/arcade.html ./arcade.html || true
-          cp -r out/arcade.txt ./arcade.txt || true
-          cp -r out/music ./ || true
-          cp -r out/visual ./ || true
-          cp -r out/shared ./ || true
-          cp -r out/music.html ./music.html || true
-          # Regenerate ALL built pages every deploy so root snapshots can't go
-          # stale (stale snapshots hydrate the OLD NavBar from old _next chunks
-          # and silently wipe nav updates). index.html stays hand-written.
-          for p in how-it-works pricing-scope pricing upload contact onboarding portfolio sales-hub 404; do
-            cp out/$p.html ./$p.html || true
-            cp out/$p.txt ./$p.txt || true
-          done
-          cp -r out/sales-hub ./ || true
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js and build
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-          cache: "npm"
-
       - name: Install and build
         run: npm ci && npm run build
-
-      - name: Copy exports
-        run: |
-          cp -r out/_next ./ || true
-          cp -r out/onboarding/orientation.html onboarding/orientation.html || true
-          cp -r out/onboarding/orientation.txt onboarding/orientation.txt || true
-          cp -r out/arcade ./ || true
-          cp -r out/arcade.html ./arcade.html || true
-          cp -r out/arcade.txt ./arcade.txt || true
-          cp -r out/music ./ || true
-          cp -r out/visual ./ || true
-          cp -r out/shared ./ || true
-          cp -r out/music.html ./music.html || true
-          # Regenerate ALL built pages every deploy so root snapshots can't go
-          # stale (stale snapshots hydrate the OLD NavBar from old _next chunks
-          # and silently wipe nav updates). index.html stays hand-written.
-          for p in how-it-works pricing-scope pricing upload contact onboarding portfolio sales-hub 404; do
-            cp out/$p.html ./$p.html || true
-            cp out/$p.txt ./$p.txt || true
-          done
-          cp -r out/sales-hub ./ || true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./
+          path: ./out
 
       - name: Deploy to GitHub Pages
         id: deployment

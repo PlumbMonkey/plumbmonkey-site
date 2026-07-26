@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ghost Circuit Drum Machine | Plumbmonkey</title>
+  <title>DM-1 Rhythm Machine | Stave</title>
   <link rel="stylesheet" href="../shared/sound-stage.css" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -52,12 +52,34 @@
     .footer a { color: #22d3ee; text-decoration: none; }
     .footer a:hover { text-decoration: underline; }
     .hint { margin-top: .6rem; font-size: .72rem; color: #475569; }
+
+    /* Stave / Spectral Manor instrument skin */
+    body { background: radial-gradient(ellipse at 18% 90%, #9fcf9a20, transparent 38%), radial-gradient(ellipse at 78% 0%, #8a68aa32, transparent 36%), #0b0910; color: #eee7d8; }
+    h1 { font-family: Georgia, 'Times New Roman', serif; color: #d6a35b; text-shadow: 0 0 22px #d6a35b44; }
+    .subtitle, .ctl, .flash { color: #9fcf9a; }
+    .nav a { color: #d9c8aa; background: #15121add; border-color: #3c3243; }
+    .nav a:hover { color: #9fcf9a; border-color: #9fcf9a; box-shadow: 0 0 12px #9fcf9a55; }
+    .transport, .machine { background: linear-gradient(145deg, #302839cc, #15121aee); border-color: #3c3243; box-shadow: 0 24px 70px #0009, 0 0 40px #8a68aa20; }
+    button { background: #302839; color: #eee7d8; }
+    button:hover { background: #44374e; box-shadow: 0 0 14px #9fcf9a44; }
+    #playBtn { background: #d6a35b; color: #171119; }
+    #playBtn:hover { background: #ebc47f; }
+    input[type=range] { accent-color: #9fcf9a; }
+    .track-label { color: #c9bdca; }
+    .cell { background: #15121a; border-color: #3c3243; }
+    .cell.beat { background: #201b26; border-left-color: #d6a35b88; }
+    .cell:hover { border-color: #9fcf9a; }
+    .cell.on { background: #78936f; box-shadow: 0 0 10px #9fcf9a77; }
+    .cell.playing { outline-color: #ebc47f; }
+    .cell.on.playing { background: #c3dfb8; box-shadow: 0 0 18px #9fcf9acc; animation: spectral-hit .11s ease-out; }
+    @keyframes spectral-hit { from { transform: translateY(2px) scale(.88); filter: brightness(1.8); } to { transform: none; filter: none; } }
+    .footer { color: #675d6c; }
   </style>
 </head>
 <body>
   <div class="nav">
     <a href="/music">← Sound Stage</a>
-    <a href="../synth/index.html">Synth</a>
+    <a href="../synth/index.html">SY-1</a>
     <a href="../song/index.html">Song</a>
     <a href="/visual/index.html">Light Lab</a>
     <span class="nav-sep"></span>
@@ -65,8 +87,8 @@
     <a href="/" data-short="Home"><span class="nav-long">Plumbmonkey Home</span></a>
   </div>
 
-  <h1>GHOST CIRCUIT DRUM MACHINE</h1>
-  <div class="subtitle">8-track step sequencer · synthesized in your browser</div>
+  <h1>DM-1 RHYTHM MACHINE</h1>
+  <div class="subtitle">8 spectral voices · 16-step sequencer · forged for Stave</div>
 
   <div class="transport">
     <button id="playBtn">▶ Play</button>
@@ -95,8 +117,8 @@
   <div class="hint">Click steps to build a beat · click a track name to mute (or preview) · Spacebar plays/stops · ⭳ next to a track name downloads that sample</div>
 
   <div class="footer">
-    Part of the <strong style="color:#7dd3fc">Ghost Circuit</strong> sound lab · Built by Plumbmonkey Media<br>
-    Want the full desktop version — more kits, sample import, MIDI export?
+    <strong style="color:#d6a35b">DM-1</strong> · an instrument from Stave and the Spectral Manor<br>
+    Want the full desktop version with deeper sequencing and MIDI control?
     <a href="https://plumbmonkey.gumroad.com/" target="_blank" rel="noopener noreferrer">Get the Drum Machine on Gumroad →</a>
   </div>
 

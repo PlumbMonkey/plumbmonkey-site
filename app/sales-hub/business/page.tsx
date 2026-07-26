@@ -142,7 +142,7 @@ export default function BusinessPage() {
             Get a personalized consultation on business practices, automation, and creative operations.
           </p>
           <Link
-            href="/onboarding/orientation"
+            href="/onboarding"
             className="inline-block px-6 py-3 rounded-lg border border-amber-500 text-amber-400 font-semibold hover:bg-amber-500/10 transition"
           >
             Schedule a Consultation

@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from "react";
 import Link from "next/link";
 
@@ -15,18 +17,18 @@ export default function StickyCTA() {
       "
       aria-label="Sticky Call To Action"
     >
-      <div className="relative pointer-events-auto px-4 py-2 md:px-6 md:py-3 bg-teal-700 text-white rounded-t-xl md:rounded-xl shadow-lg flex items-center gap-3">
-        <span className="font-semibold text-lg">Ready to start your project?</span>
+      <div className="relative pointer-events-auto px-4 py-2 md:px-6 md:py-3 bg-burgundy-600 text-white rounded-t-xl md:rounded-xl shadow-lg flex items-center gap-3">
+        <span className="font-display font-semibold text-lg">Ready to start your project?</span>
         <Link
           href="/contact"
-          className="ml-2 bg-white text-teal-700 hover:bg-teal-50 font-bold px-4 py-2 rounded-lg shadow transition focus:outline-none focus:ring-2 focus:ring-white"
+          className="ml-2 bg-white text-burgundy-600 hover:bg-brass-50 font-bold px-4 py-2 rounded-lg shadow transition focus:outline-none focus:ring-2 focus:ring-white"
           aria-label="Start a Project"
         >
           Start a Project
         </Link>
         <button
           onClick={() => setVisible(false)}
-          className="absolute top-2 right-2 p-2 rounded-full hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-white"
+          className="absolute top-2 right-2 p-2 rounded-full hover:bg-burgundy-800 focus:outline-none focus:ring-2 focus:ring-white"
           aria-label="Dismiss call to action"
           type="button"
         >

@@ -142,7 +142,7 @@ export default function VisualPage() {
             Get a bespoke color grade, motion design, or video editing service tailored to your project.
           </p>
           <Link
-            href="/onboarding/orientation"
+            href="/onboarding"
             className="inline-block px-6 py-3 rounded-lg border border-cyan-500 text-cyan-400 font-semibold hover:bg-cyan-500/10 transition"
           >
             Book a Service

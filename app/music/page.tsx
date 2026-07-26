@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import NeonCursor from "../components/NeonCursor";
 import MusicContinue from "./MusicContinue";
 
 export const metadata: Metadata = {
-  title: "Sound Stage | Make Beats, Synths & Songs Online",
+  title: "Spectral Manor Instruments | SY-1 & DM-1",
   description:
-    "Build beats, design synth sounds, arrange a complete song, then carry your audio into Ghost Circuit Light Lab for a music visual.",
-  keywords: ["online music maker", "browser drum machine", "browser synth", "song arranger", "music visualizer"],
+    "Play the SY-1 synthesizer and DM-1 rhythm machine in your browser, then arrange a complete song inside Spectral Manor.",
+  keywords: ["Stave", "SY-1 synthesizer", "DM-1 drum machine", "browser synth", "browser drum machine", "music visualizer"],
   openGraph: {
-    title: "Ghost Circuit Sound Stage",
-    description: "Make a beat. Play a synth. Build a song. Turn it into a visual.",
+    title: "Stave Instruments — The Spectral Manor",
+    description: "Summon a beat. Shape your sound. Build a complete song.",
     type: "website",
   },
 };
@@ -18,10 +19,10 @@ const tools = [
   {
     number: "01",
     href: "/music/drum-machine/index.html",
-    title: "Build a beat",
-    product: "Drum Machine",
-    copy: "Program eight synthesized voices on a fast 16-step grid. Save patterns and export WAV or MIDI.",
-    action: "Start with a beat",
+    title: "Summon the beat",
+    product: "DM-1 Rhythm Machine",
+    copy: "Program eight spectral drum voices on a tactile 16-step grid. Save patterns and export WAV or MIDI.",
+    action: "Open the DM-1",
     accent: "cyan",
     preview: (
       <div className="grid grid-cols-8 gap-1" aria-hidden="true">
@@ -34,10 +35,10 @@ const tools = [
   {
     number: "02",
     href: "/music/synth/index.html",
-    title: "Play a sound",
-    product: "Soft Synth",
-    copy: "Shape a polyphonic synth with filters, envelopes and studio effects, then record a playable riff.",
-    action: "Open the synth",
+    title: "Shape your sound",
+    product: "SY-1 Synthesizer",
+    copy: "Wake a polyphonic voice with filters, envelopes, performance controls and spectral effects, then record a playable riff.",
+    action: "Open the SY-1",
     accent: "amber",
     preview: (
       <div className="flex h-14 items-end gap-1" aria-hidden="true">
@@ -84,19 +85,29 @@ export default function MusicPage() {
           <div className="absolute inset-0 bg-[linear-gradient(#ffffff08_1px,transparent_1px),linear-gradient(90deg,#ffffff08_1px,transparent_1px)] bg-[size:42px_42px] [mask-image:linear-gradient(to_bottom,black,transparent)]" />
         </div>
         <div className="relative mx-auto max-w-4xl">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.34em] text-cyan-300">Ghost Circuit Sound Stage</p>
+          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.34em] text-lime-200">Stave · Spectral Manor Instruments</p>
           <h1 className="font-serif text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-7xl">
-            Make a beat. Play a synth.
-            <span className="block bg-gradient-to-r from-cyan-300 via-violet-300 to-fuchsia-300 bg-clip-text text-transparent">Build a complete song.</span>
+            Summon a beat. Shape your sound.
+            <span className="block bg-gradient-to-r from-lime-200 via-amber-200 to-violet-300 bg-clip-text text-transparent">Build a complete song.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-            A free browser studio for turning an idea into finished audio—no install, account or musical experience required.
+            Two playable instruments from Stave, waiting in the manor. No install or account required.
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <a href="/music/drum-machine/index.html" className="rounded-xl bg-cyan-300 px-6 py-3.5 font-bold text-slate-950 transition hover:bg-cyan-200">Start with a beat</a>
-            <a href="#studio" className="rounded-xl border border-white/20 bg-white/5 px-6 py-3.5 font-semibold text-white transition hover:bg-white/10">Explore the studio</a>
+            <a href="/music/drum-machine/index.html" className="rounded-xl bg-lime-200 px-6 py-3.5 font-bold text-slate-950 transition hover:bg-lime-100">Open DM-1</a>
+            <a href="/music/synth/index.html" className="rounded-xl border border-amber-200/40 bg-amber-200/10 px-6 py-3.5 font-semibold text-amber-100 transition hover:bg-amber-200/20">Open SY-1</a>
           </div>
           <MusicContinue />
+          <div className="relative mx-auto mt-12 overflow-hidden rounded-2xl border border-lime-200/20 bg-black/40 shadow-[0_35px_120px_-45px_#9fcf9a]">
+            <Image
+              src="/assets/stave-instruments.png"
+              alt="The SY-1 synthesizer and DM-1 rhythm machine inside the Spectral Manor"
+              width={1680}
+              height={945}
+              priority
+              className="h-auto w-full"
+            />
+          </div>
         </div>
       </section>
 

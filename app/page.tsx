@@ -1,72 +1,164 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import RoomDoors from "./components/RoomDoors";
 
 export const metadata: Metadata = {
-  title: "Plumbmonkey | Professional Video Editing Services",
-  description: "Fast, affordable video editing with transparent pricing. From YouTube videos to promotional content, we deliver cinematic quality on your timeline.",
+  title: "Plumbmonkey | Enter Spectral Manor",
+  description:
+    "Explore Spectral Manor, an evolving creative world of original music, characters, stories, games, animation, and browser-based creative tools.",
 };
+
+const CURRENTLY_BUILDING = [
+  "A final full-length album and the music that will score the world",
+  "A growing library of 2D and 3D characters, sets, and props",
+  "New games, instruments, and creative rooms inside Spectral Manor",
+];
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center text-center px-6 py-20 bg-zinc-950 text-zinc-50">
-      <h1 className="text-4xl md:text-6xl font-bold mb-6">Welcome to Plumbmonkey!</h1>
-      <p className="text-lg text-zinc-400 mb-8 max-w-2xl">
-        Professional video editing, transparent pricing, and honest timelines.
-      </p>
-      <p className="text-sm text-zinc-500 mb-10 max-w-xl">
-        MIDI packs, music loops, producer tools, 3D assets, and more. New releases regularly added.
-      </p>
-      <div className="flex flex-col sm:flex-row gap-4 justify-center">
-        <a
-          href="/pricing-scope.html"
-          className="px-6 py-3 rounded-lg bg-teal-600 text-white font-semibold text-lg hover:bg-teal-500 transition"
-        >
-          View Pricing
-        </a>
-        <a
-          href="/onboarding/orientation"
-          className="px-6 py-3 rounded-lg bg-purple-600 text-white font-semibold text-lg hover:bg-purple-500 transition"
-        >
-          Start a Project
-        </a>
-        <a
-          href="https://plumbmonkey.gumroad.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-6 py-3 rounded-lg bg-orange-600 text-white font-semibold text-lg hover:bg-orange-500 transition"
-        >
-          Visit the Plumbmonkey Store
-        </a>
-      </div>
-      {/* Branded to match the Ghost Circuit tab in the nav — the same three
-          playgrounds, named the same way, so the universe reads as one thing
-          wherever a visitor meets it. */}
-      <section className="mt-16 w-full max-w-5xl">
-        <div className="mb-1 flex items-center justify-center gap-3">
-          <span className="h-px w-8 bg-gradient-to-r from-transparent to-cyan-400/50" />
-          <p className="bg-gradient-to-r from-cyan-300 to-violet-300 bg-clip-text text-xs font-semibold uppercase tracking-[0.3em] text-transparent">
-            Ghost Circuit
-          </p>
-          <span className="h-px w-8 bg-gradient-to-l from-transparent to-violet-400/50" />
+    <main className="overflow-hidden bg-moonlit-950">
+      <section className="manor-hero relative isolate flex min-h-[92svh] items-end overflow-hidden px-6 pb-16 pt-32 md:items-center md:pb-20">
+        <picture className="manor-hero-image absolute inset-0 -z-30">
+          <source
+            media="(max-width: 640px), (prefers-reduced-motion: reduce)"
+            srcSet="/assets/spectral-manor-poster.jpg"
+          />
+          <img
+            src="/assets/spectral-manor-hero.webp"
+            alt=""
+            aria-hidden="true"
+            fetchPriority="high"
+          />
+        </picture>
+        <div className="absolute inset-0 -z-20 bg-gradient-to-r from-moonlit-950 via-moonlit-950/70 to-transparent" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-t from-moonlit-950 via-transparent to-moonlit-950/35" />
+        <div className="manor-mist absolute inset-x-0 bottom-0 -z-10 h-1/2" aria-hidden="true" />
+
+        <div className="mx-auto w-full max-w-6xl">
+          <div className="max-w-3xl">
+            <p className="mb-5 text-xs font-semibold uppercase tracking-[0.36em] text-brass-300">
+              An independent creative world
+            </p>
+            <h1 className="font-display text-5xl font-semibold leading-[0.95] text-white drop-shadow-2xl sm:text-6xl md:text-8xl">
+              Enter
+              <span className="block text-brass-200">Spectral Manor</span>
+            </h1>
+            <p className="mt-7 max-w-2xl text-lg leading-relaxed text-moonlit-100 drop-shadow md:text-xl">
+              Music, characters, stories, games, animation, and creative tools—built as one
+              evolving world where every new piece gives life to the rest.
+            </p>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <a
+                href="#rooms"
+                className="rounded-sm bg-brass-300 px-7 py-3.5 text-center text-sm font-bold uppercase tracking-[0.18em] text-moonlit-950 transition hover:bg-brass-200"
+              >
+                Enter the Manor
+              </a>
+              <Link
+                href="/screening-room"
+                className="rounded-sm border border-white/30 bg-black/20 px-7 py-3.5 text-center text-sm font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-sm transition hover:border-brass-300 hover:text-brass-200"
+              >
+                Watch the Work
+              </Link>
+            </div>
+          </div>
         </div>
-        <p className="mb-6 text-sm text-zinc-500">
-          Three free playgrounds from the Ghost Circuit universe — no install, no sign-up.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <a href="/arcade" className="group rounded-2xl border border-violet-900 bg-violet-950/40 p-6 text-left transition hover:-translate-y-1 hover:border-violet-400">
-            <span className="mb-3 grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-lg text-violet-200">🕹</span>
-            <span className="text-xl font-bold text-violet-200">Arcade</span>
-            <span className="mt-2 block text-sm text-zinc-400">Eight games in the haunted manor — desktop, mobile, or VR.</span>
-          </a>
-          <a href="/music" className="group rounded-2xl border border-cyan-900 bg-cyan-950/40 p-6 text-left transition hover:-translate-y-1 hover:border-cyan-400">
-            <span className="mb-3 grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-lg text-cyan-200">♪</span>
-            <span className="text-xl font-bold text-cyan-200">Sound Stage</span>
-            <span className="mt-2 block text-sm text-zinc-400">Build beats, synth parts, songs, and recordings.</span>
-          </a>
-          <a href="/visual/index.html" className="group rounded-2xl border border-fuchsia-900 bg-fuchsia-950/40 p-6 text-left transition hover:-translate-y-1 hover:border-fuchsia-400">
-            <span className="mb-3 grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-gradient-to-br from-cyan-400/15 to-violet-500/15 text-lg text-fuchsia-200">✦</span>
-            <span className="text-xl font-bold text-fuchsia-200">Light Lab</span>
-            <span className="mt-2 block text-sm text-zinc-400">Turn your audio into customizable visuals for video.</span>
-          </a>
+
+        <a
+          href="#world"
+          className="absolute bottom-5 left-1/2 hidden -translate-x-1/2 text-[10px] uppercase tracking-[0.32em] text-moonlit-300 md:block"
+        >
+          Descend
+        </a>
+      </section>
+
+      <section id="world" className="relative border-y border-brass-700/25 px-6 py-24">
+        <div className="manor-glow pointer-events-none absolute inset-0" aria-hidden="true" />
+        <div className="relative mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-brass-400">
+              One world, many forms
+            </p>
+            <h2 className="font-display text-4xl leading-tight text-moonlit-50 md:text-5xl">
+              Nothing created here is used only once.
+            </h2>
+          </div>
+          <div className="space-y-5 text-lg leading-relaxed text-moonlit-200">
+            <p>
+              A character can begin in a sketch, walk into a comic, star in an animation, and
+              become playable in a game. A song can become an album track, a soundtrack, a
+              Light Lab performance, or the pulse of an arcade room.
+            </p>
+            <p>
+              Plumbmonkey is the studio building that ecosystem. Spectral Manor is its home.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <RoomDoors />
+
+      <section className="bg-[#08090d] px-6 py-24">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid overflow-hidden border border-moonlit-700/70 bg-moonlit-900/60 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="relative min-h-80 overflow-hidden lg:min-h-[30rem]">
+              <img
+                src="/assets/haunted-house-branded.jpg"
+                alt="Spectral Manor, the home of the Ghost Circuit universe"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-moonlit-950 via-transparent to-transparent lg:bg-gradient-to-r lg:from-transparent lg:to-moonlit-950" />
+            </div>
+            <div className="flex flex-col justify-center p-8 md:p-12">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-brass-400">
+                The current chapter
+              </p>
+              <h2 className="font-display text-4xl text-white">The world is being built now.</h2>
+              <ul className="mt-7 space-y-5">
+                {CURRENTLY_BUILDING.map((item, index) => (
+                  <li key={item} className="flex gap-4 text-moonlit-200">
+                    <span className="font-display text-brass-400">0{index + 1}</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/gallery"
+                className="mt-9 self-start border-b border-brass-400 pb-1 text-sm font-semibold uppercase tracking-[0.18em] text-brass-300 transition hover:text-brass-100"
+              >
+                See the visual work
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="relative px-6 py-24 text-center">
+        <div className="mx-auto max-w-3xl">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-brass-400">
+            Selective commissions
+          </p>
+          <h2 className="font-display text-4xl text-moonlit-50 md:text-5xl">
+            Interesting work is still welcome.
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-moonlit-200">
+            Plumbmonkey occasionally accepts animation, video, scoring, software, and unusual
+            cross-disciplinary projects that belong in the journey.
+          </p>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link
+              href="/onboarding/orientation"
+              className="rounded-sm bg-burgundy-500 px-7 py-3.5 text-sm font-bold uppercase tracking-[0.16em] text-white transition hover:bg-burgundy-400"
+            >
+              Propose a Project
+            </Link>
+            <Link
+              href="/contact"
+              className="rounded-sm border border-moonlit-600 px-7 py-3.5 text-sm font-semibold uppercase tracking-[0.16em] text-moonlit-100 transition hover:border-brass-400 hover:text-brass-200"
+            >
+              Contact the Studio
+            </Link>
+          </div>
         </div>
       </section>
     </main>

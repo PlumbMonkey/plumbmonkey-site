@@ -142,7 +142,7 @@ export default function AudioPage() {
             Request a custom audio tool or book a consultation with Plumbmonkey for bespoke sound design.
           </p>
           <Link
-            href="/onboarding/orientation"
+            href="/onboarding"
             className="inline-block px-6 py-3 rounded-lg border border-teal-500 text-teal-400 font-semibold hover:bg-teal-500/10 transition"
           >
             Get a Custom Quote
