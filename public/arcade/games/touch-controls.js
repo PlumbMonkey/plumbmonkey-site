@@ -27,6 +27,7 @@ const TouchPad = (function () {
   // must keep the desktop layout — hiding its HUD would be a downgrade.
   const isTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
   const isPhone = isTouch && mq('(pointer: coarse)') && !mq('(any-pointer: fine)');
+  const isAttract = /[?&]attract\b/.test(location.search);
 
   // Canvas-space geometry (canvas is 960x540, scaled to fit the screen)
   const RADIUS    = 92;   // full-tilt travel from the stick origin
@@ -35,8 +36,8 @@ const TouchPad = (function () {
   const AIM_REACH = 320;  // how far ahead the virtual "mouse" point is projected
 
   const api = {
-    enabled: isTouch,
-    phoneLayout: isPhone,
+    enabled: isTouch && !isAttract,
+    phoneLayout: isPhone && !isAttract,
     moveActive: false,   // left stick held
     firing: false,       // right stick held
     mx: 0, my: 0,        // analog move vector, magnitude 0..1
@@ -44,8 +45,9 @@ const TouchPad = (function () {
     init, sync, draw
   };
 
-  if (!isTouch) {
-    // Desktop: hand back a fully inert object.
+  if (!isTouch || isAttract) {
+    // Desktop and tiny non-interactive cabinet previews get an inert object.
+    // In particular, attract mode must never inject the phone rotation prompt.
     api.sync = function () {};
     api.draw = function () {};
     api.init = function () {};
