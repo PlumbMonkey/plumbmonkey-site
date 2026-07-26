@@ -20,16 +20,16 @@ body {
 }
 
 .manor-hero-image {
+  background: #05060a;
   overflow: hidden;
 }
 
 .manor-hero-image img {
   height: 100%;
   width: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
-  filter: saturate(0.82) contrast(1.08);
-  transform: scale(1.015);
+  filter: saturate(0.96) contrast(1.03);
 }
 
 .manor-mist {
