@@ -25,7 +25,8 @@ Save the screaming fans from the monsters!
 - Fans are mostly screaming females, some males, a few children
 - Walk into a free fan to **rescue** them (+300 points)
 - Monsters will grab fans and drag them off-screen (Lost)
-- Shoot monsters to free grabbed fans and clear the wave
+- Fire the Spectral Hunter's rune repeater to free grabbed fans
+- Later waves introduce ranged specters and elite archons; watch their charge rings
 - Survive as long as you can
 
 ---

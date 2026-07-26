@@ -26,8 +26,8 @@ Throw food at spectral chefs in the haunted manor cafeteria!
 ## Gameplay
 
 - Collect glowing food on the ground to restock ammo
-- Throw food at the angry spectral chefs
-- Chefs will throw food back at you!
+- Wind up and throw food at the angry spectral chefs
+- Watch enemy wind-ups — chefs throw food back at you
 - Clear all chefs to advance to the next level
 - Don't let them touch you or hit you with flying food
 

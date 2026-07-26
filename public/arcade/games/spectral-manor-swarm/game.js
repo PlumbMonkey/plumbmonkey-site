@@ -8,6 +8,8 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const W = canvas.width;
 const H = canvas.height;
+const ATTRACT_MODE = /[?&]attract\b/.test(location.search);
+if (ATTRACT_MODE) document.body.classList.add('attract');
 
 // ---------- Audio ----------
 let audioCtx = null;
@@ -126,7 +128,8 @@ const player = {
   speed: 4.6,
   fireCooldown: 0,
   invuln: 0,
-  angle: 0
+  angle: 0,
+  recoil: 0
 };
 
 // ---------- Entities ----------
@@ -236,6 +239,7 @@ function startGame() {
   bannerText = 'WAVE 1'; bannerTime = 90;
   player.x = W/2; player.y = H/2;
   player.fireCooldown = 0; player.invuln = 0;
+  player.recoil = 0;
   player.powerType = null; player.powerTime = 0;
   gameRunning = true; gameOver = false;
   document.getElementById('startOverlay').classList.add('hidden');
@@ -286,22 +290,28 @@ function spawnWave() {
   }
 
   // Monsters
-  const monsterTypes = [
+  const meleeTypes = [
     { type: 'grunt',   color: '#ef4444', speed: 1.5, hp: 1, size: 1 },
     { type: 'hunter',  color: '#f97316', speed: 2.3, hp: 1, size: 0.9 },
     { type: 'brute',   color: '#a855f7', speed: 1.0, hp: 3, size: 1.3 },
-    { type: 'specter', color: '#22d3ee', speed: 1.8, hp: 1, size: 0.95 },
     { type: 'horror',  color: '#4ade80', speed: 1.3, hp: 2, size: 1.15 }
   ];
+  const specter = { type: 'specter', color: '#22d3ee', speed: 1.65, hp: 2, size: 0.95 };
+  const archon = { type: 'archon', color: '#f472b6', speed: 1.45, hp: 5, size: 1.2 };
 
   const mCount = 5 + wave * 3;
+  const rangedCap = wave < 3 ? 0 : Math.min(1 + Math.floor((wave - 3) / 3), 4);
   // Keep fresh monsters a clear distance from wherever the hero currently is,
   // so a new wave never spawns one right on top of them (the hero holds their
   // position between waves, so on wave 2+ they may be sitting near an edge).
   const SAFE_SPAWN = 170;
   const pcx = player.x + player.w / 2, pcy = player.y + player.h / 2;
   for (let i = 0; i < mCount; i++) {
-    const m = monsterTypes[Math.floor(Math.random() * monsterTypes.length)];
+    const rangedSoFar = monsters.filter(m => m.type === 'specter' || m.type === 'archon').length;
+    let m = meleeTypes[Math.floor(Math.random() * meleeTypes.length)];
+    if (rangedSoFar < rangedCap && i >= mCount - rangedCap) {
+      m = wave >= 6 && rangedSoFar === 0 ? archon : specter;
+    }
     // spawn near edges, but not on the hero
     let x, y, tries = 0;
     do {
@@ -323,7 +333,8 @@ function spawnWave() {
       color: m.color,
       target: null,
       size: m.size,
-      boltTimer: 100 + Math.random() * 120 // specters: time to next shot
+      boltTimer: 100 + Math.random() * 120,
+      boltCharge: 0
     });
   }
 }
@@ -349,6 +360,7 @@ function fire() {
     });
   });
   player.fireCooldown = player.powerType === 'rapid' ? 3 : 7;
+  player.recoil = 6;
   sfx.shoot();
 }
 
@@ -390,6 +402,7 @@ function update() {
 
   if ((mouse.down || keys['Space']) && player.fireCooldown <= 0) fire();
   if (player.fireCooldown > 0) player.fireCooldown--;
+  if (player.recoil > 0) player.recoil--;
   if (player.invuln > 0) player.invuln--;
 
   // Power-up timer
@@ -509,7 +522,7 @@ function update() {
     m.walkPhase = (m.walkPhase || 0) + m.speed * 0.14; // limb animation
 
     // ----- Specters are casters: keep range and hurl bolts -----
-    if (m.type === 'specter' && !m.carrying) {
+    if ((m.type === 'specter' || m.type === 'archon') && !m.carrying) {
       const pdx = (player.x + player.w/2) - (m.x + m.w/2);
       const pdy = (player.y + player.h/2) - (m.y + m.h/2);
       const pd = Math.hypot(pdx, pdy) || 1;
@@ -519,15 +532,27 @@ function update() {
       m.y += (pdy / pd) * m.speed * dir;
       // strafe slowly for a floaty feel
       m.x += Math.cos(Date.now() * 0.001 + m.y) * 0.5;
-      m.boltTimer--;
-      if (m.boltTimer <= 0) {
-        enemyBolts.push({
-          x: m.x + m.w/2, y: m.y + m.h/2,
-          vx: (pdx / pd) * 4.6, vy: (pdy / pd) * 4.6,
-          life: 110
-        });
-        sfx.hit();
-        m.boltTimer = 110 + Math.random() * 90 - wave * 3;
+      if (m.boltCharge > 0) {
+        m.boltCharge--;
+        if (m.boltCharge === 0) {
+          const base = Math.atan2(pdy, pdx);
+          const offsets = m.type === 'archon'
+            ? (wave >= 9 ? [-0.16, 0, 0.16] : [-0.1, 0.1])
+            : [0];
+          offsets.forEach(offset => enemyBolts.push({
+            x: m.x + m.w/2, y: m.y + m.h/2,
+            vx: Math.cos(base + offset) * (m.type === 'archon' ? 5.0 : 4.4),
+            vy: Math.sin(base + offset) * (m.type === 'archon' ? 5.0 : 4.4),
+            life: 120,
+            r: m.type === 'archon' ? 6 : 5,
+            color: m.type === 'archon' ? '#f472b6' : '#22d3ee'
+          }));
+          sfx.hit();
+          m.boltTimer = Math.max(55, 125 + Math.random() * 75 - wave * 3);
+        }
+      } else {
+        m.boltTimer--;
+        if (m.boltTimer <= 0) m.boltCharge = m.type === 'archon' ? 42 : 32;
       }
       // obstacle slide + clamp, then done
       if (insideObstacle(m.x, m.y, m.w, m.h)) {
@@ -717,6 +742,10 @@ function hurtPlayer() {
     const newBest = score > best;
     if (newBest) { best = score; saveBest(); }
     const finalScore = score;
+    if (ATTRACT_MODE) {
+      setTimeout(startGame, 700);
+      return;
+    }
     Arcade.submitFlow(finalScore, () => {
       document.getElementById('startOverlay').classList.remove('hidden');
       document.getElementById('startOverlay').innerHTML = `
@@ -820,11 +849,11 @@ function draw() {
 
   // Specter bolts
   enemyBolts.forEach(b => {
-    ctx.fillStyle = '#22d3ee';
-    ctx.shadowColor = '#22d3ee';
+    ctx.fillStyle = b.color || '#22d3ee';
+    ctx.shadowColor = b.color || '#22d3ee';
     ctx.shadowBlur = 10;
     ctx.beginPath();
-    ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+    ctx.arc(b.x, b.y, b.r || 4, 0, Math.PI * 2);
     ctx.fill();
   });
   ctx.shadowBlur = 0;
@@ -947,7 +976,7 @@ function draw() {
     ctx.shadowColor = m.color;
     ctx.shadowBlur = 12;
 
-    if (m.type === 'specter') {
+    if (m.type === 'specter' || m.type === 'archon') {
       // hooded wraith — floats (no legs), hem ripples
       ctx.globalAlpha = 0.8;
       ctx.beginPath();
@@ -966,6 +995,11 @@ function draw() {
       ctx.beginPath();
       ctx.arc(0, -5 * S, 6.5 * S, 0, Math.PI * 2);
       ctx.fill();
+      if (m.type === 'archon') {
+        ctx.strokeStyle = '#f9a8d4';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, -2 * S, 17 * S, 0, Math.PI * 2); ctx.stroke();
+      }
     } else if (m.type === 'brute') {
       // hulking golem — short legs, massive swinging fists
       ctx.strokeStyle = m.color;
@@ -1049,8 +1083,8 @@ function draw() {
     // eyes (specter gets glowing hollow eyes inside the hood instead)
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
-    if (m.type === 'specter') {
-      ctx.fillStyle = '#67e8f9';
+    if (m.type === 'specter' || m.type === 'archon') {
+      ctx.fillStyle = m.type === 'archon' ? '#fdf2f8' : '#67e8f9';
       ctx.fillRect(-4 * S, -7 * S, 3 * S, 3 * S);
       ctx.fillRect(1.5 * S, -7 * S, 3 * S, 3 * S);
     } else if (m.type === 'horror') {
@@ -1080,6 +1114,17 @@ function draw() {
       ctx.fillRect(-12, 20 * S, 24 * (m.hp / m.maxHp), 3);
     }
 
+    if (m.boltCharge > 0) {
+      const charge = 1 - m.boltCharge / (m.type === 'archon' ? 42 : 32);
+      ctx.strokeStyle = m.type === 'archon' ? '#f472b6' : '#67e8f9';
+      ctx.lineWidth = 2.5;
+      ctx.globalAlpha = 0.35 + charge * 0.65;
+      ctx.beginPath();
+      ctx.arc(0, 0, (12 + charge * 12) * S, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
     ctx.restore();
   });
 
@@ -1106,12 +1151,30 @@ function draw() {
   ctx.beginPath();
   ctx.ellipse(0, 2, 12, 13, 0, 0, Math.PI*2);
   ctx.fill();
+  // Shared Spectral Hunter coat, matching the Mess Hall hero.
+  ctx.fillStyle = '#312e81';
+  ctx.beginPath();
+  ctx.moveTo(-10, 7); ctx.lineTo(-15, 22); ctx.lineTo(-2, 14);
+  ctx.lineTo(2, 14); ctx.lineTo(15, 22); ctx.lineTo(10, 7);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#a78bfa';
+  ctx.fillRect(-15, -2, 6, 7);
+  ctx.fillRect(9, -2, 6, 7);
 
   // head
   ctx.fillStyle = '#e9d5ff';
   ctx.beginPath();
   ctx.arc(0, -11, 8, 0, Math.PI*2);
   ctx.fill();
+  ctx.fillStyle = '#171127';
+  ctx.beginPath();
+  ctx.moveTo(0, -28); ctx.lineTo(-10, -17); ctx.lineTo(10, -17);
+  ctx.closePath(); ctx.fill();
+  ctx.fillRect(-16, -19, 32, 4);
+  ctx.fillStyle = '#67e8f9';
+  ctx.shadowColor = '#67e8f9';
+  ctx.shadowBlur = 8;
+  ctx.fillRect(-6, -13, 12, 3);
 
   // off-arm — counter-swings away from the gun side while running
   ctx.shadowBlur = 0;
@@ -1127,12 +1190,25 @@ function draw() {
   ctx.lineWidth = 5;
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.lineTo(Math.cos(player.angle) * 18, Math.sin(player.angle) * 18);
+  const recoil = player.recoil > 0 ? player.recoil * 0.8 : 0;
+  const weaponReach = 21 - recoil;
+  ctx.lineTo(Math.cos(player.angle) * weaponReach, Math.sin(player.angle) * weaponReach);
   ctx.stroke();
-  // muzzle
-  ctx.fillStyle = '#f0abfc';
+  // Rune repeater: crossbow limbs, central chamber and bright muzzle.
+  const wx = Math.cos(player.angle) * weaponReach;
+  const wy = Math.sin(player.angle) * weaponReach;
+  ctx.save();
+  ctx.translate(wx, wy);
+  ctx.rotate(player.angle);
+  ctx.strokeStyle = '#67e8f9';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-2, -8); ctx.lineTo(4, 0); ctx.lineTo(-2, 8); ctx.stroke();
+  ctx.fillStyle = '#312e81';
+  ctx.fillRect(-5, -4, 13, 8);
+  ctx.restore();
+  ctx.fillStyle = player.recoil > 2 ? '#ffffff' : '#f0abfc';
   ctx.beginPath();
-  ctx.arc(Math.cos(player.angle)*20, Math.sin(player.angle)*20, 4, 0, Math.PI*2);
+  ctx.arc(Math.cos(player.angle)*(weaponReach + 8), Math.sin(player.angle)*(weaponReach + 8), player.recoil > 2 ? 6 : 3, 0, Math.PI*2);
   ctx.fill();
 
   ctx.restore();
@@ -1237,5 +1313,6 @@ function loop() {
   ArcadeVR.schedule(loop);
 }
 updateHUD();
+if (ATTRACT_MODE) setTimeout(startGame, 0);
 loop();
 console.log('Spectral Manor Swarm ready — Save the Ghost Circuit fans');

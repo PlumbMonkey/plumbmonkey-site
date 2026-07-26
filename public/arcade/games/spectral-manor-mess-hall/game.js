@@ -8,6 +8,8 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const W = canvas.width;
 const H = canvas.height;
+const ATTRACT_MODE = /[?&]attract\b/.test(location.search);
+if (ATTRACT_MODE) document.body.classList.add('attract');
 
 // ---------- Sound (simple Web Audio) ----------
 let audioCtx = null;
@@ -109,7 +111,8 @@ const player = {
   invuln: 0,
   throwCooldown: 0,
   walkPhase: 0,     // leg animation
-  throwAnim: 0      // arm snap after a throw
+  throwAnim: 0,
+  pendingThrow: null
 };
 
 // ---------- Entities ----------
@@ -180,6 +183,7 @@ function startGame() {
   bannerText = 'LEVEL 1'; bannerTime = 90;
   player.x = 80; player.y = H/2;          // start clear of tables
   player.invuln = 0; player.throwCooldown = 0;
+  player.throwAnim = 0; player.pendingThrow = null;
   gameRunning = true; gameOver = false;
   document.getElementById('startOverlay').classList.add('hidden');
   spawnTables();
@@ -193,6 +197,10 @@ function endGame(title, line) {
   const newBest = score > best;
   if (newBest) { best = score; saveBest(); }
   const finalScore = score;
+  if (ATTRACT_MODE) {
+    setTimeout(startGame, 700);
+    return;
+  }
   Arcade.submitFlow(finalScore, () => {
     document.getElementById('startOverlay').classList.remove('hidden');
     document.getElementById('startOverlay').innerHTML = `
@@ -280,7 +288,8 @@ function spawnLevel() {
       stealTimer: 240 + Math.random() * 600,   // frames until this monster tries the buffet
       carryDish: false,                        // currently escaping with a dish
       walkPhase: Math.random() * Math.PI * 2,  // leg animation
-      throwAnim: 0                             // arm wind-up frames after a throw
+      throwAnim: 0,
+      pendingThrow: null
     });
   }
 
@@ -310,6 +319,13 @@ function spawnPickup(x, y) {
     points: t.points,
     bob: Math.random() * Math.PI * 2
   });
+}
+
+function beginPlayerThrow() {
+  if (player.throwCooldown > 0 || player.pendingThrow || ammo <= 0) return;
+  player.pendingThrow = true;
+  player.throwCooldown = 20;
+  player.throwAnim = 20;
 }
 
 function throwFood() {
@@ -396,14 +412,22 @@ function update() {
 
   // Leg + arm animation state
   if (player.vx || player.vy) player.walkPhase += 0.28;
-  if (player.throwAnim > 0) player.throwAnim--;
+  if (player.throwAnim > 0) {
+    player.throwAnim--;
+    if (player.throwAnim === 8 && player.pendingThrow) {
+      player.pendingThrow = null;
+      player.throwCooldown = 0;
+      throwFood();
+      player.throwAnim = 8;
+    }
+  }
   if (buffet.flash > 0) buffet.flash--;
 
   // Aim angle
   player.angle = Math.atan2(mouse.y - (player.y + player.h/2), mouse.x - (player.x + player.w/2));
 
   // Throw
-  if ((mouse.down || keys['Space']) && player.throwCooldown <= 0) throwFood();
+  if ((mouse.down || keys['Space']) && player.throwCooldown <= 0) beginPlayerThrow();
   if (player.throwCooldown > 0) player.throwCooldown--;
   if (player.invuln > 0) player.invuln--;
 
@@ -425,7 +449,25 @@ function update() {
   // Monster AI — they fight the player, each other, AND raid the buffet
   chefs.forEach((c, ci) => {
     c.walkPhase += c.speed * 0.18;
-    if (c.throwAnim > 0) c.throwAnim--;
+    if (c.throwAnim > 0) {
+      c.throwAnim--;
+      if (c.throwAnim === 8 && c.pendingThrow) {
+        const p = c.pendingThrow;
+        foods.push({
+          x: c.x + 15, y: c.y + 15,
+          vx: Math.cos(p.angle) * p.speed,
+          vy: Math.sin(p.angle) * p.speed,
+          r: 6, life: 85,
+          type: p.food.name,
+          color: c.color,
+          rot: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.5,
+          fromChef: true,
+          owner: c
+        });
+        c.pendingThrow = null;
+      }
+    }
 
     // ----- Escaping with a stolen dish: sprint to the nearest edge -----
     if (c.carryDish) {
@@ -503,24 +545,14 @@ function update() {
     c.y = Math.max(50, Math.min(H - 50, c.y));
 
     // Throw food at current target (not while raiding)
-    c.throwTimer--;
-    if (c.throwTimer <= 0 && dist < 340 && !raiding) {
-      const speed = 5.2 + Math.random();
-      const ft = randomFood();
-      foods.push({
-        x: c.x + 15, y: c.y + 15,
-        vx: (dx / dist) * speed,
-        vy: (dy / dist) * speed,
-        r: 6,
-        life: 85,
-        type: ft.name,
-        color: c.color,
-        rot: Math.random() * Math.PI * 2,
-        rotSpeed: (Math.random() - 0.5) * 0.5,
-        fromChef: true,
-        owner: c          // so we know who threw it
-      });
-      c.throwAnim = 12;   // arm snaps forward
+    if (!c.pendingThrow) c.throwTimer--;
+    if (c.throwTimer <= 0 && dist < 340 && !raiding && !c.pendingThrow) {
+      c.pendingThrow = {
+        angle: Math.atan2(dy, dx),
+        speed: 5.2 + Math.random(),
+        food: randomFood()
+      };
+      c.throwAnim = 24;
       c.throwTimer = 55 + Math.random() * 70 - level * 2;
     }
   });
@@ -998,7 +1030,9 @@ function draw() {
         ctx.restore();
       } else if (c.throwAnim > 0) {
         // throwing arm extended toward target; off arm back
-        const ext = 14 + (12 - c.throwAnim) * 0.8;
+        const ext = c.throwAnim > 8
+          ? 10 - ((c.throwAnim - 8) / 16) * 24
+          : 30 - (8 - c.throwAnim) * 1.5;
         ctx.beginPath();
         ctx.moveTo(0, 2);
         ctx.lineTo(Math.cos(c.angle) * ext, 2 + Math.sin(c.angle) * ext);
@@ -1034,6 +1068,8 @@ function draw() {
   }
   const moving = player.vx !== 0 || player.vy !== 0;
   const pStride = moving ? Math.sin(player.walkPhase) * 6 : 0;
+  const throwLean = player.throwAnim > 0 ? Math.sin((20 - player.throwAnim) / 20 * Math.PI) * 0.16 : 0;
+  ctx.rotate(throwLean * Math.sin(player.angle));
   // legs — running stride when moving
   ctx.strokeStyle = '#7c3aed';
   ctx.lineWidth = 5;
@@ -1047,11 +1083,29 @@ function draw() {
   ctx.beginPath();
   ctx.ellipse(0, 4, 13, 15, 0, 0, Math.PI*2);
   ctx.fill();
+  ctx.fillStyle = '#312e81';
+  ctx.beginPath();
+  ctx.moveTo(-11, 8); ctx.lineTo(-15, 23); ctx.lineTo(-2, 15);
+  ctx.lineTo(2, 15); ctx.lineTo(15, 23); ctx.lineTo(11, 8);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#a78bfa';
+  ctx.fillRect(-16, -1, 7, 7);
+  ctx.fillRect(9, -1, 7, 7);
   // head
   ctx.fillStyle = '#e9d5ff';
   ctx.beginPath();
   ctx.arc(0, -10, 10, 0, Math.PI*2);
   ctx.fill();
+  ctx.fillStyle = '#171127';
+  ctx.beginPath();
+  ctx.moveTo(0, -28); ctx.lineTo(-10, -16); ctx.lineTo(10, -16);
+  ctx.closePath(); ctx.fill();
+  ctx.fillRect(-17, -18, 34, 4);
+  ctx.fillStyle = '#67e8f9';
+  ctx.shadowColor = '#67e8f9';
+  ctx.shadowBlur = 8;
+  ctx.fillRect(-6, -12, 12, 3);
+  ctx.shadowBlur = 0;
   // off arm — counter-swings while running
   ctx.strokeStyle = '#c084fc';
   ctx.lineWidth = 5;
@@ -1062,14 +1116,12 @@ function draw() {
   // throwing arm — winds back, then snaps forward past full reach
   // throwAnim: 16..11 = wind-up (arm behind), 10..0 = forward snap
   let armLen = 18;
-  if (player.throwAnim > 10) {
+  if (player.throwAnim > 8) {
     // pulling back — arm reaches behind the aim direction
-    const t = (player.throwAnim - 10) / 6; // 1→0 over windup
-    armLen = 18 - t * 26; // dips negative (behind the shoulder)
+    armLen = 10 - ((player.throwAnim - 8) / 12) * 24;
   } else if (player.throwAnim > 0) {
     // snap forward, overshooting then settling
-    const t = player.throwAnim / 10; // 1→0
-    armLen = 30 - (1 - t) * 12;
+    armLen = 31 - (8 - player.throwAnim) * 1.6;
   }
   ctx.beginPath();
   ctx.moveTo(0, 0);
@@ -1165,5 +1217,6 @@ function loop() {
   ArcadeVR.schedule(loop);
 }
 updateHUD();
+if (ATTRACT_MODE) setTimeout(startGame, 0);
 loop();
 console.log('Spectral Manor Mess Hall ready — Ghost Circuit Cafeteria Chaos');
