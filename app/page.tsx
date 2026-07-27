@@ -18,17 +18,27 @@ export default function HomePage() {
   return (
     <main className="overflow-hidden bg-moonlit-950">
       <section className="manor-hero relative isolate flex min-h-[92svh] items-end overflow-hidden px-6 pb-16 pt-32 md:items-center md:pb-20">
-        <picture className="manor-hero-image absolute inset-0 -z-30">
+        <video
+          className="manor-hero-image absolute inset-0 -z-30"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          poster="/assets/spectral-manor-poster.jpg"
+          aria-hidden="true"
+        >
           <source
-            media="(prefers-reduced-motion: reduce)"
-            srcSet="/assets/spectral-manor-poster.jpg"
+            src="/assets/spectral-manor-hero-loop.webm"
+            type="video/webm"
+            media="(prefers-reduced-motion: no-preference)"
           />
-          <img
-            src="/assets/spectral-manor-fog-loop.webp"
-            alt="Spectral Manor glowing through rolling moonlit fog"
-            fetchPriority="high"
+          <source
+            src="/assets/spectral-manor-hero-loop.mp4"
+            type="video/mp4"
+            media="(prefers-reduced-motion: no-preference)"
           />
-        </picture>
+        </video>
         <div className="absolute inset-0 -z-20 bg-gradient-to-r from-moonlit-950/90 via-moonlit-950/30 to-transparent" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-moonlit-950/80 via-transparent to-moonlit-950/15" />
 

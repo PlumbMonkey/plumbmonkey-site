@@ -24,9 +24,9 @@ const SERVICES = [
 
 const PORTFOLIO = [
   {
-    youtubeId: "ppmI0qjWVUg",
-    title: "Arctic Resilience: A Journey Through Nature's Toughest Classroom",
-    body: "Dive into the breathtaking beauty and harsh realities of the Arctic tundra with this captivating educational video. Witness the incredible survival strategies of the Arctic poppy and caribou as they face the challenges of early snow and environmental stress. Crafted with high-quality 2D animation, vibrant visuals, and an expressive, calm narration, this piece is designed to engage both kids and adults. The original, atmospheric music beautifully underscores the narrative, transitioning from peaceful summer melodies to the intense soundscape of a winter storm.",
+    youtubeId: "9z97EOMQXiM",
+    title: "Force of Nature — Lyric Music Video",
+    body: "An original lyric music video combining song, animation, and atmospheric visual storytelling. The lyrics are designed directly into the film, making the typography part of the performance rather than a separate subtitle track.",
   },
   {
     youtubeId: "1rH8Hf8PI64",
@@ -92,7 +92,7 @@ export default function ScreeningRoomPage() {
               <div key={p.youtubeId} className="group">
                 <iframe
                   className="aspect-video w-full rounded transition group-hover:opacity-80"
-                  src={`https://www.youtube.com/embed/${p.youtubeId}`}
+                  src={`https://www.youtube-nocookie.com/embed/${p.youtubeId}?cc_load_policy=0&iv_load_policy=3&rel=0&playsinline=1`}
                   title={`${p.title} — Plumbmonkey`}
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
