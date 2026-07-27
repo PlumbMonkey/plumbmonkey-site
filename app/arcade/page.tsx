@@ -29,7 +29,7 @@ export default function ArcadePage() {
       <NeonCursor />
 
       {/* Hero */}
-      <section className="max-w-5xl mx-auto px-6 pt-14 pb-10 text-center">
+      <section className="max-w-5xl mx-auto px-6 pt-28 pb-10 text-center md:pt-32">
         <p className="text-purple-400 text-sm tracking-[0.3em] uppercase mb-3">
           Welcome to the Game Room
         </p>

@@ -39,11 +39,11 @@ export default function HomePage() {
             media="(prefers-reduced-motion: no-preference)"
           />
         </video>
-        <div className="absolute inset-0 -z-20 bg-gradient-to-r from-moonlit-950/90 via-moonlit-950/30 to-transparent" />
+        <div className="absolute inset-0 -z-20 bg-gradient-to-l from-moonlit-950/90 via-moonlit-950/30 to-transparent" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-moonlit-950/80 via-transparent to-moonlit-950/15" />
 
         <div className="mx-auto w-full max-w-6xl">
-          <div className="max-w-3xl">
+          <div className="ml-auto max-w-2xl text-right">
             <p className="mb-5 text-xs font-semibold uppercase tracking-[0.36em] text-brass-300">
               An independent creative world
             </p>
@@ -51,11 +51,11 @@ export default function HomePage() {
               Enter
               <span className="block text-brass-200">Spectral Manor</span>
             </h1>
-            <p className="mt-7 max-w-2xl text-lg leading-relaxed text-moonlit-100 drop-shadow md:text-xl">
+            <p className="ml-auto mt-7 max-w-2xl text-lg leading-relaxed text-moonlit-100 drop-shadow md:text-xl">
               Music, characters, stories, games, animation, and creative tools—built as one
               evolving world where every new piece gives life to the rest.
             </p>
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-9 flex flex-col justify-end gap-3 sm:flex-row">
               <a
                 href="#rooms"
                 className="rounded-sm bg-brass-300 px-7 py-3.5 text-center text-sm font-bold uppercase tracking-[0.18em] text-moonlit-950 transition hover:bg-brass-200"

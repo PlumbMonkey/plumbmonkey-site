@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 const tools = [
   {
     number: "01",
-    href: "/music/drum-machine/index.html",
+    href: "/music/dm1",
     title: "Summon the beat",
     product: "DM-1 Rhythm Machine",
     copy: "Program eight spectral drum voices on a tactile 16-step grid. Save patterns and export WAV or MIDI.",
@@ -34,7 +34,7 @@ const tools = [
   },
   {
     number: "02",
-    href: "/music/synth/index.html",
+    href: "/music/sy1",
     title: "Shape your sound",
     product: "SY-1 Synthesizer",
     copy: "Wake a polyphonic voice with filters, envelopes, performance controls and spectral effects, then record a playable riff.",
@@ -94,8 +94,8 @@ export default function MusicPage() {
             Two playable instruments from Stave, waiting in the manor. No install or account required.
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <a href="/music/drum-machine/index.html" className="rounded-xl bg-lime-200 px-6 py-3.5 font-bold text-slate-950 transition hover:bg-lime-100">Open DM-1</a>
-            <a href="/music/synth/index.html" className="rounded-xl border border-amber-200/40 bg-amber-200/10 px-6 py-3.5 font-semibold text-amber-100 transition hover:bg-amber-200/20">Open SY-1</a>
+            <a href="/music/dm1" className="rounded-xl bg-lime-200 px-6 py-3.5 font-bold text-slate-950 transition hover:bg-lime-100">Open DM-1</a>
+            <a href="/music/sy1" className="rounded-xl border border-amber-200/40 bg-amber-200/10 px-6 py-3.5 font-semibold text-amber-100 transition hover:bg-amber-200/20">Open SY-1</a>
           </div>
           <MusicContinue />
           <div className="relative mx-auto mt-12 overflow-hidden rounded-2xl border border-lime-200/20 bg-black/40 shadow-[0_35px_120px_-45px_#9fcf9a]">
@@ -158,7 +158,7 @@ export default function MusicPage() {
         <h2 className="text-center font-serif text-3xl font-bold">Choose your path</h2>
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           {[
-            ["Quick beat", "Drum Machine → WAV or MIDI", "/music/drum-machine/index.html"],
+            ["Quick beat", "Drum Machine → WAV or MIDI", "/music/dm1"],
             ["Complete track", "Drums + Synth → Song View", "/music/song/index.html"],
             ["Music visual", "Finished audio → Light Lab → Video", "/visual/index.html"],
           ].map(([title, copy, href]) => (
