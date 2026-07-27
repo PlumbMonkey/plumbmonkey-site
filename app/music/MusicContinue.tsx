@@ -13,11 +13,11 @@ export default function MusicContinue() {
         return;
       }
       if (localStorage.getItem("ghostCircuit.drumMachine.pattern")) {
-        setDestination({ href: "/music/dm1", label: "Continue your beat", detail: "A drum pattern is saved on this device" });
+        setDestination({ href: "/music/drum-machine/index.html", label: "Continue in Legacy DM-1", detail: "A drum pattern is saved on this device" });
         return;
       }
       if (localStorage.getItem("ghostCircuit.synth.userPatch")) {
-        setDestination({ href: "/music/sy1", label: "Continue your synth patch", detail: "A custom sound is saved on this device" });
+        setDestination({ href: "/music/synth/index.html", label: "Continue in Legacy SY-1", detail: "A custom sound is saved on this device" });
       }
     } catch {}
   }, []);

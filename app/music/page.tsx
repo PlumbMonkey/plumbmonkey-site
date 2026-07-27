@@ -4,10 +4,10 @@ import NeonCursor from "../components/NeonCursor";
 import MusicContinue from "./MusicContinue";
 
 export const metadata: Metadata = {
-  title: "Spectral Manor Instruments | SY-1 & DM-1",
+  title: "Spectral Manor Instruments | SY-2 & DM-2",
   description:
-    "Play the SY-1 synthesizer and DM-1 rhythm machine in your browser, then arrange a complete song inside Spectral Manor.",
-  keywords: ["Stave", "SY-1 synthesizer", "DM-1 drum machine", "browser synth", "browser drum machine", "music visualizer"],
+    "Play the new SY-2 synthesizer and DM-2 rhythm machine, or return to the connected legacy studio workflow.",
+  keywords: ["Stave", "SY-2 synthesizer", "DM-2 drum machine", "browser synth", "browser drum machine", "music visualizer"],
   openGraph: {
     title: "Stave Instruments — The Spectral Manor",
     description: "Summon a beat. Shape your sound. Build a complete song.",
@@ -20,9 +20,9 @@ const tools = [
     number: "01",
     href: "/music/dm1",
     title: "Summon the beat",
-    product: "DM-1 Rhythm Machine",
+    product: "DM-2 Rhythm Machine",
     copy: "Program eight spectral drum voices on a tactile 16-step grid. Save patterns and export WAV or MIDI.",
-    action: "Open the DM-1",
+    action: "Open the DM-2",
     accent: "cyan",
     preview: (
       <div className="grid grid-cols-8 gap-1" aria-hidden="true">
@@ -36,30 +36,15 @@ const tools = [
     number: "02",
     href: "/music/sy1",
     title: "Shape your sound",
-    product: "SY-1 Synthesizer",
+    product: "SY-2 Synthesizer",
     copy: "Wake a polyphonic voice with filters, envelopes, performance controls and spectral effects, then record a playable riff.",
-    action: "Open the SY-1",
+    action: "Open the SY-2",
     accent: "amber",
     preview: (
       <div className="flex h-14 items-end gap-1" aria-hidden="true">
         {[70, 42, 84, 56, 95, 36, 74, 48, 88, 62, 40, 78].map((height, i) => (
           <span key={i} className="flex-1 rounded-t bg-gradient-to-t from-amber-600 to-amber-200" style={{ height: `${height}%` }} />
         ))}
-      </div>
-    ),
-  },
-  {
-    number: "03",
-    href: "/music/song/index.html",
-    title: "Arrange the track",
-    product: "Song View",
-    copy: "Place saved beats and synth takes onto lanes, repeat sections, edit clips and export a complete arrangement.",
-    action: "Build your song",
-    accent: "violet",
-    preview: (
-      <div className="space-y-2" aria-hidden="true">
-        <div className="grid grid-cols-6 gap-1"><span className="col-span-2 h-5 rounded bg-violet-400" /><span className="col-span-3 h-5 rounded bg-violet-500/60" /><span className="h-5 rounded bg-violet-300/35" /></div>
-        <div className="grid grid-cols-6 gap-1"><span className="h-5 rounded bg-cyan-400/70" /><span className="col-span-2 h-5 rounded bg-cyan-300/40" /><span className="col-span-3 h-5 rounded bg-cyan-500/70" /></div>
       </div>
     ),
   },
@@ -91,17 +76,17 @@ export default function MusicPage() {
             <span className="block bg-gradient-to-r from-lime-200 via-amber-200 to-violet-300 bg-clip-text text-transparent">Build a complete song.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-            Two playable instruments from Stave, waiting in the manor. No install or account required.
+            The second generation of Stave&apos;s playable instruments. No install or account required.
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <a href="/music/dm1" className="rounded-xl bg-lime-200 px-6 py-3.5 font-bold text-slate-950 transition hover:bg-lime-100">Open DM-1</a>
-            <a href="/music/sy1" className="rounded-xl border border-amber-200/40 bg-amber-200/10 px-6 py-3.5 font-semibold text-amber-100 transition hover:bg-amber-200/20">Open SY-1</a>
+            <a href="/music/dm1" className="rounded-xl bg-lime-200 px-6 py-3.5 font-bold text-slate-950 transition hover:bg-lime-100">Open DM-2</a>
+            <a href="/music/sy1" className="rounded-xl border border-amber-200/40 bg-amber-200/10 px-6 py-3.5 font-semibold text-amber-100 transition hover:bg-amber-200/20">Open SY-2</a>
           </div>
           <MusicContinue />
           <div className="relative mx-auto mt-12 overflow-hidden rounded-2xl border border-lime-200/20 bg-black/40 shadow-[0_35px_120px_-45px_#9fcf9a]">
             <Image
               src="/assets/stave-instruments.png"
-              alt="The SY-1 synthesizer and DM-1 rhythm machine inside the Spectral Manor"
+              alt="The Stave synthesizer and rhythm machine inside Spectral Manor"
               width={1680}
               height={945}
               priority
@@ -113,11 +98,11 @@ export default function MusicPage() {
 
       <section id="studio" className="mx-auto max-w-6xl px-5 py-16 sm:px-6 md:py-24">
         <div className="mb-10 max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">One connected workflow</p>
-          <h2 className="mt-3 font-serif text-3xl font-bold sm:text-4xl">From first rhythm to finished track</h2>
-          <p className="mt-3 text-slate-400">Start anywhere. Saved beats and synth takes move into Song View on the same device.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">Generation two</p>
+          <h2 className="mt-3 font-serif text-3xl font-bold sm:text-4xl">Two tactile instruments, rebuilt</h2>
+          <p className="mt-3 text-slate-400">Play the new instruments directly in your browser with mouse, touch, keyboard, or MIDI.</p>
         </div>
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-2">
           {tools.map((tool) => {
             const accent = accentStyles[tool.accent];
             return (
@@ -133,6 +118,42 @@ export default function MusicPage() {
               </a>
             );
           })}
+        </div>
+      </section>
+
+      <section className="border-y border-violet-300/15 bg-violet-300/[0.035]">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-6 md:py-20">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-300">
+              Legacy Studio
+            </p>
+            <h2 className="mt-3 font-serif text-3xl font-bold sm:text-4xl">
+              Keep the original connected workflow
+            </h2>
+            <p className="mt-3 leading-relaxed text-slate-400">
+              The original DM-1, SY-1, and Song View remain available for projects that use
+              saved patterns, patches, and arrangements from the first-generation studio.
+            </p>
+          </div>
+          <div className="mt-9 grid gap-4 md:grid-cols-3">
+            {[
+              ["Legacy DM-1", "Program and save a first-generation drum pattern.", "/music/drum-machine/index.html"],
+              ["Legacy SY-1", "Open the original synthesizer and saved patches.", "/music/synth/index.html"],
+              ["Legacy Song View", "Continue the connected arrangement workflow.", "/music/song/index.html"],
+            ].map(([title, copy, href]) => (
+              <a
+                key={title}
+                href={href}
+                className="rounded-xl border border-violet-300/20 bg-black/20 p-5 transition hover:border-violet-300/50 hover:bg-violet-300/[0.06]"
+              >
+                <strong className="block text-violet-100">{title}</strong>
+                <span className="mt-2 block text-sm leading-relaxed text-slate-400">{copy}</span>
+                <span className="mt-5 block text-xs font-semibold uppercase tracking-[0.16em] text-violet-300">
+                  Open legacy tool →
+                </span>
+              </a>
+            ))}
+          </div>
         </div>
       </section>
 

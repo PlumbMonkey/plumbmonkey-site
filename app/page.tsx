@@ -17,7 +17,7 @@ const CURRENTLY_BUILDING = [
 export default function HomePage() {
   return (
     <main className="overflow-hidden bg-moonlit-950">
-      <section className="manor-hero relative isolate flex min-h-[92svh] items-end overflow-hidden px-6 pb-16 pt-32 md:items-center md:pb-20">
+      <section className="manor-hero relative isolate flex min-h-[92svh] items-end overflow-hidden px-6 pb-12 pt-32 md:pb-16">
         <video
           className="manor-hero-image absolute inset-0 -z-30"
           autoPlay
@@ -72,12 +72,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        <a
-          href="#world"
-          className="absolute bottom-5 left-1/2 hidden -translate-x-1/2 text-[10px] uppercase tracking-[0.32em] text-moonlit-300 md:block"
-        >
-          Descend
-        </a>
       </section>
 
       <section id="world" className="relative border-y border-brass-700/25 px-6 py-24">
