@@ -17,7 +17,7 @@ const CURRENTLY_BUILDING = [
 export default function HomePage() {
   return (
     <main className="overflow-hidden bg-moonlit-950">
-      <section className="manor-hero relative isolate flex min-h-screen items-end overflow-hidden px-6 pb-12 pt-32 md:pb-16">
+      <section className="manor-hero relative isolate h-screen min-h-[38rem] overflow-hidden bg-[#05060a]">
         <video
           className="manor-hero-image absolute inset-0 -z-30"
           autoPlay
@@ -42,8 +42,7 @@ export default function HomePage() {
         <div className="absolute inset-0 -z-20 bg-gradient-to-l from-moonlit-950/90 via-moonlit-950/30 to-transparent" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-moonlit-950/80 via-transparent to-moonlit-950/15" />
 
-        <div className="mx-auto w-full max-w-6xl">
-          <div className="ml-auto max-w-2xl text-right">
+        <div className="absolute bottom-7 right-6 z-10 w-[calc(100%-3rem)] max-w-2xl text-right sm:bottom-10 sm:right-10 md:bottom-14 md:right-14">
             <p className="mb-5 text-xs font-semibold uppercase tracking-[0.36em] text-brass-300">
               An independent creative world
             </p>
@@ -69,7 +68,6 @@ export default function HomePage() {
                 Watch the Work
               </Link>
             </div>
-          </div>
         </div>
 
       </section>
