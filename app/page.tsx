@@ -17,7 +17,7 @@ const CURRENTLY_BUILDING = [
 export default function HomePage() {
   return (
     <main className="overflow-hidden bg-moonlit-950">
-      <section className="manor-hero relative isolate flex min-h-[92svh] items-end overflow-hidden px-6 pb-12 pt-32 md:pb-16">
+      <section className="manor-hero relative isolate flex min-h-screen items-end overflow-hidden px-6 pb-12 pt-32 md:pb-16">
         <video
           className="manor-hero-image absolute inset-0 -z-30"
           autoPlay
