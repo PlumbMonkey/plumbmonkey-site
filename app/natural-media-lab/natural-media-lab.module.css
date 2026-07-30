@@ -72,4 +72,5 @@
 .pageStrip button{border-color:#495570;background:#1d222f;color:#aeb9c9}.pageStrip button.activePage{border-color:#d9ac52;box-shadow:inset 0 -3px #d9ac52;color:#fbf3e3}
 .performanceCard{background:#1d222f;color:#aeb9c9}.performanceCard strong{color:#d9ac52}.modal,.tourCard,.helpCard{background:#12151d;border-color:#495570;color:#d3dae4}.modal h2,.tourCard h2,.helpCard h2,.helpCard h3{color:#fbf3e3}
 .presets button,.modalActions button,.exampleLinks a{border-color:#495570;background:#1d222f;color:#eef1f5}.presets small,.exampleLinks span,.tourCard>p{color:#aeb9c9}
+.modalActions button:last-child{background:#7a2438;border-color:#a8455a;color:#fbf3e3}.modalActions button:last-child:hover,.modalActions button:last-child:focus-visible{background:#a8455a;border-color:#d9ac52;color:#fff;outline:2px solid #d9ac52;outline-offset:2px}
 .timeline{background:#0a0c11;border-color:#394258}.frames button,.playback button,.frameActions button{border-color:#495570;background:#1d222f}.frames .activeFrame{border-color:#d9ac52;box-shadow:0 0 0 2px #a9782944}

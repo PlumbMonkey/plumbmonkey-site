@@ -328,9 +328,21 @@ window.addEventListener('DOMContentLoaded', () => {
   tempoEl.addEventListener('input', e => { tempo = +e.target.value; document.getElementById('tempoVal').textContent = tempo; });
   const swingEl = document.getElementById('swing');
   swingEl.addEventListener('input', e => { swing = +e.target.value / 100; });
-  // spacebar toggles play
+  // Spacebar controls transport; number keys perform the eight drum voices.
   window.addEventListener('keydown', e => {
     if (e.code === 'Space') { e.preventDefault(); initAudio(); togglePlay(); }
+    if (e.repeat || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+    const drumIndex = [
+      'Digit1', 'Digit2', 'Digit3', 'Digit4',
+      'Digit5', 'Digit6', 'Digit7', 'Digit8'
+    ].indexOf(e.code);
+    if (drumIndex >= 0) {
+      e.preventDefault();
+      initAudio();
+      const tr = TRACKS[drumIndex];
+      VOICES[tr.id](audioCtx, master, audioCtx.currentTime, 1);
+      flash(`${drumIndex + 1} · ${tr.name}`);
+    }
   });
   demoPattern(); // start with something audible
 });

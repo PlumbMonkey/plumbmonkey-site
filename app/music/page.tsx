@@ -4,12 +4,12 @@ import NeonCursor from "../components/NeonCursor";
 import MusicContinue from "./MusicContinue";
 
 export const metadata: Metadata = {
-  title: "Spectral Manor Instruments | SY-2 & DM-2",
+  title: "Plumbmonkey Music Sandbox | SY-2 & DM-2",
   description:
     "Play the new SY-2 synthesizer and DM-2 rhythm machine, or return to the connected legacy studio workflow.",
   keywords: ["Stave", "SY-2 synthesizer", "DM-2 drum machine", "browser synth", "browser drum machine", "music visualizer"],
   openGraph: {
-    title: "Stave Instruments — The Spectral Manor",
+    title: "Plumbmonkey Music Sandbox — The Spectral Manor",
     description: "Summon a beat. Shape your sound. Build a complete song.",
     type: "website",
   },
@@ -70,7 +70,7 @@ export default function MusicPage() {
           <div className="absolute inset-0 bg-[linear-gradient(#ffffff08_1px,transparent_1px),linear-gradient(90deg,#ffffff08_1px,transparent_1px)] bg-[size:42px_42px] [mask-image:linear-gradient(to_bottom,black,transparent)]" />
         </div>
         <div className="relative mx-auto max-w-4xl">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.34em] text-lime-200">Stave · Spectral Manor Instruments</p>
+          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.34em] text-lime-200">Stave · Plumbmonkey Music Sandbox</p>
           <h1 className="font-serif text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-7xl">
             Summon a beat. Shape your sound.
             <span className="block bg-gradient-to-r from-lime-200 via-amber-200 to-violet-300 bg-clip-text text-transparent">Build a complete song.</span>

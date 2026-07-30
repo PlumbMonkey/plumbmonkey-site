@@ -5,9 +5,9 @@ import { useEffect, useState } from "react";
 
 const LINKS = [
   { href: "/arcade", label: "Arcade" },
-  { href: "/music", label: "Instruments" },
+  { href: "/music", label: "Music Sandbox" },
   { href: "/visual/index.html", label: "Light Lab" },
-  { href: "/natural-media-lab", label: "Art Lab" },
+  { href: "/natural-media-lab", label: "Art Room" },
   { href: "/screening-room", label: "Theatre" },
   { href: "/gallery", label: "Gallery" },
 ];
