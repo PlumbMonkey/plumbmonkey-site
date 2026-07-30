@@ -99,7 +99,8 @@
 
     event.preventDefault();
     if (isDrumMachine) {
-      control.click();
+      dispatchPointer(control, "pointerdown");
+      dispatchPointer(control, "pointerup");
     } else {
       dispatchPointer(control, "pointerdown");
       pressed.set(event.code, control);
