@@ -1,0 +1,293 @@
+# Natural Media Lab — Phase Handoff
+
+## Current phase: 8B, Deployment Candidate
+
+The first working studio is available at `/natural-media-lab`.
+
+### Complete
+
+- Responsive studio workspace integrated into Spectral Manor
+- Pointer input for mouse, pen, and touch
+- Pencil, charcoal, ink, watercolor, pastel, and eraser tools
+- Per-tool opacity and grain character
+- Pressure-sensitive brush sizing when hardware pressure is available
+- Brush size and RGB color controls
+- Curated starter palette
+- Undo and redo history (16 document-wide steps)
+- Clear canvas
+- Transparent PNG export
+- Canvas zoom
+- Multi-layer compositing with add, delete, reorder, visibility, and lock controls
+- Per-layer opacity and Normal, Multiply, Screen, and Overlay blend modes
+- New-document dialog with landscape, square, HD, and A4 presets
+- Warm-paper and transparent document backgrounds
+- Downloadable and reloadable versioned `.nml` project format
+- Automatic on-device recovery using IndexedDB
+- Space-drag and middle-button canvas panning
+- Ctrl/Cmd-wheel and slider zoom from 35% to 160%
+- Non-destructive canvas rotation and reset-view control
+- Horizontally mirrored painting for every material
+- Configurable grid display and grid snapping
+- RGB readout plus editable HSL and HSV color values
+- Eight-color on-device recent-color history
+- PNG, JPG, and WEBP export with transparent-background handling
+- Shared brush engine separated from the studio interface
+- Fourteen material presets: pencil, graphite, charcoal, ink, calligraphy, marker, watercolor, acrylic, oil, pastel, chalk, airbrush, pixel, and eraser
+- Adjustable size, flow, wetness, grain, scatter, and pressure response
+- Rectangle and ellipse selection boundaries
+- Crop-to-selection editing
+- Layer duplication, merge-down, horizontal flip, and vertical flip
+- Whole-document image resizing
+- Analogous and complementary color harmony suggestions
+- Two-color diagonal gradient fill
+- Seeded brush randomness for reproducible material marks
+- Project-persisted natural-effects strength
+- Watercolor pigment blooms, absorption softness, and darkened settling edges
+- Oil-paint bristle ridges, varied paint loading, and impasto highlights
+- Charcoal, chalk, and pastel dust accumulation
+- Ink and calligraphy feathering and endpoint pooling
+- Finger-smudge material for lifting, softening, and moving existing pigment
+- Per-layer wetness and oil-height maps stored as compressed PNG data
+- Backward-compatible loading for projects created before simulation maps existed
+- Four-pass watercolor settling after the pointer is released
+- Adjustable paper absorbency
+- Adjustable watercolor pigment separation
+- Palette-knife material for directional oil dragging
+- Persistent oil-height recording for oil and palette-knife strokes
+- Separate deterministic procedural-emitter engine
+- Procedural density, scale, wind, and color-variation controls saved in `.nml`
+- Grass and leaf emitters for environment art
+- Stars, snow, and rain particle emitters
+- Growing-vine emitter with curling stems and leaves
+- Layered fire emitter with translucent flame tongues
+- Smoke and cloud emitters with soft overlapping masses
+- Branching lightning emitter with screen-blended glow
+- Procedural marks work with layers, mirror mode, undo, project files, and export
+- Backward-compatible frame animation data in `.nml`
+- Frame-aware layer pixels while preserving the existing shared layer stack
+- Timeline with blank-frame creation and frame duplication
+- Frame deletion and reordering
+- Configurable playback from 1–24 FPS
+- Optional animation looping
+- Previous-frame onion skinning
+- In-browser animated GIF encoding and download
+- GIF export capped at 480px wide for responsive browser-side encoding
+- Per-frame layer position, rotation, scale, and opacity keyframes
+- Sparse transform tracks that avoid duplicating unchanged motion data
+- Hold, linear, ease-in, ease-out, and ease-in-out interpolation
+- Variable frame holds during playback
+- Variable frame timing preserved in GIF exports
+- Non-destructive motion controls for the selected layer
+- Optional puppet-rig metadata with backward-compatible project migration
+- Bone creation, selection, deletion, length, position, and rest-angle controls
+- Parent-child bone hierarchy
+- Visible on-canvas bone overlay with show/hide control
+- Layer-to-bone binding with stored pivot points
+- Per-frame keyed bone rotation
+- Hierarchical forward-kinematic pose propagation
+- Two-bone inverse-kinematic target solver
+- Rigged motion included in playback and rendered animation frames
+- Rig math extracted into a reusable `rigEngine.ts`
+- Direct on-canvas bone endpoint dragging
+- Named pose preset creation and recall
+- Per-layer captured sprite libraries
+- Per-frame sprite exposure selection
+- Manual rest, A, E, O, and M mouth cues
+- Per-frame camera pan, zoom, rotation, and shake
+- Camera motion applied to the editor preview and rendered animation output
+- Optional comic layout metadata with backward-compatible project migration
+- Reusable three-strip, four-grid, and feature-page templates
+- Rectangular panel creation, selection, numeric positioning, resizing, and deletion
+- Adjustable print-safe margin guide and panel gutter weight
+- Speech bubbles, thought bubbles, and caption boxes
+- Editable comic text with numeric position and size controls
+- Full-resolution flattened web PNG and print JPG comic-page exports
+- Direct pointer and touch dragging for comic panels and lettering
+- Visible drag-resize handles for panels, bubbles, and captions
+- Configurable bubble tails with independent X and Y placement
+- Bold sans, editorial serif, and hand-lettered type styles
+- Adjustable lettering size and left, center, or right alignment
+- Bubble-tail and lettering settings preserved in `.nml` projects
+- Print-focused browser output suitable for Save as PDF
+- Multi-page comic projects with a persistent active-page identifier
+- Page thumbnail strip with switching and named pages
+- Blank-page creation and full layout duplication
+- Page deletion, renaming, and left/right reordering
+- Automatic migration of Phase 6A and 6B single-page comics into page one
+- Active-page layout synchronization during project save and page changes
+- Whole-book print flow with one browser print sheet per comic page
+- Save-as-PDF support for complete comic books through the print dialog
+- Independent full layer snapshots for every comic page
+- Automatic page-art capture whenever the editor changes pages
+- Blank pages start with clean painted layers
+- Duplicated pages copy both layout and painted artwork
+- Deleting a page restores the destination page's artwork
+- Whole-book printing composites each page from its own stored layers
+- Arrow-key nudging for selected panels, bubbles, and captions
+- Shift-arrow coarse nudging in five-percent increments
+- Ctrl/Cmd+D duplication for selected comic items
+- Active page name displayed above the artwork
+- Optional per-panel artwork source chosen from any comic page
+- Non-destructive rectangular clipping of sourced page artwork
+- Per-panel artwork pan controls on both axes
+- Per-panel artwork zoom from 25% to 400%
+- Sourced artwork included in page PNG/JPG and whole-book print output
+- Live sourced-panel preview using stored page layers
+- One-click left, center, right, top, middle, and bottom panel alignment
+- Backward-compatible crop and source defaults for older comic panels
+- Shift-click multi-selection across panels and lettering items
+- Group alignment to left, center, right, top, middle, and bottom
+- Even horizontal and vertical distribution for three or more selected items
+- Live selection count in the comic inspector
+- Safe-margin and page-center snapping during direct dragging
+- Reusable named lettering styles for typeface, size, and alignment
+- Reusable named page masters based on the current panel layout
+- Lettering styles and page masters saved inside `.nml` projects
+- Backward-compatible empty style libraries for existing comic projects
+- Downloadable multi-page PDF export generated entirely in the browser
+- A4 and US Letter print profiles
+- Configurable print DPI metadata and bleed allowance
+- Optional crop marks around the finished trim area
+- PDF pages embed high-quality JPEG artwork with valid page resources
+- Page-specific artwork, sourced panels, lettering, and panel borders included in PDF output
+- Dedicated PDF encoder extracted into `pdfEncoder.ts`
+- Backward-compatible print-profile defaults for older `.nml` projects
+- Automated legacy-project migration checks
+- Automated PDF header, page-count, cross-reference, and trailer checks
+- Real `npm test` command for the Natural Media Lab
+- Temporary test compilation isolated outside the project tree
+- Visible horizontal and vertical smart guides while snapping
+- Direct on-canvas focal-point dragging for sourced panel artwork
+- Touch-safe focal handle and comic transform controls
+- Accessible labels and tooltips for focal-point manipulation
+- Worker-based PDF byte encoding
+- Automatic synchronous PDF fallback when workers are unavailable
+- Publishing diagnostics for page count, rendered megapixels, duration, and execution path
+- Large-book memory warning above an 80-megapixel estimate
+- Stable `v0.7.0` release marker in the studio
+- Dedicated release notes covering capabilities, reliability, and known limitations
+- First-run four-step guided studio onboarding
+- Persistent onboarding completion stored as a device-local preference
+- Restartable Tour control kept visible at narrow desktop widths
+- Cancellable PDF preparation and worker encoding
+- Safe worker termination with rejected-job cleanup
+- Live cancelled-export status for assistive technology
+- Browser verification of tour opening, scoped navigation, completion, and responsive visibility
+- `v0.7.1` release marker
+- Contextual in-studio Help center
+- Quick-reference cards for painting, animation, comics, and publishing
+- Downloadable natural-media sketchbook example project
+- Downloadable A4 three-panel comic example project
+- Example-project migration checks included in `npm test`
+- Example downloads included and verified in the static export
+- Release, deployment, support, recovery, and ship-decision checklist
+- `v0.8.0` release marker
+- Populated full-studio showcase fixture
+- Fixture coverage for layers, effects, procedural settings, animation, transforms, rigging, poses, comic pages, sourced panels, lettering styles, page masters, and print profiles
+- Parse-save-parse editable-project round-trip assertions
+- Semantic preservation checks for high-risk comic and publishing metadata
+- Machine-readable `v0.8.1` release manifest
+- Static-package validator for the studio route and every example download
+- Dedicated `npm run test:release` deployment-candidate gate
+- `v0.8.1` release marker
+- Spectral Manor moonlit, burgundy, and brass application skin
+- Neutral paper retained so artwork colors remain trustworthy
+- Higher-density marker preset with 94% opacity and 96% flow
+- Wider flat marker nib with firm chisel-style stroke caps
+- Automated marker-character regression thresholds
+
+### Deliberately deferred
+
+- Freehand selection and magic wand
+- Selection move, scale, rotate, duplicate, and feathering
+- Layer groups and masks
+- Worker-based rendering for large natural-effects brushes
+- Long-running fluid simulation across interacting wet strokes
+- Physically based impasto lighting derived from oil-height maps
+- Roots, dedicated magic particles, and user-authored emitter presets
+- Animated procedural particles with lifetime and playback
+- Audio tracks and MP4 export
+- Multi-frame range selection and clipboard operations
+- Audio analysis for automatic lip sync
+- Camera easing independent from layer easing
+- Rich text spans, custom font loading, and curved balloon text
+
+## Recommended next phase: 8C, Production Launch
+
+1. Execute the deployment checklist against the intended production host.
+2. Add persistent browser-driven accessibility and interaction fixtures.
+3. Add cross-browser Chromium, Firefox, and WebKit coverage.
+4. Move page compositing and GIF encoding into Web Workers.
+5. Add contextual deep links from Help to the relevant inspector sections.
+6. Tag the release, publish the production artifact, and monitor the first launch.
+
+## Architecture notes
+
+- The current drawing surface uses the browser Canvas 2D API.
+- Every layer owns a full-resolution canvas; display scale is independent from document pixels.
+- Undo snapshots cover the entire document model and retain up to 16 steps in memory.
+- `.nml` is JSON with a format marker, version, document metadata, and PNG data URLs per layer.
+- IndexedDB stores one rolling recovery copy on the current device.
+- Pan, zoom, and rotation are view-only state and never modify project pixels.
+- Mirror and snap are live painting aids; the exported result contains their marks but not their guides.
+- Brush rendering now lives in `brushEngine.ts`; the studio supplies preset and user-adjusted values.
+- The brush engine uses seeded randomness, making each rendered stroke reproducible from its seed.
+- Natural-effects strength is saved in `.nml`; older version-1 projects receive a safe default when opened.
+- Visible effects remain baked into layer pixels, while auxiliary wetness and height state is preserved separately for continued simulation.
+- Wetness and oil-height maps are grayscale PNG data URLs attached to each layer, avoiding large raw numeric arrays in `.nml`.
+- Watercolor settling currently runs for four animation frames after release; it is bounded so painting remains responsive.
+- Palette-knife strokes move visible pixels and update the layer height map.
+- Procedural rendering lives in `proceduralEngine.ts` and uses the same seeded random generator as natural materials.
+- Procedural controls are document-level settings; emitted marks are baked into the active layer so existing compositing and exports need no special path.
+- Animation frames store a layer-id-to-PNG mapping while layer visibility, opacity, locking, and blend mode remain shared.
+- Still-image projects migrate to a single animation frame when opened.
+- GIF encoding uses a fixed 256-color palette and runs entirely in the browser.
+- Transform tracks are sparse per-frame records; missing values interpolate between surrounding keyed frames.
+- Layer transforms are applied consistently in the editor, playback compositor, onion skin, and GIF exporter.
+- Rig data stores bones separately from per-frame bone poses; unrigged projects receive empty defaults.
+- Bound layers retain their source pixels and rotate non-destructively around stored pivots.
+- The current two-bone IK solver accepts a target coordinate and keys both bones on the active frame.
+- Rig hierarchy and pose math now live in `rigEngine.ts`.
+- Sprite variants are compressed layer snapshots referenced by per-frame exposure indices.
+- Mouth cues provide a manual exposure sheet; automatic audio analysis remains deferred.
+- Camera keys affect the entire rendered scene after layer and rig transforms.
+- Comic geometry uses percentage coordinates, keeping layouts stable when the canvas is resized.
+- Comic overlays remain editable project metadata and are flattened only for the dedicated comic exports.
+- Older painting and animation projects migrate to an empty, disabled comic layout.
+- Pointer transforms convert screen movement back into percentage geometry, so zoom does not change saved placement.
+- Phase 6A comic text migrates to safe defaults for tails, typography, size, and alignment.
+- The active page remains mirrored into the legacy `panels` and `text` fields while editing, minimizing disruption to the canvas UI.
+- `captureDocument()` synchronizes that working layout into the page collection before autosave or `.nml` download.
+- Earlier single-page comics become a named first page without changing their visible layout.
+- Each comic page stores a layer-id-to-PNG map only when page artwork exists.
+- Switching pages captures current canvases before loading the destination map.
+- Existing shared layers still define opacity, visibility, locks, and blend modes across the comic book.
+- Panel source, crop offset, and zoom remain lightweight percentage metadata.
+- Sourced artwork is clipped only during preview and export; original page layers are never modified.
+- Multi-selection remains editor-only state; reusable style and master definitions are project metadata.
+- Snap candidates currently include the safe margins and horizontal/vertical page centers.
+- PDF export uses a compact browser-native encoder with JPEG XObjects and one PDF page per comic page.
+- Bleed expands the PDF media box while crop marks identify the original trim corners.
+- PDF creation is local; artwork is never uploaded.
+- The test harness compiles only the document model and PDF encoder, then verifies legacy defaults and PDF structure without a browser.
+- Smart guides are transient editor state and never enter saved projects or exports.
+- Focal-point drags modify the same non-destructive crop offsets used by numeric controls.
+- PDF page images are prepared on the main thread, while binary PDF assembly runs in a module worker.
+- Worker errors and timeouts automatically fall back to the tested synchronous encoder.
+- Publishing diagnostics are session-only and do not alter project files.
+- PDF cancellation works during page preparation and worker encoding; synchronous fallback remains bounded to already-prepared pages.
+- Onboarding preference data contains no artwork or personal information.
+- Browser verification used scoped dialog roles and accessible button names at a 652-pixel viewport.
+- Example files intentionally contain no artwork data and migrate through the same public parser as user projects.
+- Help content is available without leaving the studio and example downloads remain ordinary local-first `.nml` files.
+- The full showcase uses empty image payloads so it exercises editable structure without adding a large binary fixture.
+- The release manifest is copied into the static artifact beside the validated examples.
+- `test:release` is intentionally run after `npm run build` because it validates the finished `out` package.
+- Studio chrome now shares the main-site Tailwind palette values while the drawing surface remains color-neutral.
+- Rectangle and ellipse selections currently define crop boundaries; pixel transforms are the next selection milestone.
+- No artwork or user data is sent to a backend.
+- The page is a client component under the existing static-export Next.js app.
+
+## Pick-up point
+
+Begin by selecting the production host and executing every item in `natural-media-lab-release-checklist.md`. Do not tag or publish until the production-origin worker and download checks pass.

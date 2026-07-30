@@ -1,0 +1,126 @@
+{
+  "format": "natural-media-lab",
+  "version": 1,
+  "name": "Full Studio Showcase",
+  "width": 1240,
+  "height": 1754,
+  "background": "paper",
+  "layers": [
+    {
+      "id": "showcase-ink",
+      "name": "Ink",
+      "dataUrl": "",
+      "visible": true,
+      "locked": false,
+      "opacity": 1,
+      "blendMode": "multiply",
+      "simulation": { "wetMapUrl": "", "heightMapUrl": "" }
+    },
+    {
+      "id": "showcase-colour",
+      "name": "Colour",
+      "dataUrl": "",
+      "visible": true,
+      "locked": false,
+      "opacity": 0.9,
+      "blendMode": "source-over",
+      "simulation": { "wetMapUrl": "", "heightMapUrl": "" }
+    }
+  ],
+  "activeLayerId": "showcase-colour",
+  "effects": { "strength": 72, "absorbency": 58, "separation": 34 },
+  "procedural": { "density": 52, "scale": 20, "wind": 45, "colorVariation": 18 },
+  "animation": {
+    "fps": 8,
+    "loop": true,
+    "activeFrameId": "showcase-frame-1",
+    "frames": [
+      {
+        "id": "showcase-frame-1",
+        "name": "Frame 1",
+        "layerData": { "showcase-ink": "", "showcase-colour": "" },
+        "hold": 2,
+        "transforms": {},
+        "bonePose": { "showcase-bone": 0 },
+        "spriteExposure": {},
+        "mouthCue": "rest",
+        "camera": { "x": 0, "y": 0, "zoom": 100, "rotation": 0, "shake": 0 }
+      },
+      {
+        "id": "showcase-frame-2",
+        "name": "Frame 2",
+        "layerData": { "showcase-ink": "", "showcase-colour": "" },
+        "hold": 1,
+        "transforms": {
+          "showcase-colour": { "x": 20, "y": 0, "scale": 105, "rotation": 2, "opacity": 100, "easing": "ease-in-out" }
+        },
+        "bonePose": { "showcase-bone": 12 },
+        "spriteExposure": {},
+        "mouthCue": "A",
+        "camera": { "x": 0, "y": -10, "zoom": 104, "rotation": 0, "shake": 1 }
+      }
+    ]
+  },
+  "rig": {
+    "bones": [
+      { "id": "showcase-bone", "name": "Root", "parentId": null, "x": 620, "y": 1100, "length": 260, "restRotation": -90 }
+    ],
+    "layerBindings": {
+      "showcase-colour": { "boneId": "showcase-bone", "pivotX": 620, "pivotY": 1100 }
+    },
+    "posePresets": [
+      { "id": "showcase-pose", "name": "Lean", "pose": { "showcase-bone": 12 } }
+    ],
+    "sprites": {}
+  },
+  "comic": {
+    "enabled": true,
+    "margin": 5,
+    "gutter": 4,
+    "activePageId": "showcase-page-1",
+    "pages": [
+      {
+        "id": "showcase-page-1",
+        "name": "Opening",
+        "panels": [
+          { "id": "showcase-panel-1", "x": 5, "y": 5, "width": 90, "height": 55, "sourcePageId": "", "cropX": 0, "cropY": 0, "zoom": 100 },
+          { "id": "showcase-panel-2", "x": 5, "y": 64, "width": 43, "height": 31, "sourcePageId": "showcase-page-2", "cropX": -8, "cropY": 4, "zoom": 125 },
+          { "id": "showcase-panel-3", "x": 52, "y": 64, "width": 43, "height": 31, "sourcePageId": "", "cropX": 0, "cropY": 0, "zoom": 100 }
+        ],
+        "text": [
+          { "id": "showcase-caption", "type": "caption", "text": "The studio wakes.", "x": 10, "y": 9, "width": 32, "height": 7, "tailX": 50, "tailY": 125, "fontFamily": "serif", "fontSize": 18, "align": "left" }
+        ],
+        "layerData": { "showcase-ink": "", "showcase-colour": "" }
+      },
+      {
+        "id": "showcase-page-2",
+        "name": "Response",
+        "panels": [
+          { "id": "showcase-panel-4", "x": 5, "y": 5, "width": 90, "height": 90, "sourcePageId": "", "cropX": 0, "cropY": 0, "zoom": 100 }
+        ],
+        "text": [
+          { "id": "showcase-speech", "type": "speech", "text": "Make something alive.", "x": 55, "y": 14, "width": 32, "height": 13, "tailX": 65, "tailY": 135, "fontFamily": "hand", "fontSize": 20, "align": "center" }
+        ],
+        "layerData": { "showcase-ink": "", "showcase-colour": "" }
+      }
+    ],
+    "panels": [],
+    "text": [],
+    "letteringStyles": [
+      { "id": "showcase-style", "name": "Hand dialogue", "fontFamily": "hand", "fontSize": 20, "align": "center" }
+    ],
+    "pageMasters": [
+      {
+        "id": "showcase-master",
+        "name": "Feature plus two",
+        "panels": [
+          { "id": "master-panel-1", "x": 5, "y": 5, "width": 90, "height": 55 },
+          { "id": "master-panel-2", "x": 5, "y": 64, "width": 43, "height": 31 },
+          { "id": "master-panel-3", "x": 52, "y": 64, "width": 43, "height": 31 }
+        ]
+      }
+    ],
+    "print": { "profile": "a4", "dpi": 300, "bleedMm": 3, "cropMarks": true }
+  },
+  "updatedAt": "2026-07-30T00:00:00.000Z"
+}

@@ -1,0 +1,20 @@
+{
+  "format": "natural-media-lab",
+  "version": 1,
+  "name": "Natural Media Sketchbook",
+  "width": 1600,
+  "height": 1000,
+  "background": "paper",
+  "layers": [
+    {
+      "id": "example-paper-notes",
+      "name": "Sketch layer",
+      "dataUrl": "",
+      "visible": true,
+      "locked": false,
+      "opacity": 1,
+      "blendMode": "source-over"
+    }
+  ],
+  "activeLayerId": "example-paper-notes"
+}

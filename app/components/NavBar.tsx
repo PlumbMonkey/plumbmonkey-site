@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/arcade", label: "Arcade" },
   { href: "/music", label: "Instruments" },
   { href: "/visual/index.html", label: "Light Lab" },
+  { href: "/natural-media-lab", label: "Art Lab" },
   { href: "/screening-room", label: "Theatre" },
   { href: "/gallery", label: "Gallery" },
 ];

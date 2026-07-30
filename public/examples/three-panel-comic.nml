@@ -1,0 +1,50 @@
+{
+  "format": "natural-media-lab",
+  "version": 1,
+  "name": "Three Panel Comic",
+  "width": 1240,
+  "height": 1754,
+  "background": "paper",
+  "layers": [
+    {
+      "id": "example-comic-art",
+      "name": "Comic artwork",
+      "dataUrl": "",
+      "visible": true,
+      "locked": false,
+      "opacity": 1,
+      "blendMode": "source-over"
+    }
+  ],
+  "activeLayerId": "example-comic-art",
+  "comic": {
+    "enabled": true,
+    "margin": 5,
+    "gutter": 4,
+    "panels": [
+      { "id": "example-panel-1", "x": 5, "y": 5, "width": 90, "height": 27 },
+      { "id": "example-panel-2", "x": 5, "y": 36.5, "width": 90, "height": 27 },
+      { "id": "example-panel-3", "x": 5, "y": 68, "width": 90, "height": 27 }
+    ],
+    "text": [
+      {
+        "id": "example-caption",
+        "type": "caption",
+        "text": "A new story begins...",
+        "x": 9,
+        "y": 8,
+        "width": 34,
+        "height": 8
+      },
+      {
+        "id": "example-speech",
+        "type": "speech",
+        "text": "Your dialogue here.",
+        "x": 58,
+        "y": 41,
+        "width": 29,
+        "height": 12
+      }
+    ]
+  }
+}
