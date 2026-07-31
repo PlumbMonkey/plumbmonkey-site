@@ -138,8 +138,8 @@ export default function HomePage() {
           <div className="grid overflow-hidden border border-moonlit-700/70 bg-moonlit-900/60 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="relative min-h-80 overflow-hidden lg:min-h-[30rem]">
               <img
-                src="/assets/haunted-house-branded.jpg"
-                alt="Spectral Manor, the home of the Ghost Circuit universe"
+                src="/assets/spectral-manor-gallery.jpg"
+                alt="The Victorian Haunted Gallery inside Spectral Manor"
                 className="absolute inset-0 h-full w-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-moonlit-950 via-transparent to-transparent lg:bg-gradient-to-r lg:from-transparent lg:to-moonlit-950" />

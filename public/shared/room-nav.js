@@ -17,7 +17,7 @@
   var ROOMS = [
     { href: "/", label: "Home" },
     { href: "/arcade", label: "Arcade" },
-    { href: "/music", label: "Sound Stage" },
+    { href: "/music", label: "Music Sandbox" },
     { href: "/visual/index.html", label: "Light Lab" },
     { href: "/natural-media-lab", label: "Art Room" },
     { href: "/screening-room", label: "Theatre" },
@@ -56,7 +56,7 @@
     btn.className = "pm-toggle";
     btn.type = "button";
     btn.setAttribute("aria-expanded", "false");
-    btn.innerHTML = "<span aria-hidden='true'>◀</span><span>Manor</span>";
+    btn.innerHTML = "<span aria-hidden='true'>◀</span><span>All Rooms</span>";
 
     var list = document.createElement("ul");
     ROOMS.forEach(function (r) {

@@ -138,3 +138,6 @@ dist
 out/
 .next/
 _next/
+
+# uncompressed reference export — the site loads gallery-web.glb
+public/gallery/gallery.glb

@@ -12,7 +12,7 @@ const ROOMS = [
   {
     href: "/music",
     number: "02",
-    name: "The Sound Stage",
+    name: "The Music Sandbox",
     tagline: "Make some noise",
     description: "Build beats, shape synths, arrange songs, and export what you create.",
     color: "from-cyan-500/20",

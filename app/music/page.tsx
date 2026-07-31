@@ -163,7 +163,7 @@ export default function MusicPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-lime-300">A separate visual studio</p>
             <h2 className="mt-3 font-serif text-3xl font-bold sm:text-4xl">Turn the finished track into a visual</h2>
             <p className="mt-4 max-w-xl leading-relaxed text-slate-400">
-              Light Lab has its own full creative workspace. Export WAV from Sound Stage and it becomes available there automatically on this device—or upload any audio file.
+              Light Lab has its own full creative workspace. Export WAV from the Music Sandbox and it becomes available there automatically on this device—or upload any audio file.
             </p>
             <a href="/visual/index.html?handoff=1" className="mt-7 inline-flex rounded-xl bg-lime-300 px-6 py-3.5 font-bold text-slate-950 transition hover:bg-lime-200">Open Light Lab →</a>
           </div>

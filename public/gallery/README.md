@@ -5,7 +5,7 @@ Exported from `PlumbmonkeyManor_Gallery_v1.blend` (Blender 5.1, EEVEE), 2026-07-
 | File | Size | Use |
 |---|---|---|
 | `gallery-web.glb` | **5.47 MB** | **Use this on the site.** Draco-compressed, JPEG textures, no lights. |
-| `gallery.glb` | 14.89 MB | Reference / editing. Uncompressed geometry, includes punctual lights. |
+| `gallery.glb` | 14.89 MB | **Not deployed** — gitignored. Uncompressed reference export with punctual lights, kept in the Blender project archive for editing. |
 
 ## Loading
 
