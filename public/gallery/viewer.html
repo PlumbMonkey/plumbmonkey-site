@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>The Gallery — Plumbmonkey</title>
+<meta name="description" content="Walk through the Victorian Haunted Gallery in 3D." />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #07060c; overflow: hidden;
+    font: 400 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #e8e4f2; }
+  canvas { display: block; }
+
+  #loader { position: fixed; inset: 0; display: grid; place-content: center; gap: 18px;
+    justify-items: center; background: #07060c; z-index: 40; transition: opacity .6s ease; }
+  #loader.done { opacity: 0; pointer-events: none; }
+  #loader h1 { margin: 0; font-size: clamp(20px, 4vw, 30px); font-weight: 700;
+    letter-spacing: .06em; color: #f0c274; text-align: center; }
+  #loader p { margin: 0; color: #9a93ad; font-size: 13px; letter-spacing: .12em;
+    text-transform: uppercase; }
+  #bar { width: min(320px, 70vw); height: 3px; background: rgba(240,194,116,.16); border-radius: 3px; }
+  #bar i { display: block; height: 100%; width: 0%; background: #f0c274; border-radius: 3px;
+    transition: width .25s ease; }
+  #err { max-width: 42ch; text-align: center; color: #ff9c9c; font-size: 13px; display: none; }
+
+  #views { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; z-index: 30;
+    padding: 6px; border-radius: 12px; background: rgba(12,10,20,.78);
+    border: 1px solid rgba(240,194,116,.24); backdrop-filter: blur(8px); max-width: calc(100vw - 24px); }
+  #views button { cursor: pointer; border: 0; border-radius: 8px; padding: 8px 12px;
+    background: transparent; color: #cfc8de; font: 600 13px system-ui, sans-serif; white-space: nowrap; }
+  #views button:hover { background: rgba(240,194,116,.16); color: #ffd9a0; }
+  #views button[aria-current="true"] { background: rgba(240,194,116,.9); color: #17121f; }
+
+  #hint { position: fixed; right: 12px; bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px));
+    z-index: 30; font-size: 12px; color: #7e7791; text-align: right; pointer-events: none; }
+  @media (max-width: 640px) { #hint { display: none; } }
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <h1>The Gallery</h1>
+  <div id="bar"><i></i></div>
+  <p id="pct">Loading 0%</p>
+  <div id="err"></div>
+</div>
+
+<nav id="views" hidden aria-label="Viewpoints"></nav>
+<div id="hint">drag to look · scroll to zoom · right-drag to pan</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/addons/": "./vendor/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const loaderEl = document.getElementById('loader');
+const barEl = document.querySelector('#bar i');
+const pctEl = document.getElementById('pct');
+const errEl = document.getElementById('err');
+const viewsEl = document.getElementById('views');
+
+function fail(msg) {
+  errEl.style.display = 'block';
+  errEl.textContent = msg;
+  pctEl.textContent = 'Could not load';
+}
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x07060c);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
+camera.position.set(0, 4.4, 14.2);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 2.2, -2);
+controls.maxPolarAngle = Math.PI * 0.92;
+controls.minDistance = 0.6;
+controls.maxDistance = 60;
+
+/* The web GLB ships without lights (the Blender scene uses 87 of them), so the
+   room is lit here. Emissive materials — candle flames, artwork, fountain glow —
+   do come through the export and carry a lot of the character. */
+scene.add(new THREE.HemisphereLight(0x8899ff, 0x241a12, 0.55));
+const moon = new THREE.DirectionalLight(0x9fb4ff, 1.5);
+moon.position.set(-6, 26, -34);
+scene.add(moon);
+scene.add(new THREE.AmbientLight(0xffffff, 0.12));
+
+// warm pools roughly under the three chandeliers (Blender Z-up -> glTF Y-up)
+for (const z of [11, 2, -7.5]) {
+  const l = new THREE.PointLight(0xffb066, 26, 26, 2);
+  l.position.set(0, 7.6, z);
+  scene.add(l);
+}
+const violet = new THREE.PointLight(0xa855f7, 14, 18, 2);
+violet.position.set(0, 1.6, 2);
+scene.add(violet);
+
+const draco = new DRACOLoader().setDecoderPath('./vendor/draco/gltf/');
+const gltfLoader = new GLTFLoader().setDRACOLoader(draco);
+
+let mixer = null;
+const clock = new THREE.Clock();
+
+gltfLoader.load('./gallery-web.glb',
+  (gltf) => {
+    scene.add(gltf.scene);
+
+    if (gltf.animations && gltf.animations.length) {
+      mixer = new THREE.AnimationMixer(gltf.scene);
+      gltf.animations.forEach((c) => mixer.clipAction(c).play());
+    }
+
+    // Build viewpoints from the cameras authored in Blender.
+    const cams = [];
+    gltf.scene.traverse((o) => { if (o.isCamera) cams.push(o); });
+    const ORDER = ['CAM_Arrival', 'CAM_Hero', 'CAM_Exhibits', 'CAM_HouseMini',
+                   'CAM_MiniKit', 'CAM_Fountain', 'CAM_Balcony',
+                   'CAM_BalconyOverlook', 'CAM_WingEN'];
+    const LABEL = {
+      CAM_Arrival: 'Entrance', CAM_Hero: 'Grand Hall', CAM_Exhibits: 'Instruments',
+      CAM_HouseMini: 'The Manor', CAM_MiniKit: 'Drum Kit', CAM_Fountain: 'Fountain',
+      CAM_Balcony: 'Balcony', CAM_BalconyOverlook: 'Overlook', CAM_WingEN: 'Band Wing'
+    };
+    cams.sort((a, b) => {
+      const ia = ORDER.indexOf(a.name), ib = ORDER.indexOf(b.name);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+
+    const goTo = (cam, btn) => {
+      const pos = new THREE.Vector3();
+      cam.getWorldPosition(pos);
+      const dir = new THREE.Vector3(0, 0, -1)
+        .applyQuaternion(cam.getWorldQuaternion(new THREE.Quaternion()));
+      camera.position.copy(pos);
+      controls.target.copy(pos).addScaledVector(dir, 6);
+      controls.update();
+      viewsEl.querySelectorAll('button').forEach((b) =>
+        b.setAttribute('aria-current', String(b === btn)));
+    };
+
+    cams.forEach((cam, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = LABEL[cam.name] || cam.name.replace(/^CAM_/, '');
+      b.addEventListener('click', () => goTo(cam, b));
+      viewsEl.appendChild(b);
+      if (i === 0) { goTo(cam, b); }
+    });
+    if (cams.length) viewsEl.hidden = false;
+
+    loaderEl.classList.add('done');
+    setTimeout(() => loaderEl.remove(), 700);
+  },
+  (evt) => {
+    if (!evt.lengthComputable) { pctEl.textContent = 'Loading…'; return; }
+    const p = Math.round((evt.loaded / evt.total) * 100);
+    barEl.style.width = p + '%';
+    pctEl.textContent = 'Loading ' + p + '%';
+  },
+  (e) => {
+    console.error(e);
+    fail('The gallery model failed to load. If you are opening this file directly from disk, ' +
+         'serve it over http:// instead — browsers block module and WASM loading on file:// URLs.');
+  }
+);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+renderer.setAnimationLoop(() => {
+  if (mixer) mixer.update(clock.getDelta());
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+
+<script src="/shared/room-nav.js" defer></script>
+</body>
+</html>

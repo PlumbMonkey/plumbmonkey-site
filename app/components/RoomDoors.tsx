@@ -49,6 +49,14 @@ const ROOMS = [
     description: "Creative software, prototypes, and open experiments built inside the studio.",
     color: "from-emerald-500/20",
   },
+  {
+    href: "/natural-media-lab",
+    number: "07",
+    name: "The Art Room",
+    tagline: "Paint, ink & pigment",
+    description: "Natural-media tools for drawing and painting directly in the browser.",
+    color: "from-sky-500/20",
+  },
 ];
 
 export default function RoomDoors() {

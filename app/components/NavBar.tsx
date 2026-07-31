@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/natural-media-lab", label: "Art Room" },
   { href: "/screening-room", label: "Theatre" },
   { href: "/gallery", label: "Gallery" },
+  { href: "/workshop", label: "Workshop" },
 ];
 
 export default function NavBar() {
