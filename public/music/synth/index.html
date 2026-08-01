@@ -15,6 +15,20 @@
     <link rel="stylesheet" crossorigin href="./assets/saveFile-C707BeKN.css" />
     <link rel="stylesheet" crossorigin href="./assets/StandaloneMidiBar-DmlomFxZ.css" />
     <link rel="stylesheet" crossorigin href="./assets/SynthSeqPanel-DHDQQq0e.css" />
+    <style>
+      /* Stopgap for a layout bug in the compiled bundle: .sa-main is meant to
+         be the app's scrollable region (overflow:auto) but its parent chain
+         never constrains its height, so it grows to fit all content instead
+         of scrolling — the sequencer panel ends up ~2500px down, past the
+         viewport-clipped html/body (overflow:hidden), completely unreachable.
+         Confirmed live: this forces the intended height chain and brings the
+         sequencer's own "Close sequencer" button back on-screen. The real fix
+         belongs in the Stave source (a missing height/min-height link between
+         .sa-app and .sa-main) — remove this once that ships and this file is
+         regenerated from a fresh build. */
+      .sa-app, .sa-app--sy1 { height: 100% !important; }
+      .sa-main { height: 100% !important; min-height: 0 !important; }
+    </style>
   </head>
   <body>
     <nav class="pm-sandbox-nav" aria-label="Music Sandbox">
