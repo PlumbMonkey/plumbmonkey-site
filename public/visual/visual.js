@@ -1882,9 +1882,9 @@ window.addEventListener('DOMContentLoaded', () => {
       selectChip('.src-chip', handoffBtn);
       document.getElementById('trackName').textContent = file.name;
       if (window.lightLabDrawWaveform) window.lightLabDrawWaveform(file);
-      setStatus('Sound Stage export loaded: ' + file.name);
+      setStatus('Music Sandbox export loaded: ' + file.name);
     } catch (e) {
-      setStatus('The latest Sound Stage export could not be loaded');
+      setStatus('The latest Music Sandbox export could not be loaded');
     }
   });
 
