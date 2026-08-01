@@ -49,6 +49,24 @@ export default function ScreeningRoomPage() {
         subtitle="Video editing & production — the service that started it all."
       />
 
+      <section className="mx-auto max-w-3xl px-6 pt-20 pb-4 text-center">
+        <p className="text-lg text-moonlit-200">
+          Step inside the Spectral Grand Theatre — a haunted Victorian opera house that shifts
+          between concert venue and cinema, explorable in your browser.
+        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+          <a
+            href="/theatre/viewer.html"
+            className="inline-block rounded-lg bg-brass-500 px-8 py-3 font-bold text-moonlit-950 shadow transition hover:bg-brass-400"
+          >
+            Enter the Theatre
+          </a>
+        </div>
+        <p className="mt-6 text-sm text-moonlit-400">
+          Best on desktop · drag to look, scroll to zoom · roughly 4&nbsp;MB to load
+        </p>
+      </section>
+
       <section className="mx-auto max-w-6xl px-6 py-24">
         <h2 className="mb-4 text-center font-display text-3xl font-semibold">
           Video Editing &amp; Creative Services

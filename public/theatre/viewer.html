@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>The Spectral Grand Theatre — Plumbmonkey</title>
+<meta name="description" content="Explore the Spectral Grand Theatre in 3D — opera house, concert venue and cinema." />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:#07060a; overflow:hidden;
+    font:400 15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#efe9dc; }
+  canvas { display:block; }
+
+  #loader { position:fixed; inset:0; display:grid; place-content:center; gap:18px;
+    justify-items:center; background:#07060a; z-index:40; transition:opacity .6s ease; }
+  #loader.done { opacity:0; pointer-events:none; }
+  #loader h1 { margin:0; font-size:clamp(20px,4vw,30px); font-weight:700;
+    letter-spacing:.06em; color:#e2b96b; text-align:center; }
+  #loader p { margin:0; color:#98907f; font-size:13px; letter-spacing:.12em; text-transform:uppercase; }
+  #bar { width:min(320px,70vw); height:3px; background:rgba(226,185,107,.16); border-radius:3px; }
+  #bar i { display:block; height:100%; width:0%; background:#e2b96b; border-radius:3px; transition:width .25s ease; }
+  #err { max-width:42ch; text-align:center; color:#ff9c9c; font-size:13px; display:none; }
+
+  .bar { position:fixed; left:50%; transform:translateX(-50%); z-index:30;
+    display:flex; gap:6px; flex-wrap:wrap; justify-content:center; padding:6px;
+    border-radius:12px; background:rgba(14,11,8,.80); border:1px solid rgba(226,185,107,.24);
+    backdrop-filter:blur(8px); max-width:calc(100vw - 24px); }
+  #views { bottom:max(14px, env(safe-area-inset-bottom)); }
+  #modes { bottom:max(64px, calc(env(safe-area-inset-bottom) + 56px)); }
+  .bar button { cursor:pointer; border:0; border-radius:8px; padding:8px 12px; background:transparent;
+    color:#cfc4b0; font:600 13px system-ui,sans-serif; white-space:nowrap; }
+  .bar button:hover { background:rgba(226,185,107,.16); color:#ffdca0; }
+  .bar button[aria-current="true"] { background:rgba(226,185,107,.9); color:#17120c; }
+  #modes::before { content:"Mode"; align-self:center; padding:0 8px 0 4px;
+    font:600 11px system-ui; letter-spacing:.16em; text-transform:uppercase; color:#8d846f; }
+  #hint { position:fixed; right:12px; bottom:max(112px, calc(env(safe-area-inset-bottom) + 104px));
+    z-index:30; font-size:12px; color:#7d7565; text-align:right; pointer-events:none; }
+  @media (max-width:700px){ #hint{ display:none; } }
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <h1>The Spectral Grand Theatre</h1>
+  <div id="bar"><i></i></div>
+  <p id="pct">Loading 0%</p>
+  <div id="err"></div>
+</div>
+
+<nav id="modes" class="bar" hidden aria-label="Theatre mode"></nav>
+<nav id="views" class="bar" hidden aria-label="Viewpoints"></nav>
+<div id="hint">drag to look · scroll to zoom · right-drag to pan</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/gallery/vendor/three.module.js",
+    "three/addons/": "/gallery/vendor/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const loaderEl = document.getElementById('loader');
+const barEl = document.querySelector('#bar i');
+const pctEl = document.getElementById('pct');
+const errEl = document.getElementById('err');
+const viewsEl = document.getElementById('views');
+const modesEl = document.getElementById('modes');
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x07060a);
+
+const camera = new THREE.PerspectiveCamera(52, innerWidth/innerHeight, 0.1, 600);
+camera.position.set(0, 8, 24);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.target.set(0, 6, -4);
+controls.maxPolarAngle = Math.PI * 0.93;
+controls.minDistance = 1; controls.maxDistance = 90;
+
+/* The export carries no lights (the Blender scene uses many), so the house is
+   lit here. Emissive materials — chandelier flames, stained glass, marquee —
+   do come through and carry much of the character. */
+scene.add(new THREE.HemisphereLight(0xffd8a8, 0x1a1208, 0.45));
+scene.add(new THREE.AmbientLight(0xffffff, 0.10));
+const key = new THREE.DirectionalLight(0xfff0d0, 1.1);
+key.position.set(-8, 26, 18); scene.add(key);
+// warm pools roughly under the four chandeliers (Blender Z-up -> glTF Y-up)
+for (const z of [26, 20, 14, 8]) {
+  const l = new THREE.PointLight(0xffb066, 40, 42, 2);
+  l.position.set(0, 15.5, z); scene.add(l);
+}
+const stage = new THREE.SpotLight(0xfff2dc, 260, 60, Math.PI/7, 0.45, 2);
+stage.position.set(0, 15, 3); stage.target.position.set(0, 2, -6);
+scene.add(stage); scene.add(stage.target);
+
+const draco = new DRACOLoader().setDecoderPath('/gallery/vendor/draco/gltf/');
+const gltfLoader = new GLTFLoader().setDRACOLoader(draco);
+
+let mixer = null;
+const clock = new THREE.Clock();
+const drapes = [];
+let screenObj = null;
+
+// Blender custom props ride along in userData / extras
+const MODES = {
+  Concert:      { gather: 1.00, screenDown: false },
+  Cinema:       { gather: 0.72, screenDown: true  },
+  Presentation: { gather: 0.72, screenDown: true  },
+  Story:        { gather: 0.00, screenDown: false },
+};
+let screenUpY = null;
+
+function applyMode(name, btn) {
+  const m = MODES[name];
+  drapes.forEach(d => {
+    if (d.morphTargetInfluences && d.morphTargetInfluences.length)
+      d.morphTargetInfluences[0] = m.gather;
+  });
+  if (screenObj && screenUpY !== null)
+    screenObj.position.y = m.screenDown ? screenUpY - 9.6 : screenUpY;
+  modesEl.querySelectorAll('button').forEach(b =>
+    b.setAttribute('aria-current', String(b === btn)));
+  // small hook so the mode rig can be inspected/driven from the console
+  window.__sgt = {
+    mode: name,
+    drapes: drapes.map(d => ({ name: d.name, gather: d.morphTargetInfluences?.[0] ?? null })),
+    screenY: screenObj ? Number(screenObj.position.y.toFixed(2)) : null,
+    setMode: applyMode,
+  };
+}
+
+gltfLoader.load('./theatre-web.glb',
+  (gltf) => {
+    scene.add(gltf.scene);
+
+    gltf.scene.traverse((o) => {
+      if (!o.isMesh) return;
+      if (/SGT_Drape_[LR]/.test(o.name)) drapes.push(o);
+      if (/SGT_CinemaScreen/.test(o.name)) screenObj = o;
+    });
+    if (screenObj) screenUpY = screenObj.position.y;
+
+    if (gltf.animations && gltf.animations.length) {
+      mixer = new THREE.AnimationMixer(gltf.scene);
+      gltf.animations.forEach(c => mixer.clipAction(c).play());
+    }
+
+    Object.keys(MODES).forEach((name, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = name;
+      b.addEventListener('click', () => applyMode(name, b));
+      modesEl.appendChild(b);
+      if (i === 0) applyMode(name, b);
+    });
+    modesEl.hidden = false;
+
+    const cams = [];
+    gltf.scene.traverse(o => { if (o.isCamera) cams.push(o); });
+    const goTo = (c, btn) => {
+      const p = new THREE.Vector3(); c.getWorldPosition(p);
+      const d = new THREE.Vector3(0,0,-1)
+        .applyQuaternion(c.getWorldQuaternion(new THREE.Quaternion()));
+      camera.position.copy(p);
+      controls.target.copy(p).addScaledVector(d, 14);
+      controls.update();
+      viewsEl.querySelectorAll('button').forEach(b =>
+        b.setAttribute('aria-current', String(b === btn)));
+    };
+    if (cams.length) {
+      cams.forEach((c, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = (c.name || `View ${i+1}`).replace(/^(CAM_|OPT_|SGT_)/, '');
+        b.addEventListener('click', () => goTo(c, b));
+        viewsEl.appendChild(b);
+        if (i === 0) goTo(c, b);
+      });
+      viewsEl.hidden = false;
+    }
+
+    loaderEl.classList.add('done');
+    setTimeout(() => loaderEl.remove(), 700);
+  },
+  (evt) => {
+    if (!evt.lengthComputable) { pctEl.textContent = 'Loading…'; return; }
+    const p = Math.round((evt.loaded / evt.total) * 100);
+    barEl.style.width = p + '%';
+    pctEl.textContent = 'Loading ' + p + '%';
+  },
+  (e) => {
+    console.error(e);
+    errEl.style.display = 'block';
+    errEl.textContent = 'The theatre model failed to load. If you opened this file directly ' +
+      'from disk, serve it over http:// instead — browsers block module and WASM loading on file:// URLs.';
+    pctEl.textContent = 'Could not load';
+  }
+);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+renderer.setAnimationLoop(() => {
+  if (mixer) mixer.update(clock.getDelta());
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+
+<script src="/shared/room-nav.js" defer></script>
+</body>
+</html>
