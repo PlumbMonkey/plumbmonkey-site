@@ -31,17 +31,18 @@
     .tool-menu nav { position:absolute; top:calc(100% + 8px); left:0; z-index:50; min-width:180px; padding:7px; border:1px solid var(--line); border-radius:11px; background:#101215f7; box-shadow:0 18px 50px #000a; }
     .tool-menu a { display:block; padding:.62rem .7rem; border-radius:7px; color:#d4d9dc; text-decoration:none; font-size:.74rem; }
     .tool-menu a:hover { background:#ffffff0c; color:var(--acid); }
-    /* Ghost Circuit menu — mirrors the site nav's grouping so the three
-       playgrounds read as one universe here too. */
-    .tool-menu summary .gc { background:linear-gradient(90deg,var(--cyan),var(--violet));
-      -webkit-background-clip:text; background-clip:text; color:transparent; font-weight:700; }
+    /* Site navigation menu — same seven rooms + Work with me as the rest of
+       the site's NavBar, in the site's own brass accent rather than this
+       app's neon Ghost Circuit palette, so it reads as "leaving the tool"
+       rather than another in-app option. */
+    .tool-menu summary .gc { color:#d9ac52; font-weight:700; }
     .tool-menu nav { min-width:216px; }
     .gc-label { padding:.5rem .7rem .25rem; font-size:.56rem; letter-spacing:.2em;
       text-transform:uppercase; color:#6b7278; }
     .gc-item { display:flex; align-items:center; gap:.6rem; }
     .gc-item .gc-glyph { width:26px; height:26px; flex:0 0 auto; display:grid; place-items:center;
-      border-radius:7px; font-size:.78rem; color:var(--cyan);
-      background:linear-gradient(135deg,#5ce6db22,#a67cff22); border:1px solid #ffffff14; }
+      border-radius:7px; font-size:.78rem; color:#d9ac52;
+      background:#d9ac521a; border:1px solid #ffffff14; }
     .gc-item.current { color:var(--acid); }
     .gc-item.current .gc-glyph { color:var(--acid); border-color:#4b5930; }
     .tool-menu hr { border:0; border-top:1px solid var(--line); margin:.4rem .3rem; }
@@ -173,21 +174,25 @@
 <body>
   <div class="app">
     <header class="topbar">
-      <!-- One nav entry only: the Ghost Circuit dropdown (it links Home too).
-           The old brand block beside it was a second, redundant link. -->
+      <!-- One nav entry only: a dropdown carrying the same seven rooms and
+           "Work with me" CTA as the site's real NavBar (app/components/NavBar.tsx).
+           This page is a fixed-height app (100dvh, overflow:hidden on body),
+           so navigation lives inside the existing 64px topbar row rather than
+           as an added bar — an extra row here would push content past the
+           clipped viewport with no way to scroll to it. -->
       <details class="tool-menu">
-        <summary><span class="gc">Ghost Circuit</span> ▾</summary>
-        <nav aria-label="Ghost Circuit">
-          <div class="gc-label">The Ghost Circuit universe</div>
+        <summary><span class="gc">Plumbmonkey</span> ▾</summary>
+        <nav aria-label="Plumbmonkey rooms">
+          <div class="gc-label">Spectral Manor</div>
           <a class="gc-item" href="/arcade"><span class="gc-glyph">🕹</span>Arcade</a>
-          <a class="gc-item" href="/music"><span class="gc-glyph">♪</span>Sound Stage</a>
+          <a class="gc-item" href="/music"><span class="gc-glyph">♪</span>Music Sandbox</a>
           <a class="gc-item current" href="/visual/index.html" aria-current="page"><span class="gc-glyph">✦</span>Light Lab</a>
+          <a class="gc-item" href="/natural-media-lab"><span class="gc-glyph">🎨</span>Art Room</a>
+          <a class="gc-item" href="/screening-room"><span class="gc-glyph">🎬</span>Theatre</a>
+          <a class="gc-item" href="/gallery"><span class="gc-glyph">🖼</span>Gallery</a>
+          <a class="gc-item" href="/workshop"><span class="gc-glyph">🛠</span>Workshop</a>
           <hr />
-          <div class="gc-label">Music Sandbox</div>
-          <a href="/music/drum-machine/index.html">Drum Machine</a>
-          <a href="/music/synth/index.html">Soft Synth</a>
-          <a href="/music/song/index.html">Song View</a>
-          <hr />
+          <a href="/onboarding/orientation">Work with me</a>
           <a href="/">Plumbmonkey Home</a>
         </nav>
       </details>
@@ -398,6 +403,5 @@
   <button id="fsBtn" hidden></button><button id="drawerBtn" hidden></button><div id="drawer"></div>
   <script src="/shared/creative-handoff.js"></script>
   <script src="visual.js"></script>
-  <script src="/shared/room-nav.js" defer></script>
 </body>
 </html>

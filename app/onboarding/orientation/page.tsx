@@ -87,7 +87,7 @@ export default function OrientationPage() {
   };
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-50 py-12 px-6">
+    <main className="min-h-screen bg-zinc-950 text-zinc-50 py-24 px-6">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl md:text-5xl font-bold mb-2">Let's talk about your video.</h1>
