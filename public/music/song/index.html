@@ -13,8 +13,6 @@
       min-height: 100vh; display: flex; flex-direction: column; align-items: center;
       padding: 2.5rem 1rem 3rem; user-select: none;
     }
-    .nav a { color: #67e8f9; background: rgba(16,24,46,.8); border: 1px solid #164e63; }
-    .nav a:hover { color: #fff; border-color: #22d3ee; box-shadow: 0 0 12px rgba(34,211,238,.5); }
 
     h1 { font-size: 1.5rem; letter-spacing: 2px; color: #67e8f9; text-shadow: 0 0 18px #22d3ee; }
     .subtitle { color: #7dd3fc; font-size: .8rem; margin-bottom: 1.1rem; text-align: center; }
@@ -128,18 +126,20 @@
       .transport { gap: .5rem; padding: .6rem .7rem; }
       input[type=range] { width: 96px; }
     }
+  
+    /* The shared bar is the first child of a centred flex column whose <body>
+       carries its own padding, so left alone it renders as a narrow box inset
+       from the top and sides. Stretch it, cancel the horizontal padding, and
+       move the top padding onto the heading instead. */
+    body { padding-top: 0; }
+    .pm-nav { align-self: stretch; width: auto; margin: 0 -1rem; }
+    h1 { margin-top: 2.5rem; }
+      @media (max-width: 860px) { .pm-nav { margin: 0 -.6rem; } }
   </style>
-</head>
+    <link rel="stylesheet" href="/shared/site-nav.css" />
+  </head>
 <body>
-  <div class="nav">
-    <a href="/music">← Sound Stage</a>
-    <a href="../drum-machine/index.html">Drum Machine</a>
-    <a href="../synth/index.html">Synth</a>
-    <a href="/visual/index.html">Light Lab</a>
-    <span class="nav-sep"></span>
-    <a href="/arcade">Arcade</a>
-    <a href="/" data-short="Home"><span class="nav-long">Plumbmonkey Home</span></a>
-  </div>
+    <script src="/shared/site-nav.js"></script>
 
   <h1>SONG VIEW</h1>
   <div class="subtitle">Arrange your beats and riffs into a track</div>

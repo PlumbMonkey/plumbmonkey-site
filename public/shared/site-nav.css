@@ -1,0 +1,130 @@
+/* ============================================================
+   Plumbmonkey — shared site nav for STANDALONE pages.
+
+   The React side of the site gets its nav from app/components/NavBar.tsx via
+   app/layout.tsx, so every Next.js route already has it. Static pages under
+   public/ never pass through that layout, so this is their equivalent: the
+   same seven rooms, the same "Work with me" CTA, the same colours.
+
+   Colours are the Tailwind tokens hard-coded, because these pages have no
+   Tailwind: moonlit-950 #0a0c11 · moonlit-400 #61708a · moonlit-200 #aeb9c9
+   brass-500 #a97829 · brass-400 #c4923a · brass-300 #d9ac52 · brass-200 #e8c97e
+
+   Playfair Display / Inter are loaded by next/font on the React side only, so
+   the brand mark falls back to a serif stack rather than shipping a webfont
+   to every tool page.
+
+   LAYOUT CONTRACT: the bar is sticky IN NORMAL FLOW, so on ordinary scrolling
+   pages it simply occupies its own row and needs no compensation. Pages that
+   size a container to the viewport (height:100dvh + overflow:hidden) must
+   subtract its height instead:  height: calc(100dvh - var(--pm-nav-h));
+   Adding a row to a rigid full-height grid without doing that pushes content
+   past the clipped edge where nothing can scroll to it.
+   ============================================================ */
+
+:root { --pm-nav-h: 64px; }
+
+.pm-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: var(--pm-nav-h);
+  padding: 0 20px;
+  background: rgba(10, 12, 17, .85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+  font-family: Inter, ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  line-height: 1.2;
+}
+.pm-nav *, .pm-nav *::before, .pm-nav *::after { box-sizing: border-box; }
+
+/* ---- brand ---- */
+.pm-nav__brand { display: flex; align-items: center; gap: 12px; text-decoration: none; flex: 0 0 auto; }
+.pm-nav__mark {
+  display: grid; place-items: center;
+  width: 32px; height: 32px;
+  border: 1px solid rgba(169, 120, 41, .6);
+  color: #d9ac52;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+}
+.pm-nav__name { display: block; }
+.pm-nav__name strong {
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px; font-weight: 600; color: #fff;
+}
+.pm-nav__name small {
+  display: block; margin-top: 3px;
+  font-size: 8px; letter-spacing: .26em; text-transform: uppercase; color: #61708a;
+}
+
+/* ---- desktop links ---- */
+.pm-nav__links { display: flex; align-items: center; gap: 24px; margin-left: auto; }
+.pm-nav__links a {
+  font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+  color: #aeb9c9; text-decoration: none; white-space: nowrap;
+  transition: color .15s ease;
+}
+.pm-nav__links a:hover { color: #d9ac52; }
+.pm-nav__links a[aria-current="page"] { color: #e8c97e; }
+
+.pm-nav__cta {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  border: 1px solid rgba(169, 120, 41, .7);
+  color: #e8c97e; text-decoration: none;
+  font-size: 12px; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap;
+  transition: background .15s ease, color .15s ease;
+}
+.pm-nav__cta:hover { background: #c4923a; color: #0a0c11; }
+
+/* ---- mobile toggle + drawer ---- */
+.pm-nav__toggle {
+  display: none;
+  margin-left: auto;
+  width: 40px; height: 40px;
+  border: 1px solid rgba(255, 255, 255, .15);
+  background: transparent; color: #fff;
+  font: inherit; font-size: 18px; line-height: 1; cursor: pointer;
+}
+.pm-nav__drawer {
+  display: none;
+  position: sticky; top: var(--pm-nav-h); z-index: 99;
+  padding: 20px;
+  background: #0a0c11;
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+  font-family: Inter, ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+}
+.pm-nav__drawer.is-open { display: block; }
+.pm-nav__drawer a {
+  display: block; padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+  font-size: 14px; letter-spacing: .16em; text-transform: uppercase;
+  color: #d3dae4; text-decoration: none;
+}
+.pm-nav__drawer a[aria-current="page"] { color: #e8c97e; }
+.pm-nav__drawer .pm-nav__cta {
+  display: block; margin-top: 20px; border: 0;
+  background: #d9ac52; color: #0a0c11;
+  text-align: center; font-weight: 700; padding: 12px 20px;
+}
+
+@media (max-width: 1023px) {
+  .pm-nav__links, .pm-nav > .pm-nav__cta { display: none; }
+  .pm-nav__toggle { display: grid; place-items: center; }
+}
+@media (max-width: 420px) {
+  :root { --pm-nav-h: 56px; }
+  .pm-nav { padding: 0 14px; }
+  .pm-nav__name strong { font-size: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-nav a, .pm-nav__cta { transition: none; }
+}

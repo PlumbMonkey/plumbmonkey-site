@@ -25,18 +25,25 @@
          sequencer's own "Close sequencer" button back on-screen. The real fix
          belongs in the Stave source (a missing height/min-height link between
          .sa-app and .sa-main) — remove this once that ships and this file is
-         regenerated from a fresh build. */
-      .sa-app, .sa-app--sy1 { height: 100% !important; }
+         regenerated from a fresh build.
+
+         The page is also viewport-clipped (html/body overflow:hidden), so the
+         shared nav's height has to come OFF the app's, per the layout contract
+         in /shared/site-nav.css — at a flat 100% the app would sit one bar
+         taller than the window and lose its bottom row off the clipped edge. */
+      /* min-height must be cleared too — the bundle pins it to the full
+         viewport, which outranks a shorter height and pushes the app back
+         down past the clipped edge. */
+      .sa-app, .sa-app--sy1 {
+        height: calc(100% - var(--pm-nav-h)) !important;
+        min-height: 0 !important;
+      }
       .sa-main { height: 100% !important; min-height: 0 !important; }
     </style>
+    <link rel="stylesheet" href="/shared/site-nav.css" />
   </head>
   <body>
-    <nav class="pm-sandbox-nav" aria-label="Music Sandbox">
-      <a href="/music">← Music Sandbox</a>
-      <a href="/music/drum-machine/index.html">DM-1</a>
-      <a href="/music/sy1">SY-2</a>
-      <a href="/">Plumbmonkey Home</a>
-    </nav>
+    <script src="/shared/site-nav.js"></script>
     <div id="root"></div>
     <script src="/music/shared/keyboard-performance.js"></script>
   </body>

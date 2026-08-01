@@ -15,9 +15,6 @@
     }
     h1 { font-size: 1.6rem; letter-spacing: 2px; color: #67e8f9; text-shadow: 0 0 18px #22d3ee; margin-bottom: .2rem; }
     .subtitle { color: #7dd3fc; font-size: .82rem; margin-bottom: 1.4rem; }
-    /* .nav base lives in shared/sound-stage.css — colours only here */
-    .nav a { color: #67e8f9; text-decoration: none; background: rgba(16,24,46,.8); border: 1px solid #164e63; }
-    .nav a:hover { color: #fff; border-color: #22d3ee; box-shadow: 0 0 12px rgba(34,211,238,.5); }
 
     .transport { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 1.2rem;
       background: rgba(16,24,46,.6); border: 1px solid #164e63; border-radius: 12px; padding: .8rem 1.2rem; }
@@ -57,8 +54,6 @@
     body { background: radial-gradient(ellipse at 18% 90%, #9fcf9a20, transparent 38%), radial-gradient(ellipse at 78% 0%, #8a68aa32, transparent 36%), #0b0910; color: #eee7d8; }
     h1 { font-family: Georgia, 'Times New Roman', serif; color: #d6a35b; text-shadow: 0 0 22px #d6a35b44; }
     .subtitle, .ctl, .flash { color: #9fcf9a; }
-    .nav a { color: #d9c8aa; background: #15121add; border-color: #3c3243; }
-    .nav a:hover { color: #9fcf9a; border-color: #9fcf9a; box-shadow: 0 0 12px #9fcf9a55; }
     .transport, .machine { background: linear-gradient(145deg, #302839cc, #15121aee); border-color: #3c3243; box-shadow: 0 24px 70px #0009, 0 0 40px #8a68aa20; }
     button { background: #302839; color: #eee7d8; }
     button:hover { background: #44374e; box-shadow: 0 0 14px #9fcf9a44; }
@@ -74,18 +69,19 @@
     .cell.on.playing { background: #c3dfb8; box-shadow: 0 0 18px #9fcf9acc; animation: spectral-hit .11s ease-out; }
     @keyframes spectral-hit { from { transform: translateY(2px) scale(.88); filter: brightness(1.8); } to { transform: none; filter: none; } }
     .footer { color: #675d6c; }
+  
+    /* The shared bar is the first child of a centred flex column whose <body>
+       carries its own padding, so left alone it renders as a narrow box inset
+       from the top and sides. Stretch it, cancel the horizontal padding, and
+       move the top padding onto the heading instead. */
+    body { padding-top: 0; }
+    .pm-nav { align-self: stretch; width: auto; margin: 0 -1rem; }
+    h1 { margin-top: 2.5rem; }
   </style>
-</head>
+    <link rel="stylesheet" href="/shared/site-nav.css" />
+  </head>
 <body>
-  <div class="nav">
-    <a href="/music">← Sound Stage</a>
-    <a href="../synth/index.html">SY-1</a>
-    <a href="../song/index.html">Song</a>
-    <a href="/visual/index.html">Light Lab</a>
-    <span class="nav-sep"></span>
-    <a href="/arcade">Arcade</a>
-    <a href="/" data-short="Home"><span class="nav-long">Plumbmonkey Home</span></a>
-  </div>
+    <script src="/shared/site-nav.js"></script>
 
   <h1>DM-1 RHYTHM MACHINE</h1>
   <div class="subtitle">8 spectral voices · 16-step sequencer · forged for Stave</div>

@@ -7,27 +7,10 @@
     <title>SY-2 Polyphonic Synthesizer | Plumbmonkey</title>
     <script type="module" crossorigin src="/music/stave/assets/main-BJwTXXmX.js"></script>
     <link rel="stylesheet" crossorigin href="/music/stave/assets/main-CT-8qL-c.css">
-    <link rel="stylesheet" href="/music/shared/sound-stage.css" />
-    <style>
-      /* This page's <body> carries no padding (Stave owns the full viewport
-         itself), so the shared .nav's full-bleed negative-margin trick has
-         nothing to cancel out — tell it that explicitly or it pulls the bar
-         up by the 2.5rem/1rem it assumes by default. */
-      body { --ss-pad-top: 0px; --ss-pad-x: 0px; }
-      .nav a { color: #f5d29a; background: rgba(24,17,10,.82); border: 1px solid #6b4a1e; }
-      .nav a:hover { color: #fff; border-color: #e0a940; box-shadow: 0 0 12px rgba(224,169,64,.5); }
-    </style>
+    <link rel="stylesheet" href="/shared/site-nav.css" />
   </head>
   <body>
-    <div class="nav">
-      <a href="/music">← Music Sandbox</a>
-      <a href="/music/stave/dm2/">DM-2</a>
-      <a href="/music/synth/index.html">SY-1</a>
-      <a href="/visual/index.html">Light Lab</a>
-      <span class="nav-sep"></span>
-      <a href="/arcade">Arcade</a>
-      <a href="/" data-short="Home"><span class="nav-long">Plumbmonkey Home</span></a>
-    </div>
+    <script src="/shared/site-nav.js"></script>
     <div id="root"></div>
     <script src="/music/shared/keyboard-performance.js"></script>
   </body>
