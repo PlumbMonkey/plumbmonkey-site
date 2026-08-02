@@ -20,25 +20,21 @@
    session, so the in-headset menu has to be rebuilt in the scene, and it must
    not fall out of sync with this one.
 
-   ROOM LIST: this mirrors app/components/NavBar.tsx and
-   /shared/site-nav.js. There are now three copies; the list wants extracting
-   into one /shared/rooms.js that all three consume. Until then, change all
-   three together — a drifted copy is exactly how the same room ended up called
-   "Sound Stage" in some navs and "Music Sandbox" in others.
+   ROOM LIST: comes from /shared/rooms.js, the one place every nav reads.
    ============================================================ */
 (function () {
   "use strict";
 
-  var ROOMS = [
-    { href: "/arcade", label: "Arcade" },
-    { href: "/music", label: "Music Sandbox" },
-    { href: "/visual/index.html", label: "Light Lab" },
-    { href: "/natural-media-lab", label: "Art Room" },
-    { href: "/screening-room", label: "Theatre" },
-    { href: "/gallery", label: "Gallery" },
-    { href: "/workshop", label: "Workshop" }
-  ];
-  window.PM_ROOMS = ROOMS;
+  /* The room list comes from /shared/rooms.js, which also defines
+     window.PM_ROOMS for the WebXR panel in Phase 5. Load it first:
+       <script src="/shared/rooms.js" defer></script>
+       <script src="/shared/room-menu.js" data-exit="..." defer></script>
+     Deferred scripts run in document order, so that ordering holds. */
+  var ROOMS = window.PM_ROOMS;
+  if (!ROOMS) {
+    console.error("room-menu.js: /shared/rooms.js must load first");
+    return;
+  }
 
   var script = document.currentScript;
   var exitHref = (script && script.dataset.exit) || "/";

@@ -14,28 +14,26 @@
    it deferred at the end of <body> would inject the bar after the page had
    already painted and visibly shove everything down.
 
-   THIS IS THE SINGLE SOURCE OF TRUTH for the room list on static pages. It
-   mirrors app/components/NavBar.tsx — when a room is added, renamed or moved,
-   change it in both. The site previously had the list duplicated across four
-   places and drifted: the same room was "Sound Stage" in some navs and
-   "Music Sandbox" in others.
+   The room list lives in /shared/rooms.js, which every nav on the site reads.
+   Load it before this file.
 
    Opt out on a page that must not have it:  <body data-site-nav="off">
    ============================================================ */
 (function () {
   "use strict";
 
-  // Mirrors LINKS in app/components/NavBar.tsx.
-  var ROOMS = [
-    { href: "/arcade", label: "Arcade" },
-    { href: "/music", label: "Music Sandbox" },
-    { href: "/visual/index.html", label: "Light Lab" },
-    { href: "/natural-media-lab", label: "Art Room" },
-    { href: "/screening-room", label: "Theatre" },
-    { href: "/gallery", label: "Gallery" },
-    { href: "/workshop", label: "Workshop" }
-  ];
-  var CTA = { href: "/onboarding/orientation", label: "Work with me" };
+  /* The room list comes from /shared/rooms.js — load it first:
+       <script src="/shared/rooms.js"></script>
+       <script src="/shared/site-nav.js"></script>
+     Both must be synchronous and in that order, because this script writes the
+     bar during parse. If rooms.js is missing the bar is skipped rather than
+     rendered wrong. */
+  var ROOMS = window.PM_ROOMS;
+  var CTA = window.PM_CTA;
+  if (!ROOMS || !CTA) {
+    console.error("site-nav.js: /shared/rooms.js must load first");
+    return;
+  }
 
   var script = document.currentScript;
 

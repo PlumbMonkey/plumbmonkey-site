@@ -3,15 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-const LINKS = [
-  { href: "/arcade", label: "Arcade" },
-  { href: "/music", label: "Music Sandbox" },
-  { href: "/visual/index.html", label: "Light Lab" },
-  { href: "/natural-media-lab", label: "Art Room" },
-  { href: "/screening-room", label: "Theatre" },
-  { href: "/gallery", label: "Gallery" },
-  { href: "/workshop", label: "Workshop" },
-];
+// Canonical room list — see public/shared/rooms.js. The static pages read the
+// same file at runtime, so the nav cannot drift between the React side and the
+// standalone tools.
+import { ROOMS as LINKS, CTA } from "@/public/shared/rooms";
 
 export default function NavBar() {
   const [open, setOpen] = useState(false);
@@ -44,10 +39,10 @@ export default function NavBar() {
             </Link>
           ))}
           <Link
-            href="/onboarding/orientation"
+            href={CTA.href}
             className="border border-brass-500/70 px-4 py-2 text-brass-200 transition hover:bg-brass-400 hover:text-moonlit-950"
           >
-            Work with me
+            {CTA.label}
           </Link>
         </div>
 
@@ -78,11 +73,11 @@ export default function NavBar() {
           </Link>
         ))}
         <Link
-          href="/onboarding/orientation"
+          href={CTA.href}
           className="mt-5 bg-brass-300 px-5 py-3 text-center text-sm font-bold uppercase tracking-[0.16em] text-moonlit-950"
           onClick={() => setOpen(false)}
         >
-          Work with me
+          {CTA.label}
         </Link>
       </div>
     </header>
