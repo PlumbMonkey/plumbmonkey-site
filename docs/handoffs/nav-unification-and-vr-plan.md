@@ -110,10 +110,36 @@ to reach it. Anything added to a rigid full-height layout must come off the app'
 - 5 more copies live in the untracked `public/arcade/wave-3-test/`; decide whether that folder is
   still wanted before duplicating the work into it.
 
-## Phase 3 — hamburger + exit for the 3D viewers  ⬜ NOT STARTED
+## Phase 3 — hamburger + exit for the 3D viewers  ✅ DONE (2026-08-01)
 
-Gallery and Theatre are immersive and should **not** get the full bar. They get a hamburger
-dropdown (the seven rooms + Home) and a clearly marked **Exit**.
+Shipped as `public/shared/room-menu.{css,js}`, on both viewers. Top-right (both viewers keep their
+own controls along the bottom), z-index 35 — above each viewer's bars at 30, below the loading
+screen at 40, so it does not show through while the model downloads.
+
+- **Exit target is per-page** via `data-exit`: the gallery exits to `/gallery`, the theatre to
+  `/screening-room` — the page the visitor entered from, so leaving reads as stepping back out of
+  the room rather than being thrown home.
+- **The current room is derived from the exit target**, not the URL. Path matching alone fails for
+  the theatre: its viewer lives at `/theatre/viewer.html` but its room is `/screening-room`, so it
+  highlighted nothing. `data-room` overrides if the two ever diverge.
+- **`window.PM_ROOMS` is exposed** for Phase 5. A DOM overlay does not render inside an immersive
+  XR session, so the in-headset menu must be rebuilt in world space from the same list.
+- `public/shared/room-nav.js` is **deleted** — both viewers were its last callers. Verified zero
+  references before removing it, and it is absent from the build output.
+
+**Verified in both viewers** (1280x800, after the GLB finished loading): menu present at 12,12 from
+the top-right; 8 links; correct room marked `aria-current`; panel opens on click, closes on outside
+click and on Escape, and stays on screen. Critically, `document.elementFromPoint` at the viewport
+centre still returns the CANVAS, so OrbitControls keeps receiving drags, and each viewer's own
+bottom bar is still hit-testable — the theatre's mode buttons were clicked through and confirmed via
+its `window.__sgt` hook (mode went to Concert).
+
+**Follow-up worth doing:** the room list now exists in three places — `app/components/NavBar.tsx`,
+`/shared/site-nav.js` and `/shared/room-menu.js`. Extract it to one `/shared/rooms.js` that all
+three consume. Drift between copies is exactly what produced the "Sound Stage" vs "Music Sandbox"
+inconsistency. Small job, worth doing before a fourth copy appears in Phase 5.
+
+### Original scope (for reference)
 
 - `public/gallery/viewer.html`, `public/theatre/viewer.html`.
 - Remove their `room-nav.js` overlay; then delete `public/shared/room-nav.js` (no callers left).

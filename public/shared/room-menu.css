@@ -1,0 +1,109 @@
+/* ============================================================
+   Plumbmonkey — minimal chrome for the immersive 3D rooms.
+
+   The gallery and theatre viewers deliberately do NOT get the full site bar
+   (/shared/site-nav.css). They are things you are *inside*, so they follow the
+   same rule as the arcade games: minimal chrome plus an obvious way out. Pages
+   you *browse* get the bar; experiences you enter get this.
+
+   Sits top-right because both viewers keep their own controls along the bottom
+   (viewpoints, mode switch, drag hint).
+
+   z-index 35 is deliberate: above each viewer's own bars (30) but below the
+   loading screen (40), so the menu does not show through while the model is
+   still downloading.
+
+   Colours are the site's brass tokens, matching /shared/site-nav.css:
+   brass-200 #e8c97e · brass-400 #c4923a · brass-500 #a97829 · moonlit-950 #0a0c11
+   ============================================================ */
+
+.pm-room-menu {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 35;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-family: Inter, ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+}
+.pm-room-menu *, .pm-room-menu *::before, .pm-room-menu *::after { box-sizing: border-box; }
+
+/* ---- shared control surface ---- */
+.pm-room-menu__exit,
+.pm-room-menu__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(169, 120, 41, .55);
+  border-radius: 8px;
+  background: rgba(10, 12, 17, .82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #e8c97e;
+  font: 600 12px/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.pm-room-menu__exit:hover,
+.pm-room-menu__btn:hover {
+  background: #c4923a;
+  border-color: #c4923a;
+  color: #0a0c11;
+}
+.pm-room-menu__btn { width: 36px; padding: 0; font-size: 15px; letter-spacing: 0; }
+
+.pm-room-menu__wrap { position: relative; }
+
+/* ---- dropdown ---- */
+.pm-room-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 216px;
+  padding: 7px;
+  border: 1px solid rgba(169, 120, 41, .4);
+  border-radius: 11px;
+  background: rgba(10, 12, 17, .96);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .66);
+}
+.pm-room-menu.is-open .pm-room-panel { display: block; }
+
+.pm-room-panel__label {
+  padding: .5rem .7rem .3rem;
+  font-size: 9px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: #61708a;
+}
+.pm-room-panel a {
+  display: block;
+  padding: .55rem .7rem;
+  border-radius: 7px;
+  color: #d3dae4;
+  font-size: 13px;
+  text-decoration: none;
+}
+.pm-room-panel a:hover { background: rgba(232, 201, 126, .12); color: #e8c97e; }
+.pm-room-panel a[aria-current="page"] { color: #e8c97e; }
+.pm-room-panel hr { border: 0; border-top: 1px solid rgba(255, 255, 255, .1); margin: .4rem .3rem; }
+
+@media (max-width: 520px) {
+  .pm-room-menu { top: 8px; right: 8px; gap: 6px; }
+  .pm-room-menu__exit, .pm-room-menu__btn { height: 32px; font-size: 11px; }
+  .pm-room-menu__btn { width: 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-room-menu__exit, .pm-room-menu__btn { transition: none; }
+}

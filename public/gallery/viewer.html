@@ -37,6 +37,7 @@
     z-index: 30; font-size: 12px; color: #7e7791; text-align: right; pointer-events: none; }
   @media (max-width: 640px) { #hint { display: none; } }
 </style>
+<link rel="stylesheet" href="/shared/room-menu.css" />
 </head>
 <body>
 
@@ -200,6 +201,6 @@ renderer.setAnimationLoop(() => {
 });
 </script>
 
-<script src="/shared/room-nav.js" defer></script>
+<script src="/shared/room-menu.js" data-exit="/gallery" data-exit-label="Exit" defer></script>
 </body>
 </html>
