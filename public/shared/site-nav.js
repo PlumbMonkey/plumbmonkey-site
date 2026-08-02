@@ -61,16 +61,21 @@
 
   var links = ROOMS.map(function (r) { return link(r, ""); }).join("");
 
+  /* The .pm-nav__inner wrapper mirrors NavBar.tsx's `header > nav.mx-auto
+     .max-w-6xl`: the bar spans full width, its contents sit in a centred
+     1152px column so the brand and CTA line up with every React route. */
   var html =
     '<header class="pm-nav">' +
-      '<a class="pm-nav__brand" href="/">' +
-        '<span class="pm-nav__mark">P</span>' +
-        '<span class="pm-nav__name"><strong>Plumbmonkey</strong><small>Spectral Manor</small></span>' +
-      '</a>' +
-      '<nav class="pm-nav__links" aria-label="Rooms">' + links + '</nav>' +
-      '<a class="pm-nav__cta" href="' + esc(CTA.href) + '">' + esc(CTA.label) + '</a>' +
-      '<button class="pm-nav__toggle" type="button" aria-label="Open navigation"' +
-        ' aria-expanded="false" aria-controls="pm-nav-drawer">&#9776;</button>' +
+      '<div class="pm-nav__inner">' +
+        '<a class="pm-nav__brand" href="/">' +
+          '<span class="pm-nav__mark">P</span>' +
+          '<span class="pm-nav__name"><strong>Plumbmonkey</strong><small>Spectral Manor</small></span>' +
+        '</a>' +
+        '<nav class="pm-nav__links" aria-label="Rooms">' + links + '</nav>' +
+        '<a class="pm-nav__cta" href="' + esc(CTA.href) + '">' + esc(CTA.label) + '</a>' +
+        '<button class="pm-nav__toggle" type="button" aria-label="Open navigation"' +
+          ' aria-expanded="false" aria-controls="pm-nav-drawer">&#9776;</button>' +
+      '</div>' +
     '</header>' +
     '<div class="pm-nav__drawer" id="pm-nav-drawer">' + links +
       '<a class="pm-nav__cta" href="' + esc(CTA.href) + '">' + esc(CTA.label) + '</a>' +

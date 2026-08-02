@@ -49,6 +49,20 @@ into `app/components/NavBar.tsx` and vice versa.
 layout shift. Deferring it to the end of `<body>` would inject after first paint and visibly shove
 every page down.
 
+**Follow-up, 2026-08-01: the bar's contents now sit in a centred column.** They used to run hard to
+the window edges (`padding: 0 20px` on a full-width flex bar), while all 25 React routes put theirs
+in `mx-auto max-w-6xl px-5`. At a 1280 viewport the brand started 57px further left and the CTA
+ended 71px further right than on any React page — noticed on Light Lab, but all six standalone
+pages had it. `.pm-nav__inner` (max-width 1152px, `margin-inline: auto`) now mirrors NavBar.tsx.
+
+The obvious tidier fix — percentage padding on `.pm-nav`, no extra element — is wrong here.
+Percentages resolve against the **containing block**, and drum-machine and song bleed the bar out
+of a padded `<body>` with `margin: 0 -1rem`, so the column lands short by the body padding on
+exactly those two pages (measured: brand at 61px instead of 77px). A max-width in px does not care.
+Verified across all six: every page now computes `(available - 1152) / 2 + 20`, which is 77px where
+a scrollbar exists — matching `/arcade` exactly — and 84px on the three that set `overflow: hidden`
+and so have no scrollbar. Mobile breakpoint re-checked at 900px and 400px.
+
 **Four things that bit during the rollout — expect them again in Phase 2:**
 1. **`min-height` outranks a shorter `height`.** SY-1's bundle pins `min-height` to the full
    viewport, so `height: calc(100% - var(--pm-nav-h))` was silently ignored until `min-height: 0`
@@ -264,11 +278,35 @@ remaining win, since textures already dominated both exports), a low-detail mode
 full one after first paint, or simply a better-communicated progress bar if the payload is near
 its floor.
 
-## Phase 5 — Quest browser / WebXR  🟡 BUILT (2026-08-01) — awaiting on-device test
+## Phase 5 — Quest browser / WebXR  🟡 FIRST HEADSET TEST PASSED (2026-08-01)
 
-Shipped as one module, `public/shared/xr-room.js`, imported by both viewers. Desktop behaviour is
-verified unchanged; **nothing in the immersive path has run on a headset yet** — see §"On-device
-test script" below, which is the remaining work.
+Shipped as one module, `public/shared/xr-room.js`, imported by both viewers.
+
+**It loads and runs in the Quest browser** — confirmed on device, theatre viewer. One fix came out
+of that first session (eye height, below). The rest of the on-device script is still unrun; steps
+3–7 in particular have not been exercised.
+
+### Fix from the first headset session: seated eye height
+
+The viewpoint sat too low. Cause: `local-floor` reports the headset's **real** height above the
+**physical** floor, and the tester was seated — so the eye landed around 1.1 m instead of standing
+height and the rooms read as oversized.
+
+`xr-room.js` now measures the actual head height on the first settled frame
+(`POSE_SETTLE_FRAMES = 10`) and lifts the rig by the shortfall to `TARGET_EYE = 1.65 m` — eye
+height for roughly a 5'9" person, inside the 5–6 ft the rooms are meant to read at.
+
+Three things about it that matter:
+- **The lift is one-directional**, `max(0, TARGET_EYE - head)`. A standing visitor taller than
+  1.65 m keeps their own height; nobody is ever pushed down into the floor.
+- **It rides along on teleport** — `rig.y = landing.y + eyeLift`. Without that a seated visitor
+  would sink back to floor level on their first jump.
+- **It also covers the `local` fallback.** If the runtime cannot give `local-floor`, head height
+  reads ~0 and the full 1.65 m is applied, which is exactly right for that case.
+
+`__pmxr.debug.eye` reports `{ target, lift, head, calibrated }`, and `__pmxr.debug.recentre()`
+re-measures from wherever the visitor is sitting or standing right now — useful if they stand up
+mid-session. It is deliberately not bound to a controller button yet.
 
 ### What it does
 
@@ -356,9 +394,10 @@ checked. `__pmxr.debug` exposes `rig`, `hands`, `menu`, `walkable` (matched name
 Serve over HTTPS (WebXR requires a secure context; `localhost` counts, a LAN IP does not) and open
 each viewer in the Quest browser.
 
-1. `Enter in VR` appears at top-left, and only on the headset.
+1. ~~`Enter in VR` appears at top-left, and only on the headset.~~ ✅ 2026-08-01, theatre.
 2. Spawn: gallery at the entrance facing down the hall; theatre mid-orchestra facing the stage.
-   Feet on the floor, not sunk or floating.
+   Feet on the floor, not sunk or floating. **Re-test seated and standing** after the eye-height
+   fix — seated should now read at standing height, and standing should be unchanged.
 3. Point at the floor and pull the trigger — arc goes brass when the landing is valid, dim when it
    is not. Confirm it refuses to land on walls, artwork, seats and the ceiling.
 4. Gallery only: teleport up the stair flight onto the balcony deck.

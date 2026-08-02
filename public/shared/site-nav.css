@@ -20,20 +20,33 @@
    subtract its height instead:  height: calc(100dvh - var(--pm-nav-h));
    Adding a row to a rigid full-height grid without doing that pushes content
    past the clipped edge where nothing can scroll to it.
+
+   CONTENT COLUMN: the bar spans the full width — its background and bottom
+   border have to — but its CONTENTS sit in the same centred 1152px column as
+   NavBar.tsx, which wraps them in `mx-auto max-w-6xl px-5`. Without that the
+   brand and CTA sat hard against the window edges: 57px further left and 71px
+   further right than on every React route at a 1280 viewport, which read as
+   the bar being shoved to one side.
+
+   .pm-nav__inner exists ONLY for that. Doing it with percentage padding on
+   .pm-nav instead looks tidier and is wrong — percentages resolve against the
+   containing block, and drum-machine and song bleed the bar out of a padded
+   <body> with negative margins, so the column would land short by the body
+   padding on exactly those pages. A max-width in px does not care.
    ============================================================ */
 
-:root { --pm-nav-h: 64px; }
+:root {
+  --pm-nav-h: 64px;
+  --pm-nav-max: 1152px;  /* Tailwind max-w-6xl, matching NavBar.tsx */
+  --pm-nav-pad: 20px;    /* Tailwind px-5, ditto */
+}
 
 .pm-nav {
   position: sticky;
   top: 0;
   z-index: 100;
   box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 24px;
   height: var(--pm-nav-h);
-  padding: 0 20px;
   background: rgba(10, 12, 17, .85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -42,6 +55,17 @@
   line-height: 1.2;
 }
 .pm-nav *, .pm-nav *::before, .pm-nav *::after { box-sizing: border-box; }
+
+.pm-nav__inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  height: 100%;
+  max-width: var(--pm-nav-max);
+  margin-inline: auto;
+  padding-inline: var(--pm-nav-pad);
+}
 
 /* ---- brand ---- */
 .pm-nav__brand { display: flex; align-items: center; gap: 12px; text-decoration: none; flex: 0 0 auto; }
@@ -116,12 +140,11 @@
 }
 
 @media (max-width: 1023px) {
-  .pm-nav__links, .pm-nav > .pm-nav__cta { display: none; }
+  .pm-nav__links, .pm-nav__inner > .pm-nav__cta { display: none; }
   .pm-nav__toggle { display: grid; place-items: center; }
 }
 @media (max-width: 420px) {
-  :root { --pm-nav-h: 56px; }
-  .pm-nav { padding: 0 14px; }
+  :root { --pm-nav-h: 56px; --pm-nav-pad: 14px; }
   .pm-nav__name strong { font-size: 14px; }
 }
 

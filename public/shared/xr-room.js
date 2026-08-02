@@ -67,6 +67,19 @@ const ARC_GRAVITY = -9.8;
 const MAX_TELEPORT = 22;             // metres; a further hit is drawn invalid
 const MIN_FLOOR_DOT = 0.72;          // hit face must be within ~44° of straight up
 
+/* Standing eye height to present the rooms at, in metres. 1.65 m of EYE height
+   is roughly a 5'9" person — inside the 5–6 ft the rooms are meant to read at.
+
+   This exists because `local-floor` reports the headset's REAL height above the
+   physical floor, so playing seated puts the viewpoint about half a metre low
+   and the rooms feel oversized. On the first settled frame the actual head
+   height is measured and the rig lifted by the shortfall.
+
+   The lift is one-directional on purpose — max(0, …). A standing visitor taller
+   than this keeps their own height; nobody is ever pushed down into the floor. */
+const TARGET_EYE = 1.65;
+const POSE_SETTLE_FRAMES = 10;       // let the headset pose settle before measuring
+
 export function initXRRoom(opts) {
   const {
     renderer, scene, camera, controls,
@@ -303,14 +316,43 @@ export function initXRRoom(opts) {
     landingValid = false;
   }
 
+  /* ---------------------------------------------------------------
+     Eye height. See TARGET_EYE above.
+     --------------------------------------------------------------- */
+  let eyeLift = 0;
+  let eyeCalibrated = false;
+  let poseFrames = 0;
+
+  function calibrateEye() {
+    /* camera.position is head pose in the reference space — three decomposes the
+       XR pose into it each frame, and it is local to the rig. Under `local-floor`
+       that is height above the physical floor; if the runtime fell back to
+       `local` it reads ~0, and the full lift is then exactly what is wanted. */
+    const head = Math.max(0, camera.position.y);
+    eyeLift = Math.max(0, TARGET_EYE - head);
+    rig.position.y += eyeLift;
+    eyeCalibrated = true;
+  }
+
+  /* Re-measure from where the visitor is sitting/standing right now. Useful if
+     they stand up, or shift in a chair, mid-session. */
+  function recentre() {
+    rig.position.y -= eyeLift;
+    eyeLift = 0;
+    calibrateEye();
+    return { eyeLift: +eyeLift.toFixed(2), rigY: +rig.position.y.toFixed(2) };
+  }
+
   /* Moves the rig so the *player's feet* land on the marker, not the rig
-     origin — after room-scale walking the two are metres apart. */
+     origin — after room-scale walking the two are metres apart. The eye lift
+     rides along, or a seated visitor would sink back to floor level on the
+     first teleport. */
   function teleport() {
     if (!landingValid) return;
     camera.getWorldPosition(_a);
     rig.position.x += landing.x - _a.x;
     rig.position.z += landing.z - _a.z;
-    rig.position.y = landing.y;
+    rig.position.y = landing.y + eyeLift;
   }
 
   /* Snap turn about the head, not the rig origin — turning about the origin
@@ -510,6 +552,10 @@ export function initXRRoom(opts) {
     camera.position.set(0, 0, 0);
     camera.quaternion.identity();
 
+    eyeLift = 0;
+    eyeCalibrated = false;
+    poseFrames = 0;
+
     /* Drop the player at the room's entry point. The floor height is found by
        raycasting rather than hard-coded, so a raked auditorium floor works. */
     rig.rotation.set(0, spawn.yaw || 0, 0);
@@ -556,7 +602,11 @@ export function initXRRoom(opts) {
     rig, scene, hands, menu, renderer, camera,
     get walkable() { return walkableMeshes.map((m) => m.name); },
     get landing() { return landingValid ? landing.toArray().map((v) => +v.toFixed(2)) : null; },
-    buildMenu, toggleMenu, snapTurn,
+    get eye() {
+      return { target: TARGET_EYE, lift: +eyeLift.toFixed(2),
+               head: +camera.position.y.toFixed(2), calibrated: eyeCalibrated };
+    },
+    recentre, buildMenu, toggleMenu, snapTurn,
     /* Drop the rig somewhere on foot, as a teleport would, without a headset. */
     goTo(x, z) {
       raycaster.set(new THREE.Vector3(x, 40, z), down);
@@ -570,6 +620,8 @@ export function initXRRoom(opts) {
 
   function update() {
     if (!api.presenting) return;
+
+    if (!eyeCalibrated && ++poseFrames > POSE_SETTLE_FRAMES) calibrateEye();
 
     readSticks();
 
