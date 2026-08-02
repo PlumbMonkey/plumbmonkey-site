@@ -26,6 +26,10 @@ through the React layout. Those are the ones carrying bespoke navs.
 | **nothing at all** | `public/arcade/games/*/index.html` | 10 |
 | `room-nav.js` corner overlay | `public/gallery/viewer.html`, `public/theatre/viewer.html` | 2 |
 
+Since Phase 5 there is a fifth consumer of the room list — the **world-space** panel in
+`/shared/xr-room.js`, which reads `window.PM_ROOMS` at runtime rather than copying it. All navs on
+the site now derive from `/shared/rooms.js`; `npm test` fails if any of them drift.
+
 `public/shared/room-nav.js` still exists and is now referenced **only** by the two 3D viewers.
 Once Phase 3 lands it has no callers and can be deleted.
 
@@ -260,23 +264,121 @@ remaining win, since textures already dominated both exports), a low-detail mode
 full one after first paint, or simply a better-communicated progress bar if the payload is near
 its floor.
 
-## Phase 5 — Quest browser / WebXR  ⬜ NOT STARTED
+## Phase 5 — Quest browser / WebXR  🟡 BUILT (2026-08-01) — awaiting on-device test
 
-Goal: walk both rooms in VR on the Quest browser with motion controllers, confined to the room,
-with the Phase 3 exit menu reachable in-headset.
+Shipped as one module, `public/shared/xr-room.js`, imported by both viewers. Desktop behaviour is
+verified unchanged; **nothing in the immersive path has run on a headset yet** — see §"On-device
+test script" below, which is the remaining work.
 
-- three.js is already vendored, so `renderer.xr.enabled = true` + `VRButton` is the entry point.
-  Confirm the vendored copy includes `VRButton.js` and `XRControllerModelFactory.js` under
-  `/gallery/vendor/jsm/` — **if not, they must be added to the local vendor bundle**, since the
-  site deliberately loads no CDN scripts.
-- Locomotion: teleport arc + snap-turn is the safe default for Quest and avoids motion sickness.
-- "Confined to the room" needs a real bounds check — a floor/collision volume or a clamp on the
-  XR rig position. The gallery already has `NAV_*` empties and the theatre has 10 more, which can
-  seed teleport anchors instead of inventing new ones.
-- The exit menu must be a **world-space** panel in XR (DOM overlays do not render inside an
-  immersive session), so Phase 3's menu needs an in-scene equivalent.
-- Test target is the Quest browser specifically; the MCP preview browser cannot enter an immersive
-  session, so this phase needs on-device testing by the user.
+### What it does
+
+- **Entry**: an `Enter in VR` button, top-left, brass-token styled to match `/shared/room-menu.css`.
+- **Locomotion**: teleport only — parabolic arc from either controller, trigger to commit, plus
+  left-stick-forward as an alternate aim. Right stick left/right is a 30° snap turn.
+- **Menu**: a world-space panel on the Y / B button, built from `window.PM_ROOMS`.
+- **Rig**: the camera is parented to a `PM_XRRig` group; teleport and snap turn move the group.
+
+### Two vendored files the plan called for, deliberately not added
+
+1. **`VRButton.js`.** It always renders *something* — with no headset present it shows a
+   `VR NOT SUPPORTED` pill at `bottom: 20px`, centred, which is exactly where both viewers already
+   put their `#views` bar. Every desktop visitor would get a collision for a control they cannot
+   use. The replacement button is created only after `isSessionSupported('immersive-vr')` resolves
+   true, so desktop renders nothing at all. Verified: `.pm-xr-btn` is absent on both pages here.
+2. **`XRControllerModelFactory.js`.** Its `DEFAULT_PROFILES_PATH` fetches controller meshes from
+   `cdn.jsdelivr.net` at runtime. The site loads no CDN assets anywhere — that is why three is
+   vendored in the first place — so the controllers get a locally-built grip and ray instead.
+
+The vendored three **is 0.180.0, the same version as `node_modules`** (confirmed by the version
+string in `three.core.min.js`), so if either file is ever wanted it can be copied straight across
+with no compatibility risk.
+
+### How "confined to the room" is actually enforced
+
+**Not** a bounding box, and not the `NAV_*` anchors the original plan suggested. There is no
+continuous locomotion, and the teleport arc raycasts against a *named whitelist of floor meshes*
+only. Nothing else in either scene is a valid landing target, so there is nowhere outside the room
+to land. The constraint then follows the geometry for free — the gallery's balcony decks and stair
+flight are reachable because they are real walkable surfaces, with no anchor list to maintain.
+
+Hits are additionally rejected unless the face normal is within ~44° of straight up (stops the arc
+landing on the underside of a balcony deck) and within 22 m of the controller.
+
+| | pattern | matched at runtime |
+|---|---|---|
+| Gallery | `^(GAL_Floor_\|GAL_Wing_\w+_Floor\|GAL_FloorTiles_\|GAL_Balc_Deck_\|GAL_Stair_Flight)` | **21 meshes** |
+| Theatre | `^(Auditorium_Floor\|Stage_Deck\|Drum_Riser\|SGT_Balcony_Deck)$` | **4 meshes** |
+
+Both patterns are anchored deliberately. The gallery's scale model of the manor contributes a
+`Band_Floor` and a `Porch_Deck`; standing on those would drop the visitor into a doll's house.
+
+**The theatre is auditorium-only, and this is a real open question.** `LOB_FloorBase`,
+`LOB_Staircase`, `DR_Floor` and `PB_Floor` are excluded because their geometry is baked with a zero
+node transform and their NAV anchors sit at z = −4 to −7 — i.e. *inside the stage house*. On the
+numbers available they overlap the auditorium in world space, and adding them would let a visitor
+teleport into a wall. Confirm where those sets actually sit before opening them up.
+
+### Verified here (desktop, 1280×800, both viewers)
+
+- Walkable sets resolve to the counts above; `xr.debug.goTo()` at NAV_Entrance, the hall centre,
+  the wing, NAV_Orchestra, the stage and the balcony all land on floor. Probes at z = 60 and
+  x = 40 — outside both buildings — return `null`, so the bounds hold.
+- Floor heights come out of the raycast, not hard-coded: the theatre's raked house gives y = 2.16
+  at the spawn, y = 1.0 at the stage, y = 11.0 on the balcony.
+- The world-space panel builds 9 rows from `PM_ROOMS` + Home + Exit, and its canvas textures
+  contain drawn glyphs (1.7–3.5% bright pixels on dark ground). Panel is 0.56 × 0.80 m at 0.85 m.
+- **No regression**: both viewers load clean, OrbitControls still orbits (synthetic drag moved the
+  theatre camera from `0,8,22` to `-3.19,8,21.63`), the mode rig still reports Concert, both bars
+  and the room menu are intact, no console errors, no VR button on desktop.
+- `npm run build` and `npm test` pass.
+
+### Two traps worth keeping
+
+1. **OrbitControls and the XR pose fight over the same properties.** three decomposes the headset
+   pose into `camera.position`/`.quaternion` every frame; OrbitControls writes those too. The
+   module disables `controls` and snapshots the desktop camera + target on session start, restoring
+   both on end — without that, the camera keeps whatever pose the headset last had. The viewer
+   still has to skip its own `controls.update()` call, because damping runs regardless of
+   `.enabled`. Both viewers now guard it with `if (!xr.presenting)`.
+2. **`window.PM_ROOMS` does not exist when the viewer's module runs.** `/shared/rooms.js` is a
+   classic deferred script and the inline module executes before it. The panel is therefore built
+   on first open, not at import. Do not move that read to module scope.
+
+### Console hook
+
+`window.__pmxr`, in the spirit of the theatre's `window.__sgt` — this phase cannot be exercised in
+a desktop browser at all, so the Quest's remote inspector is the only place most of it can be
+checked. `__pmxr.debug` exposes `rig`, `hands`, `menu`, `walkable` (matched names), `landing`
+(current arc target), `goTo(x, z)`, `toggleMenu()` and `snapTurn(±1)`.
+
+### On-device test script — the remaining work
+
+Serve over HTTPS (WebXR requires a secure context; `localhost` counts, a LAN IP does not) and open
+each viewer in the Quest browser.
+
+1. `Enter in VR` appears at top-left, and only on the headset.
+2. Spawn: gallery at the entrance facing down the hall; theatre mid-orchestra facing the stage.
+   Feet on the floor, not sunk or floating.
+3. Point at the floor and pull the trigger — arc goes brass when the landing is valid, dim when it
+   is not. Confirm it refuses to land on walls, artwork, seats and the ceiling.
+4. Gallery only: teleport up the stair flight onto the balcony deck.
+5. Right stick left/right snaps 30° per push, one turn per push, and turns about your head rather
+   than swinging you through an arc.
+6. Y or B opens the panel an arm's length ahead at eye height, upright. Rows highlight on point.
+   Check the labels are legible at that size — this is the one thing that could not be verified
+   here.
+7. Selecting a room navigates and ends the session; `✕ Exit` returns to `/gallery` and
+   `/screening-room` respectively.
+8. **Framerate.** Both scenes are lit with a hand-placed rig (the gallery has 4 point lights and a
+   directional, the theatre 4 points, a spot and a directional) over ~300k and ~200k triangles,
+   now rendered twice per frame. If it will not hold 72 Hz, the first lever is dropping point
+   lights in XR, not reducing geometry. Foveation is already at max.
+
+### Not attempted
+
+Hand tracking, controller model meshes, teleport-anchor snapping to the `NAV_*` empties, and any
+in-XR use of the viewpoint or mode bars (they are DOM, so they do not exist inside the session —
+the theatre's mode rig can only be changed before entering).
 
 ---
 

@@ -65,6 +65,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { initXRRoom } from '/shared/xr-room.js';
 
 const loaderEl = document.getElementById('loader');
 const barEl = document.querySelector('#bar i');
@@ -119,6 +120,21 @@ const violet = new THREE.PointLight(0xa855f7, 14, 18, 2);
 violet.position.set(0, 1.6, 2);
 scene.add(violet);
 
+/* WebXR (Phase 5). Teleport-only locomotion, so the walkable whitelist below
+   *is* the room boundary — there is nowhere outside the gallery to land. All
+   five patterns are anchored to GAL_ on purpose: the scale model of the manor
+   contributes a Band_Floor and a Porch_Deck, and standing on those would drop
+   the visitor into a doll's house. Balcony decks and the stair flight are in,
+   so the upper level is reachable without maintaining an anchor list. */
+const xr = initXRRoom({
+  renderer, scene, camera, controls,
+  walkable: /^(GAL_Floor_|GAL_Wing_\w+_Floor|GAL_FloorTiles_|GAL_Balc_Deck_|GAL_Stair_Flight)/,
+  spawn: { x: 0, z: 18, yaw: 0 },   // NAV_Entrance, facing -Z down the hall
+  exit: { href: '/gallery', label: 'Exit' },
+  roomLabel: 'The Gallery',
+  buttonLabel: 'Enter in VR',
+});
+
 const draco = new DRACOLoader().setDecoderPath('./vendor/draco/gltf/');
 const gltfLoader = new GLTFLoader().setDRACOLoader(draco);
 
@@ -128,6 +144,7 @@ const clock = new THREE.Clock();
 gltfLoader.load('./gallery-web.glb',
   (gltf) => {
     scene.add(gltf.scene);
+    xr.setRoot(gltf.scene);
 
     if (gltf.animations && gltf.animations.length) {
       mixer = new THREE.AnimationMixer(gltf.scene);
@@ -196,7 +213,12 @@ addEventListener('resize', () => {
 
 renderer.setAnimationLoop(() => {
   if (mixer) mixer.update(clock.getDelta());
-  controls.update();
+  /* Skipped while presenting: OrbitControls writes camera.position/quaternion,
+     which is exactly what three fills from the headset pose each XR frame.
+     Damping runs even when controls.enabled is false, hence the guard here
+     rather than relying on the flag. */
+  if (!xr.presenting) controls.update();
+  xr.update();
   renderer.render(scene, camera);
 });
 </script>

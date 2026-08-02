@@ -67,6 +67,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { initXRRoom } from '/shared/xr-room.js';
 
 const loaderEl = document.getElementById('loader');
 const barEl = document.querySelector('#bar i');
@@ -111,6 +112,22 @@ const stage = new THREE.SpotLight(0xfff2dc, 260, 60, Math.PI/7, 0.45, 2);
 stage.position.set(0, 15, 3); stage.target.position.set(0, 2, -6);
 scene.add(stage); scene.add(stage.target);
 
+/* WebXR (Phase 5). Auditorium volume only — house floor, stage, drum riser and
+   balcony deck. The lobby, dressing room and projection booth sets are
+   deliberately excluded: their geometry is baked with a zero node transform and
+   their NAV anchors sit at z = -4 to -7, i.e. inside the stage house, so they
+   overlap the auditorium in world space. Adding them would let a visitor
+   teleport into a wall. Revisit only after confirming where those sets actually
+   sit — see the handoff. */
+const xr = initXRRoom({
+  renderer, scene, camera, controls,
+  walkable: /^(Auditorium_Floor|Stage_Deck|Drum_Riser|SGT_Balcony_Deck)$/,
+  spawn: { x: 0, z: 12, yaw: 0 },   // NAV_Orchestra, facing -Z toward the stage
+  exit: { href: '/screening-room', label: 'Exit' },
+  roomLabel: 'The Spectral Grand Theatre',
+  buttonLabel: 'Enter in VR',
+});
+
 const draco = new DRACOLoader().setDecoderPath('/gallery/vendor/draco/gltf/');
 const gltfLoader = new GLTFLoader().setDRACOLoader(draco);
 
@@ -150,6 +167,7 @@ function applyMode(name, btn) {
 gltfLoader.load('./theatre-web.glb',
   (gltf) => {
     scene.add(gltf.scene);
+    xr.setRoot(gltf.scene);
 
     gltf.scene.traverse((o) => {
       if (!o.isMesh) return;
@@ -221,7 +239,12 @@ addEventListener('resize', () => {
 });
 renderer.setAnimationLoop(() => {
   if (mixer) mixer.update(clock.getDelta());
-  controls.update();
+  /* Skipped while presenting: OrbitControls writes camera.position/quaternion,
+     which is exactly what three fills from the headset pose each XR frame.
+     Damping runs even when controls.enabled is false, hence the guard here
+     rather than relying on the flag. */
+  if (!xr.presenting) controls.update();
+  xr.update();
   renderer.render(scene, camera);
 });
 </script>
