@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import EnterRoomLink from "../components/EnterRoomLink";
 import RoomHero from "../components/RoomHero";
 
 export const metadata: Metadata = {
@@ -20,12 +21,13 @@ export default function GalleryPage() {
           instruments, artwork and curiosities, rendered in 3D and explorable in your browser.
         </p>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-          <a
+          <EnterRoomLink
             href="/gallery/viewer.html"
+            model="/gallery/gallery-web.glb"
             className="inline-block rounded-lg bg-brass-500 px-8 py-3 font-bold text-moonlit-950 shadow transition hover:bg-brass-400"
           >
             Enter the Gallery
-          </a>
+          </EnterRoomLink>
           <a
             href="/contact"
             className="inline-block rounded-lg border border-brass-500/50 px-8 py-3 font-bold text-brass-300 transition hover:border-brass-400 hover:text-brass-200"

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import EnterRoomLink from "../components/EnterRoomLink";
 import RoomHero from "../components/RoomHero";
 
 export const metadata: Metadata = {
@@ -55,12 +56,13 @@ export default function ScreeningRoomPage() {
           between concert venue and cinema, explorable in your browser.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-          <a
+          <EnterRoomLink
             href="/theatre/viewer.html"
+            model="/theatre/theatre-web.glb"
             className="inline-block rounded-lg bg-brass-500 px-8 py-3 font-bold text-moonlit-950 shadow transition hover:bg-brass-400"
           >
             Enter the Theatre
-          </a>
+          </EnterRoomLink>
         </div>
         <p className="mt-6 text-sm text-moonlit-400">
           Best on desktop · drag to look, scroll to zoom · roughly 4&nbsp;MB to load

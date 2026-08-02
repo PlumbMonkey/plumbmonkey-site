@@ -176,11 +176,42 @@ Measured by parsing the GLB chunk headers directly (script pattern kept below).
 
 **Two different problems, so two different fixes:**
 
-1. **Gallery is textures.** 54% of the file is 21 JPEGs, and they are the wall artwork —
-   the largest are 229 KB, 216 KB, 196 KB, 188 KB. Generous for images viewed at distance inside a
-   3D room. Recompressing/resizing these is the single biggest win and needs no scene changes.
-   KTX2/Basis is probably *not* worth it here: it would save more, but adds a transcoder download
-   for only 21 images.
+1. ~~**Gallery is textures.**~~ **✅ INVESTIGATED 2026-08-01 — deliberately left alone. Do not
+   re-open this without new information.** The guess that the artwork was "generous for images
+   viewed at distance" was wrong, and the measurement says the opposite.
+
+   The canvases are **2.02–2.45 m wide** carrying ~1270 px textures — **6.3 px/cm, about 16 DPI**.
+   That is already low for artwork a visitor can walk up to, not extravagant. There is no headroom
+   to reclaim by downscaling.
+
+   Quality is a weak lever too. Measured, same settings, only `export_image_quality` varying:
+
+   | setting | size |
+   |---|---|
+   | committed build | 4253 KB |
+   | q75 | 4387 KB |
+   | q65 | 4171 KB |
+   | q50 | 3970 KB |
+
+   The committed build was already exported at roughly q68. Reaching a **6.7%** saving means
+   dropping to q50 and visibly degrading the one thing people come to a gallery for. Not worth it.
+
+   Morph targets (13 drum-head meshes, never driven — the gallery viewer has no morph code at all)
+   cost a grand total of **21 KB**. Not worth a re-export on their own.
+
+   `GAL_Fnt_MistVolume` and `GAL_DustMote` exist and are exactly the volume-only and
+   particle-instance-source traps that bloated the theatre — but the shipped gallery build already
+   excludes both. Verified by inspecting the committed GLB, not assumed.
+
+   **Conclusion: the gallery model is already at its floor.** The theatre's 55% cut was possible
+   because it carried genuine waste; the gallery does not. The only remaining model-side lever is
+   the scene graph (824 meshes / 1378 nodes / 1.9 MB of non-texture data), which means merging
+   objects — and that risks the per-exhibit rotation pivots, for a modest gain.
+
+   **What was done instead** (no quality cost): both room pages now start downloading the model on
+   hover/focus of their "Enter the …" button rather than on click — see
+   `app/components/EnterRoomLink.tsx`. Deliberately not prefetched on page load, since these are
+   multi-megabyte files and most visitors to a room page never click through.
 
 2. ~~**Theatre is scene-graph bloat, and there is an anomaly.**~~ **✅ FIXED 2026-08-01 — 3.57 → 1.59 MB.**
    The morph-target suspicion was right, but not on the drapes. The **moving-light fixtures** owned
