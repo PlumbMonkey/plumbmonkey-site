@@ -182,12 +182,29 @@ Measured by parsing the GLB chunk headers directly (script pattern kept below).
    KTX2/Basis is probably *not* worth it here: it would save more, but adds a transcoder download
    for only 21 images.
 
-2. **Theatre is scene-graph bloat, and there is an anomaly.** 9,414 bufferViews for 355 primitives
-   is ~26 per primitive, against the gallery's 1.2. That is what makes its JSON chunk 41% of the
-   file. **Prime suspect: morph targets** — the drapes carry shape keys, and every morph target adds
-   accessors and bufferViews per attribute. Worth confirming which objects own them before
-   re-exporting; if morph targets leaked onto objects that do not need them, this is ~1 MB of pure
-   overhead with nothing visible to lose.
+2. ~~**Theatre is scene-graph bloat, and there is an anomaly.**~~ **✅ FIXED 2026-08-01 — 3.57 → 1.59 MB.**
+   The morph-target suspicion was right, but not on the drapes. The **moving-light fixtures** owned
+   it: 14 × `Spot Mover Images` (12 morph targets each, 864 verts) and 14 × `Spot Mover Shutter`
+   (9 each) — **294 of the 296 morph targets in the file**, versus 2 for the drapes. They are the
+   fixtures' gobo and shutter mechanism, sitting 8.07 m overhead inside the housings, every shape
+   key at value 0, driven by Blender-only drivers the browser never runs.
+
+   Excluded from the web export and the JSON chunk collapsed **1.48 → 0.19 MB**, bufferViews
+   **9,414 → 232**, accessors **5,642 → 611**. Over the wire it is now **877 KB gzipped**.
+
+   Also caught in the same pass: `SGT_DustMote`, the particle *instance source* for the dust system,
+   parked at z = −80 so it never shows in Blender. Particles have no glTF representation, so it
+   would have exported as a lone box 80 m under the theatre — the same failure mode as the
+   Stage_Haze slab. The export now excludes any object used as a particle instance source.
+
+   **The .blend was not modified.** The exclusion flips `hide_render` and restores it, so the
+   fixtures keep their working shutter/gobo rig for Blender renders. Verified restored afterwards.
+   Diffed against the committed build: exactly two mesh-node names dropped
+   (`Spot Mover Images`, `Spot Mover Shutter`), nothing added. Mode rig re-verified in the browser
+   at 1.0 / 0.72 / 0.72 / 0.0 with the screen dropping 9.6 → 0, all five viewpoints present.
+
+   **Reusable export snippet** lives in the theatre's own HANDOFF.md — reuse it for any future
+   re-export rather than reconstructing the flags.
 
 **Both fixes require a Blender re-export**, so they need a session with the .blend files open via
 MCP. Nothing here is fixable from the website repo alone — there is no image library on this machine
