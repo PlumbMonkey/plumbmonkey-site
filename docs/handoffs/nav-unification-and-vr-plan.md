@@ -147,8 +147,61 @@ inconsistency. Small job, worth doing before a fourth copy appears in Phase 5.
   `.bar` elements in `theatre/viewer.html` are the pattern to copy (fixed, `z-index: 30`).
 - This is also the menu VR needs in Phase 5, so build it as one component both paths can use.
 
-## Phase 4 — gallery/theatre load time  ⬜ NOT STARTED
+## Phase 4 — gallery/theatre load time  📊 MEASURED (2026-08-01) — optimisation NOT yet done
 
+**Measure first, and the measurement changed the plan.** The guesses below (KTX2, low-detail swap)
+were mostly aimed at the wrong thing. Actual numbers:
+
+### Where the time goes
+- **Parse + Draco decode is NOT the problem: 200 ms** for the whole gallery, measured by fetching
+  the GLB and timing `GLTFLoader.parse` directly with the decoder warm.
+- **The first load of a browser session paid ~8 s**, almost all of it *after* the GLB had finished
+  downloading (download completed at 56 ms). That is the **cold Draco WASM compile plus worker
+  start-up**, not download and not parse — a second load in the same session finished before a
+  25 ms poller could even catch it.
+- Locally there is no network, so **real-world first visits are dominated by download**, which no
+  local measurement can reproduce. Payload is therefore the lever that matters.
+
+### What the payload is actually made of
+Measured by parsing the GLB chunk headers directly (script pattern kept below).
+
+| | Gallery | Theatre |
+|---|---|---|
+| Total | 4.15 MB | 3.57 MB |
+| JSON (scene graph) | 0.69 MB (17%) | **1.48 MB (41%)** |
+| Textures | **2.26 MB (54%)**, 21 images | 0.39 MB (11%), 9 images |
+| Geometry | 1.21 MB (29%) | 1.70 MB (48%) |
+| meshes / nodes | 824 / 1378 | 187 / 636 |
+| accessors / bufferViews | 2411 / 1040 | 5642 / **9414** |
+
+**Two different problems, so two different fixes:**
+
+1. **Gallery is textures.** 54% of the file is 21 JPEGs, and they are the wall artwork —
+   the largest are 229 KB, 216 KB, 196 KB, 188 KB. Generous for images viewed at distance inside a
+   3D room. Recompressing/resizing these is the single biggest win and needs no scene changes.
+   KTX2/Basis is probably *not* worth it here: it would save more, but adds a transcoder download
+   for only 21 images.
+
+2. **Theatre is scene-graph bloat, and there is an anomaly.** 9,414 bufferViews for 355 primitives
+   is ~26 per primitive, against the gallery's 1.2. That is what makes its JSON chunk 41% of the
+   file. **Prime suspect: morph targets** — the drapes carry shape keys, and every morph target adds
+   accessors and bufferViews per attribute. Worth confirming which objects own them before
+   re-exporting; if morph targets leaked onto objects that do not need them, this is ~1 MB of pure
+   overhead with nothing visible to lose.
+
+**Both fixes require a Blender re-export**, so they need a session with the .blend files open via
+MCP. Nothing here is fixable from the website repo alone — there is no image library on this machine
+(no ffmpeg, cv2, PIL or sharp) to recompress textures in place.
+
+### Checked and ruled out
+- **Vendored three.js is already minified and correctly split** — `three.module.js` (331 KB) is the
+  minified module that imports `three.core.min.js` (372 KB). Not redundant; omitting the core chunk
+  fails silently, which has bitten this project before.
+- `draco_decoder.js` (500 KB) ships but is **never fetched** — it is the non-WASM fallback. Dead
+  weight on disk, not on the wire.
+- gzip will not help much: the payload is already-compressed JPEG and Draco.
+
+### Original notes (superseded by the measurements above)
 Both viewers show a loading screen for a noticeable stretch. Neither loads instantly because of
 raw payload: `gallery-web.glb` ≈ 4.36 MB, `theatre-web.glb` ≈ 3.74 MB, plus ~1.7 MB of shared
 vendored three.js + Draco decoder on first visit.
