@@ -74,19 +74,39 @@ against a `<body>` padding of `2.5rem 1rem`. Pages without that padding (both St
 `--ss-pad-top` / `--ss-pad-x` to `0`, or the bar pulls up over the app. Whatever replaces it should
 not repeat that coupling — prefer a bar that does not depend on the host page's padding at all.
 
-## Phase 2 — nav on the arcade games  ⬜ NOT STARTED
+## Phase 2 — arcade games  ✅ RESOLVED (2026-08-01) — deliberately NOT the full bar
 
-The 10 games currently have **no** navigation (the "All Rooms" overlay was removed as clutter over
-gameplay; browser Back was the only way out). Add the Phase 1 bar and shift each game's layout down
-to make room.
+**This phase was written on a wrong premise and is now closed.** The claim below that the games
+have "no navigation" was incorrect: they have none in their *markup*, but
+`public/arcade/games/leaderboard.js` — loaded by every game — injects a fixed corner nav
+(`.sm-nav`) at runtime. It was always there; it just isn't greppable as an `<a>` in the HTML.
 
-- Each game is a fixed-size `<canvas>` in a bespoke layout; several centre themselves against the
-  viewport. Adding a 44–64px bar shifts that centring, so **each game needs checking individually**,
-  not a blind find-and-replace.
-- **Check for the viewport-clipping pattern first** (`height: 100vh/100dvh` + `overflow: hidden` on
-  a wrapper). That is what made the SY-1 sequencer unreachable: content pushed past a clipped
-  boundary with no scrollbar able to reach it. If a game uses it, constrain the game area to
-  `calc(100dvh - <bar height>)` rather than adding a row to a rigid grid.
+**Decision: games keep the lightweight corner nav.** The site now runs two tiers of chrome chosen
+by mode — pages you *browse* (home, arcade hub, music tools, Light Lab) get the full bar; things
+you are *inside* (the games, and the two 3D rooms in Phase 3) get minimal chrome plus a clear exit.
+Reasons the full bar loses here: each game is a fixed-size canvas and several centre against the
+viewport, so a 64px bar means re-centring ten bespoke layouts and risks exactly the clipping trap
+noted below; it permanently eats play area; and "← Arcade" already lands on a page carrying the
+full nav, so nothing is more than one extra click away.
+
+Done in that spirit:
+- Dropped the `/music` link — it singled out one of seven rooms and still read "Sound Stage".
+  The corner nav is now just "← Arcade" and "Plumbmonkey Home".
+- Restyled from the old arcade purple to the site's brass tokens, matching
+  `/shared/site-nav.css` exactly (brass-200 `#e8c97e` text, brass-400 `#c4923a` hover,
+  brass-500 `#a97829` border, moonlit-950 `#0a0c11` surface), plus uppercase/letter-spacing to
+  match the bar's link treatment. One shared file, so all ten games change at once.
+
+Still open if the games are ever revisited: 5 more copies live in the untracked
+`public/arcade/wave-3-test/`; decide whether that folder is still wanted.
+
+**The trap that made the full bar unattractive, kept for reference:** watch for the
+viewport-clipping pattern (`height: 100vh/100dvh` + `overflow: hidden` on a wrapper). That is what
+made the SY-1 sequencer unreachable — content pushed past a clipped boundary with no scrollbar able
+to reach it. Anything added to a rigid full-height layout must come off the app's height
+(`calc(100dvh - <bar height>)`), never be added as an extra row.
+
+### Original text (superseded)
 - 5 more copies live in the untracked `public/arcade/wave-3-test/`; decide whether that folder is
   still wanted before duplicating the work into it.
 
