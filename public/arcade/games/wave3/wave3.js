@@ -6,7 +6,7 @@
   document.documentElement.style.setProperty("--accent",accent);
   const $=s=>document.querySelector(s), overlay=$("#startOverlay"),scoreEl=$("#score"),livesEl=$("#lives"),levelEl=$("#level");
   const attractMode=/[?&]attract\b/.test(location.search);
-  const keys={}, pressed={}; let running=false,paused=false,last=0,audio=null,musicBus=null,musicClock=0,musicStep=0,muted=false,reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const keys={}, pressed={}; let prevKeys={}; window.wave3Keys=keys; let running=false,paused=false,last=0,audio=null,musicBus=null,musicClock=0,musicStep=0,muted=false,reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
   const storage=`plumbmonkey.arcade.wave3.${id}.highScore`;
   const mansion=new Image();mansion.src="/assets/haunted-house-branded.jpg";
   const houseCutout=new Image();houseCutout.src="../wave3/haunted-house-cutout.png";
@@ -34,7 +34,6 @@
   overlay.addEventListener("click",()=>paused?(paused=false,overlay.classList.add("hidden")):!running&&start());
   $("#mute").onclick=()=>{muted=!muted;$("#mute").textContent=muted?"SOUND OFF":"SOUND ON";audioStart();if(musicBus)musicBus.gain.setTargetAtTime(muted?0:1,audio.currentTime,.02)};
   $("#motion").onclick=()=>{reduced=!reduced;$("#motion").textContent=reduced?"CALM FX":"FULL FX"};
-  $("#full").onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen?.();
   function bg(storm=false){const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,storm?"#281238":"#160928");g.addColorStop(1,"#05030b");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);ctx.fillStyle="#ffffff";for(let i=0;i<55;i++){const x=(i*173+level*19)%W,y=(i*i*31)%400;ctx.globalAlpha=.2+(i%5)/8;ctx.fillRect(x,y,2,2)}ctx.globalAlpha=1;const mg=ctx.createRadialGradient(130,120,10,130,120,85);mg.addColorStop(0,"#fffde7");mg.addColorStop(.55,"#e9d5ff");mg.addColorStop(1,"#e9d5ff00");ctx.fillStyle=mg;ctx.beginPath();ctx.arc(130,120,85,0,7);ctx.fill()}
   function text(t,x,y,size=20,color="#fff",align="center"){ctx.fillStyle=color;ctx.font=`800 ${size}px Segoe UI`;ctx.textAlign=align;ctx.fillText(t,x,y)}
   function glow(color=accent,blur=16){ctx.shadowColor=color;ctx.shadowBlur=blur}
@@ -61,7 +60,11 @@
   function drawRigLadder(l,floors,dirs){const sx=(l.x-35)/890*18,y1=floors[l.a]-sx*dirs[l.a],y2=floors[l.a+1]-sx*dirs[l.a+1],span=y1-y2,rungs=Math.max(3,Math.round(span/16)),rw=24;ctx.save();ctx.fillStyle="#0d0a12aa";ctx.fillRect(l.x-rw-6,y2-4,rw*2+12,span+8);for(let i=0;i<=rungs;i++){const y=y1-i*(span/rungs);ctx.fillStyle="#0f0b12";ctx.fillRect(l.x-rw+2,y-1,rw*2-4,5);ctx.fillStyle="#cbd5e1";ctx.fillRect(l.x-rw+2,y-3,rw*2-4,4);ctx.fillStyle="#f1f5f9";ctx.fillRect(l.x-rw+2,y-3,rw*2-4,1)}glow("#a78bfa",8);for(const s of[-1,1]){ctx.fillStyle="#475569";ctx.fillRect(l.x+s*rw-3,y2-6,6,span+12);ctx.fillStyle="#94a3b8";ctx.fillRect(l.x+s*rw-3,y2-6,2,span+12)}noGlow();ctx.fillStyle=l.a%2?"#a855f7":"#64748b";ctx.fillRect(l.x-rw-5,y1-3,rw*2+10,5);ctx.fillStyle=(l.a+1)%2?"#a855f7":"#64748b";ctx.fillRect(l.x-rw-5,y2-3,rw*2+10,5);ctx.restore()}
   function drawFanCage(fan){ctx.fillStyle="#4b2d18";ctx.fillRect(742,111,88,18);ctx.fillStyle="#7c3aed";ctx.fillRect(750,103,72,10);drawFan(fan.x,fan.y,.68,!fan.safe);ctx.strokeStyle="#64748b";ctx.lineWidth=4;ctx.strokeRect(752,38,66,72);for(let x=762;x<818;x+=14){ctx.strokeStyle="#475569";ctx.beginPath();ctx.moveTo(x,39);ctx.lineTo(x,109);ctx.stroke()}if(!fan.safe){const angle=-(1-(fan.door||0))*1.22;ctx.save();ctx.translate(752,39);ctx.rotate(angle);glow("#cbd5e1",8);ctx.strokeStyle="#cbd5e1";ctx.lineWidth=4;ctx.strokeRect(0,0,66,70);for(let x=10;x<66;x+=12){ctx.beginPath();ctx.moveTo(x,1);ctx.lineTo(x,69);ctx.stroke()}ctx.fillStyle="#fbbf24";ctx.fillRect(54,37,10,12);noGlow();ctx.restore()}}
   function drawHouseSilhouette(alpha=.55){if(houseCutout.complete&&houseCutout.naturalWidth){ctx.globalAlpha=alpha;ctx.drawImage(houseCutout,0,80,W,540);ctx.globalAlpha=1}const damage=canvas._battleDamage||0;if(damage>.15){ctx.save();const t=performance.now()/100;ctx.fillStyle=`rgba(35,2,8,${Math.min(.52,damage*.045)})`;ctx.fillRect(300,155,365,375);ctx.strokeStyle=`rgba(255,92,35,${Math.min(.95,.28+damage*.07)})`;ctx.lineWidth=2;for(let i=0;i<Math.ceil(damage);i++){const x=365+(i*53)%235,y=210+(i*67)%245;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-13,y+22);ctx.lineTo(x+5,y+39);ctx.lineTo(x-9,y+61);ctx.stroke()}for(let i=0;i<Math.ceil(damage*1.4);i++){const x=335+(i*71)%300,y=475-(i%5)*58,h=22+Math.sin(t+i)*10;glow("#ff3b17",18);ctx.fillStyle=i%2?"#ff3b17":"#fbbf24";ctx.beginPath();ctx.moveTo(x-11,y);ctx.quadraticCurveTo(x-4,y-h*.55,x+2,y-h);ctx.quadraticCurveTo(x+15,y-h*.3,x+11,y);ctx.fill();noGlow()}ctx.fillStyle=`rgba(20,15,28,${Math.min(.6,damage*.05)})`;for(let i=0;i<Math.floor(damage/2);i++){ctx.beginPath();ctx.arc(380+(i*83)%230,145-(i%3)*25,28+i*3,0,7);ctx.fill()}ctx.restore()}}
-  function loop(now){requestAnimationFrame(loop);const dt=Math.min(.034,(now-last)/1000||0);last=now;if(running&&!paused){ampMusic(dt);game.update(dt);game.draw();fx(dt);Object.keys(pressed).forEach(k=>delete pressed[k])}else if(!running&&game.attract){game.attract(dt);game.draw()}}
+  // Gamepad / touch / VR layers write keys[code] directly with no key event, so
+  // derive rising edges here rather than only in the keydown handler. Keyboard
+  // still sets pressed[] on keydown so a tap between two frames is never lost.
+  function syncEdges(){for(const k in keys){if(keys[k]&&!prevKeys[k])pressed[k]=true}prevKeys=Object.assign({},keys)}
+  function loop(now){requestAnimationFrame(loop);const dt=Math.min(.034,(now-last)/1000||0);last=now;syncEdges();if(!running&&!paused&&(pressed.Space||pressed.Enter))start();if(running&&!paused){ampMusic(dt);game.update(dt);game.draw();fx(dt)}else if(!running&&game.attract){game.attract(dt);game.draw()}Object.keys(pressed).forEach(k=>delete pressed[k])}
 
   const games={
     beamMeUpLive(){
