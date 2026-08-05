@@ -14,6 +14,10 @@ const GAMES = [
   { slug: "spectral-manor-crystal-dimension", title: "Crystal Dimension",tag: "Zero-G survival",      accent: "#67e8f9", bg: "#06040f" },
   { slug: "spectral-manor-infestation",       title: "Infestation",      tag: "Blast the Hauntipede", accent: "#4ade80", bg: "#0d0618" },
   { slug: "spectral-manor-cruise",            title: "Cruise",           tag: "Monster grand prix",   accent: "#ef4444", bg: "#07040f" },
+  { slug: "spectral-manor-beam-me-up",        title: "Beam Me Up: Live!",tag: "Stop the abductions",  accent: "#67e8f9", bg: "#06040f" },
+  { slug: "spectral-manor-amp-rampage",       title: "Amp Rampage",      tag: "Climb the rig",        accent: "#d9ff63", bg: "#0a0612" },
+  { slug: "spectral-manor-hooded",            title: "House of the Hooded", tag: "Light every tile",  accent: "#c084fc", bg: "#0b0614" },
+  { slug: "spectral-manor-graveyard-shift",   title: "Graveyard Shift",  tag: "Haul the gear",        accent: "#fb7185", bg: "#0d0618" },
 ];
 
 const SHOW = 3;

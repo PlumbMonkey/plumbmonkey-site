@@ -17,7 +17,11 @@
     { slug: 'spectral-manor-soul-circuit',      title: 'Soul Circuit' },
     { slug: 'spectral-manor-crystal-dimension', title: 'Crystal Dimension' },
     { slug: 'spectral-manor-infestation',       title: 'Infestation' },
-    { slug: 'spectral-manor-cruise',            title: 'Cruise' }
+    { slug: 'spectral-manor-cruise',            title: 'Cruise' },
+    { slug: 'spectral-manor-beam-me-up',        title: 'Beam Me Up: Live!' },
+    { slug: 'spectral-manor-amp-rampage',       title: 'Amp Rampage' },
+    { slug: 'spectral-manor-hooded',            title: 'House of the Hooded' },
+    { slug: 'spectral-manor-graveyard-shift',   title: 'Graveyard Shift' }
   ];
 
   function keyFor(slug) { return PREFIX + slug; }
