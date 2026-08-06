@@ -6,22 +6,31 @@
    same rule as the arcade games: minimal chrome plus an obvious way out. Pages
    you *browse* get the bar; experiences you enter get this.
 
-   Sits top-right because both viewers keep their own controls along the bottom
-   (viewpoints, mode switch, drag hint).
+   Sits top-right by default because both viewers keep their own controls along
+   the bottom (viewpoints, mode switch, drag hint).
 
-   z-index 35 is deliberate: above each viewer's own bars (30) but below the
-   loading screen (40), so the menu does not show through while the model is
-   still downloading.
+   PLACEMENT IS CONFIGURABLE, because the arcade games share this component and
+   have a different set of corners spoken for:
+     data-side="left"  → .pm-room-menu--left, and the panel opens left-aligned
+     data-z="9998"     → --pm-room-menu-z
+   The games put a fullscreen button at top-right and a controller badge at
+   top-centre, so their menu goes top-left; and their overlays live in the
+   9995–9999 band, so the default 35 would be buried under the touch pad.
+
+   z-index 35 is the default because it suits the 3D viewers: above each
+   viewer's own bars (30) but below the loading screen (40), so the menu does
+   not show through while the model is still downloading.
 
    Colours are the site's brass tokens, matching /shared/site-nav.css:
    brass-200 #e8c97e · brass-400 #c4923a · brass-500 #a97829 · moonlit-950 #0a0c11
    ============================================================ */
 
 .pm-room-menu {
+  --pm-room-menu-z: 35;
   position: fixed;
   top: 12px;
   right: 12px;
-  z-index: 35;
+  z-index: var(--pm-room-menu-z);
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -79,6 +88,10 @@
 }
 .pm-room-menu.is-open .pm-room-panel { display: block; }
 
+/* ---- left-hand placement (arcade games) ---- */
+.pm-room-menu--left { left: 12px; right: auto; }
+.pm-room-menu--left .pm-room-panel { left: 0; right: auto; }
+
 .pm-room-panel__label {
   padding: .5rem .7rem .3rem;
   font-size: 9px;
@@ -100,6 +113,7 @@
 
 @media (max-width: 520px) {
   .pm-room-menu { top: 8px; right: 8px; gap: 6px; }
+  .pm-room-menu--left { left: 8px; right: auto; }
   .pm-room-menu__exit, .pm-room-menu__btn { height: 32px; font-size: 11px; }
   .pm-room-menu__btn { width: 32px; }
 }

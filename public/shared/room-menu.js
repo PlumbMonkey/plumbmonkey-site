@@ -14,6 +14,14 @@
                    entered from, so leaving feels like stepping back out of the
                    room rather than being thrown to the home page.
    data-exit-label optional override for the Exit label.
+   data-exit-icon  optional override for its glyph (✕ for "Exit", ← otherwise).
+   data-room       which room to mark current, when it differs from data-exit.
+   data-side       "left" moves the menu to the top-left corner.
+   data-z          override the stacking order (see room-menu.css).
+
+   The arcade games load this at runtime from /arcade/games/leaderboard.js
+   rather than a <script> tag, with data-side="left" and data-z="9998" — see
+   the injectNav() comment there.
 
    Exposes window.PM_ROOMS so Phase 5 (WebXR) can build a world-space panel
    from the same list — a DOM overlay does not render inside an immersive
@@ -24,6 +32,13 @@
    ============================================================ */
 (function () {
   "use strict";
+
+  /* Framed pages get no chrome, matching site-nav.js. The arcade lobby runs
+     every game as a muted attract-mode iframe, and a menu drawn over a tile in
+     the cabinet grid is decoration the visitor cannot use. leaderboard.js also
+     gates on ?attract=1; this is the guard that does not depend on the embedder
+     remembering the query string. */
+  if (window.top !== window.self) return;
 
   /* The room list comes from /shared/rooms.js, which also defines
      window.PM_ROOMS for the WebXR panel in Phase 5. Load it first:
@@ -39,6 +54,12 @@
   var script = document.currentScript;
   var exitHref = (script && script.dataset.exit) || "/";
   var exitLabel = (script && script.dataset.exitLabel) || "Exit";
+  /* ✕ when the label is the generic "Exit" — you are closing the room you are
+     in. When the label names where you land ("Arcade", as the games set it),
+     ✕ reads as "close Arcade"; ← reads as "back to Arcade", which is what the
+     control actually does. */
+  var exitIcon = (script && script.dataset.exitIcon) ||
+    (exitLabel === "Exit" ? "✕" : "←");
 
   /* Which room the visitor is currently standing in. Defaults to the exit
      target, which is already "the page this room belongs to" — so the gallery
@@ -68,10 +89,14 @@
     }).join("");
 
     var el = document.createElement("div");
-    el.className = "pm-room-menu";
+    el.className = "pm-room-menu" +
+      (script && script.dataset.side === "left" ? " pm-room-menu--left" : "");
+    if (script && script.dataset.z) {
+      el.style.setProperty("--pm-room-menu-z", script.dataset.z);
+    }
     el.innerHTML =
       '<a class="pm-room-menu__exit" href="' + esc(exitHref) + '"' +
-        ' title="Leave this room">&#10005; ' + esc(exitLabel) + '</a>' +
+        ' title="Leave this room">' + esc(exitIcon) + ' ' + esc(exitLabel) + '</a>' +
       '<div class="pm-room-menu__wrap">' +
         '<button class="pm-room-menu__btn" type="button" aria-label="Open room menu"' +
           ' aria-expanded="false" aria-controls="pm-room-panel">&#9776;</button>' +

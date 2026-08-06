@@ -14,7 +14,7 @@
  *
  * This asserts the two cover the same hrefs. Run via `npm test`.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -51,8 +51,13 @@ for (const href of inDoors) {
 // ---- 3. nothing still hard-codes its own copy ----
 const consumers = {
   "app/components/NavBar.tsx": /public\/shared\/rooms/,
+  "app/components/Footer.tsx": /public\/shared\/rooms/,
   "public/shared/site-nav.js": /window\.PM_ROOMS/,
   "public/shared/room-menu.js": /window\.PM_ROOMS/,
+  // The arcade games do not tag the menu in their HTML — leaderboard.js injects
+  // it, so this is where their room list comes from. It used to hand-roll a
+  // two-link bar of its own instead.
+  "public/arcade/games/leaderboard.js": /shared\/room-menu\.js/,
 };
 for (const [file, mustMatch] of Object.entries(consumers)) {
   const src = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
@@ -61,6 +66,32 @@ for (const [file, mustMatch] of Object.entries(consumers)) {
   }
   if (/\{\s*href:\s*"\/arcade"\s*,\s*label:/.test(src)) {
     problems.push(`${file} has re-introduced its own copy of the room list`);
+  }
+}
+
+// ---- 4. every route the footer advertises actually exists ----
+// The footer is the only nav that reaches the studio pages, so a typo there is
+// a dead link on all 25 routes at once, with nothing else linking to the page.
+const footer = readFileSync(new URL("../app/components/Footer.tsx", import.meta.url), "utf8");
+const studioBlock = footer.match(/const STUDIO = \[([\s\S]*?)\];/);
+if (!studioBlock) {
+  problems.push("Footer.tsx no longer declares a STUDIO link list");
+} else {
+  for (const [, href] of studioBlock[1].matchAll(/href:\s*"([^"]+)"/g)) {
+    if (!existsSync(new URL(`../app${href}/page.tsx`, import.meta.url))) {
+      problems.push(`Footer.tsx links ${href}, which has no app${href}/page.tsx`);
+    }
+  }
+}
+
+// ---- 5. the two chrome tiers opt out inside an iframe ----
+// /music/dm1 and /music/sy1 frame a standalone instrument page inside a React
+// route that already has NavBar, and the arcade lobby frames every game as an
+// attract-mode preview. Without this guard both draw a second nav in the frame.
+for (const file of ["public/shared/site-nav.js", "public/shared/room-menu.js"]) {
+  const src = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+  if (!/window\.top\s*!==\s*window\.self/.test(src)) {
+    problems.push(`${file} no longer skips itself inside an iframe`);
   }
 }
 

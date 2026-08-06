@@ -11,7 +11,7 @@ export default function SY1Page() {
   return (
     <InstrumentEmbed
       title="SY-2 Polyphonic Synthesizer"
-      source="/music/stave/"
+      source="/music/stave/index.html"
     />
   );
 }

@@ -1,6 +1,73 @@
+import Link from "next/link";
+
+// Same canonical list the top bar reads — see public/shared/rooms.js.
+import { ROOMS, CTA } from "@/public/shared/rooms";
+
+/* The studio side of the site. These pages exist and are finished, but the top
+   bar is the seven rooms plus one CTA and has no room for them, so before this
+   footer nothing on the site linked to them at all: /how-it-works, /sales-hub
+   and /upload had zero inbound links and were reachable only by typing the URL.
+   Deliberately NOT added to the top bar — that bar is the creative world, and
+   at eight items it already wraps below 1100px. */
+const STUDIO = [
+  { href: "/how-it-works", label: "How it works" },
+  { href: "/pricing-scope", label: "Pricing & scope" },
+  { href: "/sales-hub", label: "Store" },
+  { href: "/booking", label: "Book a call" },
+  { href: "/upload", label: "Send me files" },
+  { href: "/contact", label: "Contact" },
+];
+
 export default function Footer() {
   return (
     <footer id="about" className="bg-moonlit-900/80 px-6 py-20">
+      <nav
+        aria-label="Site"
+        className="mx-auto mb-16 grid max-w-6xl gap-10 border-b border-moonlit-700/50 pb-14 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]"
+      >
+        <div>
+          <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.24em] text-brass-400">
+            The rooms
+          </h3>
+          <ul className="grid gap-2.5 sm:grid-cols-2">
+            {ROOMS.map((room) => (
+              <li key={room.href}>
+                <Link href={room.href} className="text-moonlit-300 transition hover:text-brass-300">
+                  {room.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.24em] text-brass-400">
+            The studio
+          </h3>
+          <ul className="grid gap-2.5 sm:grid-cols-2">
+            {STUDIO.map((item) => (
+              <li key={item.href}>
+                <Link href={item.href} className="text-moonlit-300 transition hover:text-brass-300">
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="lg:text-right">
+          <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.24em] text-brass-400">
+            Start a project
+          </h3>
+          <Link
+            href={CTA.href}
+            className="inline-block border border-brass-500/70 px-5 py-2.5 text-xs uppercase tracking-[0.14em] text-brass-200 transition hover:bg-brass-400 hover:text-moonlit-950"
+          >
+            {CTA.label}
+          </Link>
+        </div>
+      </nav>
+
       <div className="flex flex-col items-center">
         <img
           src="/assets/headshot-02.png"

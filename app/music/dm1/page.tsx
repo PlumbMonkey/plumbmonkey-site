@@ -11,7 +11,7 @@ export default function DM1Page() {
   return (
     <InstrumentEmbed
       title="DM-2 Rhythm Machine"
-      source="/music/stave/dm2/"
+      source="/music/stave/dm2/index.html"
     />
   );
 }

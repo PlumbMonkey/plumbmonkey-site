@@ -18,9 +18,26 @@
    Load it before this file.
 
    Opt out on a page that must not have it:  <body data-site-nav="off">
+
+   It also opts itself out inside an iframe — see the frame check below.
    ============================================================ */
 (function () {
   "use strict";
+
+  /* FRAMED PAGES GET NO BAR. /music/dm1 and /music/sy1 wrap the Stave
+     instruments in an iframe on a React route that already renders NavBar.tsx,
+     so the bar inside the frame came out as a second, identical nav stacked
+     directly under the real one. The framed page is not navigation-less — it
+     inherits the parent's bar, which is the one the visitor can actually use.
+
+     --pm-nav-h goes to 0 rather than staying at 64px: the layout contract in
+     site-nav.css has full-height pages subtract it (visual/index.html,
+     music/synth), and leaving it set would make them come up one bar short of
+     the frame with nothing occupying the gap. */
+  if (window.top !== window.self) {
+    document.documentElement.style.setProperty("--pm-nav-h", "0px");
+    return;
+  }
 
   /* The room list comes from /shared/rooms.js — load it first:
        <script src="/shared/rooms.js"></script>

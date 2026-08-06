@@ -291,45 +291,54 @@
   }
   if (attract) window.addEventListener('load', startAttract);
 
-  // ---- Persistent back-links (skipped in attract-mode previews) ----
-  // Lets a player leave a game for the arcade hub or the main site at any
-  // time — matches the site's own /arcade and / links.
-  //
+  // ---- Persistent way out (skipped in attract-mode previews) ----
   // Deliberately NOT the full site bar (/shared/site-nav.js). Games are
   // fixed-size canvases, several centred against the viewport, so a 64px bar
   // would mean re-centring ten bespoke layouts and would permanently eat play
   // area. The site runs two tiers of chrome by mode: pages you browse get the
   // full bar, experiences you are inside (games, and the 3D rooms) get minimal
-  // chrome plus a clear way out. "← Arcade" lands on a page that does carry the
-  // full nav, so nothing is more than one extra click away.
+  // chrome plus a clear way out.
   //
-  // Palette is the site's brass tokens rather than the older arcade purple:
-  // brass-200 #e8c97e text, brass-400 #c4923a hover, brass-500 #a97829 border,
-  // moonlit-950 #0a0c11 surface — same values as /shared/site-nav.css.
+  // That minimal chrome is /shared/room-menu.js — the same Exit + room menu the
+  // gallery and theatre viewers use. This file used to hand-roll its own
+  // two-link `.sm-nav` instead, which looked near-identical but only offered
+  // "← Arcade" and "Plumbmonkey Home": leaving a game for the Music Sandbox
+  // took three clicks here and one click in the 3D rooms, and the two copies of
+  // the styling had already started to drift. Sharing the component also means
+  // the games pick up rooms.js, so a room added to the nav appears in-game too.
+  //
+  // Injected rather than <script>-tagged into fourteen game pages, so the games
+  // stay untouched. rooms.js must run before room-menu.js, and dynamically
+  // created scripts do not preserve document order, so they are chained on load
+  // rather than appended together.
   function injectNav() {
-    if (attract || document.querySelector('.sm-nav')) return;
-    const s = document.createElement('style');
-    s.textContent = `
-      .sm-nav{position:fixed;top:10px;left:10px;z-index:9998;display:flex;gap:.5rem;
-        font-family:Inter,ui-sans-serif,system-ui,'Segoe UI',sans-serif;font-size:.72rem}
-      .sm-nav a{color:#e8c97e;text-decoration:none;padding:.34rem .72rem;border-radius:6px;
-        background:rgba(10,12,17,.82);border:1px solid rgba(169,120,41,.55);
-        backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-        letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;
-        transition:background .15s ease,border-color .15s ease,color .15s ease}
-      .sm-nav a:hover{background:#c4923a;border-color:#c4923a;color:#0a0c11}
-      @media (max-width:520px){ .sm-nav{font-size:.66rem} .sm-nav a{padding:.3rem .6rem} }
-      @media (prefers-reduced-motion:reduce){ .sm-nav a{transition:none} }
-    `;
-    document.head.appendChild(s);
-    const nav = document.createElement('div');
-    nav.className = 'sm-nav';
-    nav.innerHTML = `<a href="/arcade">← Arcade</a><a href="/">Plumbmonkey Home</a>`;
-    document.body.appendChild(nav);
+    if (attract || document.querySelector('.pm-room-menu')) return;
+
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = '/shared/room-menu.css';
+    document.head.appendChild(css);
+
+    const rooms = document.createElement('script');
+    rooms.src = '/shared/rooms.js';
+    rooms.onload = () => {
+      const menu = document.createElement('script');
+      menu.src = '/shared/room-menu.js';
+      menu.dataset.exit = '/arcade';    // back to the cabinet the game sits in
+      menu.dataset.room = '/arcade';    // highlight Arcade in the room list
+      menu.dataset.exitLabel = 'Arcade';
+      menu.dataset.side = 'left';       // top-right is the fullscreen button
+      menu.dataset.z = '9998';          // the band the games' own overlays use
+      document.head.appendChild(menu);
+    };
+    document.head.appendChild(rooms);
   }
   if (!attract && typeof document !== 'undefined') {
-    if (document.body) injectNav();
-    else window.addEventListener('DOMContentLoaded', injectNav);
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', injectNav);
+    } else {
+      injectNav();
+    }
   }
 
   // ---- Touch controls (phones/tablets) ----
