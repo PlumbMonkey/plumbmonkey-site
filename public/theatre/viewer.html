@@ -10,7 +10,29 @@
   * { box-sizing: border-box; }
   html, body { margin:0; height:100%; background:#07060a; overflow:hidden;
     font:400 15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#efe9dc; }
-  canvas { display:block; }
+  canvas { display:block; position:relative; z-index:2; }
+
+  /* THE CINEMA SCREEN. A cross-origin YouTube iframe cannot be sampled into a
+     WebGL texture, so the player is a real <iframe> that CSS3DRenderer
+     transforms into the same 3D space as the scene. It sits BEHIND the WebGL
+     canvas and shows through a hole punched in the screen mesh — see
+     mountVideo() for how that works.
+
+     The canvas keeps pointer events so OrbitControls still drives the room.
+     That means the iframe is not clickable, so clicking the screen enters
+     "watching": the player comes to the front and takes the pointer, which
+     hands over YouTube's own controls — play, scrub, volume, fullscreen —
+     rather than trying to reimplement them through the API. */
+  #css3d { position:fixed; inset:0; z-index:1; pointer-events:none; }
+  body.watching #css3d { z-index:3; pointer-events:auto; }
+  body.watching canvas { pointer-events:none; }
+
+  #leave-screen { position:fixed; top:12px; left:50%; transform:translateX(-50%);
+    z-index:36; display:none; cursor:pointer; border:1px solid rgba(226,185,107,.5);
+    border-radius:8px; padding:8px 14px; background:rgba(14,11,8,.9);
+    backdrop-filter:blur(8px); color:#ffdca0; font:600 13px system-ui,sans-serif; }
+  body.watching #leave-screen { display:block; }
+  #leave-screen:hover { background:rgba(226,185,107,.9); color:#17120c; }
 
   #loader { position:fixed; inset:0; display:grid; place-content:center; gap:18px;
     justify-items:center; background:#07060a; z-index:40; transition:opacity .6s ease; }
@@ -52,6 +74,7 @@
 <nav id="modes" class="bar" hidden aria-label="Theatre mode"></nav>
 <nav id="views" class="bar" hidden aria-label="Viewpoints"></nav>
 <div id="hint">drag to look · scroll to zoom · right-drag to pan</div>
+<button id="leave-screen" type="button">✕ Leave the screen</button>
 
 <script type="importmap">
 {
@@ -67,7 +90,14 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { initXRRoom } from '/shared/xr-room.js';
+
+/* WHAT PLAYS ON THE CINEMA SCREEN.
+   "Force of Nature", the lyric video that also heads the Screening Room
+   portfolio. Change this one id to run something else; nothing else in the
+   file knows which video it is. */
+const CINEMA_VIDEO_ID = '9z97EOMQXiM';
 
 const loaderEl = document.getElementById('loader');
 const barEl = document.querySelector('#bar i');
@@ -76,16 +106,26 @@ const errEl = document.getElementById('err');
 const viewsEl = document.getElementById('views');
 const modesEl = document.getElementById('modes');
 
-const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+/* alpha + a 0-alpha clear, and no scene.background: the canvas has to be
+   see-through for the CSS3D player layered behind it to show through the hole
+   in the cinema screen. What used to be scene.background is now just the page
+   behind — html/body already carry the same #07060a, so the room looks
+   identical anywhere the geometry does not cover. */
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, powerPreference:'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(0x07060a, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 document.body.appendChild(renderer.domElement);
 
+const css3d = new CSS3DRenderer();
+css3d.setSize(innerWidth, innerHeight);
+css3d.domElement.id = 'css3d';
+document.body.appendChild(css3d.domElement);
+
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x07060a);
 
 const camera = new THREE.PerspectiveCamera(52, innerWidth/innerHeight, 0.1, 600);
 camera.position.set(0, 8, 24);
@@ -145,6 +185,130 @@ const MODES = {
 };
 let screenUpY = null;
 
+/* ---- The video on the cinema screen --------------------------------------
+   Mounted only while the screen is actually down, so the player never runs
+   behind a stowed screen and leaving Cinema mode is what stops the audio.
+
+   The hole: the screen mesh renders FIRST (renderOrder -1) with colorWrite
+   off. It still writes depth, so the stage house behind it is depth-rejected
+   and never painted, leaving those pixels at the canvas's 0 alpha — the
+   iframe underneath shows through exactly the screen's silhouette. Anything
+   in FRONT of the screen still draws over it normally, so the proscenium and
+   drapes keep occluding it. Order matters: with the default front-to-back
+   opaque sort the wall could be painted before the screen, and colorWrite off
+   cannot erase what is already in the buffer. */
+let videoObj = null, videoFrame = null, screenMat = null;
+const screenMatHole = new THREE.MeshBasicMaterial({ colorWrite: false });
+
+/* HOW BIG THE PICTURE IS, in world units, with the screen lowered.
+
+   Not the size of the screen mesh. SGT_CinemaScreen is 19.6 x 10.8, but it is
+   bigger than the proscenium it drops behind: from the stalls the opening only
+   ever reveals about 17.2 x 5.8 of it. Sizing the picture to the mesh put the
+   top and bottom of the frame behind the proscenium header and the stage deck.
+
+   Measured by lowering the screen and watching which edges moved — the top
+   edge of the visible band stayed put while the bottom followed the screen
+   down, which is how you tell a fixed aperture from a moving one.
+
+   So the player is sized to the APERTURE, and the masked screen around it
+   reads as exactly what it looks like: masking. Raise `h` and the picture
+   grows until the proscenium starts cutting it again. If the screen mesh is
+   ever resized in the .blend to match its opening, this can go back to simply
+   filling the mesh. */
+const APERTURE = { cx: 0, cy: 3.9, h: 5.5 };
+
+function mountVideo() {
+  if (videoObj || !screenObj) return;
+
+  /* The player is built at 1920x1080 CSS px and scaled down, which is how CSS3D
+     keeps text and controls crisp. 16:9 at this height comes out 9.8 wide,
+     comfortably inside the 17.2-wide opening, so nothing is cropped. */
+  const el = document.createElement('iframe');
+  el.style.width = '1920px';
+  el.style.height = '1080px';
+  el.style.border = '0';
+  el.allow = 'accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+  el.allowFullscreen = true;
+  el.title = 'Now showing in the Spectral Grand Theatre';
+  el.src = `https://www.youtube-nocookie.com/embed/${CINEMA_VIDEO_ID}` +
+    '?rel=0&playsinline=1&iv_load_policy=3&cc_load_policy=0';
+  videoFrame = el;
+
+  videoObj = new CSS3DObject(el);
+  videoObj.scale.setScalar(APERTURE.h / 1080);
+  positionVideo();
+  scene.add(videoObj);
+
+  screenMat = screenObj.material;
+  screenObj.material = screenMatHole;
+  screenObj.renderOrder = -1;
+}
+
+function positionVideo() {
+  if (!videoObj || !screenObj) return;
+  // Just clear of the face that looks out at the house, centred in the opening.
+  videoObj.position.set(APERTURE.cx, APERTURE.cy, screenObj.geometry.boundingBox.max.z + 0.01);
+}
+
+function unmountVideo() {
+  setWatching(false);
+  if (!videoObj) return;
+  if (videoFrame) videoFrame.src = 'about:blank';   // stops playback and audio
+  scene.remove(videoObj);
+  videoObj = null; videoFrame = null;
+  if (screenMat) { screenObj.material = screenMat; screenMat = null; }
+  screenObj.renderOrder = 0;
+  css3d.render(scene, camera);                      // flush the removed element
+}
+
+/* Watching also takes the best seat in the house, and it has to.
+
+   From the default viewpoint the picture is about 360px wide, which scales
+   YouTube's own controls down to roughly ten screen pixels — the play button
+   becomes a target nobody can reliably hit. Moving to a seat at z=8 puts the
+   picture at a bit over half the viewport height and the controls back to a
+   usable size. Leaving puts the camera back exactly where it was, so this
+   never costs the visitor the view they had chosen. */
+const SEAT = { pos: [0, 5, 8], look: [0, APERTURE.cy, -3.3] };
+let priorView = null;
+
+function setWatching(on) {
+  if (!!on === document.body.classList.contains('watching')) return;
+  document.body.classList.toggle('watching', !!on);
+  controls.enabled = !on;
+
+  if (on) {
+    priorView = { pos: camera.position.clone(), target: controls.target.clone() };
+    camera.position.set(...SEAT.pos);
+    controls.target.set(...SEAT.look);
+  } else if (priorView) {
+    camera.position.copy(priorView.pos);
+    controls.target.copy(priorView.target);
+    priorView = null;
+  }
+  controls.update();
+}
+document.getElementById('leave-screen').addEventListener('click', () => setWatching(false));
+addEventListener('keydown', (e) => { if (e.key === 'Escape') setWatching(false); });
+
+/* Click the screen to hand the pointer to the player. Distinguished from an
+   orbit drag by distance, or every look-around that ended over the screen
+   would drop the visitor into the video. */
+const ray = new THREE.Raycaster();
+let downAt = null;
+renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!downAt || !videoObj) return;
+  const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+  downAt = null;
+  if (moved > 5) return;
+  ray.setFromCamera(
+    new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1),
+    camera);
+  if (ray.intersectObject(screenObj, false).length) setWatching(true);
+});
+
 function applyMode(name, btn) {
   const m = MODES[name];
   drapes.forEach(d => {
@@ -153,6 +317,11 @@ function applyMode(name, btn) {
   });
   if (screenObj && screenUpY !== null)
     screenObj.position.y = m.screenDown ? screenUpY - 9.6 : screenUpY;
+  /* Not in VR: CSS3D is DOM, and the DOM is not composited into an immersive
+     session — the screen would be a hole onto nothing. xr.presenting is
+     re-checked in the render loop, which is what covers entering VR while
+     already in Cinema mode. */
+  if (m.screenDown && !xr.presenting) mountVideo(); else unmountVideo();
   modesEl.querySelectorAll('button').forEach(b =>
     b.setAttribute('aria-current', String(b === btn)));
   // small hook so the mode rig can be inspected/driven from the console
@@ -160,6 +329,9 @@ function applyMode(name, btn) {
     mode: name,
     drapes: drapes.map(d => ({ name: d.name, gather: d.morphTargetInfluences?.[0] ?? null })),
     screenY: screenObj ? Number(screenObj.position.y.toFixed(2)) : null,
+    screenObj,
+    video: () => ({ mounted: !!videoObj, inScene: !!(videoObj && videoObj.parent),
+                    attached: !!(videoFrame && videoFrame.parentNode) }),
     setMode: applyMode,
   };
 }
@@ -174,7 +346,10 @@ gltfLoader.load('./theatre-web.glb',
       if (/SGT_Drape_[LR]/.test(o.name)) drapes.push(o);
       if (/SGT_CinemaScreen/.test(o.name)) screenObj = o;
     });
-    if (screenObj) screenUpY = screenObj.position.y;
+    if (screenObj) {
+      screenUpY = screenObj.position.y;
+      screenObj.geometry.computeBoundingBox();   // mountVideo sizes the player from this
+    }
 
     if (gltf.animations && gltf.animations.length) {
       mixer = new THREE.AnimationMixer(gltf.scene);
@@ -236,9 +411,12 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  css3d.setSize(innerWidth, innerHeight);
 });
 renderer.setAnimationLoop(() => {
   if (mixer) mixer.update(clock.getDelta());
+  // Catches entering VR while the screen is already showing a video.
+  if (xr.presenting && videoObj) unmountVideo();
   /* Skipped while presenting: OrbitControls writes camera.position/quaternion,
      which is exactly what three fills from the headset pose each XR frame.
      Damping runs even when controls.enabled is false, hence the guard here
@@ -246,6 +424,7 @@ renderer.setAnimationLoop(() => {
   if (!xr.presenting) controls.update();
   xr.update();
   renderer.render(scene, camera);
+  if (videoObj) css3d.render(scene, camera);
 });
 </script>
 
