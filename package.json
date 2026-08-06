@@ -5,7 +5,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node scripts/check-room-lists.mjs && node scripts/test-natural-media-lab.mjs",
+    "test": "node scripts/check-room-lists.mjs && node scripts/test-natural-media-lab.mjs && node scripts/test-luminarium.mjs",
     "test:release": "node scripts/validate-natural-media-release.mjs"
   },
   "dependencies": {

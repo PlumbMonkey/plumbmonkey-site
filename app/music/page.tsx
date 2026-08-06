@@ -163,14 +163,14 @@ export default function MusicPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-lime-300">A separate visual studio</p>
             <h2 className="mt-3 font-serif text-3xl font-bold sm:text-4xl">Turn the finished track into a visual</h2>
             <p className="mt-4 max-w-xl leading-relaxed text-slate-400">
-              Light Lab has its own full creative workspace. Export WAV from the Music Sandbox and it becomes available there automatically on this device—or upload any audio file.
+              The Luminarium is a full visual performance space. Export WAV from the Music Sandbox and it becomes available there automatically on this device—or upload any audio file.
             </p>
-            <a href="/visual/index.html?handoff=1" className="mt-7 inline-flex rounded-xl bg-lime-300 px-6 py-3.5 font-bold text-slate-950 transition hover:bg-lime-200">Open Light Lab →</a>
+            <a href="/visual/index.html?handoff=1" className="mt-7 inline-flex rounded-xl bg-lime-300 px-6 py-3.5 font-bold text-slate-950 transition hover:bg-lime-200">Enter The Luminarium →</a>
           </div>
           <div className="relative aspect-video overflow-hidden rounded-2xl border border-lime-300/25 bg-[#050609] shadow-[0_30px_100px_-45px_#d9ff63]">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#a67cff44,transparent_24%),conic-gradient(from_0deg,#5ce6db22,#d9ff6333,#a67cff33,#5ce6db22)]" />
             {[30, 45, 60, 75].map((size) => <div key={size} className="absolute left-1/2 top-1/2 aspect-square -translate-x-1/2 -translate-y-1/2 rounded-full border border-lime-200/20" style={{ width: `${size}%` }} />)}
-            <div className="absolute bottom-4 left-4 rounded-md border border-white/10 bg-black/60 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-lime-200">Light Lab · audio ready</div>
+            <div className="absolute bottom-4 left-4 rounded-md border border-white/10 bg-black/60 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-lime-200">Luminarium · audio ready</div>
           </div>
         </div>
       </section>
@@ -181,7 +181,7 @@ export default function MusicPage() {
           {[
             ["Quick beat", "Drum Machine → WAV or MIDI", "/music/dm1"],
             ["Complete track", "Drums + Synth → Song View", "/music/song/index.html"],
-            ["Music visual", "Finished audio → Light Lab → Video", "/visual/index.html"],
+            ["Music visual", "Finished audio → Luminarium → Video", "/visual/index.html"],
           ].map(([title, copy, href]) => (
             <a key={title} href={href} className="rounded-xl border border-white/10 bg-white/[0.03] p-5 transition hover:border-cyan-300/30 hover:bg-white/[0.06]">
               <strong className="block text-white">{title}</strong><span className="mt-2 block text-sm text-slate-400">{copy}</span>

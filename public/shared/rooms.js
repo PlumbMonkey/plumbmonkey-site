@@ -27,7 +27,7 @@
   var ROOMS = [
     { href: "/arcade", label: "Arcade" },
     { href: "/music", label: "Music Sandbox" },
-    { href: "/visual/index.html", label: "Light Lab" },
+    { href: "/visual/index.html", label: "Luminarium" },
     { href: "/natural-media-lab", label: "Art Room" },
     { href: "/screening-room", label: "Theatre" },
     { href: "/gallery", label: "Gallery" },

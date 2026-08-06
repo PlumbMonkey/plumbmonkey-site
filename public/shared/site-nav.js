@@ -61,7 +61,7 @@
 
   /* Which room are we in? Compare on the first path segment so that
      /music/synth/index.html still marks "Music Sandbox", and /visual/index.html
-     matches the Light Lab entry that carries a filename. */
+     matches the Luminarium entry that carries a filename. */
   function segment(path) {
     var m = String(path).replace(/^\/+/, "").split("/")[0];
     return m ? m.toLowerCase() : "";

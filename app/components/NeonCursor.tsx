@@ -19,7 +19,7 @@ declare global {
  * undercut the business-facing tone (and burn battery on every visit).
  *
  * The effect itself lives in /public/neon-cursor.js as plain JS so the static
- * Sound Stage and Light Lab pages can use the exact same file.
+ * Sound Stage and The Luminarium can use the exact same file.
  */
 export default function NeonCursor(props: { particleCount?: number }) {
   const { particleCount } = props;

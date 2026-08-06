@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#08090b" />
-  <title>Ghost Circuit Light Lab | Plumbmonkey</title>
+  <title>The Luminarium | Plumbmonkey</title>
   <style>
     :root {
       --bg:#08090b; --panel:#101215; --panel2:#171a1e; --line:#292e34;
@@ -151,17 +151,23 @@
     @media (prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; transition-duration:.01ms !important; } }
   </style>
   <link rel="stylesheet" href="/shared/site-nav.css" />
+  <link rel="stylesheet" href="luminarium.css" />
 </head>
 <body>
   <script src="/shared/rooms.js"></script>
   <script src="/shared/site-nav.js"></script>
   <div class="app">
     <header class="topbar">
-      <div class="top-status" id="vsStatus">Ready — upload a track or explore with touch</div>
+      <div class="luminarium-brand" aria-label="The Luminarium">
+        <span class="luminarium-orbit" aria-hidden="true"><i></i></span>
+        <span><strong>The Luminarium</strong><small>Audio-reactive light instrument</small></span>
+      </div>
+      <div class="top-status" id="vsStatus">The room is awake — touch the light or add sound</div>
       <div class="top-actions">
-        <button class="btn ghost" id="saveBtn">Save setup</button>
-        <button class="btn ghost" id="pngBtn">PNG still</button>
-        <button class="btn ghost" id="fsBtn2">Fullscreen</button>
+        <button class="btn ghost" id="surpriseBtn">Surprise me</button>
+        <button class="btn ghost" id="saveBtn">Save</button>
+        <button class="btn ghost" id="pngBtn">Capture still</button>
+        <button class="btn ghost" id="fsBtn2">Theatre</button>
         <button class="btn primary" id="mobileControls">Controls</button>
       </div>
     </header>
@@ -169,8 +175,8 @@
     <main class="studio">
       <section class="workspace" aria-label="Visualizer preview">
         <div class="stage-toolbar">
-          <span class="label">Live preview</span>
-          <span class="stage-badge" style="position:static">1080P · 60 FPS</span>
+          <span class="label">Live composition</span>
+          <span class="stage-badge output-badge" id="outputBadge" style="position:static">PREVIEW · ADAPTIVE</span>
           <div class="ratio-group" aria-label="Aspect ratio">
             <button class="ratio-btn active" data-ratio="16/9">16:9</button>
             <button class="ratio-btn" data-ratio="9/16">9:16</button>
@@ -188,22 +194,43 @@
       </section>
 
       <aside class="inspector" id="inspector" aria-label="Visualizer controls">
-        <div class="inspector-head"><strong>Design controls</strong><span style="color:var(--acid);font-size:.66rem">LIVE</span></div>
-        <details class="panel" open>
-          <summary>Looks</summary>
+        <div class="inspector-head">
+          <span><strong>Light console</strong><small id="consoleMode">Explore</small></span>
+          <button class="inspector-close" id="closeControls" aria-label="Close controls">×</button>
+        </div>
+        <nav class="console-tabs" aria-label="Luminarium control sections">
+          <button class="console-tab active" data-console-tab="explore" aria-selected="true">Explore</button>
+          <button class="console-tab" data-console-tab="shape" aria-selected="false">Shape</button>
+          <button class="console-tab" data-console-tab="sequence" aria-selected="false">Sequence</button>
+          <button class="console-tab" data-console-tab="export" aria-selected="false">Export</button>
+        </nav>
+        <details class="panel" data-panel-group="explore" open>
+          <summary>Signature looks</summary>
           <div class="panel-body">
             <div class="preset-grid" id="presetGrid">
-              <button class="preset active" data-preset="neon"><span class="preset-swatch" style="background:linear-gradient(90deg,#18f8f2,#a747ff,#ff3b9d)"></span><strong>Neon Cathedral</strong></button>
-              <button class="preset" data-preset="haunted"><span class="preset-swatch" style="background:linear-gradient(90deg,#82ff74,#174634,#b9ffc3)"></span><strong>Haunted Pulse</strong></button>
-              <button class="preset" data-preset="dream"><span class="preset-swatch" style="background:linear-gradient(90deg,#9e8cff,#f5a9dc,#65d9ff)"></span><strong>Dreamwave</strong></button>
-              <button class="preset" data-preset="inferno"><span class="preset-swatch" style="background:linear-gradient(90deg,#a20a00,#ff5a00,#ffe469)"></span><strong>Inferno</strong></button>
-              <button class="preset" data-preset="ocean"><span class="preset-swatch" style="background:linear-gradient(90deg,#04175f,#00b8c6,#8aeaff)"></span><strong>Deep Ocean</strong></button>
-              <button class="preset" data-preset="mono"><span class="preset-swatch" style="background:linear-gradient(90deg,#222,#eee,#777)"></span><strong>Monochrome Film</strong></button>
+              <button class="preset active" data-preset="neon"><span class="preset-swatch" style="background:radial-gradient(circle at 50% 30%,#fff 0 3%,#ff3b9d 5%,#a747ff 22%,#07131a 66%),linear-gradient(135deg,#18f8f2,#050509 55%)"></span><strong>Prism Cathedral</strong><small>Sacred symmetry · radiant</small></button>
+              <button class="preset" data-preset="haunted"><span class="preset-swatch" style="background:radial-gradient(ellipse at 35% 70%,#82ff74aa,#174634 28%,#030805 70%),linear-gradient(120deg,#06130c,#b9ffc3)"></span><strong>Signal Garden</strong><small>Organic threads · spectral</small></button>
+              <button class="preset" data-preset="dream"><span class="preset-swatch" style="background:linear-gradient(155deg,#09051a 10%,#9e8cff 38%,#f5a9dc 52%,#65d9ff 65%,#04060c 90%)"></span><strong>Velvet Aurora</strong><small>Soft ribbons · slow drift</small></button>
+              <button class="preset" data-preset="inferno"><span class="preset-swatch" style="background:repeating-radial-gradient(circle at 50% 110%,#ffe469 0 2%,#ff5a00 4% 8%,#a20a00 12% 16%,#080302 21%)"></span><strong>Solar Choir</strong><small>Hot geometry · impact</small></button>
+              <button class="preset" data-preset="ocean"><span class="preset-swatch" style="background:conic-gradient(from 210deg at 50% 50%,#04175f,#00b8c6,#07142c,#8aeaff,#04175f)"></span><strong>Midnight Bloom</strong><small>Deep orbit · luminous</small></button>
+              <button class="preset" data-preset="mono"><span class="preset-swatch" style="background:radial-gradient(circle,#f5f1e8 0 2%,#777 3% 8%,#151515 23%,#020202 65%)"></span><strong>Ghost Glass</strong><small>Silver pulse · restrained</small></button>
             </div>
+            <button class="btn luminarium-wide" id="autoDirectorBtn">✦ Start Auto Director</button>
           </div>
         </details>
-        <details class="panel" open>
-          <summary>Visual style</summary>
+        <details class="panel macro-panel" data-panel-group="shape" open>
+          <summary>Performance controls</summary>
+          <div class="panel-body macro-grid">
+            <div class="field macro-field"><label for="macroEnergy">Energy <span id="macroEnergyVal">58</span></label><input type="range" id="macroEnergy" min="0" max="100" value="58" /></div>
+            <div class="field macro-field"><label for="macroFlow">Flow <span id="macroFlowVal">54</span></label><input type="range" id="macroFlow" min="0" max="100" value="54" /></div>
+            <div class="field macro-field"><label for="macroStructure">Structure <span id="macroStructureVal">48</span></label><input type="range" id="macroStructure" min="0" max="100" value="48" /></div>
+            <div class="field macro-field"><label for="macroGlow">Glow <span id="macroGlowVal">42</span></label><input type="range" id="macroGlow" min="0" max="100" value="42" /></div>
+            <div class="field macro-field"><label for="macroImpact">Beat impact <span id="macroImpactVal">62</span></label><input type="range" id="macroImpact" min="0" max="100" value="62" /></div>
+            <div class="field macro-field"><label for="macroDepth">Depth <span id="macroDepthVal">55</span></label><input type="range" id="macroDepth" min="0" max="100" value="55" /></div>
+          </div>
+        </details>
+        <details class="panel" data-panel-group="shape" open>
+          <summary>Light form</summary>
           <div class="panel-body">
             <div class="mode-grid">
               <button class="mode-chip active" data-mode="firefly-nebula">Firefly Nebula</button>
@@ -231,7 +258,7 @@
             <div class="field"><label>Touch gravity <span id="gravityStrengthVal">65%</span></label><input type="range" id="gravityStrength" min="10" max="150" value="65" /></div>
           </div>
         </details>
-        <details class="panel">
+        <details class="panel" data-panel-group="shape">
           <summary>Effects stack</summary>
           <div class="panel-body">
             <div class="effect-grid">
@@ -249,7 +276,7 @@
             <div class="field"><label>Effect strength <span id="effectStrengthVal"></span></label><input type="range" id="effectStrength" min="0" max="100" value="45" /></div>
           </div>
         </details>
-        <details class="panel">
+        <details class="panel" data-panel-group="shape">
           <summary>Audio mapping</summary>
           <div class="panel-body mapping-grid">
             <label>Bass controls<select id="bassMap"><option value="scale">Scale &amp; pulse</option><option value="shake">Camera shake</option><option value="speed">Motion speed</option><option value="glow">Glow</option></select></label>
@@ -258,7 +285,7 @@
             <label>Beat triggers<select id="beatMap"><option value="pulse">Pulse</option><option value="burst">Particle burst</option><option value="flash">Flash</option><option value="scene">Next scene</option></select></label>
           </div>
         </details>
-        <details class="panel">
+        <details class="panel" data-panel-group="sequence" open>
           <summary>Scene sequencer</summary>
           <div class="panel-body">
             <div class="scene-list" id="sceneList"></div>
@@ -277,7 +304,7 @@
             <label class="toggle" style="margin-top:10px">Run sequence <input type="checkbox" id="runScenes" /></label>
           </div>
         </details>
-        <details class="panel" open>
+        <details class="panel" data-panel-group="shape" open>
           <summary>Color</summary>
           <div class="panel-body">
             <select id="palette" aria-label="Color palette"></select>
@@ -290,7 +317,7 @@
             <div class="field"><label>Color movement <span id="colorSpeedVal"></span></label><input type="range" id="colorSpeed" min="0" max="30" value="10" /></div>
           </div>
         </details>
-        <details class="panel" open>
+        <details class="panel" data-panel-group="shape" open>
           <summary>Audio response</summary>
           <div class="panel-body">
             <div class="source-row">
@@ -307,20 +334,21 @@
             <div class="field"><label>Beat punch <span id="beatThresholdVal"></span></label><input type="range" id="beatThreshold" min="35" max="85" value="62" /></div>
           </div>
         </details>
-        <details class="panel">
+        <details class="panel" data-panel-group="export">
           <summary>Titles &amp; overlays</summary>
           <div class="panel-body text-stack">
             <input type="text" id="artistText" placeholder="Artist name" maxlength="50" />
             <input type="text" id="trackText" placeholder="Track title" maxlength="70" />
+            <select id="titleStyle" aria-label="Title treatment"><option value="cinema">Cinema centre</option><option value="lower">Gallery lower third</option><option value="editorial">Editorial frame</option></select>
             <label class="toggle">Show titles <input type="checkbox" id="showTitles" /></label>
           </div>
         </details>
-        <details class="panel">
+        <details class="panel" data-panel-group="export" open>
           <summary>Export</summary>
           <div class="panel-body">
-            <div class="field"><label>Quality</label><select id="quality"><option value="high">1080p / High</option><option value="standard">720p / Standard</option><option value="mobile">Mobile / Smaller file</option></select></div>
+            <div class="field"><label for="quality">Quality</label><select id="quality"><option value="high">1080p / High</option><option value="standard">720p / Standard</option><option value="mobile">540p / Smaller file</option></select></div>
             <div class="range-pair">
-              <div class="field"><label>Frame rate</label><select id="exportFps"><option value="60">60 FPS</option><option value="30">30 FPS</option></select></div>
+              <div class="field"><label for="exportFps">Frame rate</label><select id="exportFps"><option value="30">30 FPS · recommended</option><option value="60">60 FPS · demanding</option></select></div>
               <div class="field"><label>Export range</label><select id="exportRange"><option value="full">Entire track</option><option value="selection">Selected range</option></select></div>
             </div>
             <div class="range-pair">
@@ -331,7 +359,7 @@
             <p style="color:var(--muted);font-size:.68rem;line-height:1.5">Video exports as WebM with the active audio. PNG stills and setup files download instantly.</p>
             <button class="btn" id="loadSetupBtn" style="width:100%;margin-bottom:8px">Load saved setup</button>
             <input type="file" id="setupInput" accept="application/json,.json" hidden />
-            <button class="btn primary" id="recBtn" style="width:100%">● Start video export</button>
+            <button class="btn primary" id="recBtn" style="width:100%">● Begin video export</button>
             <button class="btn" id="cleanBtn" style="width:100%;margin-top:8px">Clean preview</button>
           </div>
         </details>
@@ -359,6 +387,7 @@
       </div>
     </footer>
   </div>
+  <div class="mobile-scrim" id="mobileScrim"></div>
   <div id="cleanHint">Esc or tap the top-right corner to return · R records</div>
   <button id="cleanExit" aria-label="Exit clean preview"></button>
   <button id="fsBtn" hidden></button><button id="drawerBtn" hidden></button><div id="drawer"></div>

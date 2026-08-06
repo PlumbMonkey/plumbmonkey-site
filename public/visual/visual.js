@@ -1,5 +1,5 @@
 // ============================================================
-// GHOST CIRCUIT — LIGHT LAB (visual sandbox)
+// THE LUMINARIUM — audio-reactive light instrument
 // Audio + touch reactive kaleidoscope. Ported from the desktop
 // Music Visualizer V2 engine (canvas 2D, no libraries, no backend),
 // with a new pointer/touch interaction layer: your finger stirs
@@ -83,6 +83,12 @@ const DEFAULT_CONFIG = {
   audioSensitivity: 1.5,
   colorSpeed: 1.0,
   rotSpeed: 1.0,
+  bloomStrength: 0.24,
+  exposure: 0.86,
+  contrast: 1.09,
+  backgroundStrength: 0.82,
+  beatScale: 0.025,
+  particleDensity: 1,
   fireflyCount: 60,
   fireflyChaosFactor: 0.5,
   fireflyGravity: 0.3,
@@ -100,6 +106,8 @@ class VisualEngine {
     this.wedgeCanvas = document.createElement('canvas'); this.wedgeCtx = this.wedgeCanvas.getContext('2d');
     this.bloomCanvas = document.createElement('canvas'); this.bloomCtx = this.bloomCanvas.getContext('2d');
     this.bloomWide = document.createElement('canvas'); this.bloomWideCtx = this.bloomWide.getContext('2d');
+    this.toneCanvas = document.createElement('canvas'); this.toneCtx = this.toneCanvas.getContext('2d');
+    this.transitionCanvas = document.createElement('canvas'); this.transitionCtx = this.transitionCanvas.getContext('2d');
 
     this.rotKaleido = 0;
     this.fftData = null;
@@ -127,7 +135,9 @@ class VisualEngine {
     this.bgCtx = this.bgCanvas.getContext('2d');
     this.bgRot = 0;
     this.palette = PALETTES[0];
-    this.overlay = { show:false, artist:'', track:'' };
+    this.overlay = { show:false, artist:'', track:'', style:'cinema' };
+    this.outputOverride = null;
+    this.transitionUntil = 0;
     /** When true (recording), adaptive resolution must not resize the canvas */
     this.resolutionLock = false;
   }
@@ -161,6 +171,7 @@ class VisualEngine {
   setConfig(partial) {
     const prevSegments = this.config.segments;
     const prevFireflies = this.config.fireflyCount;
+    const prevDensity = this.config.particleDensity;
     this.config = { ...this.config, ...partial };
     if (partial.segments !== undefined && partial.segments !== prevSegments) {
       this.initParticles();
@@ -169,9 +180,18 @@ class VisualEngine {
     if (partial.fireflyCount !== undefined && partial.fireflyCount !== prevFireflies) {
       this.initFireflies();
     }
+    if (partial.particleDensity !== undefined && partial.particleDensity !== prevDensity) {
+      this.particleCount = Math.round(clamp((this.viewWidth * this.viewHeight) / 600 * this.config.particleDensity, 280, 1500));
+      this.initParticles();
+    }
   }
 
   setMode(mode) {
+    if (mode !== this.mode && this.canvas.width > 1 && this.canvas.height > 1) {
+      this.transitionCtx.clearRect(0, 0, this.transitionCanvas.width, this.transitionCanvas.height);
+      this.transitionCtx.drawImage(this.canvas, 0, 0, this.transitionCanvas.width, this.transitionCanvas.height);
+      this.transitionUntil = performance.now() + 760;
+    }
     this.mode = mode;
     // No layer clearing: the destination-out trail fade dissolves the old
     // mode over ~a second while the new one draws in — a free crossfade.
@@ -184,13 +204,30 @@ class VisualEngine {
     this.overlay = { ...this.overlay, ...overlay };
   }
 
+  setOutputSize(width, height) {
+    this.outputOverride = { width:Math.max(1, Math.round(width)), height:Math.max(1, Math.round(height)) };
+    this.resolutionScale = 1;
+    this.applyRenderSize();
+    this.initParticles();
+    this.initFireflies();
+  }
+
+  clearOutputSize() {
+    this.outputOverride = null;
+    this.applyRenderSize();
+    this.initParticles();
+    this.initFireflies();
+  }
+
   applyRenderSize() {
-    this.width  = Math.max(1, Math.floor(this.viewWidth  * this.pixelRatio * this.resolutionScale));
-    this.height = Math.max(1, Math.floor(this.viewHeight * this.pixelRatio * this.resolutionScale));
+    this.width  = this.outputOverride ? this.outputOverride.width : Math.max(1, Math.floor(this.viewWidth  * this.pixelRatio * this.resolutionScale));
+    this.height = this.outputOverride ? this.outputOverride.height : Math.max(1, Math.floor(this.viewHeight * this.pixelRatio * this.resolutionScale));
     // Oversized square buffers: content at any rotation is never clipped
     this.bufferSize = Math.ceil(Math.hypot(this.width, this.height));
     this.canvas.width = this.width; this.canvas.height = this.height;
     this.bloomCanvas.width = this.width; this.bloomCanvas.height = this.height;
+    this.toneCanvas.width = this.width; this.toneCanvas.height = this.height;
+    this.transitionCanvas.width = this.width; this.transitionCanvas.height = this.height;
     for (const c of [this.layerCore, this.layerWeb, this.layerCloud, this.wedgeCanvas]) {
       c.width = this.bufferSize; c.height = this.bufferSize;
     }
@@ -199,7 +236,7 @@ class VisualEngine {
     this.buildBackground();
     // Particle budget scales with CSS-pixel area (NOT device pixels — a
     // dPR-2 phone would otherwise get a bigger budget than a desktop)
-    this.particleCount = Math.round(clamp((this.viewWidth * this.viewHeight) / 600, 350, 1400));
+    this.particleCount = Math.round(clamp((this.viewWidth * this.viewHeight) / 600 * this.config.particleDensity, 280, 1500));
   }
 
   initParticles() {
@@ -343,7 +380,7 @@ class VisualEngine {
       this.shakeX = 0; this.shakeY = 0;
     }
 
-    const beatScale = beat ? 1.025 : 1.0;
+    const beatScale = beat ? 1 + this.config.beatScale : 1.0;
     const bassScale = 1.0 + bass * audioSensitivity * 0.05;
     const speedMult = 1 + treble * audioSensitivity * 3.5;
 
@@ -390,6 +427,7 @@ class VisualEngine {
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(this.bgRot);
+    ctx.globalAlpha = this.config.backgroundStrength;
     ctx.drawImage(this.bgCanvas, -this.bufferSize / 2, -this.bufferSize / 2);
     ctx.restore();
     ctx.save();
@@ -403,6 +441,14 @@ class VisualEngine {
     // bloom, so the comet picks up the same glow as everything else.
     if (this.mode === 'neon-comet') this.renderNeonComet(W, H, bass, mid, treble, beat);
     if (effectState.bloom) this.applyBloom(W, H, treble);
+    this.applyTone(W, H);
+    if (performance.now() < this.transitionUntil) {
+      const alpha = clamp((this.transitionUntil - performance.now()) / 760, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = alpha * alpha;
+      ctx.drawImage(this.transitionCanvas, 0, 0, W, H);
+      ctx.restore();
+    }
     this.drawOverlay(W, H);
     this.applyEffects(W, H, beat);
   }
@@ -413,7 +459,7 @@ class VisualEngine {
   // one draws in SCREEN space after the kaleidoscope stamp: a mirrored comet
   // would no longer be "following your finger", which is the whole point.
   //
-  // It still belongs to the Light Lab rather than being a bolt-on: the ribbon
+  // It still belongs to The Luminarium rather than being a bolt-on: the ribbon
   // is tinted from the active palette, its width and glow ride the audio
   // bands, and a beat (or a fresh touch) detonates the head into particles
   // that swirl back together. Multi-touch gets one ribbon per finger.
@@ -586,15 +632,41 @@ class VisualEngine {
     const ctx = this.ctx;
     const scale = Math.max(.7, Math.min(W, H) / 700);
     ctx.save();
-    ctx.textAlign = 'center';
     ctx.shadowColor = 'rgba(0,0,0,.9)';
     ctx.shadowBlur = 18 * scale;
-    ctx.fillStyle = '#f4f7f3';
-    ctx.font = `700 ${Math.round(28*scale)}px system-ui,sans-serif`;
-    ctx.fillText((o.track || 'Untitled track').toUpperCase(), W/2, H*.84);
-    ctx.fillStyle = '#d7dfdc';
-    ctx.font = `600 ${Math.round(12*scale)}px system-ui,sans-serif`;
-    ctx.fillText((o.artist || 'Unknown artist').toUpperCase(), W/2, H*.84 + 24*scale);
+    if (o.style === 'lower') {
+      const x = W * .07, y = H * .82;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(7,7,10,.72)';
+      ctx.fillRect(x - 18*scale, y - 42*scale, Math.min(W*.62, 560*scale), 86*scale);
+      ctx.fillStyle = '#e8c77f';
+      ctx.fillRect(x - 18*scale, y - 42*scale, 3*scale, 86*scale);
+      ctx.fillStyle = '#f4efe5';
+      ctx.font = `600 ${Math.round(25*scale)}px Georgia,serif`;
+      ctx.fillText(o.track || 'Untitled track', x, y - 5*scale);
+      ctx.fillStyle = '#c3bbae';
+      ctx.font = `600 ${Math.round(10*scale)}px system-ui,sans-serif`;
+      ctx.fillText((o.artist || 'Unknown artist').toUpperCase(), x, y + 21*scale);
+    } else if (o.style === 'editorial') {
+      ctx.textAlign = 'center';
+      ctx.strokeStyle = 'rgba(232,199,127,.72)';
+      ctx.lineWidth = Math.max(1, scale);
+      ctx.strokeRect(W*.055, H*.07, W*.89, H*.86);
+      ctx.fillStyle = '#f4efe5';
+      ctx.font = `500 ${Math.round(32*scale)}px Georgia,serif`;
+      ctx.fillText(o.track || 'Untitled track', W/2, H*.52);
+      ctx.fillStyle = '#d8c28e';
+      ctx.font = `600 ${Math.round(10*scale)}px system-ui,sans-serif`;
+      ctx.fillText((o.artist || 'Unknown artist').toUpperCase(), W/2, H*.52 + 28*scale);
+    } else {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#f4efe5';
+      ctx.font = `600 ${Math.round(28*scale)}px Georgia,serif`;
+      ctx.fillText((o.track || 'Untitled track').toUpperCase(), W/2, H*.84);
+      ctx.fillStyle = '#d7cfbf';
+      ctx.font = `600 ${Math.round(11*scale)}px system-ui,sans-serif`;
+      ctx.fillText((o.artist || 'Unknown artist').toUpperCase(), W/2, H*.84 + 24*scale);
+    }
     ctx.restore();
   }
 
@@ -637,6 +709,20 @@ class VisualEngine {
     if (((effectState.strobe || audioMapping.beat === 'flash') && beat) || performance.now() < sceneFlashUntil) {
       ctx.fillStyle=`rgba(255,255,255,${.12+.38*s})`;ctx.fillRect(0,0,W,H);
     }
+  }
+
+  applyTone(W, H) {
+    const exposure = clamp(this.config.exposure, .68, 1.18);
+    const contrast = clamp(this.config.contrast, .88, 1.28);
+    if (Math.abs(exposure - 1) < .005 && Math.abs(contrast - 1) < .005) return;
+    this.toneCtx.clearRect(0, 0, W, H);
+    this.toneCtx.drawImage(this.canvas, 0, 0);
+    this.ctx.save();
+    this.ctx.clearRect(0, 0, W, H);
+    this.ctx.filter = `brightness(${exposure}) contrast(${contrast})`;
+    this.ctx.drawImage(this.toneCanvas, 0, 0);
+    this.ctx.filter = 'none';
+    this.ctx.restore();
   }
 
   stampLayer(layer, segments, angleStep, rotOffset) {
@@ -693,9 +779,10 @@ class VisualEngine {
     const ctx = this.ctx;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.22 + treble * 0.34;
+    const strength = this.config.bloomStrength;
+    ctx.globalAlpha = strength * (0.28 + treble * 0.42);
     ctx.drawImage(this.bloomCanvas, 0, 0);
-    ctx.globalAlpha = 0.10 + treble * 0.09;
+    ctx.globalAlpha = strength * (0.13 + treble * 0.12);
     ctx.drawImage(this.bloomWide, 0, 0, W, H);
     ctx.restore();
   }
@@ -1138,6 +1225,8 @@ class VisualEngine {
 let audioCtx = null, analyser = null, freqData = null;
 let mediaSource = null, micStream = null, audioEl = null;
 let lastBeatAt = 0;
+let bassHistory = [];
+const smoothedBands = { bass:0, mid:0, treble:0 };
 let sourceMode = 'touch';   // 'touch' | 'mic' | 'file'
 let bassGain = 1.15, midGain = 1, trebleGain = 1.05, beatThreshold = .62;
 const effectState = { bloom:true, grain:false, vignette:false, chromatic:false, blur:false,
@@ -1201,6 +1290,12 @@ function bandAverage(startRatio, endRatio) {
   return Math.min(1, sum / (end - start) / 255);
 }
 
+function bandAverageHz(startHz, endHz) {
+  if (!audioCtx || !freqData) return 0;
+  const nyquist = audioCtx.sampleRate / 2;
+  return bandAverage(clamp(startHz / nyquist, 0, 1), clamp(endHz / nyquist, 0, 1));
+}
+
 // ============================================================
 // POINTER / TOUCH — the always-on input. Finger speed becomes
 // "treble", pressing becomes "bass", so every mode reacts to
@@ -1250,12 +1345,20 @@ function getBands() {
   // Live audio path
   if (sourceMode !== 'touch' && analyser) {
     analyser.getByteFrequencyData(freqData);
-    const bass = clamp(bandAverage(0, 0.08) * bassGain, 0, 1);
-    const mid = clamp(bandAverage(0.08, 0.34) * midGain, 0, 1);
-    const treble = clamp(bandAverage(0.34, 1) * trebleGain, 0, 1);
+    const rawBass = clamp(bandAverageHz(30, 180) * bassGain, 0, 1);
+    const rawMid = clamp(bandAverageHz(180, 2600) * midGain, 0, 1);
+    const rawTreble = clamp(bandAverageHz(2600, 12000) * trebleGain, 0, 1);
+    smoothedBands.bass += (rawBass - smoothedBands.bass) * .22;
+    smoothedBands.mid += (rawMid - smoothedBands.mid) * .16;
+    smoothedBands.treble += (rawTreble - smoothedBands.treble) * .2;
+    const bass = smoothedBands.bass, mid = smoothedBands.mid, treble = smoothedBands.treble;
     const overall = (bass + mid + treble) / 3;
     const now = performance.now();
-    let beat = bass > beatThreshold && overall > beatThreshold * .61 && now - lastBeatAt > 180;
+    bassHistory.push(bass);
+    if (bassHistory.length > 48) bassHistory.shift();
+    const rollingBass = bassHistory.reduce((sum, value) => sum + value, 0) / Math.max(1, bassHistory.length);
+    const dynamicGate = Math.max(.075, rollingBass * (1.18 + (beatThreshold - .35) * 1.05));
+    let beat = bass > dynamicGate && bass > overall * 1.04 && now - lastBeatAt > 210;
     if (beat) lastBeatAt = now;
     // Touch still layers on top of audio (finger = extra excitement)
     return {
@@ -1394,6 +1497,7 @@ function selectChip(groupSel, btn) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  document.body.dataset.console = 'explore';
   const canvas = document.getElementById('stage');
   engine = new VisualEngine(canvas);
   engine.setPalette(PALETTES[0]);
@@ -1404,6 +1508,30 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', doResize);
 
   attachPointerHandlers(canvas, engine);
+
+  document.querySelectorAll('.field').forEach(field => {
+    const label = field.querySelector('label');
+    const control = field.querySelector('input,select');
+    if (label && control && control.id) {
+      label.htmlFor = control.id;
+      if (!control.getAttribute('aria-label')) control.setAttribute('aria-label', label.textContent.trim());
+    }
+  });
+
+  const setConsole = name => {
+    document.body.dataset.console = name;
+    document.querySelectorAll('.console-tab').forEach(btn => {
+      const active = btn.dataset.consoleTab === name;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', String(active));
+    });
+    const label = document.getElementById('consoleMode');
+    if (label) label.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+  };
+  document.querySelectorAll('.console-tab').forEach(btn => btn.addEventListener('click', () => setConsole(btn.dataset.consoleTab)));
+  const closeControls = () => document.body.classList.remove('controls-open');
+  document.getElementById('closeControls').addEventListener('click', closeControls);
+  document.getElementById('mobileScrim').addEventListener('click', closeControls);
 
   // Mode chips ("auto" cycles through the real modes on beats/timer)
   document.querySelectorAll('.mode-chip').forEach(btn => {
@@ -1456,18 +1584,61 @@ window.addEventListener('DOMContentLoaded', () => {
   }));
 
   const PRESETS = {
-    neon:    { mode:'firefly-nebula', palette:0, segments:8,  spin:10, trails:25, sensitivity:15 },
-    haunted: { mode:'neural-strings',  palette:6, segments:10, spin:7,  trails:42, sensitivity:18 },
-    dream:   { mode:'wave-mirror',     palette:5, segments:8,  spin:4,  trails:55, sensitivity:12 },
-    inferno: { mode:'laser-grid',      palette:2, segments:6,  spin:14, trails:18, sensitivity:21 },
-    ocean:   { mode:'particle-galaxy', palette:4, segments:12, spin:5,  trails:48, sensitivity:13 },
-    mono:    { mode:'spectrum-ring',   palette:7, segments:8,  spin:2,  trails:30, sensitivity:17 }
+    neon:    { mode:'firefly-nebula', palette:0, macros:[58,54,48,42,62,55] },
+    haunted: { mode:'neural-strings',  palette:6, macros:[46,68,72,28,48,78] },
+    dream:   { mode:'wave-mirror',     palette:5, macros:[34,38,44,52,30,72] },
+    inferno: { mode:'laser-grid',      palette:2, macros:[82,72,34,48,84,38] },
+    ocean:   { mode:'particle-galaxy', palette:4, macros:[42,44,76,36,48,84] },
+    mono:    { mode:'spectrum-ring',   palette:7, macros:[38,24,58,18,56,68] }
   };
   const setRange = (id, value) => {
     const el = document.getElementById(id);
     el.value = value;
     el.dispatchEvent(new Event('input'));
   };
+  const macroIds = ['macroEnergy','macroFlow','macroStructure','macroGlow','macroImpact','macroDepth'];
+  const applyMacro = (id, value) => {
+    const n = value / 100;
+    const out = document.getElementById(id + 'Val');
+    if (out) out.textContent = Math.round(value);
+    if (id === 'macroEnergy') {
+      setRange('sensitivity', Math.round(8 + n * 18));
+      setRange('bassGain', Math.round(88 + n * 64));
+      setRange('effectStrength', Math.round(18 + n * 54));
+    } else if (id === 'macroFlow') {
+      setRange('spin', Math.round(2 + n * 20));
+      setRange('trails', Math.round(92 - n * 76));
+      setRange('colorSpeed', Math.round(4 + n * 18));
+    } else if (id === 'macroStructure') {
+      const segments = 4 + Math.round(n * 5) * 2;
+      setRange('segments', segments);
+      engine.setConfig({ particleDensity:.55 + n * .9, fireflyCount:28 + n * 106 });
+    } else if (id === 'macroGlow') {
+      engine.setConfig({ bloomStrength:.08 + n * .38, exposure:.9 - n * .12 });
+      effectState.bloom = value > 2;
+      const bloomToggle = document.querySelector('[data-effect="bloom"]');
+      if (bloomToggle) bloomToggle.checked = effectState.bloom;
+    } else if (id === 'macroImpact') {
+      setRange('beatThreshold', Math.round(82 - n * 36));
+      engine.setConfig({ beatScale:.008 + n * .052, shakeIntensity:.25 + n * 1.25 });
+    } else if (id === 'macroDepth') {
+      engine.setConfig({ backgroundStrength:.35 + n * .58, contrast:.98 + n * .17 });
+      effectState.vignette = value >= 64;
+      const vignetteToggle = document.querySelector('[data-effect="vignette"]');
+      if (vignetteToggle) vignetteToggle.checked = effectState.vignette;
+    }
+  };
+  const setMacro = (id, value) => {
+    const el = document.getElementById(id);
+    el.value = value;
+    applyMacro(id, +value);
+  };
+  macroIds.forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => applyMacro(id, +el.value));
+  });
+  macroIds.forEach(id => applyMacro(id, +document.getElementById(id).value));
+
   document.querySelectorAll('.preset').forEach(btn => btn.addEventListener('click', () => {
     const p = PRESETS[btn.dataset.preset];
     if (!p) return;
@@ -1476,12 +1647,35 @@ window.addEventListener('DOMContentLoaded', () => {
     if (modeBtn) modeBtn.click();
     palSel.value = p.palette;
     palSel.dispatchEvent(new Event('change'));
-    setRange('segments', p.segments);
-    setRange('spin', p.spin);
-    setRange('trails', p.trails);
-    setRange('sensitivity', p.sensitivity);
-    setStatus(btn.textContent.trim() + ' preset loaded');
+    p.macros.forEach((value, index) => setMacro(macroIds[index], value));
+    setStatus((btn.querySelector('strong')?.textContent || btn.textContent.trim()) + ' preset loaded');
   }));
+
+  const presetButtons = Array.from(document.querySelectorAll('.preset'));
+  document.getElementById('surpriseBtn').addEventListener('click', () => {
+    const active = presetButtons.findIndex(btn => btn.classList.contains('active'));
+    let next = Math.floor(Math.random() * presetButtons.length);
+    if (presetButtons.length > 1 && next === active) next = (next + 1) % presetButtons.length;
+    presetButtons[next].click();
+  });
+  const autoDirectorBtn = document.getElementById('autoDirectorBtn');
+  autoDirectorBtn.addEventListener('click', () => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setStatus('Auto Director is disabled while reduced motion is enabled');
+      return;
+    }
+    const autoButton = document.querySelector('.mode-chip[data-mode="auto"]');
+    if (!autoMode) {
+      autoButton.click();
+      autoDirectorBtn.textContent = '■ Stop Auto Director';
+      autoDirectorBtn.classList.add('is-running');
+    } else {
+      autoMode = false;
+      autoDirectorBtn.textContent = '✦ Start Auto Director';
+      autoDirectorBtn.classList.remove('is-running');
+      setStatus('Auto Director stopped');
+    }
+  });
 
   const hexToRgb = hex => {
     const n = parseInt(hex.slice(1), 16);
@@ -1496,6 +1690,22 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const stageShell = document.getElementById('stageShell');
   let activeRatio = 16 / 9;
+  stageShell.style.setProperty('--stage-ratio', String(activeRatio));
+  const getOutputSize = (quality = document.getElementById('quality').value) => {
+    const sizes = {
+      high: { landscape:[1920,1080], portrait:[1080,1920], square:[1080,1080], vertical:[1080,1350] },
+      standard: { landscape:[1280,720], portrait:[720,1280], square:[720,720], vertical:[720,900] },
+      mobile: { landscape:[960,540], portrait:[540,960], square:[540,540], vertical:[540,675] }
+    };
+    const shape = Math.abs(activeRatio - 1) < .01 ? 'square' : Math.abs(activeRatio - .8) < .01 ? 'vertical' : activeRatio < 1 ? 'portrait' : 'landscape';
+    const [width,height] = sizes[quality][shape];
+    return { width, height };
+  };
+  const updateOutputBadge = () => {
+    const {width,height} = getOutputSize();
+    const fps = document.getElementById('exportFps').value;
+    document.getElementById('outputBadge').textContent = `${width}×${height} · ${fps} FPS READY`;
+  };
   const applyRatio = () => {
     const sw = stageShell.clientWidth, sh = stageShell.clientHeight;
     let w = sw, h = w / activeRatio;
@@ -1508,47 +1718,65 @@ window.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.ratio-btn').forEach(x => x.classList.toggle('active', x === btn));
     const [a,b] = btn.dataset.ratio.split('/').map(Number);
     activeRatio = a / b;
+    stageShell.style.setProperty('--stage-ratio', String(activeRatio));
     applyRatio();
+    updateOutputBadge();
   }));
+  document.getElementById('quality').addEventListener('change', updateOutputBadge);
+  document.getElementById('exportFps').addEventListener('change', updateOutputBadge);
   if (window.ResizeObserver) new ResizeObserver(applyRatio).observe(stageShell);
   requestAnimationFrame(applyRatio);
+  updateOutputBadge();
 
   const refreshOverlay = () => {
     const on = document.getElementById('showTitles').checked;
     const artist = document.getElementById('artistText').value.trim();
     const title = document.getElementById('trackText').value.trim();
+    const style = document.getElementById('titleStyle').value;
     const preview = document.getElementById('overlayPreview');
     preview.replaceChildren();
-    engine.setOverlay({ show:on, artist, track:title });
+    engine.setOverlay({ show:on, artist, track:title, style });
   };
-  ['artistText','trackText'].forEach(id => document.getElementById(id).addEventListener('input', refreshOverlay));
+  ['artistText','trackText','titleStyle'].forEach(id => document.getElementById(id).addEventListener('input', refreshOverlay));
   document.getElementById('showTitles').addEventListener('change', refreshOverlay);
 
   document.getElementById('pngBtn').addEventListener('click', () => {
+    const {width,height} = getOutputSize('high');
+    engine.resolutionLock = true;
+    engine.setOutputSize(width,height);
+    frame(performance.now());
     canvas.toBlob(blob => {
-      if (!blob) return;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'light-lab-still.png';
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 3000);
-      setStatus('PNG still saved');
+      engine.resolutionLock = false;
+      engine.clearOutputSize();
+      applyRatio();
+      if (blob) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'luminarium-still.png';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+        setStatus(`PNG still saved at ${width}×${height}`);
+      }
     }, 'image/png');
   });
 
   document.getElementById('saveBtn').addEventListener('click', () => {
     const setup = {
-      version:2, mode:engine.mode, palette:+palSel.value || 0, ratio:activeRatio,
+      version:3, mode:engine.mode, palette:+palSel.value || 0, ratio:activeRatio,
       controls:Object.fromEntries(['segments','sensitivity','trails','spin','colorSpeed','bassGain','midGain','trebleGain','beatThreshold']
         .map(id => [id, document.getElementById(id).value])),
       titles:{ artist:document.getElementById('artistText').value, track:document.getElementById('trackText').value,
-        show:document.getElementById('showTitles').checked },
+        show:document.getElementById('showTitles').checked, style:document.getElementById('titleStyle').value },
       effects:{...effectState}, mapping:{...audioMapping},
+      macros:Object.fromEntries(macroIds.map(id => [id, document.getElementById(id).value])),
+      renderer:{ bloomStrength:engine.config.bloomStrength, exposure:engine.config.exposure,
+        contrast:engine.config.contrast, backgroundStrength:engine.config.backgroundStrength,
+        beatScale:engine.config.beatScale, particleDensity:engine.config.particleDensity },
       scenes:typeof scenes!=='undefined'?scenes:[], activeScene:typeof activeScene!=='undefined'?activeScene:0
     };
-    localStorage.setItem('lightLabSetup', JSON.stringify(setup));
+    localStorage.setItem('luminariumSetup', JSON.stringify(setup));
     const blob = new Blob([JSON.stringify(setup, null, 2)], {type:'application/json'});
-    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='light-lab-setup.json'; a.click();
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='luminarium-setup.json'; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 3000);
     setStatus('Setup saved on this device and downloaded');
   });
@@ -1559,7 +1787,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!file) return;
     try {
       const setup = JSON.parse(await file.text());
-      if (![1,2].includes(setup.version) || !MODE_LABEL[setup.mode]) throw new Error('unsupported setup');
+      if (![1,2,3].includes(setup.version) || !MODE_LABEL[setup.mode]) throw new Error('unsupported setup');
       const modeBtn = document.querySelector(`.mode-chip[data-mode="${setup.mode}"]`);
       if (modeBtn) modeBtn.click();
       if (Number.isInteger(setup.palette) && PALETTES[setup.palette]) {
@@ -1574,20 +1802,25 @@ window.addEventListener('DOMContentLoaded', () => {
       if (setup.titles) {
         document.getElementById('artistText').value = setup.titles.artist || '';
         document.getElementById('trackText').value = setup.titles.track || '';
+        document.getElementById('titleStyle').value = setup.titles.style || 'cinema';
         document.getElementById('showTitles').checked = !!setup.titles.show;
         refreshOverlay();
       }
-      if (setup.version===2) {
+      if (setup.version>=2) {
         Object.assign(effectState,setup.effects||{});
         Object.assign(audioMapping,setup.mapping||{});
         if(Array.isArray(setup.scenes)&&setup.scenes.length){scenes=setup.scenes;activeScene=Math.min(setup.activeScene||0,scenes.length-1);renderScenes();}
+      }
+      if (setup.version>=3) {
+        Object.entries(setup.macros||{}).forEach(([id,value])=>{if(macroIds.includes(id))setMacro(id,value);});
+        engine.setConfig(setup.renderer||{});
       }
       const ratioBtn = Array.from(document.querySelectorAll('.ratio-btn')).find(btn => {
         const [a,b] = btn.dataset.ratio.split('/').map(Number);
         return Math.abs(a / b - setup.ratio) < .001;
       });
       if (ratioBtn) ratioBtn.click();
-      localStorage.setItem('lightLabSetup', JSON.stringify(setup));
+      localStorage.setItem('luminariumSetup', JSON.stringify({...setup, version:3}));
       setStatus('Saved setup loaded');
     } catch (e) {
       setStatus('That setup file could not be loaded');
@@ -1633,6 +1866,9 @@ window.addEventListener('DOMContentLoaded', () => {
     mode:engine.mode, palette:Number.isInteger(+palSel.value) ? +palSel.value : 0,
     controls:Object.fromEntries(['segments','sensitivity','trails','spin','colorSpeed','bassGain','midGain','trebleGain','beatThreshold']
       .map(id => [id, document.getElementById(id).value])),
+    macros:Object.fromEntries(macroIds.map(id => [id, document.getElementById(id).value])),
+    renderer:{bloomStrength:engine.config.bloomStrength,exposure:engine.config.exposure,contrast:engine.config.contrast,
+      backgroundStrength:engine.config.backgroundStrength,beatScale:engine.config.beatScale,particleDensity:engine.config.particleDensity},
     effects:{...effectState}, mapping:{...audioMapping}
   });
   let scenes = [captureScene('Scene 1',16), {...captureScene('Scene 2',16), mode:'wave-mirror', palette:5}];
@@ -1651,6 +1887,8 @@ window.addEventListener('DOMContentLoaded', () => {
     if (modeBtn) modeBtn.click();
     if (PALETTES[scene.palette]) { palSel.value=scene.palette; palSel.dispatchEvent(new Event('change')); }
     Object.entries(scene.controls || {}).forEach(([id,v]) => { if(document.getElementById(id)) setRange(id,v); });
+    Object.entries(scene.macros || {}).forEach(([id,v]) => { if(macroIds.includes(id)) setMacro(id,v); });
+    engine.setConfig(scene.renderer || {});
     Object.assign(effectState, scene.effects || {});
     document.querySelectorAll('.effect-toggle').forEach(el => { el.checked=!!effectState[el.dataset.effect]; });
     Object.assign(audioMapping, scene.mapping || {});
@@ -1744,20 +1982,26 @@ window.addEventListener('DOMContentLoaded', () => {
       waveformSamples=buf.getChannelData(0);renderWaveform();await tempCtx.close();
     }catch(e){ctx.clearRect(0,0,canvasWave.width,canvasWave.height);}
   }
-  window.lightLabDrawWaveform=drawWaveform;
+  window.luminariumDrawWaveform=drawWaveform;
+  window.lightLabDrawWaveform=drawWaveform; // Legacy handoff compatibility.
 
   // Automatic local recovery for accidental refreshes.
-  const captureSession=()=>({version:2,scenes,activeScene,mode:engine.mode,palette:+palSel.value||0,
+  const captureSession=()=>({version:3,scenes,activeScene,mode:engine.mode,palette:+palSel.value||0,
     controls:Object.fromEntries(['segments','sensitivity','trails','spin','colorSpeed','bassGain','midGain','trebleGain','beatThreshold','effectStrength'].map(id=>[id,document.getElementById(id).value])),
+    macros:Object.fromEntries(macroIds.map(id=>[id,document.getElementById(id).value])),
+    renderer:{bloomStrength:engine.config.bloomStrength,exposure:engine.config.exposure,contrast:engine.config.contrast,
+      backgroundStrength:engine.config.backgroundStrength,beatScale:engine.config.beatScale,particleDensity:engine.config.particleDensity},
     effects:{...effectState},mapping:{...audioMapping}});
-  setInterval(()=>localStorage.setItem('lightLabSession',JSON.stringify(captureSession())),2000);
+  setInterval(()=>localStorage.setItem('luminariumSession',JSON.stringify(captureSession())),2000);
   try{
-    const recovered=JSON.parse(localStorage.getItem('lightLabSession'));
-    if(recovered&&recovered.version===2){
+    const recovered=JSON.parse(localStorage.getItem('luminariumSession')||localStorage.getItem('lightLabSession'));
+    if(recovered&&[2,3].includes(recovered.version)){
       if(Array.isArray(recovered.scenes)&&recovered.scenes.length){scenes=recovered.scenes;activeScene=Math.min(recovered.activeScene||0,scenes.length-1);}
       Object.entries(recovered.controls||{}).forEach(([id,v])=>{if(document.getElementById(id))setRange(id,v);});
       Object.assign(effectState,recovered.effects||{});Object.assign(audioMapping,recovered.mapping||{});
-      applyScene(activeScene);setStatus('Last Light Lab session restored');
+      if(recovered.version===3){Object.entries(recovered.macros||{}).forEach(([id,v])=>{if(macroIds.includes(id))setMacro(id,v);});engine.setConfig(recovered.renderer||{});}
+      applyScene(activeScene);setStatus('Last Luminarium session restored');
+      localStorage.setItem('luminariumSession',JSON.stringify({...recovered,version:3}));
     }
   }catch(e){}
 
@@ -1854,7 +2098,7 @@ window.addEventListener('DOMContentLoaded', () => {
       wireTransport();
       selectChip('.src-chip', document.getElementById('srcFile'));
       document.getElementById('trackName').textContent = f.name;
-      if (window.lightLabDrawWaveform) window.lightLabDrawWaveform(f);
+      if (window.luminariumDrawWaveform) window.luminariumDrawWaveform(f);
       setStatus('Playing: ' + f.name);
     } catch (e) {
       setStatus('Could not play that file');
@@ -1881,7 +2125,7 @@ window.addEventListener('DOMContentLoaded', () => {
       wireTransport();
       selectChip('.src-chip', handoffBtn);
       document.getElementById('trackName').textContent = file.name;
-      if (window.lightLabDrawWaveform) window.lightLabDrawWaveform(file);
+      if (window.luminariumDrawWaveform) window.luminariumDrawWaveform(file);
       setStatus('Music Sandbox export loaded: ' + file.name);
     } catch (e) {
       setStatus('The latest Music Sandbox export could not be loaded');
@@ -1925,7 +2169,7 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cleanBtnBottom').addEventListener('click', () => setClean(true));
   document.getElementById('cleanExit').addEventListener('click', () => setClean(false));
   window.addEventListener('keydown', e => {
-    if (e.key === 'Escape') setClean(false);
+    if (e.key === 'Escape') { setClean(false); closeControls(); }
     if (e.key === 'r' || e.key === 'R') toggleRecording();
   });
   if (new URLSearchParams(location.search).get('clean') === '1') setClean(true);
@@ -1935,7 +2179,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // encoder — against the no-libraries rule. Any free converter makes MP4.
   const recBtn = document.getElementById('recBtn');
   const REC_MAX_MS = 30 * 60 * 1000;
-  let recorder = null, recChunks = [], recTick = null, recStartedAt = 0, audioDest = null, wakeLock = null, selectedEnd = null;
+  let recorder = null, recChunks = [], recTick = null, recStartedAt = 0, audioDest = null, wakeLock = null, selectedEnd = null, recordingSize = null;
 
   function stopRecording() {
     if (recorder && recorder.state !== 'inactive') recorder.stop();
@@ -1944,6 +2188,10 @@ window.addEventListener('DOMContentLoaded', () => {
   function toggleRecording() {
     if (recorder) { stopRecording(); return; }
     const fps = +document.getElementById('exportFps').value;
+    recordingSize = getOutputSize();
+    engine.resolutionLock = true;
+    engine.setOutputSize(recordingSize.width, recordingSize.height);
+    frame(performance.now());
     const stream = canvas.captureStream(fps);
     // Mix in the live audio graph (file or mic) alongside the canvas track
     if (analyser && sourceMode !== 'touch') {
@@ -1956,13 +2204,26 @@ window.addEventListener('DOMContentLoaded', () => {
       .find(m => MediaRecorder.isTypeSupported(m)) || '';
     const quality = document.getElementById('quality').value;
     const bitRate = quality === 'high' ? 8_000_000 : quality === 'standard' ? 5_000_000 : 2_500_000;
-    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitRate });
+    try {
+      recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitRate });
+    } catch (error) {
+      stream.getTracks().forEach(track => track.stop());
+      if (audioDest) { try { analyser.disconnect(audioDest); } catch (disconnectError) {} }
+      engine.resolutionLock = false;
+      engine.clearOutputSize();
+      applyRatio();
+      recordingSize = null;
+      setStatus('This browser could not start the selected video export');
+      return;
+    }
     recChunks = [];
     recorder.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data); };
     recorder.onstop = () => {
       clearInterval(recTick);
       if (audioDest) { try { analyser.disconnect(audioDest); } catch (e) {} }
       engine.resolutionLock = false;
+      engine.clearOutputSize();
+      applyRatio();
       const blob = new Blob(recChunks, { type: 'video/webm' });
       recChunks = [];
       recorder = null;
@@ -1971,16 +2232,16 @@ window.addEventListener('DOMContentLoaded', () => {
       const a = document.createElement('a');
       const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
       a.href = URL.createObjectURL(blob);
-      a.download = 'light-lab-' + ts + '.webm';
+      a.download = 'luminarium-' + ts + '.webm';
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       recBtn.classList.remove('rec');
-      recBtn.textContent = '● Record';
+      recBtn.textContent = '● Begin video export';
       document.getElementById('recBtnBottom').classList.remove('rec');
       document.getElementById('recBtnBottom').textContent = 'Export video';
-      setStatus('Saved .webm — drop it in any free converter if you need MP4');
+      setStatus(`Saved ${recordingSize.width}×${recordingSize.height} WebM with audio`);
+      recordingSize = null;
     };
-    engine.resolutionLock = true;   // canvas resize mid-capture breaks the stream
     if (audioEl && document.getElementById('exportRange').value === 'selection' && isFinite(audioEl.duration)) {
       audioEl.currentTime = audioEl.duration * (+document.getElementById('rangeStart').value / 100);
       selectedEnd = audioEl.duration * (+document.getElementById('rangeEnd').value / 100);
@@ -1997,7 +2258,7 @@ window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('recBtnBottom').textContent = 'Stop ' + fmtTime(el);
       if (el * 1000 >= REC_MAX_MS || (selectedEnd!==null && audioEl && audioEl.currentTime>=selectedEnd)) stopRecording();
     }, 500);
-    setStatus('Recording… press R or the button to stop (max 5:00)');
+    setStatus(`Recording ${recordingSize.width}×${recordingSize.height} at ${fps} FPS · press R to stop`);
   }
 
   if (typeof MediaRecorder === 'undefined' || !canvas.captureStream) {
@@ -2010,7 +2271,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('uploadIcon').addEventListener('click', () => document.getElementById('fileInput').click());
   document.getElementById('mobileControls').addEventListener('click', () => {
-    document.getElementById('inspector').scrollIntoView({ behavior:'smooth', block:'start' });
+    document.body.classList.add('controls-open');
   });
 
   window.addEventListener('beforeunload', e => {
@@ -2027,4 +2288,4 @@ window.addEventListener('DOMContentLoaded', () => {
   requestAnimationFrame(loop);
 });
 
-console.log('Ghost Circuit Light Lab ready');
+console.log('The Luminarium ready');

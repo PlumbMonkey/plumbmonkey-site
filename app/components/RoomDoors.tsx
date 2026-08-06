@@ -20,9 +20,9 @@ const ROOMS = [
   {
     href: "/visual/index.html",
     number: "03",
-    name: "The Light Lab",
-    tagline: "See music move",
-    description: "Transform sound into interactive, audio-reactive light and motion.",
+    name: "The Luminarium",
+    tagline: "Conduct light",
+    description: "Shape sound into cinematic, audio-reactive light, motion, and atmosphere.",
     color: "from-fuchsia-500/20",
   },
   {
