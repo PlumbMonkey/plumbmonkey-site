@@ -133,7 +133,7 @@
       <h2>NEW HIGH SCORE!</h2>
       <div class="sm-sub">Score ${Math.round(score)} — enter your initials</div>
       <div class="sm-slots"></div>
-      <div class="sm-hint">Type A–Z · ← → move · ↑ ↓ change · Enter to submit</div>
+      <div class="sm-hint">Type A–Z · ← → move · ↑ ↓ change · Enter to submit<br>Gamepad: stick/D-pad to pick · A to submit · B to clear</div>
       <button class="sm-submit">SUBMIT</button>
     `;
     const slots = modal.querySelector('.sm-slots');
@@ -158,10 +158,50 @@
     }
     function submit() {
       window.removeEventListener('keydown', onKey, true);
+      padOn = false;
       add(slug, chars.join(''), score);
       modal.remove();
       if (done) done();
     }
+
+    // ---- Gamepad ----
+    // This modal is DOM-driven and listens for real keydown events, but
+    // arcade-controls.js never dispatches any — it writes keys[code] straight
+    // into the game's own object. So a pad is invisible here and a controller
+    // player cannot enter their initials in any game. Poll it directly for as
+    // long as the modal is up.
+    let padOn = true, padPrev = {}, padNext = 0;
+    function padPoll() {
+      if (!padOn) return;
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      let pad = null;
+      for (let i = 0; i < pads.length; i++) if (pads[i]) { pad = pads[i]; break; }
+      if (pad) {
+        const held = n => !!(pad.buttons[n] && pad.buttons[n].pressed);
+        const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0;
+        const st = {
+          left: ax < -0.5 || held(14), right: ax > 0.5 || held(15),
+          up: ay < -0.5 || held(12), down: ay > 0.5 || held(13),
+          ok: held(0) || held(9), back: held(1)
+        };
+        const now = Date.now();
+        // fire on press, then repeat while held (long delay first, then fast)
+        const act = (k, fn) => {
+          if (!st[k]) return;
+          if (!padPrev[k]) { fn(); padNext = now + 340; }
+          else if (now >= padNext) { fn(); padNext = now + 140; }
+        };
+        act('left', () => { cur = Math.max(0, cur - 1); render(); });
+        act('right', () => { cur = Math.min(2, cur + 1); render(); });
+        act('up', () => cycle(cur, 1));
+        act('down', () => cycle(cur, -1));
+        if (st.back && !padPrev.back) { chars[cur] = 'A'; if (cur > 0) cur--; render(); }
+        if (st.ok && !padPrev.ok) { submit(); return; }
+        padPrev = st;
+      }
+      requestAnimationFrame(padPoll);
+    }
+    requestAnimationFrame(padPoll);
 
     slots.addEventListener('click', e => {
       const up = e.target.getAttribute('data-up');
