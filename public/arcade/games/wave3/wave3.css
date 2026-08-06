@@ -19,16 +19,18 @@ canvas{display:block;width:100%;height:100%;touch-action:none}.topbar{display:fl
    its normal size, cropped, in a black screen. `html:fullscreen` (1,1,1) outranks it (1,1,0),
    which matters because their sheet is injected into head at runtime, after this file.
    Sizing is explicit rather than aspect-ratio: a block-level box with an explicit height and
-   width:auto fills its container and drops the ratio, which would stretch the 4:3 canvas. */
+   width:auto fills its container and drops the ratio, which would stretch the 4:3 canvas.
+   84vh and a visible .topbar match how the other eight cabinets present in fullscreen —
+   their rule scales #gameCanvas to 84vh and hides only h1/.subtitle/.controls, never .hud. */
 html:fullscreen body{padding:0}
-html:fullscreen .kicker,html:fullscreen h1,html:fullscreen .topbar,html:fullscreen .controls{display:none}
+html:fullscreen .kicker,html:fullscreen h1,html:fullscreen .controls{display:none}
 html:fullscreen .game{width:100%}
-html:fullscreen .frame{width:min(100vw,calc(100vh*4/3));height:min(100vh,calc(100vw*3/4));max-width:100vw;max-height:100vh;border:none;border-radius:0;box-shadow:none}
+html:fullscreen .frame{width:min(100vw,calc(84vh*4/3));height:min(84vh,calc(100vw*3/4));max-width:100vw;max-height:84vh;border:none;border-radius:0;box-shadow:none}
 html:fullscreen .frame:after{border-radius:0}
 html:fullscreen #gameCanvas{width:100%;height:100%;max-width:none}
 html:-webkit-full-screen body{padding:0}
-html:-webkit-full-screen .kicker,html:-webkit-full-screen h1,html:-webkit-full-screen .topbar,html:-webkit-full-screen .controls{display:none}
+html:-webkit-full-screen .kicker,html:-webkit-full-screen h1,html:-webkit-full-screen .controls{display:none}
 html:-webkit-full-screen .game{width:100%}
-html:-webkit-full-screen .frame{width:min(100vw,calc(100vh*4/3));height:min(100vh,calc(100vw*3/4));max-width:100vw;max-height:100vh;border:none;border-radius:0;box-shadow:none}
+html:-webkit-full-screen .frame{width:min(100vw,calc(84vh*4/3));height:min(84vh,calc(100vw*3/4));max-width:100vw;max-height:84vh;border:none;border-radius:0;box-shadow:none}
 html:-webkit-full-screen .frame:after{border-radius:0}
 html:-webkit-full-screen #gameCanvas{width:100%;height:100%;max-width:none}

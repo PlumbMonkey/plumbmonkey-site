@@ -33,7 +33,6 @@
   function togglePause(){if(!running)return;paused=!paused;if(paused)show("PAUSED","The sabotage is holding. Press P, Esc, or Resume.","RESUME");else overlay.classList.add("hidden")}
   overlay.addEventListener("click",()=>paused?(paused=false,overlay.classList.add("hidden")):!running&&start());
   $("#mute").onclick=()=>{muted=!muted;$("#mute").textContent=muted?"SOUND OFF":"SOUND ON";audioStart();if(musicBus)musicBus.gain.setTargetAtTime(muted?0:1,audio.currentTime,.02)};
-  $("#motion").onclick=()=>{reduced=!reduced;$("#motion").textContent=reduced?"CALM FX":"FULL FX"};
   function bg(storm=false){const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,storm?"#281238":"#160928");g.addColorStop(1,"#05030b");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);ctx.fillStyle="#ffffff";for(let i=0;i<55;i++){const x=(i*173+level*19)%W,y=(i*i*31)%400;ctx.globalAlpha=.2+(i%5)/8;ctx.fillRect(x,y,2,2)}ctx.globalAlpha=1;const mg=ctx.createRadialGradient(130,120,10,130,120,85);mg.addColorStop(0,"#fffde7");mg.addColorStop(.55,"#e9d5ff");mg.addColorStop(1,"#e9d5ff00");ctx.fillStyle=mg;ctx.beginPath();ctx.arc(130,120,85,0,7);ctx.fill()}
   function text(t,x,y,size=20,color="#fff",align="center"){ctx.fillStyle=color;ctx.font=`800 ${size}px Segoe UI`;ctx.textAlign=align;ctx.fillText(t,x,y)}
   function glow(color=accent,blur=16){ctx.shadowColor=color;ctx.shadowBlur=blur}
