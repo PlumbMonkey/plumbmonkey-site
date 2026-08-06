@@ -6,7 +6,7 @@
   document.documentElement.style.setProperty("--accent",accent);
   const $=s=>document.querySelector(s), overlay=$("#startOverlay"),scoreEl=$("#score"),livesEl=$("#lives"),levelEl=$("#level");
   const attractMode=/[?&]attract\b/.test(location.search);
-  const keys={}, pressed={}; let prevKeys={}; window.wave3Keys=keys; let running=false,paused=false,last=0,audio=null,musicBus=null,musicClock=0,musicStep=0,muted=false,reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const keys={}, pressed={}; let prevKeys={}; window.wave3Keys=keys; let running=false,paused=false,last=0,audio=null,musicBus=null,sfxBus=null,musicClock=0,musicStep=0,reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
   const storage=`plumbmonkey.arcade.wave3.${id}.highScore`;
   const mansion=new Image();mansion.src="/assets/haunted-house-branded.jpg";
   const houseCutout=new Image();houseCutout.src="../wave3/haunted-house-cutout.png";
@@ -16,11 +16,24 @@
   const down=(...c)=>c.some(x=>keys[x]); const tap=(...c)=>c.some(x=>pressed[x]);
   addEventListener("keydown",e=>{if(!keys[e.code])pressed[e.code]=true;keys[e.code]=true;if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))e.preventDefault();if(e.code==="Escape"||e.code==="KeyP")togglePause();if(!running&&(e.code==="Space"||e.code==="Enter"))start()});
   addEventListener("keyup",e=>keys[e.code]=false);addEventListener("blur",()=>{if(running&&!paused)togglePause()});
-  function audioStart(){if(!audio){audio=new (window.AudioContext||window.webkitAudioContext)();musicBus=audio.createGain();musicBus.gain.value=muted?0:1;musicBus.connect(audio.destination)}audio.resume()}
-  function beep(f=440,d=.08,type="square",vol=.04){if(muted||!audio)return;const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+d)}
-  function sweep(a,b,d=.12,type="sawtooth",vol=.05){if(muted||!audio)return;const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.setValueAtTime(a,audio.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(30,b),audio.currentTime+d);g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+d)}
+  // Route through the shared arcade mixer: separate music/SFX buses, saved
+  // levels and a limiter, all controlled by the 🔊 panel the other games use.
+  // Falls back to a bare context if arcade-audio.js somehow failed to load.
+  function audioStart(){
+    // NB: arcade-audio.js declares `const ArcadeAudio` at the top level of a
+    // classic script, which is a script-scoped binding — it is NOT on window.
+    // Checking window.ArcadeAudio silently always fails over to the fallback.
+    const shared=typeof ArcadeAudio!=="undefined"?ArcadeAudio:null;
+    if(!audio){
+      if(shared){audio=shared.context();sfxBus=shared.output("sfx");musicBus=shared.output("music")}
+      else{audio=new (window.AudioContext||window.webkitAudioContext)();sfxBus=audio.destination;musicBus=audio.createGain();musicBus.connect(audio.destination)}
+    }
+    if(shared)shared.resume();else audio.resume();
+  }
+  function beep(f=440,d=.08,type="square",vol=.04){if(!audio||!sfxBus)return;const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.connect(g);g.connect(sfxBus);o.start();o.stop(audio.currentTime+d)}
+  function sweep(a,b,d=.12,type="sawtooth",vol=.05){if(!audio||!sfxBus)return;const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.setValueAtTime(a,audio.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(30,b),audio.currentTime+d);g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.connect(g);g.connect(sfxBus);o.start();o.stop(audio.currentTime+d)}
   function chord(notes,d=.18,vol=.035){if(notes.length===3&&notes[0]===196&&notes[1]===165&&notes[2]===147){notes.forEach((f,i)=>setTimeout(()=>{sweep(f,72+i*4,.16,"square",.065);setTimeout(()=>beep(82-i*5,.11,"sawtooth",.035),55)},i*185));return}notes.forEach((f,i)=>setTimeout(()=>beep(f,d,"triangle",vol),i*45))}
-  function musicVoice(f,d=.2,type="triangle",vol=.01,cutoff=900,detune=0){if(muted||!audio||!musicBus)return;const o=audio.createOscillator(),g=audio.createGain(),filter=audio.createBiquadFilter(),now=audio.currentTime;o.type=type;o.frequency.value=f;o.detune.value=detune;filter.type="lowpass";filter.frequency.value=cutoff;filter.Q.value=2.5;g.gain.setValueAtTime(.001,now);g.gain.exponentialRampToValueAtTime(vol,now+.018);g.gain.exponentialRampToValueAtTime(.001,now+d);o.connect(filter);filter.connect(g);g.connect(musicBus);o.start(now);o.stop(now+d+.02)}
+  function musicVoice(f,d=.2,type="triangle",vol=.01,cutoff=900,detune=0){if(!audio||!musicBus)return;const o=audio.createOscillator(),g=audio.createGain(),filter=audio.createBiquadFilter(),now=audio.currentTime;o.type=type;o.frequency.value=f;o.detune.value=detune;filter.type="lowpass";filter.frequency.value=cutoff;filter.Q.value=2.5;g.gain.setValueAtTime(.001,now);g.gain.exponentialRampToValueAtTime(vol,now+.018);g.gain.exponentialRampToValueAtTime(.001,now+d);o.connect(filter);filter.connect(g);g.connect(musicBus);o.start(now);o.stop(now+d+.02)}
   function ampMusic(dt){if(id!=="ampRampage")return;musicClock-=dt;if(musicClock>0)return;musicClock+=.32;const step=musicStep++%32,arp=[261.63,311.13,369.99,415.3,369.99,311.13,277.18,233.08,261.63,311.13,349.23,392,349.23,311.13,246.94,220],bass=[65.41,61.74,69.3,58.27,65.41,77.78,69.3,55];musicVoice(arp[step%16]*(step>15?.5:1),.19,"triangle",.009,1350,step%2?7:-7);if(step%4===0){const b=bass[(step/4)%8];musicVoice(b,.3,"sawtooth",.024,260);musicVoice(b*2,.14,"square",.006,520,-9)}if(step===0||step===16){const root=step?58.27:65.41;[root,root*1.1892,root*1.4142].forEach((f,i)=>musicVoice(f,.92,"sawtooth",.0055,390,i*5-5))}if(step%8===6)musicVoice(step<16?185:164.81,.34,"square",.006,680,11)}
   function hud(){scoreEl.textContent=score.toLocaleString();livesEl.textContent=lives;levelEl.textContent=level;$("#high").textContent=high.toLocaleString()}
   function addScore(n){score+=n;if(id==="beamMeUpLive"&&!beamBonusAwarded&&score>=10000){beamBonusAwarded=true;lives++;toast("10,000 — BONUS HERO SHIP");chord([523,659,784,1047])}if(score>high){high=score;if(!attractMode)localStorage.setItem(storage,String(high))}hud()}
@@ -34,7 +47,6 @@
   function next(){level++;addScore(500*level);beep(780,.15);game.next();hud();toast(`LEVEL ${level}`)}
   function togglePause(){if(!running)return;paused=!paused;if(paused)show("PAUSED","The sabotage is holding. Press P, Esc, or Resume.","RESUME");else overlay.classList.add("hidden")}
   overlay.addEventListener("click",()=>paused?(paused=false,overlay.classList.add("hidden")):!running&&start());
-  $("#mute").onclick=()=>{muted=!muted;$("#mute").textContent=muted?"SOUND OFF":"SOUND ON";audioStart();if(musicBus)musicBus.gain.setTargetAtTime(muted?0:1,audio.currentTime,.02)};
   function bg(storm=false){const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,storm?"#281238":"#160928");g.addColorStop(1,"#05030b");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);ctx.fillStyle="#ffffff";for(let i=0;i<55;i++){const x=(i*173+level*19)%W,y=(i*i*31)%400;ctx.globalAlpha=.2+(i%5)/8;ctx.fillRect(x,y,2,2)}ctx.globalAlpha=1;const mg=ctx.createRadialGradient(130,120,10,130,120,85);mg.addColorStop(0,"#fffde7");mg.addColorStop(.55,"#e9d5ff");mg.addColorStop(1,"#e9d5ff00");ctx.fillStyle=mg;ctx.beginPath();ctx.arc(130,120,85,0,7);ctx.fill()}
   function text(t,x,y,size=20,color="#fff",align="center"){ctx.fillStyle=color;ctx.font=`800 ${size}px Segoe UI`;ctx.textAlign=align;ctx.fillText(t,x,y)}
   function glow(color=accent,blur=16){ctx.shadowColor=color;ctx.shadowBlur=blur}
