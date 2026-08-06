@@ -20,6 +20,10 @@
   // levels and a limiter, all controlled by the 🔊 panel the other games use.
   // Falls back to a bare context if arcade-audio.js somehow failed to load.
   function audioStart(){
+    // Cabinet previews auto-start, and the hub shows twelve at once — now that
+    // every game has a track, that would be twelve soundtracks the moment any
+    // click lets the suspended contexts resume. Previews stay silent.
+    if(attractMode)return;
     // NB: arcade-audio.js declares `const ArcadeAudio` at the top level of a
     // classic script, which is a script-scoped binding — it is NOT on window.
     // Checking window.ArcadeAudio silently always fails over to the fallback.
@@ -34,7 +38,53 @@
   function sweep(a,b,d=.12,type="sawtooth",vol=.05){if(!audio||!sfxBus)return;const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.setValueAtTime(a,audio.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(30,b),audio.currentTime+d);g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.connect(g);g.connect(sfxBus);o.start();o.stop(audio.currentTime+d)}
   function chord(notes,d=.18,vol=.035){if(notes.length===3&&notes[0]===196&&notes[1]===165&&notes[2]===147){notes.forEach((f,i)=>setTimeout(()=>{sweep(f,72+i*4,.16,"square",.065);setTimeout(()=>beep(82-i*5,.11,"sawtooth",.035),55)},i*185));return}notes.forEach((f,i)=>setTimeout(()=>beep(f,d,"triangle",vol),i*45))}
   function musicVoice(f,d=.2,type="triangle",vol=.01,cutoff=900,detune=0){if(!audio||!musicBus)return;const o=audio.createOscillator(),g=audio.createGain(),filter=audio.createBiquadFilter(),now=audio.currentTime;o.type=type;o.frequency.value=f;o.detune.value=detune;filter.type="lowpass";filter.frequency.value=cutoff;filter.Q.value=2.5;g.gain.setValueAtTime(.001,now);g.gain.exponentialRampToValueAtTime(vol,now+.018);g.gain.exponentialRampToValueAtTime(.001,now+d);o.connect(filter);filter.connect(g);g.connect(musicBus);o.start(now);o.stop(now+d+.02)}
-  function ampMusic(dt){if(id!=="ampRampage")return;musicClock-=dt;if(musicClock>0)return;musicClock+=.32;const step=musicStep++%32,arp=[261.63,311.13,369.99,415.3,369.99,311.13,277.18,233.08,261.63,311.13,349.23,392,349.23,311.13,246.94,220],bass=[65.41,61.74,69.3,58.27,65.41,77.78,69.3,55];musicVoice(arp[step%16]*(step>15?.5:1),.19,"triangle",.009,1350,step%2?7:-7);if(step%4===0){const b=bass[(step/4)%8];musicVoice(b,.3,"sawtooth",.024,260);musicVoice(b*2,.14,"square",.006,520,-9)}if(step===0||step===16){const root=step?58.27:65.41;[root,root*1.1892,root*1.4142].forEach((f,i)=>musicVoice(f,.92,"sawtooth",.0055,390,i*5-5))}if(step%8===6)musicVoice(step<16?185:164.81,.34,"square",.006,680,11)}
+  // One step sequencer for all four games. Each ticks its own clock so tempo is
+  // per-game, and every voice goes to the shared music bus (which the arcade's
+  // mixer keeps at 0.45 against 0.75 for SFX, so the track sits under the game).
+  function music(dt){
+    if(!audio||!musicBus)return;
+    musicClock-=dt;if(musicClock>0)return;
+    const s=musicStep++;
+    if(id==="ampRampage"){
+      musicClock+=.32;
+      const step=s%32,arp=[261.63,311.13,369.99,415.3,369.99,311.13,277.18,233.08,261.63,311.13,349.23,392,349.23,311.13,246.94,220],bass=[65.41,61.74,69.3,58.27,65.41,77.78,69.3,55];
+      musicVoice(arp[step%16]*(step>15?.5:1),.19,"triangle",.009,1350,step%2?7:-7);
+      if(step%4===0){const b=bass[(step/4)%8];musicVoice(b,.3,"sawtooth",.024,260);musicVoice(b*2,.14,"square",.006,520,-9)}
+      if(step===0||step===16){const root=step?58.27:65.41;[root,root*1.1892,root*1.4142].forEach((f,i)=>musicVoice(f,.92,"sawtooth",.0055,390,i*5-5))}
+      if(step%8===6)musicVoice(step<16?185:164.81,.34,"square",.006,680,11);
+    }else if(id==="beamMeUpLive"){
+      // A minor, urgent 16ths — tightens as the waves climb, floored so late
+      // levels stay playable rather than turning into a buzz
+      musicClock+=Math.max(.135,.185-level*.004);
+      const step=s%16,
+        arp=[440,523.25,659.25,880,783.99,659.25,523.25,659.25,415.3,523.25,622.25,830.61,783.99,622.25,523.25,622.25],
+        bass=[55,55,43.65,43.65,49,49,41.2,41.2];
+      musicVoice(arp[step],.15,"square",.0065,1700,step%2?6:-6);
+      if(step%2===0){const b=bass[(step/2)%8];musicVoice(b,.26,"sawtooth",.021,250);musicVoice(b*2,.12,"triangle",.005,600,-8)}
+      if(step%4===2)musicVoice(1760,.045,"triangle",.0035,3200);
+      if(step===0)[110,130.81,164.81].forEach((f,i)=>musicVoice(f,.8,"sawtooth",.005,430,i*6-6));
+    }else if(id==="houseOfTheHooded"){
+      // 3/4 music box, D minor — light and a little askew, to match the hopping
+      musicClock+=.235;
+      const step=s%24,mel=[587.33,698.46,880,698.46,587.33,466.16,523.25,622.25,830.61,622.25,523.25,415.3],
+        bass=[73.42,73.42,58.27,58.27,65.41,65.41,49,49];
+      musicVoice(mel[step%12],.28,"triangle",.0085,2400,step%3===0?0:9);
+      if(step%3===0)musicVoice(bass[(step/3)%8],.34,"sawtooth",.017,230);
+      if(step%12===9)musicVoice(1174.66,.18,"triangle",.004,3000,-12);
+      if(step===0)[146.83,174.61,220].forEach((f,i)=>musicVoice(f,.95,"triangle",.0045,520,i*7-7));
+    }else if(id==="graveyardShift"){
+      // E minor, and it follows the chapters: sparse crypt, pulsing basement,
+      // then the concert stage picks up the tempo and switches to power chords
+      const rock=level>=3,mid=level===2;
+      musicClock+=rock?0.17:mid?0.21:0.27;
+      const step=s%16,low=[82.41,82.41,61.74,61.74,73.42,73.42,55,55],lead=[329.63,392,493.88,392,329.63,293.66,246.94,293.66];
+      if(step%2===0)musicVoice(low[(step/2)%8],rock?0.2:0.42,"sawtooth",rock?0.022:0.016,rock?300:200);
+      if((rock||mid)&&step%4===0)musicVoice(lead[(step/4)%8]*(rock?1:.5),.3,"square",.007,rock?1500:900,7);
+      if(rock&&step%2===1)musicVoice(1318.51,.05,"triangle",.003,3200);
+      if(!rock&&!mid&&step%8===0)musicVoice([164.81,146.83,123.47,146.83][(s>>3)%4],1.1,"triangle",.006,700,-5);
+      if(step===0)[82.41,98,123.47].forEach((f,i)=>musicVoice(f,rock?.55:1,"sawtooth",.005,rock?520:360,i*6-6));
+    }else musicClock+=.5;
+  }
   function hud(){scoreEl.textContent=score.toLocaleString();livesEl.textContent=lives;levelEl.textContent=level;$("#high").textContent=high.toLocaleString()}
   function addScore(n){score+=n;if(id==="beamMeUpLive"&&!beamBonusAwarded&&score>=10000){beamBonusAwarded=true;lives++;toast("10,000 — BONUS HERO SHIP");chord([523,659,784,1047])}if(score>high){high=score;if(!attractMode)localStorage.setItem(storage,String(high))}hud()}
   // Hub cabinet previews are non-interactive, so a toast fading in and out over
@@ -77,7 +127,7 @@
   // derive rising edges here rather than only in the keydown handler. Keyboard
   // still sets pressed[] on keydown so a tap between two frames is never lost.
   function syncEdges(){for(const k in keys){if(keys[k]&&!prevKeys[k])pressed[k]=true}prevKeys=Object.assign({},keys)}
-  function loop(now){requestAnimationFrame(loop);const dt=Math.min(.034,(now-last)/1000||0);last=now;syncEdges();if(!running&&!paused&&(pressed.Space||pressed.Enter))start();if(running&&!paused){ampMusic(dt);game.update(dt);game.draw();fx(dt)}else if(!running&&game.attract){game.attract(dt);game.draw()}Object.keys(pressed).forEach(k=>delete pressed[k])}
+  function loop(now){requestAnimationFrame(loop);const dt=Math.min(.034,(now-last)/1000||0);last=now;syncEdges();if(!running&&!paused&&(pressed.Space||pressed.Enter))start();if(running&&!paused){music(dt);game.update(dt);game.draw();fx(dt)}else if(!running&&game.attract){game.attract(dt);game.draw()}Object.keys(pressed).forEach(k=>delete pressed[k])}
 
   const games={
     beamMeUpLive(){
