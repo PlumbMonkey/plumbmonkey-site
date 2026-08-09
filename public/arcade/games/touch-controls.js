@@ -267,6 +267,14 @@ const TouchPad = (function () {
       html.touch-layout .start-overlay p { font-size: 0.85rem; padding: 0 1rem; text-align: center; }
       html.touch-layout .kbd-only { display: none !important; }
       html.touch-layout .touch-only { display: block !important; }
+      /* Unscoped, so it applies on desktop too. Every other rule here is
+         behind html.touch-layout, which meant the nudge div was appended to
+         <body> on desktop with NO styling at all — a plain static block, empty
+         of visible text but 114px tall, sitting in the body flex flow below the
+         HUD. Body centres its children, so those 114px shoved the game 58px up
+         the screen and only in the two cabinets that load this file (Swarm and
+         Mess Hall). Hidden by default; the touch rules below turn it back on. */
+      .rotate-nudge { display: none; }
       html.touch-layout .rotate-nudge {
         position: fixed;
         inset: 0;
