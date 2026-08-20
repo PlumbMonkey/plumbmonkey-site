@@ -177,10 +177,8 @@ let screenObj = null;
 
 // Blender custom props ride along in userData / extras
 const MODES = {
-  Concert:      { gather: 1.00, screenDown: false },
-  Cinema:       { gather: 0.72, screenDown: true  },
-  Presentation: { gather: 0.72, screenDown: true  },
-  Story:        { gather: 0.00, screenDown: false },
+  Stage:   { gather: 1.00, screenDown: false },   // drapes open, screen stowed
+  Cinema:  { gather: 0.72, screenDown: true  },   // drapes part-gathered, screen down
 };
 let screenUpY = null;
 
