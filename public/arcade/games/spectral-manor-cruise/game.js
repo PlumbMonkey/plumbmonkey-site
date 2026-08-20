@@ -168,7 +168,7 @@ window.addEventListener('keydown', e => {
   initAudio();
   keys[e.code] = true;
   if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
-  if ((e.code === 'Space' || e.code === 'Enter') && !gameRunning) startRace();
+  if (e.code === 'Enter' && !e.repeat && !gameRunning) startRace();
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 document.getElementById('startOverlay').addEventListener('click', () => {
@@ -213,7 +213,7 @@ function finishRace() {
       <p>Time: ${mins}:${secs.padStart(4, '0')}</p>
       <p>Run score: ${cruiseScore}</p>
       <p style="margin-top:0.4rem; color:#f0abfc">RACE ${race} unlocked — rivals are faster${race >= 2 ? ' and ARMED' : ''}</p>
-      <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to keep the streak going</p>
+      <p style="margin-top:0.8rem; opacity:0.8">Click or ENTER to keep the streak going</p>
     `;
   } else {
     // the run ends — bank the score to the leaderboard, then reset the streak
@@ -227,7 +227,7 @@ function finishRace() {
         <p>Reached Race ${reachedRace} · Run score: ${finalScore}</p>
         <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP DRIVERS</p>
         ${Arcade.boardHTML(Arcade.slug)}
-        <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE for a fresh run from Race 1</p>
+        <p style="margin-top:0.8rem; opacity:0.8">Click or ENTER for a fresh run from Race 1</p>
       `;
       race = 1; cruiseScore = 0; // fresh streak next time
     };

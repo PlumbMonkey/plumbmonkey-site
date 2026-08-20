@@ -245,7 +245,7 @@ window.addEventListener('keydown', e => {
   initAudio();
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
-  if (e.code === 'Space' || e.code === 'Enter') {
+  if (e.code === 'Enter' && !e.repeat) {
     if (awaitingReady) resumeAfterDeath();
     else if (!gameRunning) startGame();
   }
@@ -280,7 +280,7 @@ function update() {
             <p>Final Score: ${finalScore}</p>
             <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP SOULS</p>
             ${Arcade.boardHTML(Arcade.slug)}
-            <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to try again</p>
+            <p style="margin-top:0.8rem; opacity:0.8">Click or ENTER to try again</p>
           `;
         });
       } else {
@@ -289,7 +289,7 @@ function update() {
         document.getElementById('startOverlay').innerHTML = `
           <h2>READY?</h2>
           <p>${lives} ${lives === 1 ? 'soul remains' : 'souls remain'}</p>
-          <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE when you're ready</p>
+          <p style="margin-top:0.8rem; opacity:0.8">Click or ENTER when you're ready</p>
         `;
       }
     }

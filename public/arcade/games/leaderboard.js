@@ -624,9 +624,11 @@
       setVK(code, held(i) || (i === 0 && held(7)));
     });
 
-    // Start (9) → a momentary Space to begin / restart (universal start key)
+    // Start (9) → a momentary Enter to begin / restart (universal start key).
+    // Not Space: that is the fire/jump key, and a game must never restart on
+    // the same button the player is already mashing.
     const startNow = held(9);
-    if (startNow !== prevStart) key('Space', startNow ? 'keydown' : 'keyup');
+    if (startNow !== prevStart) key('Enter', startNow ? 'keydown' : 'keyup');
     prevStart = startNow;
 
     // Aim games: right stick steers a virtual cursor; deflection (or RT) fires
@@ -656,7 +658,7 @@
 
   function releaseAllVK() {
     Object.keys(vk).forEach(c => setVK(c, false));
-    if (prevStart) { key('Space', 'keyup'); prevStart = false; }
+    if (prevStart) { key('Enter', 'keyup'); prevStart = false; }
   }
 
   // Standard gamepads are owned by arcade-controls.js. A second poller here

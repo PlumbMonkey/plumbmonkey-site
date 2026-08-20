@@ -41,7 +41,7 @@
   let score=0,lives=3,level=1,high=+(localStorage.getItem(storage)||0),beamBonusAwarded=false;
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),rnd=(a,b)=>a+Math.random()*(b-a),hit=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const down=(...c)=>c.some(x=>keys[x]); const tap=(...c)=>c.some(x=>pressed[x]);
-  addEventListener("keydown",e=>{if(!keys[e.code])pressed[e.code]=true;keys[e.code]=true;if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))e.preventDefault();if(e.code==="Escape"||e.code==="KeyP")togglePause();if(!running&&(e.code==="Space"||e.code==="Enter"))start()});
+  addEventListener("keydown",e=>{if(!keys[e.code])pressed[e.code]=true;keys[e.code]=true;if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))e.preventDefault();if(e.code==="Escape"||e.code==="KeyP")togglePause();if(!running&&!e.repeat&&e.code==="Enter")start()});
   addEventListener("keyup",e=>keys[e.code]=false);addEventListener("blur",()=>{if(running&&!paused)togglePause()});
   // Route through the shared arcade mixer: separate music/SFX buses, saved
   // levels and a limiter, all controlled by the 🔊 panel the other games use.
@@ -165,7 +165,7 @@
      use ctx.save()/restore() freely and a stray imbalance would otherwise leave
      the world drifting. setTransform is absolute, so this cannot accumulate. */
   function viewport(){ctx.setTransform(1,0,0,1,PAD,0)}
-  function loop(now){requestAnimationFrame(loop);const dt=Math.min(.034,(now-last)/1000||0);last=now;syncEdges();if(!running&&!paused&&(pressed.Space||pressed.Enter))start();viewport();if(running&&!paused){music(dt);game.update(dt);game.draw();fx(dt)}else if(!running&&game.attract){game.attract(dt);game.draw()}Object.keys(pressed).forEach(k=>delete pressed[k])}
+  function loop(now){requestAnimationFrame(loop);const dt=Math.min(.034,(now-last)/1000||0);last=now;syncEdges();if(!running&&!paused&&pressed.Enter)start();viewport();if(running&&!paused){music(dt);game.update(dt);game.draw();fx(dt)}else if(!running&&game.attract){game.attract(dt);game.draw()}Object.keys(pressed).forEach(k=>delete pressed[k])}
 
   const games={
     beamMeUpLive(){

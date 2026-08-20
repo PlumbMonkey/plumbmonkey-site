@@ -246,7 +246,10 @@ const ArcadeVR = (function () {
         const sec = p.buttons && p.buttons[1];
         if (sec) codes.add(sec.code);
       }
-      if (pressed(gp, 3) || btnA) start = true;
+      // NOT btnA — that is the primary action a few lines below, so it
+      // would restart the run on the trigger-press that ended it. Thumbstick
+      // click always starts; B/Y only where it is not a bound action.
+      if (pressed(gp, 3) || (btnB && !(p.buttons && p.buttons[1]))) start = true;
     }
 
     if (anyPrimary) {

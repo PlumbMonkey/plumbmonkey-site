@@ -201,10 +201,12 @@ const ArcadeControls = (function () {
       }
     }
 
-    // Start / A on the start screen begins the game, so a controller alone is
-    // enough to play. We click the overlay rather than faking a key, because
-    // that is the path every game already wires up (and it inits audio).
-    if (pressed(pad, 9) || pressed(pad, 0)) tryStart();
+    // Start (9) only. A is the primary action button in every shooter, so
+    // binding it here meant the shot you died on also restarted the run,
+    // wiping the game-over screen before you could read it. We click the
+    // overlay rather than faking a key, because that is the path every game
+    // already wires up (and it inits audio).
+    if (pressed(pad, 9)) tryStart();
   }
 
   let startCooldown = 0;
@@ -265,7 +267,6 @@ const ArcadeControls = (function () {
       screenKeys.add(code);
       el.classList.add('down');
       try { el.setPointerCapture(e.pointerId); } catch (err) {}
-      tryStart();
     };
     const up = e => {
       e.preventDefault();

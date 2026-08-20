@@ -205,7 +205,7 @@ window.addEventListener('keydown', e => {
   initAudio();
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
-  if (e.code === 'Space' && !gameRunning) startGame();
+  if (e.code === 'Enter' && !e.repeat && !gameRunning) startGame();
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 
@@ -755,7 +755,7 @@ function hurtPlayer() {
         <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
         <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP HEROES</p>
         ${Arcade.boardHTML(Arcade.slug)}
-        <p style="margin-top:0.8rem; opacity:0.8">Click or SPACE to try again</p>
+        <p style="margin-top:0.8rem; opacity:0.8">Click or ENTER to try again</p>
       `;
     });
     updateHUD();
