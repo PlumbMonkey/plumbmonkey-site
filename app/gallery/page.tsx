@@ -38,6 +38,10 @@ export default function GalleryPage() {
         <p className="mt-6 text-sm text-moonlit-400">
           Best on desktop · drag to look, scroll to zoom · roughly 4&nbsp;MB to load
         </p>
+        <p className="mt-2 text-sm text-moonlit-400">
+          Also walkable in VR — open this page in a Meta&nbsp;Quest headset browser
+          and choose <span className="text-brass-300">Enter in VR</span>.
+        </p>
       </section>
     </main>
   );
