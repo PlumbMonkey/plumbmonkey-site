@@ -1533,6 +1533,63 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('closeControls').addEventListener('click', closeControls);
   document.getElementById('mobileScrim').addEventListener('click', closeControls);
 
+  // First-visit recording tutorial. It is always available from the top bar.
+  const tutorialBackdrop = document.getElementById('tutorialBackdrop');
+  const tutorialSteps = Array.from(document.querySelectorAll('.tutorial-step'));
+  const tutorialDots = Array.from(document.querySelectorAll('.tutorial-dot'));
+  const tutorialPrev = document.getElementById('tutorialPrev');
+  const tutorialNext = document.getElementById('tutorialNext');
+  const tutorialDemo = document.getElementById('tutorialDemo');
+  let tutorialStep = 0;
+  const showTutorialStep = index => {
+    tutorialStep = clamp(index, 0, tutorialSteps.length - 1);
+    tutorialSteps.forEach((step, i) => step.classList.toggle('active', i === tutorialStep));
+    tutorialDots.forEach((dot, i) => dot.classList.toggle('active', i === tutorialStep));
+    tutorialPrev.disabled = tutorialStep === 0;
+    tutorialNext.textContent = tutorialStep === tutorialSteps.length - 1 ? 'Start creating' : 'Next';
+    document.getElementById('tutorialCounter').textContent = `${tutorialStep + 1} of ${tutorialSteps.length}`;
+  };
+  const openTutorial = () => {
+    closeControls();
+    tutorialBackdrop.hidden = false;
+    showTutorialStep(0);
+    document.getElementById('tutorialClose').focus();
+  };
+  const closeTutorial = () => {
+    tutorialBackdrop.hidden = true;
+    localStorage.setItem('luminariumTutorialSeen', '1');
+    document.getElementById('tutorialBtn').focus();
+  };
+  document.getElementById('tutorialBtn').addEventListener('click', openTutorial);
+  document.getElementById('tutorialClose').addEventListener('click', closeTutorial);
+  tutorialBackdrop.addEventListener('click', event => { if (event.target === tutorialBackdrop) closeTutorial(); });
+  tutorialPrev.addEventListener('click', () => showTutorialStep(tutorialStep - 1));
+  tutorialNext.addEventListener('click', () => {
+    if (tutorialStep === tutorialSteps.length - 1) closeTutorial();
+    else showTutorialStep(tutorialStep + 1);
+  });
+  tutorialDots.forEach((dot, index) => dot.addEventListener('click', () => showTutorialStep(index)));
+  tutorialDemo.addEventListener('click', async () => {
+    tutorialDemo.disabled = true;
+    tutorialDemo.querySelector('strong').textContent = 'Loading demo…';
+    try {
+      const response = await fetch('/visual/demo/guitar-piano-improv.mp3');
+      if (!response.ok) throw new Error('demo unavailable');
+      const blob = await response.blob();
+      const file = new File([blob], 'Guitar and Piano Improv.mp3', { type:blob.type || 'audio/mpeg' });
+      await loadAudioSource(file, 'Demo playing: Guitar & Piano Improv');
+      closeTutorial();
+      setConsole('explore');
+    } catch (error) {
+      tutorialDemo.querySelector('strong').textContent = 'Demo could not load';
+      setStatus('The demo audio could not be loaded');
+    } finally {
+      tutorialDemo.disabled = false;
+      if (tutorialDemo.querySelector('strong').textContent !== 'Demo could not load') tutorialDemo.querySelector('strong').textContent = 'Try with demo audio';
+    }
+  });
+  if (!localStorage.getItem('luminariumTutorialSeen')) requestAnimationFrame(openTutorial);
+
   // Mode chips ("auto" cycles through the real modes on beats/timer)
   document.querySelectorAll('.mode-chip').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2069,6 +2126,16 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   seek.addEventListener('change', () => { seekTo(); seeking = false; });
 
+  async function loadAudioSource(file, statusMessage = 'Playing: ' + file.name, sourceButton = document.getElementById('srcFile')) {
+    await useAudioFile(file);
+    visualPaused = false;
+    wireTransport();
+    selectChip('.src-chip', sourceButton);
+    document.getElementById('trackName').textContent = file.name;
+    if (window.luminariumDrawWaveform) window.luminariumDrawWaveform(file);
+    setStatus(statusMessage);
+  }
+
   // Source buttons
   document.getElementById('srcTouch').addEventListener('click', function () {
     useTouchOnly();
@@ -2093,13 +2160,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const f = this.files && this.files[0];
     if (!f) return;
     try {
-      await useAudioFile(f);
-      visualPaused = false;
-      wireTransport();
-      selectChip('.src-chip', document.getElementById('srcFile'));
-      document.getElementById('trackName').textContent = f.name;
-      if (window.luminariumDrawWaveform) window.luminariumDrawWaveform(f);
-      setStatus('Playing: ' + f.name);
+      await loadAudioSource(f);
     } catch (e) {
       setStatus('Could not play that file');
     }
@@ -2120,13 +2181,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!latestHandoff) return;
     try {
       const file = new File([latestHandoff.blob], latestHandoff.name, { type: latestHandoff.blob.type || 'audio/wav' });
-      await useAudioFile(file);
-      visualPaused = false;
-      wireTransport();
-      selectChip('.src-chip', handoffBtn);
-      document.getElementById('trackName').textContent = file.name;
-      if (window.luminariumDrawWaveform) window.luminariumDrawWaveform(file);
-      setStatus('Music Sandbox export loaded: ' + file.name);
+      await loadAudioSource(file, 'Music Sandbox export loaded: ' + file.name, handoffBtn);
     } catch (e) {
       setStatus('The latest Music Sandbox export could not be loaded');
     }
@@ -2169,7 +2224,7 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cleanBtnBottom').addEventListener('click', () => setClean(true));
   document.getElementById('cleanExit').addEventListener('click', () => setClean(false));
   window.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { setClean(false); closeControls(); }
+    if (e.key === 'Escape') { setClean(false); closeControls(); if (!tutorialBackdrop.hidden) closeTutorial(); }
     if (e.key === 'r' || e.key === 'R') toggleRecording();
   });
   if (new URLSearchParams(location.search).get('clean') === '1') setClean(true);
@@ -2179,7 +2234,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // encoder — against the no-libraries rule. Any free converter makes MP4.
   const recBtn = document.getElementById('recBtn');
   const REC_MAX_MS = 30 * 60 * 1000;
-  let recorder = null, recChunks = [], recTick = null, recStartedAt = 0, audioDest = null, wakeLock = null, selectedEnd = null, recordingSize = null;
+  let recorder = null, recChunks = [], recTick = null, recStartedAt = 0, audioDest = null, wakeLock = null, selectedEnd = null, recordingSize = null, loopBeforeRecording = null;
 
   function stopRecording() {
     if (recorder && recorder.state !== 'inactive') recorder.stop();
@@ -2228,6 +2283,11 @@ window.addEventListener('DOMContentLoaded', () => {
       recChunks = [];
       recorder = null;
       selectedEnd = null;
+      if (audioEl && loopBeforeRecording !== null) {
+        audioEl.loop = loopBeforeRecording;
+        tLoop.classList.toggle('on', audioEl.loop);
+      }
+      loopBeforeRecording = null;
       if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock=null; }
       const a = document.createElement('a');
       const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
@@ -2242,10 +2302,17 @@ window.addEventListener('DOMContentLoaded', () => {
       setStatus(`Saved ${recordingSize.width}×${recordingSize.height} WebM with audio`);
       recordingSize = null;
     };
-    if (audioEl && document.getElementById('exportRange').value === 'selection' && isFinite(audioEl.duration)) {
-      audioEl.currentTime = audioEl.duration * (+document.getElementById('rangeStart').value / 100);
-      selectedEnd = audioEl.duration * (+document.getElementById('rangeEnd').value / 100);
+    if (audioEl && isFinite(audioEl.duration)) {
+      loopBeforeRecording = audioEl.loop;
+      audioEl.loop = false;
+      tLoop.classList.remove('on');
+      const selectedRange = document.getElementById('exportRange').value === 'selection';
+      audioEl.currentTime = selectedRange ? audioEl.duration * (+document.getElementById('rangeStart').value / 100) : 0;
+      selectedEnd = selectedRange ? audioEl.duration * (+document.getElementById('rangeEnd').value / 100) : audioEl.duration;
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
       audioEl.play();
+      visualPaused = false;
+      setPlayUI(true);
     }
     recorder.start(250);
     if (navigator.wakeLock) navigator.wakeLock.request('screen').then(lock=>{wakeLock=lock;}).catch(()=>{});

@@ -164,6 +164,7 @@
       </div>
       <div class="top-status" id="vsStatus">The room is awake — touch the light or add sound</div>
       <div class="top-actions">
+        <button class="btn ghost tutorial-trigger" id="tutorialBtn">How to record</button>
         <button class="btn ghost" id="surpriseBtn">Surprise me</button>
         <button class="btn ghost" id="saveBtn">Save</button>
         <button class="btn ghost" id="pngBtn">Capture still</button>
@@ -388,6 +389,43 @@
     </footer>
   </div>
   <div class="mobile-scrim" id="mobileScrim"></div>
+  <div class="tutorial-backdrop" id="tutorialBackdrop" hidden>
+    <section class="tutorial-dialog" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
+      <button class="tutorial-close" id="tutorialClose" aria-label="Close recording tutorial">×</button>
+      <div class="tutorial-kicker">Luminarium field guide</div>
+      <h2 id="tutorialTitle">Make your first music visual</h2>
+      <p class="tutorial-intro">Follow five simple steps. Recording happens in real time, then your video downloads automatically.</p>
+      <div class="tutorial-progress" aria-label="Tutorial progress">
+        <button class="tutorial-dot active" data-tutorial-step="0" aria-label="Step 1"></button>
+        <button class="tutorial-dot" data-tutorial-step="1" aria-label="Step 2"></button>
+        <button class="tutorial-dot" data-tutorial-step="2" aria-label="Step 3"></button>
+        <button class="tutorial-dot" data-tutorial-step="3" aria-label="Step 4"></button>
+        <button class="tutorial-dot" data-tutorial-step="4" aria-label="Step 5"></button>
+      </div>
+      <div class="tutorial-steps">
+        <article class="tutorial-step active" data-step="0">
+          <span class="tutorial-number">01</span><div><h3>Add your music</h3><p>Choose <strong>Upload audio</strong> in Shape → Audio response, or press the + beside “No audio loaded.” MP3, WAV, M4A and OGG are supported.</p><button class="tutorial-demo" id="tutorialDemo"><span>▶</span><strong>Try with demo audio</strong><small>Guitar &amp; Piano Improv</small></button></div>
+        </article>
+        <article class="tutorial-step" data-step="1">
+          <span class="tutorial-number">02</span><div><h3>Choose and shape a look</h3><p>Start with a Signature Look in Explore. Use the six Shape controls to change energy, flow, structure, glow, beat impact and depth.</p></div>
+        </article>
+        <article class="tutorial-step" data-step="2">
+          <span class="tutorial-number">03</span><div><h3>Frame the output</h3><p>Choose 16:9, 9:16, 1:1 or 4:5 above the preview. In Export, select quality, 30 or 60 FPS, and the entire track or a selected range.</p></div>
+        </article>
+        <article class="tutorial-step" data-step="3">
+          <span class="tutorial-number">04</span><div><h3>Begin the real-time export</h3><p>Press <strong>Export video</strong>. For an entire track, The Luminarium rewinds to 0:00 and starts the music for you. Keep this tab open while it performs.</p><div class="tutorial-note">A three-minute song takes about three minutes to record.</div></div>
+        </article>
+        <article class="tutorial-step" data-step="4">
+          <span class="tutorial-number">05</span><div><h3>Stop and download</h3><p>The recording stops automatically at the end of the chosen range. You can also press the export button again or press R. Your browser downloads a WebM video with the active audio.</p></div>
+        </article>
+      </div>
+      <div class="tutorial-actions">
+        <button class="btn ghost" id="tutorialPrev" disabled>Back</button>
+        <span id="tutorialCounter">1 of 5</span>
+        <button class="btn primary" id="tutorialNext">Next</button>
+      </div>
+    </section>
+  </div>
   <div id="cleanHint">Esc or tap the top-right corner to return · R records</div>
   <button id="cleanExit" aria-label="Exit clean preview"></button>
   <button id="fsBtn" hidden></button><button id="drawerBtn" hidden></button><div id="drawer"></div>
