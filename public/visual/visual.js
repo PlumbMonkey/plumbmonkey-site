@@ -2341,6 +2341,61 @@ window.addEventListener('DOMContentLoaded', () => {
     document.body.classList.add('controls-open');
   });
 
+  const resetLuminarium = () => {
+    if (recorder) {
+      setStatus('Stop the current recording before resetting');
+      return;
+    }
+    useTouchOnly();
+    hideTransport();
+    waveformSamples = null;
+    const waveformCanvas = document.getElementById('waveform');
+    waveformCanvas.getContext('2d').clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+    document.getElementById('trackName').textContent = 'No audio loaded';
+    seek.value = 0;
+    tTime.textContent = '0:00 / 0:00';
+    selectChip('.src-chip', document.getElementById('srcTouch'));
+
+    autoMode = false;
+    autoDirectorBtn.textContent = '✦ Start Auto Director';
+    autoDirectorBtn.classList.remove('is-running');
+    document.querySelector('.preset[data-preset="neon"]').click();
+
+    Object.assign(effectState, { bloom:true, grain:false, vignette:false, chromatic:false, blur:false,
+      flicker:false, strobe:false, glitch:false, mirrorX:false, flipY:false, strength:.45 });
+    document.querySelectorAll('.effect-toggle').forEach(toggle => { toggle.checked = !!effectState[toggle.dataset.effect]; });
+    setRange('effectStrength', 45);
+    Object.assign(audioMapping, { bass:'scale', mid:'warp', treble:'glow', beat:'pulse' });
+    ['bass','mid','treble','beat'].forEach(band => { document.getElementById(band + 'Map').value = audioMapping[band]; });
+
+    gravityMode = 'attract'; gravityStrength = .65;
+    gravityAttract.checked = true; gravityRepel.checked = false;
+    gravitySlider.value = 65; gravityLabel.textContent = '65%';
+    document.getElementById('artistText').value = '';
+    document.getElementById('trackText').value = '';
+    document.getElementById('titleStyle').value = 'cinema';
+    document.getElementById('showTitles').checked = false;
+    refreshOverlay();
+
+    scenes = [captureScene('Scene 1',16), {...captureScene('Scene 2',16), mode:'wave-mirror', palette:5}];
+    activeScene = 0; sceneStartedAt = performance.now(); renderScenes();
+    document.getElementById('runScenes').checked = false;
+    document.querySelector('.ratio-btn[data-ratio="16/9"]').click();
+    document.getElementById('quality').value = 'high';
+    document.getElementById('exportFps').value = '30';
+    document.getElementById('exportRange').value = 'full';
+    rangeStart.value = 0; rangeEnd.value = 100; updateRange(); updateOutputBadge();
+
+    localStorage.removeItem('luminariumSetup');
+    localStorage.removeItem('luminariumSession');
+    localStorage.removeItem('lightLabSetup');
+    localStorage.removeItem('lightLabSession');
+    closeControls();
+    setConsole('explore');
+    setStatus('The Luminarium has been reset to its opening state');
+  };
+  document.querySelectorAll('.global-reset').forEach(button => button.addEventListener('click', resetLuminarium));
+
   window.addEventListener('beforeunload', e => {
     if (!recorder) return;
     e.preventDefault();

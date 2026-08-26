@@ -151,7 +151,7 @@
     @media (prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; transition-duration:.01ms !important; } }
   </style>
   <link rel="stylesheet" href="/shared/site-nav.css" />
-  <link rel="stylesheet" href="luminarium.css" />
+  <link rel="stylesheet" href="luminarium.css?v=20260826-2" />
 </head>
 <body>
   <script src="/shared/rooms.js"></script>
@@ -165,6 +165,7 @@
       <div class="top-status" id="vsStatus">The room is awake — touch the light or add sound</div>
       <div class="top-actions">
         <button class="btn ghost tutorial-trigger" id="tutorialBtn">How to record</button>
+        <button class="btn ghost desktop-reset global-reset">Reset</button>
         <button class="btn ghost" id="surpriseBtn">Surprise me</button>
         <button class="btn ghost" id="saveBtn">Save</button>
         <button class="btn ghost" id="pngBtn">Capture still</button>
@@ -197,7 +198,7 @@
       <aside class="inspector" id="inspector" aria-label="Visualizer controls">
         <div class="inspector-head">
           <span><strong>Light console</strong><small id="consoleMode">Explore</small></span>
-          <button class="inspector-close" id="closeControls" aria-label="Close controls">×</button>
+          <div class="inspector-head-actions"><button class="mobile-global-reset global-reset">Reset all</button><button class="inspector-close" id="closeControls" aria-label="Close controls">×</button></div>
         </div>
         <nav class="console-tabs" aria-label="Luminarium control sections">
           <button class="console-tab active" data-console-tab="explore" aria-selected="true">Explore</button>
@@ -430,6 +431,6 @@
   <button id="cleanExit" aria-label="Exit clean preview"></button>
   <button id="fsBtn" hidden></button><button id="drawerBtn" hidden></button><div id="drawer"></div>
   <script src="/shared/creative-handoff.js"></script>
-  <script src="visual.js"></script>
+  <script src="visual.js?v=20260826-2"></script>
 </body>
 </html>

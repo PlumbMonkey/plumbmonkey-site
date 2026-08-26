@@ -36,6 +36,8 @@ assert.match(js, /luminariumSession/);
 assert.match(js, /lightLabSession/); // Required legacy migration fallback.
 assert.match(js, /setOutputSize\(recordingSize\.width, recordingSize\.height\)/);
 assert.match(html, /id="tutorialBtn">How to record<\/button>/);
+assert.match(html, /visual\.js\?v=\d{8}-\d+/);
+assert.match(html, /luminarium\.css\?v=\d{8}-\d+/);
 assert.equal((html.match(/<article class="tutorial-step/g) || []).length, 5, "Recording tutorial must contain five steps");
 assert.match(js, /luminariumTutorialSeen/);
 assert.match(html, /id="tutorialDemo"/);
@@ -43,6 +45,9 @@ assert.match(js, /\/visual\/demo\/guitar-piano-improv\.mp3/);
 assert.ok(demoAudio.size > 100_000, "Tutorial demo audio must be a non-empty audio asset");
 assert.match(js, /audioEl\.currentTime = selectedRange \?/);
 assert.match(js, /selectedEnd = selectedRange \?/);
+assert.match(js, /const resetLuminarium = \(\) =>/);
+assert.match(js, /localStorage\.removeItem\('luminariumSession'\)/);
+assert.ok((html.match(/global-reset/g) || []).length >= 2, "Global reset must be available on desktop and mobile");
 assert.match(css, /body\.controls-open \.inspector/);
 
 new Function(js);
