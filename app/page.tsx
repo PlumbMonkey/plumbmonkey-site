@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import HeroLoop from "./components/HeroLoop";
+import ManorEntry from "./components/ManorEntry";
 import RoomDoors from "./components/RoomDoors";
 
 export const metadata: Metadata = {
@@ -36,12 +37,7 @@ export default function HomePage() {
               evolving world where every new piece gives life to the rest.
             </p>
             <div className="mt-9 flex flex-col justify-end gap-3 sm:flex-row">
-              <a
-                href="#rooms"
-                className="rounded-sm bg-brass-300 px-7 py-3.5 text-center text-sm font-bold uppercase tracking-[0.18em] text-moonlit-950 transition hover:bg-brass-200"
-              >
-                Enter the Manor
-              </a>
+              <ManorEntry className="rounded-sm bg-brass-300 px-7 py-3.5 text-center text-sm font-bold uppercase tracking-[0.18em] text-moonlit-950 transition hover:bg-brass-200" />
               <Link
                 href="/screening-room"
                 className="rounded-sm border border-white/30 bg-black/20 px-7 py-3.5 text-center text-sm font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-sm transition hover:border-brass-300 hover:text-brass-200"

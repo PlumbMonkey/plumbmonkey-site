@@ -95,9 +95,58 @@ for (const file of ["public/shared/site-nav.js", "public/shared/room-menu.js"]) 
   }
 }
 
+// ---- 6. the foyer's portals lead to the rooms that exist ----
+// The Foyer is the 3D hub: ten arches, each carrying its destination as a glTF
+// `extras` property baked in at export time from the Blender scene. That makes
+// it a third copy of the room list, and the only one that cannot be grepped —
+// adding a room to rooms.js while the foyer has no arch for it would leave the
+// hub quietly incomplete, with nothing in the source to show it.
+//
+// Rebuilding the foyer means re-exporting the .glb from Blender, so this
+// deliberately reports rather than auto-fixes.
+const foyerGlb = new URL("../public/foyer/foyer-web.glb", import.meta.url);
+if (!existsSync(foyerGlb)) {
+  problems.push("public/foyer/foyer-web.glb is missing — the manor has no hub");
+} else {
+  const buf = readFileSync(foyerGlb);
+  const json = JSON.parse(
+    new TextDecoder().decode(buf.subarray(20, 20 + buf.readUInt32LE(12)))
+  );
+  const navs = (json.nodes ?? []).filter((n) => /^NAV_P\d\d$/.test(n.name ?? ""));
+  if (!navs.length) {
+    problems.push("foyer-web.glb has no NAV_ portal anchors — re-export it with stage2_export.py");
+  }
+
+  // Arches flagged live must point somewhere real; unbuilt rooms are marked
+  // `live: false` in Blender and wear an UNDER CONSTRUCTION sign, so they are
+  // expected to have no href and must not be treated as drift.
+  const portalHrefs = new Set();
+  for (const n of navs) {
+    const { href, live } = n.extras ?? {};
+    if (live && !href) {
+      problems.push(`foyer ${n.name} is marked live but carries no href`);
+    } else if (live) {
+      portalHrefs.add(href);
+    }
+  }
+
+  for (const href of canonical) {
+    if (!portalHrefs.has(href)) {
+      problems.push(`the foyer has no portal for ${href} — re-export foyer-web.glb`);
+    }
+  }
+  for (const href of portalHrefs) {
+    if (!canonical.has(href)) {
+      problems.push(`foyer portal leads to ${href}, which is not a room in rooms.js`);
+    }
+  }
+}
+
 if (problems.length) {
   console.error("Room list check FAILED:");
   for (const p of problems) console.error("  - " + p);
   process.exit(1);
 }
-console.log(`Room list OK — ${ROOMS.length} rooms, single source, RoomDoors in sync.`);
+console.log(
+  `Room list OK — ${ROOMS.length} rooms, single source, RoomDoors and the foyer's portals in sync.`
+);

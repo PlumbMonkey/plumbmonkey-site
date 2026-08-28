@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>The Foyer — Spectral Manor</title>
+<meta name="description" content="The entrance hall of Spectral Manor. Every door leads somewhere." />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #07060c; overflow: hidden;
+    font: 400 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #e8e4f2; }
+  canvas { display: block; }
+
+  #loader { position: fixed; inset: 0; display: grid; place-content: center; gap: 18px;
+    justify-items: center; background: #07060c; z-index: 40; transition: opacity .8s ease; }
+  #loader.done { opacity: 0; pointer-events: none; }
+  #loader h1 { margin: 0; font-size: clamp(20px, 4vw, 30px); font-weight: 700;
+    letter-spacing: .06em; color: #f0c274; text-align: center; }
+  #loader p { margin: 0; color: #9a93ad; font-size: 13px; letter-spacing: .12em;
+    text-transform: uppercase; }
+  #bar { width: min(320px, 70vw); height: 3px; background: rgba(240,194,116,.16); border-radius: 3px; }
+  #bar i { display: block; height: 100%; width: 0%; background: #f0c274; border-radius: 3px;
+    transition: width .25s ease; }
+  #err { max-width: 42ch; text-align: center; color: #ff9c9c; font-size: 13px; display: none; }
+
+  /* Arrival handover. When the visitor gets here from the entry cinematic the
+     loader wears that film's final frame — rendered from the very camera this
+     viewer opens on — so the video, this still and the first live frame are
+     the same picture. The seam lands between three identical images instead of
+     between a video and a website. */
+  #loader.arriving { background: #000 center/cover no-repeat; gap: 0; }
+  #loader.arriving > *:not(#err) { display: none; }
+  #loader.arriving::after { content: ""; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,.55) 100%); }
+
+  #views { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; z-index: 30;
+    padding: 6px; border-radius: 12px; background: rgba(12,10,20,.78);
+    border: 1px solid rgba(240,194,116,.24); backdrop-filter: blur(8px); max-width: calc(100vw - 24px); }
+  #views button { cursor: pointer; border: 0; border-radius: 8px; padding: 8px 12px;
+    background: transparent; color: #cfc8de; font: 600 13px system-ui, sans-serif; white-space: nowrap; }
+  #views button:hover { background: rgba(240,194,116,.16); color: #ffd9a0; }
+  #views button[aria-current="true"] { background: rgba(240,194,116,.9); color: #17121f; }
+
+  /* Portal label. Follows the arch the pointer is over, projected from its
+     world position each frame. */
+  #tip { position: fixed; z-index: 32; pointer-events: none; opacity: 0;
+    transform: translate(-50%, -140%); transition: opacity .18s ease;
+    padding: 7px 13px; border-radius: 999px; white-space: nowrap;
+    background: rgba(10,8,16,.9); border: 1px solid rgba(240,194,116,.45);
+    box-shadow: 0 6px 26px rgba(0,0,0,.6);
+    font: 700 13px/1 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+  #tip.on { opacity: 1; }
+  #tip b { color: #f0c274; font-weight: 700; }
+  #tip small { display: block; margin-top: 5px; font-size: 10px; letter-spacing: .14em;
+    color: #8d86a3; font-weight: 600; }
+
+  #hint { position: fixed; right: 12px; bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px));
+    z-index: 30; font-size: 12px; color: #7e7791; text-align: right; pointer-events: none; }
+  @media (max-width: 640px) { #hint { display: none; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    #loader, #tip { transition: none; }
+  }
+</style>
+<link rel="stylesheet" href="/shared/room-menu.css" />
+</head>
+<body>
+
+<div id="loader">
+  <h1>The Foyer</h1>
+  <div id="bar"><i></i></div>
+  <p id="pct">Loading 0%</p>
+  <div id="err"></div>
+</div>
+
+<nav id="views" hidden aria-label="Viewpoints"></nav>
+<div id="tip" aria-hidden="true"></div>
+<div id="hint">drag to look · scroll to zoom · click a doorway to enter</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/gallery/vendor/three.module.js",
+    "three/addons/": "/gallery/vendor/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { initXRRoom } from '/shared/xr-room.js';
+
+const loaderEl = document.getElementById('loader');
+const barEl = document.querySelector('#bar i');
+const pctEl = document.getElementById('pct');
+const errEl = document.getElementById('err');
+const viewsEl = document.getElementById('views');
+const tipEl = document.getElementById('tip');
+
+/* Arriving from the entry cinematic on the home page. The film ends pushing
+   through the front door into near-black, so the handover is black-to-black
+   even before the still underneath it loads — a slow network degrades to a
+   dark hold, never to a white flash. */
+const arriving = new URLSearchParams(location.search).has('arrive');
+if (arriving) {
+  loaderEl.classList.add('arriving');
+  loaderEl.style.backgroundImage = "url('/foyer/arrival-frame.jpg')";
+}
+
+function fail(msg) {
+  loaderEl.classList.remove('arriving');
+  errEl.style.display = 'block';
+  errEl.textContent = msg;
+  pctEl.textContent = 'Could not load';
+}
+
+/* A machine with no WebGL throws here, inside a module — which surfaces as a
+   loader that spins forever rather than as anything the visitor can act on.
+   The foyer is the site's hub, so failing it silently would strand them with
+   no way through to any room. */
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+} catch (e) {
+  console.error(e);
+  loaderEl.classList.remove('arriving');
+  loaderEl.style.backgroundImage = '';
+  fail('This browser cannot display 3D (WebGL is unavailable). Every room is still ' +
+       'reachable from the home page.');
+  errEl.insertAdjacentHTML('beforeend',
+    '<p style="margin-top:14px"><a href="/" style="color:#f0c274">Back to Spectral Manor</a></p>');
+  throw e;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05040a);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.05, 200);
+camera.position.set(0, 2.7, 5.8);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 2.2, 0);
+controls.maxPolarAngle = Math.PI * 0.9;
+controls.minDistance = 0.5;
+controls.maxDistance = 16;
+
+/* The GLB ships with no lights: the Blender scene uses 25, two of them area
+   lights that glTF cannot represent. The room is lit by hand here instead.
+   It stays this sparse because stage 1 baked the portal arches, candle flames
+   and the moonlit backdrop to emissive textures — those glow on their own and
+   carry most of the atmosphere, so these lights only need to keep the wood,
+   wallpaper and stair runners from going black. */
+scene.add(new THREE.HemisphereLight(0x5a6ba8, 0x120c08, 0.30));
+scene.add(new THREE.AmbientLight(0xffffff, 0.06));
+
+const chandelier = new THREE.PointLight(0xffb570, 22, 16, 2);
+chandelier.position.set(0, 4.6, 0.2);
+scene.add(chandelier);
+
+// Sconces, one warm pool per side wall.
+for (const x of [-4.1, 4.1]) {
+  const l = new THREE.PointLight(0xffa055, 7, 7.5, 2);
+  l.position.set(x, 2.5, -1.6);
+  scene.add(l);
+}
+
+// Moonlight through the tall left-hand window, aimed across the floor.
+const moon = new THREE.DirectionalLight(0x9fb4ff, 0.85);
+moon.position.set(-9, 7, -3);
+moon.target.position.set(1, 0, 1);
+scene.add(moon, moon.target);
+
+// A cool lift under the galleries, which the chandelier cannot reach.
+const underBalc = new THREE.PointLight(0x6f7ec0, 5, 9, 2);
+underBalc.position.set(0, 1.4, 3.4);
+scene.add(underBalc);
+
+/* WebXR. Teleport-only, so the walkable list is the room boundary: the two
+   floors, the balcony and gallery decks, and both stair flights, which is what
+   makes the upper portals reachable on foot. GLOW_HallFloor is deliberately
+   out — it is the glow card behind the rear doorway, not somewhere to stand. */
+const xr = initXRRoom({
+  renderer, scene, camera, controls,
+  walkable: /^(Foy_Floor|Balc_Floor|Gal[LR]_Floor|Stair[LR]_Step\d+)$/,
+  spawn: { x: 0, z: 5.4, yaw: 0 },   // just inside the front door, facing in
+  exit: { href: '/', label: 'Exit' },
+  roomLabel: 'The Foyer',
+  buttonLabel: 'Enter in VR',
+});
+
+const draco = new DRACOLoader().setDecoderPath('/gallery/vendor/draco/gltf/');
+const gltfLoader = new GLTFLoader().setDRACOLoader(draco);
+
+/* Portal wiring. The NAV_ empties carry the route and label as glTF extras,
+   but an empty exports as a transform-only node with no geometry, so there is
+   nothing to raycast. The arch surface PRT_P##_Room is the hit target and the
+   matching NAV_P## supplies its metadata. */
+const portals = [];          // { mesh, href, label, live, anchor }
+const byMesh = new Map();    // any arch part -> its portal
+let hovered = null;
+
+function wirePortals(root) {
+  const nav = {};
+  root.traverse((o) => {
+    const m = /^NAV_(P\d\d)$/.exec(o.name);
+    if (m) nav[m[1]] = o;
+  });
+
+  const byKey = {};
+  root.traverse((o) => {
+    const m = /^PRT_(P\d\d)_Room$/.exec(o.name);
+    if (!m || !o.isMesh) return;
+    const meta = nav[m[1]];
+    const extras = (meta && meta.userData) || {};
+    o.material = o.material.clone();       // so a hover boost is not shared
+    const p = {
+      mesh: o,
+      anchor: meta || o,
+      href: extras.href || '',
+      label: extras.label || m[1],
+      live: extras.live !== false && !!extras.href,
+      baseEmissive: o.material.emissiveIntensity ?? 1,
+    };
+    portals.push(p);
+    byKey[m[1]] = p;
+  });
+
+  /* The whole arch is the target, not just the glowing panel inside it: the
+     name plate, trim, orb and sill all lead to the same room.
+
+     This is what makes every room reachable rather than most of them. The two
+     upper side arches (Workshop, Art Room) sit under the gallery balconies,
+     and from the entrance the balcony overhangs all but a sliver of their
+     glow — a target too small to hit deliberately. Their name plates are in
+     clear view, so they carry the click. */
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const m = /^PRT_(P\d\d)_/.exec(o.name);
+    if (m && byKey[m[1]]) byMesh.set(o, byKey[m[1]]);
+  });
+
+  return portals.length;
+}
+
+function setHover(p) {
+  if (hovered === p) return;
+  if (hovered) hovered.mesh.material.emissiveIntensity = hovered.baseEmissive;
+  hovered = p;
+  if (p) {
+    p.mesh.material.emissiveIntensity = p.baseEmissive * 1.75;
+    tipEl.innerHTML = p.live
+      ? `<b>${p.label}</b>`
+      : `<b>${p.label}</b><small>Under construction</small>`;
+    tipEl.classList.add('on');
+    renderer.domElement.style.cursor = p.live ? 'pointer' : 'not-allowed';
+  } else {
+    tipEl.classList.remove('on');
+    renderer.domElement.style.cursor = '';
+  }
+}
+
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let downAt = null;
+let root = null;
+
+/* Raycasts the whole room and only counts a portal if it is the nearest thing
+   hit — i.e. if the visitor can actually see it at that pixel.
+
+   Testing the ten arches alone is cheaper and wrong: nothing else is in the
+   list, so the ray passes straight through the walls between them. From the
+   arrival view that made the two left-hand arches resolve as the two on the
+   right (Workshop picked up The Library, Art Room picked up Science Lab),
+   because at that grazing angle the far recess lies along the same ray — so
+   hovering solid wall could offer a room, and clicking it would have led
+   somewhere the visitor never pointed at. */
+function pick(x, y) {
+  if (!root) return null;
+  ndc.set((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObject(root, true);
+  if (!hits.length) return null;
+  return byMesh.get(hits[0].object) || null;
+}
+
+/* Pointer position is recorded here but resolved once per rendered frame.
+   Raycasting the whole room on every pointermove would run the test several
+   times per frame during a drag and throw all but the last result away. */
+let pendingPointer = null;
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (xr.presenting || e.pointerType === 'touch') return;
+  pendingPointer = [e.clientX, e.clientY];
+});
+renderer.domElement.addEventListener('pointerleave', () => {
+  pendingPointer = null;
+  setHover(null);
+});
+
+renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!downAt) return;
+  const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+  downAt = null;
+  // Distinguish a click from a look-around that happened to end on an arch,
+  // or every drag would fire a navigation.
+  if (moved > 6) return;
+  const p = pick(e.clientX, e.clientY);
+  if (!p) return;
+  if (!p.live) { setHover(p); return; }
+  location.href = p.href;
+});
+
+/* Touch has no hover, so the first tap reveals the label and the second
+   commits — the same two-step every touch map uses for a pin. */
+renderer.domElement.addEventListener('touchend', (e) => {
+  const t = e.changedTouches[0];
+  if (!t) return;
+  const p = pick(t.clientX, t.clientY);
+  if (p && p !== hovered) { setHover(p); e.preventDefault(); }
+}, { passive: false });
+
+let mixer = null;
+const clock = new THREE.Clock();
+
+gltfLoader.load('/foyer/foyer-web.glb',
+  (gltf) => {
+    scene.add(gltf.scene);
+    xr.setRoot(gltf.scene);
+    root = gltf.scene;
+
+    const n = wirePortals(gltf.scene);
+    if (!n) console.warn('foyer: no portal arches matched PRT_P##_Room');
+
+    if (gltf.animations && gltf.animations.length) {
+      mixer = new THREE.AnimationMixer(gltf.scene);
+      gltf.animations.forEach((c) => mixer.clipAction(c).play());
+    }
+
+    const cams = [];
+    gltf.scene.traverse((o) => { if (o.isCamera) cams.push(o); });
+
+    // CAM_Arrival first: it is the camera the entry cinematic ends on, so it is
+    // both the default view and the frame the loader still is matched to.
+    const ORDER = ['CAM_Arrival', 'FoyerCam', 'FoyerEntryCam', 'BalconyCam', 'FoyerHeroCam'];
+    const LABEL = {
+      CAM_Arrival: 'Entrance', FoyerCam: 'The Hall', FoyerEntryCam: 'Ground Doors',
+      BalconyCam: 'Balcony', FoyerHeroCam: 'Grand View',
+    };
+    cams.sort((a, b) => {
+      const ia = ORDER.indexOf(a.name), ib = ORDER.indexOf(b.name);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+
+    const goTo = (cam, btn) => {
+      const pos = new THREE.Vector3();
+      cam.getWorldPosition(pos);
+      /* Take the authored lens, not just the position. CAM_Arrival is a 15 mm
+         wide angle (68°) and the viewer's own camera defaults to 55°, so
+         without this the arrival view is a different shot from the one the
+         cinematic ends on — which is the one thing the handover cannot afford.
+         Height is clamped so a wide lens does not distort on a phone. */
+      camera.fov = Math.min(cam.fov, 75);
+      camera.updateProjectionMatrix();
+      const dir = new THREE.Vector3(0, 0, -1)
+        .applyQuaternion(cam.getWorldQuaternion(new THREE.Quaternion()));
+      camera.position.copy(pos);
+      controls.target.copy(pos).addScaledVector(dir, 5);
+      controls.update();
+      viewsEl.querySelectorAll('button').forEach((b) =>
+        b.setAttribute('aria-current', String(b === btn)));
+    };
+
+    cams.forEach((cam, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = LABEL[cam.name] || cam.name.replace(/^(CAM_|Foyer)/, '');
+      b.addEventListener('click', () => goTo(cam, b));
+      viewsEl.appendChild(b);
+      if (i === 0) goTo(cam, b);
+    });
+    if (cams.length) viewsEl.hidden = false;
+
+    /* Console hook, same idea as the theatre viewer's window.__sgt: lets the
+       light rig be nudged and the arrival still be captured without a build
+       step. snapshot() renders on demand rather than trusting the animation
+       loop, so it also works in a browser tab that is not compositing. */
+    window.__foyer = {
+      scene, camera, controls, renderer,
+      portals: () => portals.map((p) => ({ name: p.mesh.name, label: p.label, href: p.href, live: p.live })),
+      cameras: () => cams.map((c) => c.name),
+      view: (name) => {
+        const c = cams.find((x) => x.name === name);
+        if (c) goTo(c, null);
+        return !!c;
+      },
+      lights: (fn) => { scene.traverse((o) => { if (o.isLight) fn(o); }); },
+      snapshot: (w, h) => {
+        const dpr = renderer.getPixelRatio();
+        if (w && h) {
+          renderer.setPixelRatio(1);
+          renderer.setSize(w, h, false);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+        }
+        renderer.render(scene, camera);
+        const url = renderer.domElement.toDataURL('image/jpeg', 0.9);
+        if (w && h) {
+          renderer.setPixelRatio(dpr);
+          renderer.setSize(innerWidth, innerHeight);
+          camera.aspect = innerWidth / innerHeight;
+          camera.updateProjectionMatrix();
+        }
+        return url;
+      },
+    };
+
+    /* Render one frame before dismissing the loader. Revealing on the load
+       callback alone hands over to a canvas that has not drawn yet, which
+       reads as a black blink — and on the arrival path that blink lands
+       exactly where the whole sequence is trying to be invisible. */
+    renderer.render(scene, camera);
+    requestAnimationFrame(() => {
+      loaderEl.classList.add('done');
+      setTimeout(() => loaderEl.remove(), 900);
+    });
+  },
+  (evt) => {
+    if (!evt.lengthComputable) { pctEl.textContent = 'Loading…'; return; }
+    const p = Math.round((evt.loaded / evt.total) * 100);
+    barEl.style.width = p + '%';
+    pctEl.textContent = 'Loading ' + p + '%';
+  },
+  (e) => {
+    console.error(e);
+    fail('The foyer failed to load. If you are opening this file directly from disk, ' +
+         'serve it over http:// instead — browsers block module and WASM loading on file:// URLs.');
+  }
+);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const tipPos = new THREE.Vector3();
+renderer.setAnimationLoop(() => {
+  if (mixer) mixer.update(clock.getDelta());
+  if (!xr.presenting) controls.update();
+  xr.update();
+
+  if (pendingPointer && !xr.presenting) {
+    setHover(pick(pendingPointer[0], pendingPointer[1]));
+    pendingPointer = null;
+  }
+
+  if (hovered && !xr.presenting) {
+    hovered.anchor.getWorldPosition(tipPos);
+    tipPos.project(camera);
+    tipEl.style.left = ((tipPos.x * 0.5 + 0.5) * innerWidth) + 'px';
+    tipEl.style.top = ((-tipPos.y * 0.5 + 0.5) * innerHeight) + 'px';
+  }
+
+  renderer.render(scene, camera);
+});
+</script>
+
+<script src="/shared/rooms.js" defer></script>
+<script src="/shared/room-menu.js" data-exit="/" data-exit-label="Exit" defer></script>
+</body>
+</html>

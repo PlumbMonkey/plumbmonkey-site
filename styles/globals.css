@@ -65,6 +65,30 @@ body {
   animation: door-open 0.6s ease-out both;
 }
 
+/* Lightning, for the manor entry cinematic. Snaps to full white in a single
+   frame and falls away over a fifth of a second — the asymmetry is what makes
+   it read as a strike rather than a fade. It is doing real work as well as
+   atmosphere: each flash covers a hard cut, so nothing behind it has to match
+   frame to frame. */
+@keyframes manor-flash {
+  0% {
+    opacity: 0;
+  }
+  4% {
+    opacity: 1;
+  }
+  22% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.manor-flash {
+  animation: manor-flash 0.24s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -73,5 +97,12 @@ body {
   .manor-mist,
   .door-transition {
     animation: none;
+  }
+
+  /* ManorEntry never starts the cinematic under reduced motion, so this only
+     covers the flash element existing at all. */
+  .manor-flash {
+    animation: none;
+    opacity: 0;
   }
 }
