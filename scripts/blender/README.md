@@ -56,32 +56,84 @@ by `use_renderable=True` instead.
 asserts the live portals match `public/shared/rooms.js`, so adding a room without
 re-exporting the foyer fails `npm test`.
 
-## stinger.py → `shotA/`, `shotB/`
+## The entry cinematic
 
-The 4.6 s entry cinematic, in two shots:
+Three shots, rendered separately and joined in ffmpeg. 4.625 s total at 24 fps.
 
-- **A** (`HauntedNight`, 60 frames) — the cloaked figure snaps closer in three
-  hard steps while the camera drifts. Placed in *camera space*, not along the
-  view axis: this camera is pitched down, so stepping the figure along the axis
-  lifted it off the ground and out of frame.
-- **B** (`Foyer`, 48 frames) — the front doors swing open toward camera and it
-  pushes through, landing exactly on `FoyerHeroCam`.
+| Shot | Frames | Time | Source | What happens |
+|---|---|---|---|---|
+| A1 | 1-36 | 0.000-1.458 | `hero video.blend` | 2D figure glitches, then snaps closer |
+| A2 | 37-60 | 1.500-2.458 | `phantom_cloaked_v2.blend` | cut to the 3D phantom, head and shoulders |
+| B | 1-48 | 2.500-4.625 | `VictorianHousev6` Foyer scene | doors open, push through to the foyer |
 
-The scene's `Figure` uses `GhostPale`, a bare Emission shader that renders a pale
-apparition. The home page's hero loop shows a dark cloaked silhouette, so the
-script re-shades a copy to match. The author's material is untouched.
+**Shot A1 — `shotA1.py`, run against `hero video.blend`.**
+This is the actual hero-video project: four painted layers as billboards, one
+camera, a volumetric fog sim. Building the stinger *here* is the whole point —
+it cannot drift from the loop because it is the loop's scene. An earlier version
+rendered the exterior from the 3D `HauntedNight` scene and never matched.
 
-Lightning is **not** rendered — it is a white CSS overlay in `ManorEntry.tsx`,
-timed to `FIGURE_STEPS`. The page needs a flash anyway to hide the cut from the
-looping hero video, and a flash over a hard jump is what sells the teleport.
+The beat-2 jump moves the figure **along the camera ray**, not along an axis, so
+it grows without sliding across frame — it arrives closer in the same place,
+which reads as a teleport rather than a walk. The fog blocker and vortex move
+with it or the fog hole stays where the figure was.
+
+**Shot A2 — `shotA2.py`, run against `phantom_cloaked_v2.blend`.**
+Sweeps camera positions raycasting to both eyes and picks the nearest clear one
+to the framing set by hand; the hood's inner edge crosses the sight line at
+close range and occludes one eye.
+
+**Shot B — `stinger.py` (`build_shot_b` only).** The rest of that script built
+the superseded 3D exterior.
+
+### Lightning
+
+Real, in the render — not the white overlay the page used to rely on. The hero
+layers are lit by a sun and the world, so a flash is an animated spike on both,
+and unlike an overlay it lights the house, the fog, the treeline and the figure
+together.
+
+The profile is deliberately not a ramp: `[7.0, 4.0, 8.5, 5.0, 2.6, 1.6, 1.15]`
+over consecutive frames. Real strikes flicker — hard leading edge, dip, brighter
+second stroke, fast fall — and that shape is most of what separates lightning
+from someone switching a lamp on.
+
+On the phantom the strike comes from **behind**, not the front. A frontal flash
+floodlit the face and destroyed the void the character depends on; from behind
+it rims the hood and shoulders and leaves the face unlit. It also matches the
+storm's position, since the house is behind him. Keep the world lift small
+(0.30x) — ambient is flat light, and at 1.6x it floodlit the face anyway and
+undid the point of striking from behind.
+
+## looprender.py
+
+Re-renders the 10 s hero loop (240 frames) from the same scene as shot A1, so
+the loop and the film share a camera and the cut between them matches frame for
+frame. The published loop before this was a wide shot and the stinger was tight;
+cutting between them read as a jump to a different scene.
+
+Wraps seamlessly — frame 240 against frame 1 is 0.11/255.
+
+## unbake_checker.py
+
+The mansion and forest layers lost their alpha at some point and were flattened
+onto a transparency checkerboard. Those materials wire `Image.Alpha` into the
+shader, so the project renders checkerboards without this. See the file header
+for the matte maths; the short version is that coverage for dark art on a white
+background *is* the darkening, `a = 1 - C/B`, and it must be applied only to the
+antialiased rim or grey areas of the artwork go see-through.
 
 ### Encoding
 
 Shot B dissolves into `public/foyer/arrival-frame.jpg` over its last 0.35 s.
-That still is captured from the **running three.js viewer**, not from Blender:
-Blender bounces light off the emissive arches and three.js does not, so a Blender
-frame would visibly pop on handover. Ending on the viewer's own output makes the
-film, the loader still and the first live frame the same picture.
+That still is captured from the **running three.js viewer**, not from Blender.
+
+The two must match in level as well as framing. They already matched
+geometrically — a 50/50 blend is sharp, no ghosting — but Blender's frame was
+mean RGB (47, 36, 32) against the viewer's (31, 20, 17), because Blender has
+global illumination lifting the shadows and the viewer does not. Across the
+dissolve that reads as the picture jumping. The viewer is therefore graded to
+the film in `viewer.html` (exposure 1.75, lights x1.38, red x0.78, fitted on
+per-channel means). Re-check the handover if you touch any of those.
 
 ```bash
 ffmpeg -framerate 24 -i shotA/f_%04d.png -vf format=yuv420p,setsar=1 -crf 16 segA.mp4

@@ -28,12 +28,11 @@ import numpy as np
 CHECK_HI, CHECK_LO = 254.0, 243.0
 CHECK_MID = (CHECK_HI + CHECK_LO) / 2.0
 
-# The ramp has to start BELOW the checker's darker square, not at its lighter
-# one: ramping from 254 leaves every dark checker pixel (243) sitting at alpha
-# 0.55, i.e. half the background survives as a haze.
-BG_AT = 241.0           # value at/above which a pixel is certainly background
-OPAQUE_BELOW = 230.0    # value at/below which a pixel is certainly artwork
-CHROMA_FULL = 12.0      # colour saturation that forces full opacity
+# Typical luminance of the artwork itself once the background is gone. Used as
+# the point at which the matte reaches fully opaque.
+DARK_REF = 45.0
+CHROMA_FULL = 30.0      # colour saturation that forces full opacity
+FLOOR = 0.05            # kills the last of the checker noise
 
 
 def read_rgb(path):
@@ -59,24 +58,39 @@ def unbake(rgb):
     value = rgb.max(axis=2)
     chroma = value - rgb.min(axis=2)
 
-    # Alpha from brightness: at the checker's brightness the pixel is fully
-    # background, and it ramps to opaque over the antialiasing range.
-    a_bright = np.clip((BG_AT - value) / (BG_AT - OPAQUE_BELOW), 0.0, 1.0)
-    # ...but any pixel with real colour in it is artwork, however bright.
-    a_chroma = np.clip(chroma / CHROMA_FULL, 0.0, 1.0)
-    alpha = np.maximum(a_bright, a_chroma)
+    # Coverage from darkening, assuming the artwork is near-black.
+    #
+    #   C = a*F + (1-a)*B,  and with F ~= 0  ->  a = 1 - C/B
+    #
+    # This is exact for black-on-white and self-consistent with the
+    # un-premultiply below, so edge pixels resolve to the true dark colour
+    # instead of a lightened one. The earlier version interpolated alpha
+    # between the checker's value and an assumed artwork value of 45, which
+    # over-estimated coverage on every edge pixel and left the pale halo that
+    # only became visible once the layers were composited over a night sky.
+    a_raw = 1.0 - value / CHECK_MID
+    # Artwork interiors are dark but not pure black, so full coverage lands a
+    # little short of 1. The knee pushes anything near-opaque to fully opaque
+    # without touching the partial edge values.
+    alpha = np.clip(a_raw / 0.92, 0.0, 1.0)
+    # Bright *coloured* pixels are artwork however bright — lit windows, the
+    # warm porch glow, the moon.
+    alpha = np.maximum(alpha, np.clip(chroma / CHROMA_FULL, 0.0, 1.0))
+    alpha = np.clip((alpha - FLOOR) / (1.0 - FLOOR), 0.0, 1.0)
 
-    # Lift the black point. Resampling left checker pixels scattered a couple
-    # of levels either side of their nominal greys, so the background carries a
-    # faint non-zero alpha that reads as a haze of the checker pattern once
-    # composited. Anything under this is background, not a soft edge.
-    alpha = np.clip((alpha - 0.14) / (1.0 - 0.14), 0.0, 1.0)
+    # The coverage model is right at the boundary and wrong inside it: any part
+    # of the artwork that is merely grey rather than black reads as partly
+    # covered, and the layer goes see-through. So it is applied only to the thin
+    # antialiased rim. Everything clearly inside the cutout is forced opaque.
+    core = (value < 205) | (chroma > 12.0)
+    inner = core.copy()
+    for dy, dx in ((1,0),(-1,0),(0,1),(0,-1)):
+        inner &= np.roll(core, (dy, dx), axis=(0, 1))     # 1 px erosion
+    alpha = np.where(inner, 1.0, alpha)
 
-    # Un-premultiply against the checker to strip the white fringe. Guarded so
-    # near-transparent pixels (where F is unrecoverable) are left alone.
     a3 = alpha[..., None]
-    safe = a3 > 0.02
-    fg = np.where(safe, (rgb - (1.0 - a3) * CHECK_MID) / np.maximum(a3, 0.02), rgb)
+    safe = a3 > 0.05
+    fg = np.where(safe, (rgb - (1.0 - a3) * CHECK_MID) / np.maximum(a3, 0.05), rgb)
 
     rgba = np.concatenate([np.clip(fg, 0, 255), alpha[..., None] * 255.0], axis=2)
     return rgba, alpha

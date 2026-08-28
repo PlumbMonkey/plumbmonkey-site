@@ -65,20 +65,23 @@ body {
   animation: door-open 0.6s ease-out both;
 }
 
-/* Lightning, for the manor entry cinematic. Snaps to full white in a single
-   frame and falls away over a fifth of a second — the asymmetry is what makes
-   it read as a strike rather than a fade. It is doing real work as well as
-   atmosphere: each flash covers a hard cut, so nothing behind it has to match
-   frame to frame. */
+/* Lightning bloom for the manor entry cinematic.
+   The strikes are now rendered IN the film — they light the house, the fog and
+   the phantom, which an overlay never could. So this no longer has to be the
+   lightning; at full white it just flattened the real one. What is left is a
+   screen-level kick on the same frames, which adds the bloom a camera would
+   give and nothing more.
+   It also no longer has a structural job: the loop and the film share a camera
+   now, so the cut into the film matches frame to frame on its own. */
 @keyframes manor-flash {
   0% {
     opacity: 0;
   }
   4% {
-    opacity: 1;
+    opacity: 0.32;
   }
   22% {
-    opacity: 0.72;
+    opacity: 0.20;
   }
   100% {
     opacity: 0;

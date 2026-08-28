@@ -188,6 +188,21 @@ const underBalc = new THREE.PointLight(0x6f7ec0, 5, 9, 2);
 underBalc.position.set(0, 1.4, 3.4);
 scene.add(underBalc);
 
+/* Match this rig to the Blender render the entry film ends on.
+   The film dissolves into a still of THIS view, so any difference in level or
+   colour shows up as the picture jumping at the exact moment the sequence is
+   trying to be invisible. Measured against that frame, the hand-built rig was
+   roughly half as bright (median 12 against 29 — Blender has global
+   illumination lifting the shadows and this does not) and noticeably warmer.
+   These three numbers were fitted by matching per-channel means; do not change
+   one without re-checking the handover. */
+renderer.toneMappingExposure = 1.75;
+scene.traverse((o) => {
+  if (!o.isLight) return;
+  o.intensity *= 1.38;
+  o.color.setRGB(o.color.r * 0.78, o.color.g, o.color.b);
+});
+
 /* WebXR. Teleport-only, so the walkable list is the room boundary: the two
    floors, the balcony and gallery decks, and both stair flights, which is what
    makes the upper portals reachable on foot. GLOW_HallFloor is deliberately
