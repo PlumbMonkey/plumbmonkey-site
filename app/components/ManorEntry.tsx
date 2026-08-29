@@ -298,17 +298,27 @@ export default function ManorEntry({ className }: { className?: string }) {
               aria-hidden={!playing}
               inert={!playing}
             >
-              {/* `contain`, not `cover`, so the film is drawn at the same scale the
-                  hero loop behind it is drawn at — the loop is `contain` too. Under
-                  `cover` the picture jumped 12% larger and slid up out of its
-                  letterbox the instant the film started, which read as the page
-                  swapping to a second, differently-framed video rather than cutting
-                  within one continuous shot. It also cropped 5% off each side of a
-                  film that was framed to be seen whole. The letterbox bands land on
-                  the overlay's own black, so nothing shows through. */}
+              {/* `cover`, matching the END of the sequence rather than the start.
+
+                  The film has two seams to serve and only one fit to serve them
+                  with. Going in it cuts from the hero loop; coming out it hands to
+                  the foyer's arrival still and then to the live canvas. Those two
+                  are both viewport-filling — `#loader.arriving` is `center/cover`
+                  and the WebGL canvas is the full viewport — so a `contain` film
+                  sits letterboxed at 1440x810 and the navigation pops it to
+                  1600x900 on identical imagery. That pop is completely unhidden:
+                  the whole point of the handover is that the film's last frame,
+                  the still and the first live frame are the same picture, and
+                  there is no flash over it.
+
+                  The entry seam can afford the mismatch instead. It no longer
+                  matches on ANY fit — the hero loop is the wide establishing shot
+                  and the film opens pushed in, two different cameras — and the
+                  full-strength lightning covers it, which is what it is for.
+                  Match the exit; flash the entrance. */}
               <video
                 ref={videoRef}
-                className="h-full w-full object-contain"
+                className="h-full w-full object-cover"
                 playsInline
                 preload="none"
                 poster={FIRST_FRAME}
