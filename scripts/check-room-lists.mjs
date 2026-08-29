@@ -28,6 +28,15 @@ if (!Array.isArray(ROOMS) || ROOMS.length === 0) {
 }
 for (const room of ROOMS ?? []) {
   if (!room.href || !room.label) problems.push(`malformed room entry: ${JSON.stringify(room)}`);
+  // An optional `room3d` is a real file under public/. Checking it here means a
+  // typo fails the build rather than becoming a dead arch in the Foyer, which
+  // is the one consumer that cannot be grepped.
+  if (room.room3d) {
+    const page = new URL("../public" + room.room3d, import.meta.url);
+    if (!existsSync(page)) {
+      problems.push(`${room.label}: room3d ${room.room3d} does not exist under public/`);
+    }
+  }
 }
 if (!CTA?.href || !CTA?.label) problems.push("rooms.js exports no usable CTA");
 
@@ -130,14 +139,30 @@ if (!existsSync(foyerGlb)) {
     }
   }
 
-  for (const href of canonical) {
-    if (!portalHrefs.has(href)) {
-      problems.push(`the foyer has no portal for ${href} — re-export foyer-web.glb`);
+  // A room with a `room3d` may be entered through its immersive space instead
+  // of straight into the tool — the Luminarium and the Art Room both work that
+  // way. Either destination satisfies the arch, but one of them must be there:
+  // a room with no arch at all is still the drift this check exists to catch.
+  const entrances = new Map();       // every href an arch may legitimately use
+  for (const room of ROOMS ?? []) {
+    entrances.set(room.href, room);
+    if (room.room3d) entrances.set(room.room3d, room);
+  }
+
+  const covered = new Set();
+  for (const href of portalHrefs) {
+    const room = entrances.get(href);
+    if (!room) {
+      problems.push(`foyer portal leads to ${href}, which is not a room in rooms.js`);
+    } else {
+      covered.add(room.href);
     }
   }
-  for (const href of portalHrefs) {
-    if (!canonical.has(href)) {
-      problems.push(`foyer portal leads to ${href}, which is not a room in rooms.js`);
+  for (const href of canonical) {
+    if (!covered.has(href)) {
+      const room = ROOMS.find((r) => r.href === href);
+      const via = room?.room3d ? ` (nor for its 3D room ${room.room3d})` : "";
+      problems.push(`the foyer has no portal for ${href}${via} — re-export foyer-web.glb`);
     }
   }
 }

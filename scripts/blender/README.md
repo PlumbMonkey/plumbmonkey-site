@@ -56,6 +56,32 @@ by `use_renderable=True` instead.
 asserts the live portals match `public/shared/rooms.js`, so adding a room without
 re-exporting the foyer fails `npm test`.
 
+## foyer_retarget.py → patches `foyer-web.glb` in place
+
+**Plain Python, not a Blender script.** Run `python scripts/blender/foyer_retarget.py`
+to push the `PORTALS` table above into the shipped .glb, or `--check` to report
+drift without writing.
+
+A portal's destination is only an `extras` string on a transform-only empty, so
+changing one touches no geometry, material or texture. But stage 2 reads
+`foyer_stage1.blend`, a build intermediate that was not kept — re-exporting for
+the sake of two strings would mean re-running `stage1_bake.py` and re-baking
+about eighteen procedural materials, which is slow and risks the foyer coming
+back subtly different.
+
+So this rewrites the JSON chunk and leaves the BIN chunk byte-identical. It
+reads its truth from `PORTALS`, so the script and the asset cannot drift: edit
+the table, run it, and a future full re-export produces the same result.
+`--check` is the guard that proves that, and is what to run if the foyer's
+arches ever look out of date.
+
+Portals P06 and P09 lead to the **3D rooms** (`/luminarium/viewer.html`,
+`/artroom/viewer.html`) rather than to the 2D tools they used to open — you walk
+into a room, and the room hands you the tool. `rooms.js` records that with an
+optional `room3d` field, and `check-room-lists.mjs` accepts an arch pointing at
+either a room's `href` or its `room3d` while still failing if a room has no arch
+at all.
+
 ## The entry cinematic
 
 Three shots, rendered separately and joined in ffmpeg. 4.625 s total at 24 fps.

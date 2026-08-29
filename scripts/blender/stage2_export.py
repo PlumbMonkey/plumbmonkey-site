@@ -34,16 +34,24 @@ def say(m):
 # --------------------------------------------------------------- nav anchors
 # Portal number -> (site route, label, whether it is actually built yet).
 # The labels mirror the PlateText already modelled on each arch.
+#
+# P06 and P09 lead to the 3D rooms, not to the 2D tools they used to open.
+# Walking through an arch should put you in a room, the way P05 does for the
+# Arcade — and both rooms carry the tool on the other side: the Luminarium's
+# console screens open /visual/index.html, the Art Room's easel opens
+# /natural-media-lab, and each viewer has a standing link besides. The nav in
+# public/shared/rooms.js still points straight at the tools for anyone who
+# wants them directly, so nothing became unreachable.
 PORTALS = {
     "P01": ("/music",            "The Music Sandbox", True),
     "P02": ("/screening-room",   "The Theatre",       True),
     "P03": ("",                  "Coming Soon",       False),
     "P04": ("/gallery",          "The Gallery",       True),
     "P05": ("/arcade",           "The Arcade",        True),
-    "P06": ("/visual/index.html", "The Luminarium",   True),
+    "P06": ("/luminarium/viewer.html", "The Luminarium", True),
     "P07": ("/workshop",         "The Workshop",      True),
     "P08": ("",                  "The Library",       False),
-    "P09": ("/natural-media-lab", "The Art Room",     True),
+    "P09": ("/artroom/viewer.html", "The Art Room",   True),
     "P10": ("",                  "The Science Lab",   False),
 }
 

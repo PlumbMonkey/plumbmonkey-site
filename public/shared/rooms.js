@@ -20,6 +20,15 @@
    longer display names ("The Arcade") plus its own taglines and artwork, so it
    keeps that presentation data — but it must cover exactly these hrefs, and
    `npm test` fails if it drifts.
+
+   `room3d` is optional, and means "this room has an immersive entrance". The
+   Luminarium and the Art Room are 2D tools that each now also have a 3D space,
+   and the Foyer's arch leads into the space rather than straight to the tool —
+   you walk into the room, and the room hands you the tool (the Luminarium's
+   console screens and the Art Room's easel both link onward). The navs still
+   use `href`, so the tools stay one click away for anyone who wants them
+   directly. `npm test` accepts a foyer arch pointing at either, and checks the
+   file is really there.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -27,8 +36,8 @@
   var ROOMS = [
     { href: "/arcade", label: "Arcade" },
     { href: "/music", label: "Music Sandbox" },
-    { href: "/visual/index.html", label: "Luminarium" },
-    { href: "/natural-media-lab", label: "Art Room" },
+    { href: "/visual/index.html", label: "Luminarium", room3d: "/luminarium/viewer.html" },
+    { href: "/natural-media-lab", label: "Art Room", room3d: "/artroom/viewer.html" },
     { href: "/screening-room", label: "Theatre" },
     { href: "/gallery", label: "Gallery" },
     { href: "/workshop", label: "Workshop" }

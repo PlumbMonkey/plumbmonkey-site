@@ -958,8 +958,10 @@ export default function NaturalMediaLab() {
       <header className={styles.titlebar}>
         <div><span className={styles.eyebrow}>Plumbmonkey presents</span><h1>Natural Media Lab <span>v0.8.1 · Phase 8B</span></h1></div>
         <div className={styles.actions}>
-          {/* The studio's own room: the 3D atelier, whose easel leads back here. */}
-          <a href="/artroom/viewer.html">Enter the room</a>
+          {/* The studio's own room: the 3D atelier, whose easel leads back here.
+              Styled apart from the nine tool buttons beside it — as one of ten
+              identical controls it went unnoticed. */}
+          <a className={styles.roomDoor} href="/artroom/viewer.html">Enter the room <span aria-hidden="true">→</span></a>
           <button onClick={() => setShowNew(true)}>New</button><button onClick={() => fileRef.current?.click()}>Open</button>
           <button className={styles.tourButton} onClick={() => setTourStep(0)}>Tour</button>
           <button className={styles.helpButton} onClick={() => setShowHelp(true)}>Help</button>

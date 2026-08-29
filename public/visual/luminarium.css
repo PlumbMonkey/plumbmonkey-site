@@ -91,6 +91,25 @@ body::before {
    and text-decoration the UA gives links stripped back off. */
 a.btn { text-decoration: none; color: #f4efe5; display: inline-flex; align-items: center; }
 a.btn:hover { color: #ffe6bb; }
+
+/* …and it is the one control in this bar that leaves for somewhere else, so it
+   is deliberately not a ghost button: among eight identical ghosts nobody found
+   it. Brass edge, faint glow, and an arrow that steps on hover. */
+.room-door {
+  gap: .45em;
+  border-color: rgba(225,189,121,.55);
+  background: linear-gradient(180deg, rgba(225,189,121,.16), rgba(225,189,121,.05));
+  box-shadow: 0 0 0 1px rgba(225,189,121,.08), 0 2px 18px rgba(225,189,121,.14);
+  color: #ffdfae;
+}
+.room-door:hover {
+  border-color: rgba(240,206,140,.9);
+  background: linear-gradient(180deg, rgba(225,189,121,.28), rgba(225,189,121,.12));
+  color: #fff1d6;
+}
+.room-door span { transition: transform .18s ease; }
+.room-door:hover span { transform: translateX(3px); }
+@media (prefers-reduced-motion: reduce) { .room-door span { transition: none; } }
 .btn.primary {
   background: linear-gradient(135deg, #f1d59c, #c99b55);
   color: #151006;
