@@ -22,6 +22,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # *.mp4 is LFS-tracked (.gitattributes). Without this, checkout leaves
+          # every video as a ~130-byte pointer file, `next build` copies those
+          # pointers into ./out, and the deployed site serves them as MP4s — so
+          # the <source type="video/mp4"> fallbacks silently fail for anyone
+          # whose browser cannot take the WebM listed ahead of them.
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

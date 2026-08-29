@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * "Enter the Manor" — the home page's entry cinematic into The Foyer.
@@ -32,6 +33,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const FOYER = "/foyer/viewer.html";
 const MODEL = "/foyer/foyer-web.glb";
 const ARRIVAL_STILL = "/foyer/arrival-frame.jpg";
+/* The film's OWN first frame, and not ARRIVAL_STILL, which is its last.
+   `poster` is what a <video> paints before it has decoded anything, so the
+   arrival still put the foyer doors — the end of the journey — on screen for
+   however long the 970 KB film took to buffer, and the film then cut back to
+   the house outside and travelled to those doors a second time. On localhost
+   the film is ready inside a frame and it never showed; over a real
+   connection it is the first thing a visitor sees. */
+const FIRST_FRAME = "/assets/manor-entry-first-frame.jpg";
 
 /** Where the lightning fires, in milliseconds.
  *
@@ -63,6 +72,8 @@ export default function ManorEntry({ className }: { className?: string }) {
   const [canSkip, setCanSkip] = useState(false);
   const [flash, setFlash] = useState(false);
   const [muted, setMuted] = useState(false);
+  /* Gates the portal: document.body does not exist during the server render. */
+  const [mounted, setMounted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const warmed = useRef(false);
   const timers = useRef<number[]>([]);
@@ -114,6 +125,7 @@ export default function ManorEntry({ className }: { className?: string }) {
     timers.current = [];
   };
   useEffect(() => clearTimers, []);
+  useEffect(() => setMounted(true), []);
 
   /* Start the downloads on intent rather than on click, the same way
      EnterRoomLink warms the gallery: it buys the time between "thinking about
@@ -133,7 +145,14 @@ export default function ManorEntry({ className }: { className?: string }) {
       if (as === "fetch") l.crossOrigin = "anonymous";
       document.head.appendChild(l);
     }
-    videoRef.current?.load();
+    /* `preload` has to come off "none" before `load()`, or the browser is
+       within its rights to fetch nothing at all and the warm-up buys nothing
+       — which is the whole point of doing this on hover. */
+    const video = videoRef.current;
+    if (video) {
+      video.preload = "auto";
+      video.load();
+    }
   }, []);
 
   const toggleSound = useCallback(() => {
@@ -249,62 +268,89 @@ export default function ManorEntry({ className }: { className?: string }) {
         Enter the Manor
       </a>
 
-      {/* Kept mounted but hidden so `load()` on hover has somewhere to buffer
-          into. preload="none" until then: it is several MB and most visitors
-          never click. */}
-      <div
-        /* Appears instantly rather than fading in: the first flash fires on
-           the same tick and covers it, whereas a fade would show the home page
-           dimming for a fifth of a second before the film starts — the one
-           moment the sequence cannot afford to look like a page transition. */
-        className={`fixed inset-0 z-[100] bg-black ${
-          playing ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-        aria-hidden={!playing}
-        inert={!playing}
-      >
-        <video
-          ref={videoRef}
-          className="h-full w-full object-cover"
-          playsInline
-          preload="none"
-          poster={ARRIVAL_STILL}
-          onEnded={() => go(true)}
-          onError={() => playing && go(true)}
-        >
-          <source src="/assets/manor-entry.webm" type="video/webm" />
-          <source src="/assets/manor-entry.mp4" type="video/mp4" />
-        </video>
+      {mounted &&
+        createPortal(
+          <>
+            {/* Portalled to <body>, which is the only place this can cover the page
+                from.
 
-        {playing && canSkip && (
-          <div className="absolute bottom-8 right-8 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={toggleSound}
-              aria-label={muted ? "Turn sound on" : "Turn sound off"}
-              className="rounded-sm border border-white/25 bg-black/50 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 backdrop-blur-sm transition hover:border-brass-300 hover:text-brass-200"
+                `fixed inset-0 z-[100]` was being resolved against two nested
+                stacking contexts on the way up — the hero's own `z-10` copy block,
+                inside the `isolate` on <section class="manor-hero"> — and that
+                section paints at z-index auto. So the film's 100 and the lightning's
+                110 were competing inside the hero, not against the page, and the
+                fixed NavBar (z-50, a sibling of the hero at the root) sat on top of
+                the cinematic for its whole 4.6 s: a translucent bar with a border
+                and a backdrop-blur straight across the film. Portalling makes the
+                two z-indices mean what they say.
+
+                Still kept mounted-but-hidden so `load()` on hover has somewhere to
+                buffer into. preload="none" until then: it is several MB and most
+                visitors never click. */}
+            <div
+              /* Appears instantly rather than fading in: the first flash fires on
+                 the same tick and covers it, whereas a fade would show the home page
+                 dimming for a fifth of a second before the film starts — the one
+                 moment the sequence cannot afford to look like a page transition. */
+              className={`fixed inset-0 z-[100] bg-black ${
+                playing ? "opacity-100" : "pointer-events-none opacity-0"
+              }`}
+              aria-hidden={!playing}
+              inert={!playing}
             >
-              {muted ? "Sound on" : "Sound off"}
-            </button>
-            <button
-              type="button"
-              onClick={() => go(true)}
-              className="rounded-sm border border-white/25 bg-black/50 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 backdrop-blur-sm transition hover:border-brass-300 hover:text-brass-200"
-            >
-              Skip
-            </button>
-          </div>
+              {/* `contain`, not `cover`, so the film is drawn at the same scale the
+                  hero loop behind it is drawn at — the loop is `contain` too. Under
+                  `cover` the picture jumped 12% larger and slid up out of its
+                  letterbox the instant the film started, which read as the page
+                  swapping to a second, differently-framed video rather than cutting
+                  within one continuous shot. It also cropped 5% off each side of a
+                  film that was framed to be seen whole. The letterbox bands land on
+                  the overlay's own black, so nothing shows through. */}
+              <video
+                ref={videoRef}
+                className="h-full w-full object-contain"
+                playsInline
+                preload="none"
+                poster={FIRST_FRAME}
+                onEnded={() => go(true)}
+                onError={() => playing && go(true)}
+              >
+                <source src="/assets/manor-entry.webm" type="video/webm" />
+                <source src="/assets/manor-entry.mp4" type="video/mp4" />
+              </video>
+
+              {playing && canSkip && (
+                <div className="absolute bottom-8 right-8 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={toggleSound}
+                    aria-label={muted ? "Turn sound on" : "Turn sound off"}
+                    className="rounded-sm border border-white/25 bg-black/50 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 backdrop-blur-sm transition hover:border-brass-300 hover:text-brass-200"
+                  >
+                    {muted ? "Sound on" : "Sound off"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => go(true)}
+                    className="rounded-sm border border-white/25 bg-black/50 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 backdrop-blur-sm transition hover:border-brass-300 hover:text-brass-200"
+                  >
+                    Skip
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* The lightning. Painted above the film so it can cover the film's own
+                cuts, and above the page so it can cover the cut into the film. */}
+            <div
+              className={`pointer-events-none fixed inset-0 z-[110] bg-white ${
+                flash ? "manor-flash" : "opacity-0"
+              }`}
+              aria-hidden="true"
+            />
+          </>,
+          document.body
         )}
-      </div>
-
-      {/* The lightning. Painted above the film so it can cover the film's own
-          cuts, and above the page so it can cover the cut into the film. */}
-      <div
-        className={`pointer-events-none fixed inset-0 z-[110] bg-white ${
-          flash ? "manor-flash" : "opacity-0"
-        }`}
-        aria-hidden="true"
-      />
     </>
   );
 }
