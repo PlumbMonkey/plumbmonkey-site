@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>The Arcade — Spectral Manor</title>
+<meta name="description" content="The manor's arcade. Twelve cabinets, all of them playable." />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #07060c; overflow: hidden;
+    font: 400 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #e8e4f2; }
+  canvas { display: block; }
+
+  #loader { position: fixed; inset: 0; display: grid; place-content: center; gap: 18px;
+    justify-items: center; background: #07060c; z-index: 40; transition: opacity .8s ease; }
+  #loader.done { opacity: 0; pointer-events: none; }
+  #loader h1 { margin: 0; font-size: clamp(20px, 4vw, 30px); font-weight: 700;
+    letter-spacing: .06em; color: #f0c274; text-align: center; }
+  #loader p { margin: 0; color: #9a93ad; font-size: 13px; letter-spacing: .12em;
+    text-transform: uppercase; }
+  #bar { width: min(320px, 70vw); height: 3px; background: rgba(240,194,116,.16); border-radius: 3px; }
+  #bar i { display: block; height: 100%; width: 0%; background: #f0c274; border-radius: 3px;
+    transition: width .25s ease; }
+  #err { max-width: 42ch; text-align: center; color: #ff9c9c; font-size: 13px; display: none; }
+
+  #views { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; z-index: 30;
+    padding: 6px; border-radius: 12px; background: rgba(12,10,20,.78);
+    border: 1px solid rgba(240,194,116,.24); backdrop-filter: blur(8px); max-width: calc(100vw - 24px); }
+  #views button { cursor: pointer; border: 0; border-radius: 8px; padding: 8px 12px;
+    background: transparent; color: #cfc8de; font: 600 13px system-ui, sans-serif; white-space: nowrap; }
+  #views button:hover { background: rgba(240,194,116,.16); color: #ffd9a0; }
+  #views button[aria-current="true"] { background: rgba(240,194,116,.9); color: #17121f; }
+
+  /* Cabinet label. Follows the marquee of whichever cabinet the pointer is
+     over, projected from its world position each frame. */
+  #tip { position: fixed; z-index: 32; pointer-events: none; opacity: 0;
+    transform: translate(-50%, -140%); transition: opacity .18s ease;
+    padding: 7px 13px; border-radius: 999px; white-space: nowrap;
+    background: rgba(10,8,16,.9); border: 1px solid rgba(240,194,116,.45);
+    box-shadow: 0 6px 26px rgba(0,0,0,.6);
+    font: 700 13px/1 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+  #tip.on { opacity: 1; }
+  #tip b { color: #f0c274; font-weight: 700; }
+  #tip small { display: block; margin-top: 5px; font-size: 10px; letter-spacing: .14em;
+    color: #8d86a3; font-weight: 600; }
+
+  /* The room's own hamburger hides itself when framed, and /arcade frames this
+     page — so without this there is no route from the 3D room to the flat list
+     and its leaderboards, which is the only place the scores are readable. */
+  #list { position: fixed; left: 12px; bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 31; text-decoration: none; padding: 8px 13px; border-radius: 10px;
+    background: rgba(12,10,20,.78); border: 1px solid rgba(240,194,116,.24);
+    backdrop-filter: blur(8px); color: #cfc8de; font: 600 12px system-ui, sans-serif; }
+  #list:hover { border-color: rgba(240,194,116,.6); color: #ffd9a0; }
+  @media (max-width: 640px) { #list { font-size: 11px; padding: 6px 10px; } }
+
+  #hint { position: fixed; right: 12px; bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px));
+    z-index: 30; font-size: 12px; color: #7e7791; text-align: right; pointer-events: none; }
+  @media (max-width: 640px) { #hint { display: none; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    #loader, #tip { transition: none; }
+  }
+</style>
+<link rel="stylesheet" href="/shared/room-menu.css" />
+</head>
+<body>
+
+<div id="loader">
+  <h1>The Arcade</h1>
+  <div id="bar"><i></i></div>
+  <p id="pct">Loading 0%</p>
+  <div id="err"></div>
+</div>
+
+<nav id="views" hidden aria-label="Viewpoints"></nav>
+<div id="tip" aria-hidden="true"></div>
+<a id="list" href="/arcade/list" target="_top">All games &amp; high scores</a>
+<div id="hint">drag to look · scroll to zoom · click a cabinet to play</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/gallery/vendor/three.module.js",
+    "three/addons/": "/gallery/vendor/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { initXRRoom } from '/shared/xr-room.js';
+
+const loaderEl = document.getElementById('loader');
+const barEl = document.querySelector('#bar i');
+const pctEl = document.getElementById('pct');
+const errEl = document.getElementById('err');
+const viewsEl = document.getElementById('views');
+const tipEl = document.getElementById('tip');
+
+/* Same embed contract as the foyer: a parent page can host this room behind
+   something of its own and take it away once we report a drawn frame. Nothing
+   uses it yet, but the two rooms should not drift on it. */
+const params = new URLSearchParams(location.search);
+const embedded = params.has('embed');
+if (embedded) loaderEl.style.display = 'none';
+
+/* Leaving a cabinet has to leave the whole page, not just this frame. In a
+   top-level document window.top === window, so this is a no-op there. */
+const leaveTo = (href) => { window.top.location.href = href; };
+
+function fail(msg) {
+  errEl.style.display = 'block';
+  errEl.textContent = msg;
+  pctEl.textContent = 'Could not load';
+}
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+} catch (e) {
+  console.error(e);
+  fail('This browser cannot display 3D (WebGL is unavailable). Every game is still ' +
+       'playable from the arcade list.');
+  errEl.insertAdjacentHTML('beforeend',
+    '<p style="margin-top:14px"><a href="/arcade/list" target="_top" style="color:#f0c274">Open the game list</a></p>');
+  throw e;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.80;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x06050b);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 200);
+camera.position.set(0, 1.62, 4.55);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 1.5, -1);
+controls.maxPolarAngle = Math.PI * 0.9;
+controls.minDistance = 0.4;
+controls.maxDistance = 14;
+
+/* The GLB ships with no lights — the Blender scene has 35, four of them area
+   lights glTF cannot represent, and 31 dynamic points would be a punishing
+   shader compile on a phone.
+   Unlike the foyer this room needed no bake stage to survive that: its mood is
+   already emissive material rather than lamps. The twelve screens are Emission
+   at 2.4, the marquees at 1.05 and the neon at 2.6, so they light themselves.
+   What is left for this rig is only the things that would otherwise go black —
+   panelling, carpet, cabinet bodies and the ceiling. Keep it dim: every extra
+   watt here washes out the screens, which are the point of the room. */
+scene.add(new THREE.HemisphereLight(0x4a5a90, 0x140c1a, 0.13));
+scene.add(new THREE.AmbientLight(0xffffff, 0.025));
+
+// The chandelier over the middle of the aisle.
+const chandelier = new THREE.PointLight(0xffb570, 5.2, 13, 2);
+chandelier.position.set(0, 3.1, 0);
+scene.add(chandelier);
+
+/* Two warm pools down the length of the aisle. The room runs along z, roughly
+   -7 to +9, and the cabinets face inward from both side walls, so lighting the
+   floor between them is what separates the two rows. */
+for (const z of [3.2, -3.4]) {
+  const l = new THREE.PointLight(0xffa864, 3.0, 9, 2);
+  l.position.set(0, 2.5, z);
+  scene.add(l);
+}
+
+// The neon runs along both side walls; a cool bounce off each keeps the
+// panelling from reading as flat brown.
+for (const x of [-3.4, 3.4]) {
+  const l = new THREE.PointLight(x < 0 ? 0x5c7bff : 0xa060ff, 2.7, 8, 2);
+  l.position.set(x, 2.7, 0.4);
+  scene.add(l);
+}
+
+const xr = initXRRoom({
+  renderer, scene, camera, controls,
+  walkable: /^(ROOM_Floor|ROOM_Carpet)$/,
+  spawn: { x: 0, z: 4.2, yaw: 0 },   // at the door end, looking down the aisle
+  exit: { href: '/', label: 'Exit' },
+  roomLabel: 'The Arcade',
+  buttonLabel: 'Enter in VR',
+});
+
+const draco = new DRACOLoader().setDecoderPath('/gallery/vendor/draco/gltf/');
+const gltfLoader = new GLTFLoader().setDRACOLoader(draco);
+
+/* Cabinet wiring.
+   The export tags each CAB_<slug> empty with the game's route. An empty is a
+   transform-only node with no geometry, so it cannot be the hit target — and
+   unlike the foyer's arches there is no single mesh worth picking either: a
+   cabinet is thirteen meshes (body, bezel, screen, marquee, moulding, grille,
+   coin door, two joysticks, two button rows, side art). So every descendant
+   mesh maps back to its cabinet and the whole machine is clickable, which is
+   also what a visitor expects — you walk up to a cabinet, not to its screen. */
+const cabinets = [];
+const byMesh = new Map();
+let hovered = null;
+
+function wireCabinets(root) {
+  root.traverse((cab) => {
+    if (!/^CAB_/.test(cab.name)) return;
+    const x = cab.userData || {};
+    if (!x.href) return;
+
+    const parts = [];
+    let screen = null, marquee = null;
+    cab.traverse((o) => {
+      if (!o.isMesh) return;
+      parts.push(o);
+      if (/^SCR_/.test(o.name)) screen = o;
+      if (/^MRQ_/.test(o.name)) marquee = o;
+    });
+    if (!parts.length) return;
+
+    // Cloned so one cabinet's hover boost is not shared with the other eleven
+    // — the screen materials are per-game, but the marquee shell is not.
+    for (const m of [screen, marquee]) if (m) m.material = m.material.clone();
+
+    const c = {
+      node: cab,
+      anchor: marquee || screen || parts[0],
+      href: x.href,
+      label: x.label || cab.name.slice(4),
+      live: x.live !== false && !!x.href,
+      glow: [screen, marquee].filter(Boolean),
+    };
+    c.base = c.glow.map((m) => m.material.emissiveIntensity ?? 1);
+    cabinets.push(c);
+    for (const p of parts) byMesh.set(p, c);
+  });
+  return cabinets.length;
+}
+
+function setHover(c) {
+  if (hovered === c) return;
+  if (hovered) hovered.glow.forEach((m, i) => { m.material.emissiveIntensity = hovered.base[i]; });
+  hovered = c;
+  if (c) {
+    c.glow.forEach((m, i) => { m.material.emissiveIntensity = c.base[i] * 1.6; });
+    tipEl.innerHTML = c.live
+      ? `<b>${c.label}</b><small>Click to play</small>`
+      : `<b>${c.label}</b><small>Out of order</small>`;
+    tipEl.classList.add('on');
+    renderer.domElement.style.cursor = c.live ? 'pointer' : 'not-allowed';
+  } else {
+    tipEl.classList.remove('on');
+    renderer.domElement.style.cursor = '';
+  }
+}
+
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let downAt = null;
+let root = null;
+
+/* Raycasts the whole room and only counts a cabinet if it is the nearest thing
+   hit, so a machine behind a wall or another cabinet cannot be picked through
+   it — the two rows face each other down a narrow aisle, so grazing rays reach
+   the far row constantly. */
+function pick(x, y) {
+  if (!root) return null;
+  ndc.set((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObject(root, true);
+  if (!hits.length) return null;
+  return byMesh.get(hits[0].object) || null;
+}
+
+let pendingPointer = null;
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (xr.presenting || e.pointerType === 'touch') return;
+  pendingPointer = [e.clientX, e.clientY];
+});
+renderer.domElement.addEventListener('pointerleave', () => {
+  pendingPointer = null;
+  setHover(null);
+});
+
+renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!downAt) return;
+  const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+  downAt = null;
+  // Distinguish a click from a look-around that happened to end on a cabinet.
+  if (moved > 6) return;
+  const c = pick(e.clientX, e.clientY);
+  if (!c) return;
+  if (!c.live) { setHover(c); return; }
+  leaveTo(c.href);
+});
+
+/* Touch has no hover, so the first tap names the game and the second plays it.
+   Worth more here than in the foyer: the cabinets are small targets and their
+   marquees are unreadable on a phone until you are close. */
+renderer.domElement.addEventListener('touchend', (e) => {
+  const t = e.changedTouches[0];
+  if (!t) return;
+  const c = pick(t.clientX, t.clientY);
+  if (c && c !== hovered) { setHover(c); e.preventDefault(); }
+}, { passive: false });
+
+let mixer = null;
+const clock = new THREE.Clock();
+
+gltfLoader.load('/arcade/arcade-web.glb',
+  (gltf) => {
+    scene.add(gltf.scene);
+    xr.setRoot(gltf.scene);
+    root = gltf.scene;
+
+    const n = wireCabinets(gltf.scene);
+    if (n !== 12) console.warn(`arcade: wired ${n} cabinets, expected 12`);
+
+    if (gltf.animations && gltf.animations.length) {
+      mixer = new THREE.AnimationMixer(gltf.scene);
+      gltf.animations.forEach((c) => mixer.clipAction(c).play());
+    }
+
+    const cams = [];
+    gltf.scene.traverse((o) => { if (o.isCamera) cams.push(o); });
+
+    /* Hero first, and it is the default. The manifest calls it the hero
+       camera and it earns the name: dead centre at the door end, both rows of
+       marquees and the rose window in one shot. CAM_ArcadeEntry is turned 128
+       degrees to frame the change machine and the high-score board, which is a
+       fine thing to look at second and a poor first impression of a room whose
+       whole point is twelve glowing cabinets. */
+    const ORDER = ['CAM_ArcadeHero', 'CAM_ArcadeEntry'];
+    const LABEL = { CAM_ArcadeHero: 'The Aisle', CAM_ArcadeEntry: 'High Scores' };
+    cams.sort((a, b) => {
+      const ia = ORDER.indexOf(a.name), ib = ORDER.indexOf(b.name);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+
+    const goTo = (cam, btn) => {
+      const pos = new THREE.Vector3();
+      cam.getWorldPosition(pos);
+      // Take the authored lens, not just the position: both arcade cameras are
+      // wide (20-21 mm, past 80 degrees) and the viewer defaults to 60, so
+      // without this the room reads far tighter than it was framed to.
+      camera.fov = Math.min(cam.fov, 78);
+      camera.updateProjectionMatrix();
+      const dir = new THREE.Vector3(0, 0, -1)
+        .applyQuaternion(cam.getWorldQuaternion(new THREE.Quaternion()));
+      camera.position.copy(pos);
+      controls.target.copy(pos).addScaledVector(dir, 5);
+      controls.update();
+      viewsEl.querySelectorAll('button').forEach((b) =>
+        b.setAttribute('aria-current', String(b === btn)));
+    };
+
+    cams.forEach((cam, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = LABEL[cam.name] || cam.name.replace(/^CAM_/, '');
+      b.addEventListener('click', () => goTo(cam, b));
+      viewsEl.appendChild(b);
+      if (i === 0) goTo(cam, b);
+    });
+    if (cams.length) viewsEl.hidden = false;
+
+    /* Console hook, the same idea as the foyer's window.__foyer and the
+       theatre's window.__sgt: lets the light rig be nudged and the cabinet
+       wiring be checked without a build step. */
+    window.__arcade = {
+      scene, camera, controls, renderer,
+      cabinets: () => cabinets.map((c) => ({ name: c.node.name, label: c.label, href: c.href, live: c.live })),
+      cameras: () => cams.map((c) => c.name),
+      view: (name) => {
+        const c = cams.find((x) => x.name === name);
+        if (c) goTo(c, null);
+      },
+    };
+
+    renderer.render(scene, camera);
+
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      loaderEl.classList.add('done');
+      setTimeout(() => loaderEl.remove(), 900);
+      if (embedded && window.parent !== window) {
+        window.parent.postMessage({ type: 'arcade-ready' }, location.origin);
+      }
+    };
+    requestAnimationFrame(reveal);
+    /* rAF does not fire while the document is hidden, so on its own this
+       strands anyone who switched tabs during the load. On a visible document
+       rAF wins by ~16 ms and this never matters. */
+    setTimeout(reveal, 400);
+  },
+  (evt) => {
+    if (!evt.lengthComputable) { pctEl.textContent = 'Loading…'; return; }
+    const p = Math.round((evt.loaded / evt.total) * 100);
+    barEl.style.width = p + '%';
+    pctEl.textContent = 'Loading ' + p + '%';
+  },
+  (e) => {
+    console.error(e);
+    fail('The arcade failed to load. If you are opening this file directly from disk, ' +
+         'serve it over http:// instead — browsers block module and WASM loading on file:// URLs.');
+  }
+);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const tipPos = new THREE.Vector3();
+renderer.setAnimationLoop(() => {
+  if (mixer) mixer.update(clock.getDelta());
+  if (!xr.presenting) controls.update();
+  xr.update();
+
+  if (pendingPointer && !xr.presenting) {
+    setHover(pick(pendingPointer[0], pendingPointer[1]));
+    pendingPointer = null;
+  }
+
+  if (hovered && !xr.presenting) {
+    hovered.anchor.getWorldPosition(tipPos);
+    tipPos.project(camera);
+    tipEl.style.left = ((tipPos.x * 0.5 + 0.5) * innerWidth) + 'px';
+    tipEl.style.top = ((-tipPos.y * 0.5 + 0.5) * innerHeight) + 'px';
+  }
+
+  renderer.render(scene, camera);
+});
+</script>
+
+<script src="/shared/rooms.js" defer></script>
+<script src="/shared/room-menu.js" data-exit="/" data-exit-label="Exit" defer></script>
+</body>
+</html>

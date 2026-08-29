@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import ArcadeRoom from "./ArcadeRoom";
-import NeonCursor from "../components/NeonCursor";
 
 export const metadata: Metadata = {
   title: "Spectral Manor Arcade | Plumbmonkey Media",
   description:
-    "Play twelve original games from the Spectral Manor series, each with its own world, challenges, characters and leaderboard.",
+    "Step into the manor's arcade in 3D. Twelve original games from the Ghost Circuit universe, each in its own cabinet.",
   keywords: [
     "spectral manor arcade",
     "ghost circuit games",
@@ -20,45 +18,37 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * The arcade is now the 3D room, framed the same way /music/dm1 frames a Stave
+ * instrument: a standalone page inside a React route, inheriting the site
+ * chrome. The room's own hamburger and EXIT opt out when framed
+ * (room-menu.js checks window.top !== window.self), so there is one nav, not
+ * two — the same reason the instruments are embedded rather than linked.
+ *
+ * Framing it rather than moving the room to this route keeps `/arcade` as the
+ * room's identity. rooms.js, RoomDoors and the Foyer's ten portal arches all
+ * name that href, and the Foyer's copy is baked into foyer-web.glb as glTF
+ * extras — so pointing the nav at /arcade/viewer.html instead would strand the
+ * hub's own arch on the old page and fail the drift guard, and correcting it
+ * would mean re-running the foyer's bake. That bake is not worth disturbing:
+ * its light rig was fitted by hand to match the entry film's closing frame.
+ *
+ * The flat game list, with its leaderboards, lives on at /arcade/list and is
+ * linked from the room. It is also where anyone without WebGL is sent.
+ */
 export default function ArcadePage() {
   return (
-    <main className="min-h-screen bg-[#07040f] text-purple-100">
-      {/* Neon trail — the arcade lobby only. The games themselves opt out:
-          Swarm and Mess Hall aim with the mouse, and a glowing ribbon over
-          the reticle would fight the gameplay. */}
-      <NeonCursor />
-
-      {/* Hero */}
-      <section className="max-w-5xl mx-auto px-6 pt-28 pb-10 text-center md:pt-32">
-        <p className="text-purple-400 text-sm tracking-[0.3em] uppercase mb-3">
-          Welcome to the Game Room
-        </p>
-        <h1
-          className="text-4xl md:text-5xl font-bold text-purple-200 mb-4 tracking-wider"
-          style={{ fontFamily: "'Cinzel', Georgia, serif" }}
-        >
-          Spectral Manor Arcade
-        </h1>
-        <p className="text-purple-300/80 max-w-2xl mx-auto text-lg">
-          Twelve original arcade experiences from inside the Ghost Circuit universe.
-          <br className="hidden sm:block" />
-          Step up to a cabinet — high scores are kept for every game.
-        </p>
-      </section>
-
-      {/* Arcade cabinets + leaderboards (client) */}
-      <ArcadeRoom />
-
-      {/* Footer note */}
-      <div className="max-w-5xl mx-auto px-6 pb-16 text-center border-t border-purple-900/40 pt-10">
-        <p className="text-purple-400 text-sm tracking-wide">
-          Part of the <span className="text-purple-200">Ghost Circuit</span> universe ·
-          Built by Plumbmonkey Media
-        </p>
-        <p className="text-purple-600 text-xs mt-2">
-          Free to play · Wave 1 &amp; Wave 2 now live
-        </p>
-      </div>
+    <main className="min-h-screen bg-[#07040f] pt-16">
+      <iframe
+        src="/arcade/viewer.html"
+        title="The Spectral Manor Arcade in 3D"
+        className="block h-[calc(100svh-4rem)] min-h-[520px] w-full border-0"
+        allow="xr-spatial-tracking; fullscreen; gyroscope; accelerometer"
+      />
+      <p className="sr-only">
+        If the 3D arcade does not load,{" "}
+        <a href="/arcade/list">open the full game list</a>.
+      </p>
     </main>
   );
 }
