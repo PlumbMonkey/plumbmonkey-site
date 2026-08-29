@@ -87,6 +87,10 @@ body::before {
   box-shadow: inset 0 1px rgba(255,255,255,.035);
 }
 .btn:hover, .chip:hover { border-color: rgba(225,189,121,.48); background: rgba(225,189,121,.075); }
+/* The door into the 3D room is an <a>, not a <button>, so it needs the colour
+   and text-decoration the UA gives links stripped back off. */
+a.btn { text-decoration: none; color: #f4efe5; display: inline-flex; align-items: center; }
+a.btn:hover { color: #ffe6bb; }
 .btn.primary {
   background: linear-gradient(135deg, #f1d59c, #c99b55);
   color: #151006;

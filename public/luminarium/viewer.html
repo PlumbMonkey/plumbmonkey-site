@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>The Luminarium — Spectral Manor</title>
+<meta name="description" content="The manor's observatory: a domed rotunda of nebula glass, with the performance console at its centre." />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #05040c; overflow: hidden;
+    font: 400 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #e8e4f2; }
+  canvas { display: block; }
+
+  #loader { position: fixed; inset: 0; display: grid; place-content: center; gap: 18px;
+    justify-items: center; background: #05040c; z-index: 40; transition: opacity .8s ease; }
+  #loader.done { opacity: 0; pointer-events: none; }
+  #loader h1 { margin: 0; font-size: clamp(20px, 4vw, 30px); font-weight: 700;
+    letter-spacing: .06em; color: #b79cff; text-align: center; }
+  #loader p { margin: 0; color: #9a93ad; font-size: 13px; letter-spacing: .12em;
+    text-transform: uppercase; }
+  #bar { width: min(320px, 70vw); height: 3px; background: rgba(183,156,255,.16); border-radius: 3px; }
+  #bar i { display: block; height: 100%; width: 0%; background: #b79cff; border-radius: 3px;
+    transition: width .25s ease; }
+  #err { max-width: 42ch; text-align: center; color: #ff9c9c; font-size: 13px; display: none; }
+
+  #views { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; z-index: 30;
+    padding: 6px; border-radius: 12px; background: rgba(10,8,20,.78);
+    border: 1px solid rgba(183,156,255,.24); backdrop-filter: blur(8px); max-width: calc(100vw - 24px); }
+  #views button { cursor: pointer; border: 0; border-radius: 8px; padding: 8px 12px;
+    background: transparent; color: #cfc8de; font: 600 13px system-ui, sans-serif; white-space: nowrap; }
+  #views button:hover { background: rgba(183,156,255,.16); color: #ddd0ff; }
+  #views button[aria-current="true"] { background: rgba(183,156,255,.9); color: #17121f; }
+
+  #tip { position: fixed; z-index: 32; pointer-events: none; opacity: 0;
+    transform: translate(-50%, -140%); transition: opacity .18s ease;
+    padding: 7px 13px; border-radius: 999px; white-space: nowrap;
+    background: rgba(8,6,16,.9); border: 1px solid rgba(183,156,255,.45);
+    box-shadow: 0 6px 26px rgba(0,0,0,.6);
+    font: 700 13px/1 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+  #tip.on { opacity: 1; }
+  #tip b { color: #b79cff; font-weight: 700; }
+  #tip small { display: block; margin-top: 5px; font-size: 10px; letter-spacing: .14em;
+    color: #8d86a3; font-weight: 600; }
+
+  #tool { position: fixed; left: 12px; bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 31; text-decoration: none; padding: 8px 13px; border-radius: 10px;
+    background: rgba(10,8,20,.78); border: 1px solid rgba(183,156,255,.24);
+    backdrop-filter: blur(8px); color: #cfc8de; font: 600 12px system-ui, sans-serif; }
+  #tool:hover { border-color: rgba(183,156,255,.6); color: #ddd0ff; }
+  @media (max-width: 640px) { #tool { font-size: 11px; padding: 6px 10px; } }
+
+  #hint { position: fixed; right: 12px; bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px));
+    z-index: 30; font-size: 12px; color: #7e7791; text-align: right; pointer-events: none; }
+  @media (max-width: 640px) { #hint { display: none; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    #loader, #tip { transition: none; }
+  }
+</style>
+<link rel="stylesheet" href="/shared/room-menu.css" />
+</head>
+<body>
+
+<div id="loader">
+  <h1>The Luminarium</h1>
+  <div id="bar"><i></i></div>
+  <p id="pct">Loading 0%</p>
+  <div id="err"></div>
+</div>
+
+<nav id="views" hidden aria-label="Viewpoints"></nav>
+<div id="tip" aria-hidden="true"></div>
+<a id="tool" href="/visual/index.html" target="_top">Open the live visualiser</a>
+<div id="hint">drag to look · scroll to zoom · click a console screen to open it</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/gallery/vendor/three.module.js",
+    "three/addons/": "/gallery/vendor/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { initXRRoom } from '/shared/xr-room.js';
+
+const loaderEl = document.getElementById('loader');
+const barEl = document.querySelector('#bar i');
+const pctEl = document.getElementById('pct');
+const errEl = document.getElementById('err');
+const viewsEl = document.getElementById('views');
+const tipEl = document.getElementById('tip');
+
+/* Same embed contract as the foyer, the arcade and the music room: a parent
+   page can host this room and take its own cover away once we report a frame. */
+const params = new URLSearchParams(location.search);
+const embedded = params.has('embed');
+if (embedded) loaderEl.style.display = 'none';
+
+const leaveTo = (href) => { window.top.location.href = href; };
+
+function fail(msg) {
+  errEl.style.display = 'block';
+  errEl.textContent = msg;
+  pctEl.textContent = 'Could not load';
+}
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+} catch (e) {
+  console.error(e);
+  fail('This browser cannot display 3D (WebGL is unavailable). The live visualiser still runs in 2D.');
+  errEl.insertAdjacentHTML('beforeend',
+    '<p style="margin-top:14px"><a href="/visual/index.html" target="_top" style="color:#b79cff">Open the visualiser</a></p>');
+  throw e;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.95;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05040c);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 300);
+camera.position.set(0, 2.6, 12.3);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 3.4, 0);
+controls.maxPolarAngle = Math.PI * 0.92;
+controls.minDistance = 0.5;
+controls.maxDistance = 26;
+
+/* The GLB ships with no lights — the Blender scene has 16, thirteen of them
+   area lights glTF cannot represent.
+   Like the arcade and the music room, this needed no bake stage: the room is
+   emissive by construction. The twelve nebula windows run at 3.4, the dome
+   webs at 3.5, the floor inlay at 1.35 and the chandelier core at 5. This rig
+   only keeps the stone piers and the polished floor off pure black — turning it
+   up flattens the glass, which is the entire room. */
+scene.add(new THREE.HemisphereLight(0x4b4390, 0x0a0814, 0.18));
+scene.add(new THREE.AmbientLight(0xffffff, 0.03));
+
+/* Blender is Z-up and the export is Y-up, so a Blender (x, y, z) lands here at
+   (x, z, -y). The chandelier core sits at the middle of the armillary. */
+const core = new THREE.PointLight(0xb9a4ff, 26, 30, 2);
+core.position.set(0, 10.3, 0);
+scene.add(core);
+
+const warm = new THREE.PointLight(0xffbc7a, 7, 18, 2);
+warm.position.set(0, 8.4, 0);
+scene.add(warm);
+
+// The oculus, pouring down the middle of the dome.
+const eye = new THREE.PointLight(0x9e86ff, 14, 26, 2);
+eye.position.set(0, 15.6, 0);
+scene.add(eye);
+
+// A low kicker so the sacred-geometry inlay reads from standing height.
+const kick = new THREE.PointLight(0xd8c4ff, 4, 14, 2);
+kick.position.set(0, 1.6, 0);
+scene.add(kick);
+
+const xr = initXRRoom({
+  renderer, scene, camera, controls,
+  walkable: /^(LUM_Floor|LUM_Dais)/,
+  spawn: { x: 0, z: 11.4, yaw: 0 },   // just inside the ring, facing the console
+  exit: { href: '/', label: 'Exit' },
+  roomLabel: 'The Luminarium',
+  buttonLabel: 'Enter in VR',
+});
+
+const draco = new DRACOLoader().setDecoderPath('/gallery/vendor/draco/gltf/');
+const gltfLoader = new GLTFLoader().setDRACOLoader(draco);
+
+/* Target wiring — the music room's contract exactly: the export writes
+   href/label/slug straight onto the meshes you can click, so whatever the ray
+   hits either carries a route or is scenery.
+
+   The unit is a screen, not the console: the console carries three routes, so a
+   console-sized target could not say which was meant. Each slug covers both the
+   upright screen and the desk pad beneath it, which is why they share a slug. */
+const targets = [];
+const byMesh = new Map();
+let hovered = null;
+
+function wireTargets(root) {
+  const bySlug = new Map();
+  root.traverse((o) => {
+    const x = o.userData || {};
+    if (!x.href) return;
+
+    /* Not `if (!o.isMesh) return`. A Blender object carrying more than one
+       material exports as a glTF mesh with one primitive per material, and
+       GLTFLoader turns that into a Group of Meshes with the extras on the
+       Group — so the meshes the ray can actually hit have no href at all.
+       Every target here happens to be single-material, but the Art Room hit
+       this and silently dropped a hotspot, so both viewers collect mesh
+       descendants rather than assuming `o` is one. */
+    const meshes = [];
+    o.traverse((c) => { if (c.isMesh) meshes.push(c); });
+    if (!meshes.length) return;
+
+    let t = bySlug.get(x.slug);
+    if (!t) {
+      t = {
+        slug: x.slug,
+        href: x.href,
+        label: x.label || x.slug,
+        live: x.live !== false,
+        anchor: meshes[0],
+        glows: [],
+        base: [],
+      };
+      bySlug.set(x.slug, t);
+      targets.push(t);
+    }
+    for (const m of meshes) {
+      m.material = m.material.clone();   // so a hover boost is not shared
+      t.glows.push(m);
+      t.base.push(m.material.emissiveIntensity ?? 1);
+      byMesh.set(m, t);
+    }
+  });
+  return targets.length;
+}
+
+function setHover(t) {
+  if (hovered === t) return;
+  if (hovered) hovered.glows.forEach((m, i) => {
+    m.material.emissiveIntensity = hovered.base[i];
+  });
+  hovered = t;
+  if (t) {
+    t.glows.forEach((m, i) => { m.material.emissiveIntensity = t.base[i] * 1.6; });
+    tipEl.innerHTML = `<b>${t.label}</b><small>Click to open</small>`;
+    tipEl.classList.add('on');
+    renderer.domElement.style.cursor = 'pointer';
+  } else {
+    tipEl.classList.remove('on');
+    renderer.domElement.style.cursor = '';
+  }
+}
+
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let downAt = null;
+let root = null;
+
+/* Raycasts the whole room and only counts a target if it is the nearest thing
+   hit, so a screen cannot be picked through the console or a pier. */
+function pick(x, y) {
+  if (!root) return null;
+  ndc.set((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObject(root, true);
+  if (!hits.length) return null;
+  return byMesh.get(hits[0].object) || null;
+}
+
+let pendingPointer = null;
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (xr.presenting || e.pointerType === 'touch') return;
+  pendingPointer = [e.clientX, e.clientY];
+});
+renderer.domElement.addEventListener('pointerleave', () => {
+  pendingPointer = null;
+  setHover(null);
+});
+
+renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!downAt) return;
+  const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+  downAt = null;
+  // Distinguish a click from a look-around that happened to end on a screen.
+  if (moved > 6) return;
+  const t = pick(e.clientX, e.clientY);
+  if (!t) return;
+  if (!t.live) { setHover(t); return; }
+  leaveTo(t.href);
+});
+
+/* Touch has no hover, so the first tap names the route and the second opens it.
+   The three screens sit side by side and are small on a phone, so committing on
+   the first tap would open the wrong one. */
+renderer.domElement.addEventListener('touchend', (e) => {
+  const t = e.changedTouches[0];
+  if (!t) return;
+  const hit = pick(t.clientX, t.clientY);
+  if (hit && hit !== hovered) { setHover(hit); e.preventDefault(); }
+}, { passive: false });
+
+gltfLoader.load('/luminarium/luminarium-web.glb',
+  (gltf) => {
+    scene.add(gltf.scene);
+    xr.setRoot(gltf.scene);
+    root = gltf.scene;
+
+    const n = wireTargets(gltf.scene);
+    if (n !== 3) console.warn(`luminarium: wired ${n} targets, expected 3`);
+
+    const cams = [];
+    gltf.scene.traverse((o) => { if (o.isCamera) cams.push(o); });
+
+    const ORDER = ['LUMCAM_Hero', 'LUMCAM_Dome', 'LUMCAM_Console'];
+    const LABEL = {
+      LUMCAM_Hero: 'The Rotunda', LUMCAM_Dome: 'The Vault',
+      LUMCAM_Console: 'The Console',
+    };
+    cams.sort((a, b) => {
+      const ia = ORDER.indexOf(a.name), ib = ORDER.indexOf(b.name);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+
+    const goTo = (cam, btn) => {
+      const pos = new THREE.Vector3();
+      cam.getWorldPosition(pos);
+      // Take the authored lens: the hero is a 12 mm wide angle and the console
+      // camera is 35 mm, so one default focal length would either crop the dome
+      // or leave the screens unreadable.
+      camera.fov = Math.min(cam.fov, 80);
+      camera.updateProjectionMatrix();
+      const dir = new THREE.Vector3(0, 0, -1)
+        .applyQuaternion(cam.getWorldQuaternion(new THREE.Quaternion()));
+      camera.position.copy(pos);
+      controls.target.copy(pos).addScaledVector(dir, 6);
+      controls.update();
+      viewsEl.querySelectorAll('button').forEach((b) =>
+        b.setAttribute('aria-current', String(b === btn)));
+    };
+
+    const offered = cams.filter((c) => ORDER.includes(c.name));
+    const bar = offered.length ? offered : cams;
+
+    bar.forEach((cam, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = LABEL[cam.name] || cam.name.replace(/^LUMCAM_/, '');
+      b.addEventListener('click', () => goTo(cam, b));
+      viewsEl.appendChild(b);
+      if (i === 0) goTo(cam, b);
+    });
+    if (bar.length) viewsEl.hidden = false;
+
+    /* Console hook, the same idea as window.__foyer, __arcade and __music. */
+    window.__luminarium = {
+      scene, camera, controls, renderer,
+      targets: () => targets.map((t) => ({ slug: t.slug, label: t.label, href: t.href })),
+      cameras: () => cams.map((c) => c.name),
+      view: (name) => {
+        const c = cams.find((x) => x.name === name);
+        if (c) goTo(c, null);
+      },
+    };
+
+    renderer.render(scene, camera);
+
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      loaderEl.classList.add('done');
+      setTimeout(() => loaderEl.remove(), 900);
+      if (embedded && window.parent !== window) {
+        window.parent.postMessage({ type: 'luminarium-ready' }, location.origin);
+      }
+    };
+    requestAnimationFrame(reveal);
+    /* rAF does not fire while the document is hidden, so on its own this
+       strands anyone who switched tabs during the load. */
+    setTimeout(reveal, 400);
+  },
+  (evt) => {
+    if (!evt.lengthComputable) { pctEl.textContent = 'Loading…'; return; }
+    const p = Math.round((evt.loaded / evt.total) * 100);
+    barEl.style.width = p + '%';
+    pctEl.textContent = 'Loading ' + p + '%';
+  },
+  (e) => {
+    console.error(e);
+    fail('The Luminarium failed to load. If you are opening this file directly from disk, ' +
+         'serve it over http:// instead — browsers block module and WASM loading on file:// URLs.');
+  }
+);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const tipPos = new THREE.Vector3();
+renderer.setAnimationLoop(() => {
+  if (!xr.presenting) controls.update();
+  xr.update();
+
+  if (pendingPointer && !xr.presenting) {
+    setHover(pick(pendingPointer[0], pendingPointer[1]));
+    pendingPointer = null;
+  }
+
+  if (hovered && !xr.presenting) {
+    hovered.anchor.getWorldPosition(tipPos);
+    tipPos.project(camera);
+    tipEl.style.left = ((tipPos.x * 0.5 + 0.5) * innerWidth) + 'px';
+    tipEl.style.top = ((-tipPos.y * 0.5 + 0.5) * innerHeight) + 'px';
+  }
+
+  renderer.render(scene, camera);
+});
+</script>
+
+<script src="/shared/rooms.js" defer></script>
+<script src="/shared/room-menu.js" data-exit="/" data-exit-label="Exit" defer></script>
+</body>
+</html>

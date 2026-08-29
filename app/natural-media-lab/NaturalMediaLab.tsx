@@ -7,6 +7,7 @@ import { PROCEDURAL_BRUSHES, renderProceduralStroke } from "./proceduralEngine";
 import { encodeGif } from "./gifEncoder";
 import { encodeComicPdf } from "./pdfEncoder";
 import { boneWorld, poseRotation } from "./rigEngine";
+import { DEFAULT_EDITOR_ZOOM, clampEditorZoom, clientPointToPaperRatio, getCanvasViewportGeometry, getPaperBaseSize, paperRatioToClientPoint } from "./viewportMath";
 import styles from "./natural-media-lab.module.css";
 
 const SWATCHES = ["#1d2220", "#6c2e2a", "#bd6b3c", "#d6a95f", "#65734d", "#41636a", "#42476f", "#7a4f6b"];
@@ -99,8 +100,9 @@ export default function NaturalMediaLab() {
   const [pressureAmount, setPressureAmount] = useState(100);
   const [selectionMode, setSelectionMode] = useState<"paint" | "rectangle" | "ellipse">("paint");
   const [selection, setSelection] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [zoom, setZoom] = useState(70);
-  const [view, setView] = useState({ x: 0, y: 0, rotation: 0 });
+  const [zoom, setZoom] = useState(DEFAULT_EDITOR_ZOOM);
+  const [view, setView] = useState({ rotation: 0 });
+  const [browserViewport, setBrowserViewport] = useState({ width: 1280, height: 800 });
   const [mirror, setMirror] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const [snap, setSnap] = useState(false);
@@ -135,8 +137,10 @@ export default function NaturalMediaLab() {
   const historyRef = useRef<NaturalMediaDocument[]>([]);
   const redoRef = useRef<NaturalMediaDocument[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const paperRef = useRef<HTMLDivElement>(null);
   const spaceRef = useRef(false);
-  const panningRef = useRef<{ x: number; y: number; originX: number; originY: number } | null>(null);
+  const panningRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
   const pdfCancelRef = useRef(false);
   const pdfWorkerRef = useRef<Worker | null>(null);
   const pdfRejectRef = useRef<((reason?: unknown) => void) | null>(null);
@@ -144,6 +148,9 @@ export default function NaturalMediaLab() {
   const activeLayer = document.layers.find((layer) => layer.id === document.activeLayerId) ?? document.layers[0];
   const activeFrameIndex = document.animation.frames.findIndex((frame) => frame.id === document.animation.activeFrameId);
   const activeFrame = document.animation.frames[activeFrameIndex];
+  const paperBaseSize = getPaperBaseSize(document.width, document.height, browserViewport.width, browserViewport.height);
+  const viewRotation = view.rotation + activeFrame.camera.rotation;
+  const viewportGeometry = getCanvasViewportGeometry(paperBaseSize, zoom, activeFrame.camera.zoom, viewRotation);
   const activeTransform = resolveTransform(document.animation.frames, activeFrameIndex, activeLayer.id);
   const selectedBone = document.rig.bones.find((bone) => bone.id === selectedBoneId) ?? null;
   const selectedPanel = document.comic.panels.find((panel) => panel.id === selectedPanelId) ?? null;
@@ -197,6 +204,12 @@ export default function NaturalMediaLab() {
   }, []);
   useEffect(() => {
     try { if (!localStorage.getItem("nml-tour-complete")) setTourStep(0); } catch { /* optional onboarding */ }
+  }, []);
+  useEffect(() => {
+    const updateViewport = () => setBrowserViewport({ width: window.innerWidth, height: window.innerHeight });
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    return () => window.removeEventListener("resize", updateViewport);
   }, []);
   useEffect(() => {
     try { setRecentColors(JSON.parse(localStorage.getItem("nml-recent-colors") || "[]")); } catch { /* optional preference */ }
@@ -457,18 +470,46 @@ export default function NaturalMediaLab() {
   const beginPan = (event: PointerEvent<HTMLDivElement>) => {
     if (!spaceRef.current && event.button !== 1) return;
     event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
-    panningRef.current = { x: event.clientX, y: event.clientY, originX: view.x, originY: view.y };
+    panningRef.current = { x: event.clientX, y: event.clientY, scrollLeft: event.currentTarget.scrollLeft, scrollTop: event.currentTarget.scrollTop };
   };
   const movePan = (event: PointerEvent<HTMLDivElement>) => {
     const pan = panningRef.current; if (!pan) return;
-    setView((current) => ({ ...current, x: pan.originX + event.clientX - pan.x, y: pan.originY + event.clientY - pan.y }));
+    event.currentTarget.scrollLeft = pan.scrollLeft - (event.clientX - pan.x);
+    event.currentTarget.scrollTop = pan.scrollTop - (event.clientY - pan.y);
   };
   const endPan = () => { panningRef.current = null; };
+  const setEditorZoom = (nextValue: number, clientX?: number, clientY?: number) => {
+    const nextZoom = clampEditorZoom(nextValue);
+    if (nextZoom === zoom) return;
+    const stage = stageRef.current, paper = paperRef.current;
+    if (!stage || !paper) { setZoom(nextZoom); return; }
+    const stageBounds = stage.getBoundingClientRect();
+    const paperBounds = paper.getBoundingClientRect();
+    const anchorX = clientX ?? stageBounds.left + stage.clientWidth / 2;
+    const anchorY = clientY ?? stageBounds.top + stage.clientHeight / 2;
+    const ratio = clientPointToPaperRatio(anchorX, anchorY, paperBounds.left + paperBounds.width / 2, paperBounds.top + paperBounds.height / 2, paper.clientWidth, paper.clientHeight, viewRotation);
+    setZoom(nextZoom);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      const updatedPaper = paperRef.current, updatedStage = stageRef.current;
+      if (!updatedPaper || !updatedStage) return;
+      const updatedBounds = updatedPaper.getBoundingClientRect();
+      const target = paperRatioToClientPoint(ratio.x, ratio.y, updatedBounds.left + updatedBounds.width / 2, updatedBounds.top + updatedBounds.height / 2, updatedPaper.clientWidth, updatedPaper.clientHeight, viewRotation);
+      updatedStage.scrollLeft += target.x - anchorX;
+      updatedStage.scrollTop += target.y - anchorY;
+    }));
+  };
   const wheelZoom = (event: WheelEvent<HTMLDivElement>) => {
     if (!event.ctrlKey && !event.metaKey) return;
-    event.preventDefault(); setZoom((current) => Math.max(35, Math.min(160, current - Math.sign(event.deltaY) * 5)));
+    event.preventDefault(); setEditorZoom(zoom - Math.sign(event.deltaY) * 5, event.clientX, event.clientY);
   };
-  const resetView = () => { setView({ x: 0, y: 0, rotation: 0 }); setZoom(70); };
+  const resetView = () => {
+    setView({ rotation: 0 }); setZoom(DEFAULT_EDITOR_ZOOM);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      const stage = stageRef.current; if (!stage) return;
+      stage.scrollLeft = Math.max(0, (stage.scrollWidth - stage.clientWidth) / 2);
+      stage.scrollTop = Math.max(0, (stage.scrollHeight - stage.clientHeight) / 2);
+    }));
+  };
   const download = (href: string, name: string) => {
     const link = window.document.createElement("a"); link.href = href; link.download = name; link.click();
   };
@@ -917,6 +958,8 @@ export default function NaturalMediaLab() {
       <header className={styles.titlebar}>
         <div><span className={styles.eyebrow}>Plumbmonkey presents</span><h1>Natural Media Lab <span>v0.8.1 · Phase 8B</span></h1></div>
         <div className={styles.actions}>
+          {/* The studio's own room: the 3D atelier, whose easel leads back here. */}
+          <a href="/artroom/viewer.html">Enter the room</a>
           <button onClick={() => setShowNew(true)}>New</button><button onClick={() => fileRef.current?.click()}>Open</button>
           <button className={styles.tourButton} onClick={() => setTourStep(0)}>Tour</button>
           <button className={styles.helpButton} onClick={() => setShowHelp(true)}>Help</button>
@@ -935,8 +978,9 @@ export default function NaturalMediaLab() {
         </aside>
         <section className={styles.canvasArea}>
           <div className={styles.canvasMeta}><span>{document.name}{document.comic.enabled ? ` · ${activeComicPage.name}` : ""}</span><span>{document.width} × {document.height} · {document.background}</span></div>
-          <div className={styles.canvasStage} onPointerDown={beginPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan} onWheel={wheelZoom}>
-            <div className={`${styles.paper} ${document.background === "transparent" ? styles.transparent : ""}`} style={{ aspectRatio: `${document.width}/${document.height}`, transform: `translate(${view.x + activeFrame.camera.x}px, ${view.y + activeFrame.camera.y}px) rotate(${view.rotation + activeFrame.camera.rotation}deg) scale(${zoom / 100 * activeFrame.camera.zoom / 100})` }}>
+          <div ref={stageRef} className={styles.canvasStage} onPointerDown={beginPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan} onWheel={wheelZoom}>
+            <div className={styles.canvasViewport} style={{ width: `${viewportGeometry.viewportWidth}px`, height: `${viewportGeometry.viewportHeight}px` }}>
+            <div ref={paperRef} className={`${styles.paper} ${document.background === "transparent" ? styles.transparent : ""}`} style={{ width: `${viewportGeometry.paperWidth}px`, height: `${viewportGeometry.paperHeight}px`, transform: `translate(-50%, -50%) translate(${activeFrame.camera.x}px, ${activeFrame.camera.y}px) rotate(${viewRotation}deg)` }}>
               {showGrid && <div className={styles.grid} style={{ backgroundSize: `${gridSize / document.width * 100}% ${gridSize / document.height * 100}%` }} aria-hidden="true" />}
               {mirror && <div className={styles.mirrorLine} aria-hidden="true" />}
               {onionUrl && onionSkin && <img className={styles.onionSkin} src={onionUrl} alt="" aria-hidden="true" />}
@@ -959,8 +1003,9 @@ export default function NaturalMediaLab() {
                 {document.comic.text.map((item) => <button key={item.id} className={`${styles.comicText} ${styles[item.type]} ${selectedTextId === item.id ? styles.selectedComicItem : ""}`} style={{ left: `${item.x}%`, top: `${item.y}%`, width: `${item.width}%`, height: `${item.height}%`, "--tail-x": `${item.tailX}%`, "--tail-y": `${item.tailY}%`, "--comic-font-size": `${item.fontSize}px`, "--comic-align": item.align, "--comic-font": item.fontFamily === "serif" ? "Georgia,serif" : item.fontFamily === "hand" ? "'Comic Sans MS',cursive" : "Arial,sans-serif" } as CSSProperties} onPointerDown={(event) => beginComicTransform(event, "text", item.id, "move")} onPointerMove={moveComicTransform} onPointerUp={endComicTransform} onPointerCancel={endComicTransform} onDoubleClick={() => { const text = prompt("Edit text", item.text); if (text !== null) { setSelectedTextId(item.id); setDocument((current) => ({ ...current, comic: { ...current.comic, text: current.comic.text.map((entry) => entry.id === item.id ? { ...entry, text } : entry) } })); } }}>{item.text}<span className={styles.resizeHandle} onPointerDown={(event) => beginComicTransform(event, "text", item.id, "resize")} /></button>)}
               </div>}
             </div>
+            </div>
           </div>
-          <div className={styles.statusbar}><span>{toolFamily === "procedural" ? proceduralTool.name : tool.name} · {activeLayer.locked ? "Layer locked" : saveState}</span><div className={styles.viewControls}><button onClick={() => setView((current) => ({ ...current, rotation: current.rotation - 15 }))}>−15°</button><button onClick={resetView}>Reset view</button><button onClick={() => setView((current) => ({ ...current, rotation: current.rotation + 15 }))}>+15°</button><label>Zoom <input type="range" min="35" max="160" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} /> {zoom}%</label></div></div>
+          <div className={styles.statusbar}><span>{toolFamily === "procedural" ? proceduralTool.name : tool.name} · {activeLayer.locked ? "Layer locked" : saveState}</span><div className={styles.viewControls}><button onClick={() => setView((current) => ({ ...current, rotation: current.rotation - 15 }))}>−15°</button><button onClick={resetView}>Reset view</button><button onClick={() => setView((current) => ({ ...current, rotation: current.rotation + 15 }))}>+15°</button><label>View zoom <input type="range" min="35" max="160" value={zoom} onChange={(e) => setEditorZoom(Number(e.target.value))} /> {zoom}%</label></div></div>
         </section>
         <aside className={styles.inspector}>
           <section><div className={styles.panelHeading}><p className={styles.panelLabel}>Colour</p><select className={styles.miniSelect} value={colorSpace} onChange={(event) => setColorSpace(event.target.value as "hsl" | "hsv")} aria-label="Color model"><option value="hsl">HSL</option><option value="hsv">HSV</option></select></div><div className={styles.colorRow}><input type="color" value={color} onChange={(e) => chooseColor(e.target.value)} aria-label="Brush colour" /><div><strong>{color.toUpperCase()}</strong><span>{Object.values(hexToRgb(color)).join(" · ")} RGB</span></div></div>{colorSpace === "hsl" ? <div className={styles.hslControls}>{(["h", "s", "l"] as const).map((channel) => { const hsl = rgbToHsl(hexToRgb(color)); return <label key={channel}>{channel.toUpperCase()}<input type="number" min="0" max={channel === "h" ? 359 : 100} value={hsl[channel]} onChange={(event) => chooseColor(hslToHex(channel === "h" ? Number(event.target.value) : hsl.h, channel === "s" ? Number(event.target.value) : hsl.s, channel === "l" ? Number(event.target.value) : hsl.l))} /></label>; })}</div> : <div className={styles.hslControls}>{(["h", "s", "v"] as const).map((channel) => { const hsv = rgbToHsv(hexToRgb(color)); return <label key={channel}>{channel.toUpperCase()}<input type="number" min="0" max={channel === "h" ? 359 : 100} value={hsv[channel]} onChange={(event) => chooseColor(hsvToHex(channel === "h" ? Number(event.target.value) : hsv.h, channel === "s" ? Number(event.target.value) : hsv.s, channel === "v" ? Number(event.target.value) : hsv.v))} /></label>; })}</div>}<div className={styles.swatches}>{SWATCHES.map((swatch) => <button key={swatch} style={{ background: swatch }} onClick={() => chooseColor(swatch)} aria-label={`Use ${swatch}`} />)}</div><p className={styles.subLabel}>Harmony</p><div className={styles.harmony}>{[-30, 30, 180].map((offset) => { const hsl = rgbToHsl(hexToRgb(color)), swatch = hslToHex((hsl.h + offset + 360) % 360, hsl.s, hsl.l); return <button key={offset} style={{ background: swatch }} onClick={() => chooseColor(swatch)} aria-label="Use harmony color" />; })}<button className={styles.gradientButton} onClick={fillGradient}>Fill gradient</button></div>{recentColors.length > 0 && <><p className={styles.subLabel}>Recent</p><div className={styles.swatches}>{recentColors.map((swatch) => <button key={swatch} style={{ background: swatch }} onClick={() => chooseColor(swatch)} aria-label={`Reuse ${swatch}`} />)}</div></>}</section>

@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>The Art Room — Spectral Manor</title>
+<meta name="description" content="The manor's atelier: a stained-glass skylight, a lit drawing board, and a bench of luminous pigment." />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0a0710; overflow: hidden;
+    font: 400 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #eee6dc; }
+  canvas { display: block; }
+
+  #loader { position: fixed; inset: 0; display: grid; place-content: center; gap: 18px;
+    justify-items: center; background: #0a0710; z-index: 40; transition: opacity .8s ease; }
+  #loader.done { opacity: 0; pointer-events: none; }
+  #loader h1 { margin: 0; font-size: clamp(20px, 4vw, 30px); font-weight: 700;
+    letter-spacing: .06em; color: #f0c274; text-align: center; }
+  #loader p { margin: 0; color: #9a8f84; font-size: 13px; letter-spacing: .12em;
+    text-transform: uppercase; }
+  #bar { width: min(320px, 70vw); height: 3px; background: rgba(240,194,116,.16); border-radius: 3px; }
+  #bar i { display: block; height: 100%; width: 0%; background: #f0c274; border-radius: 3px;
+    transition: width .25s ease; }
+  #err { max-width: 42ch; text-align: center; color: #ff9c9c; font-size: 13px; display: none; }
+
+  #views { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; z-index: 30;
+    padding: 6px; border-radius: 12px; background: rgba(16,11,20,.78);
+    border: 1px solid rgba(240,194,116,.24); backdrop-filter: blur(8px); max-width: calc(100vw - 24px); }
+  #views button { cursor: pointer; border: 0; border-radius: 8px; padding: 8px 12px;
+    background: transparent; color: #d6cabb; font: 600 13px system-ui, sans-serif; white-space: nowrap; }
+  #views button:hover { background: rgba(240,194,116,.16); color: #ffd9a0; }
+  #views button[aria-current="true"] { background: rgba(240,194,116,.9); color: #1c1410; }
+
+  #tip { position: fixed; z-index: 32; pointer-events: none; opacity: 0;
+    transform: translate(-50%, -140%); transition: opacity .18s ease;
+    padding: 7px 13px; border-radius: 999px; white-space: nowrap;
+    background: rgba(12,8,14,.9); border: 1px solid rgba(240,194,116,.45);
+    box-shadow: 0 6px 26px rgba(0,0,0,.6);
+    font: 700 13px/1 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+  #tip.on { opacity: 1; }
+  #tip b { color: #f0c274; font-weight: 700; }
+  #tip small { display: block; margin-top: 5px; font-size: 10px; letter-spacing: .14em;
+    color: #9a8f84; font-weight: 600; }
+
+  #tool { position: fixed; left: 12px; bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 31; text-decoration: none; padding: 8px 13px; border-radius: 10px;
+    background: rgba(16,11,20,.78); border: 1px solid rgba(240,194,116,.24);
+    backdrop-filter: blur(8px); color: #d6cabb; font: 600 12px system-ui, sans-serif; }
+  #tool:hover { border-color: rgba(240,194,116,.6); color: #ffd9a0; }
+  @media (max-width: 640px) { #tool { font-size: 11px; padding: 6px 10px; } }
+
+  #hint { position: fixed; right: 12px; bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px));
+    z-index: 30; font-size: 12px; color: #877c72; text-align: right; pointer-events: none; }
+  @media (max-width: 640px) { #hint { display: none; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    #loader, #tip { transition: none; }
+  }
+</style>
+<link rel="stylesheet" href="/shared/room-menu.css" />
+</head>
+<body>
+
+<div id="loader">
+  <h1>The Art Room</h1>
+  <div id="bar"><i></i></div>
+  <p id="pct">Loading 0%</p>
+  <div id="err"></div>
+</div>
+
+<nav id="views" hidden aria-label="Viewpoints"></nav>
+<div id="tip" aria-hidden="true"></div>
+<a id="tool" href="/natural-media-lab" target="_top">Open the painting studio</a>
+<div id="hint">drag to look · scroll to zoom · click the canvas or the board</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/gallery/vendor/three.module.js",
+    "three/addons/": "/gallery/vendor/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { initXRRoom } from '/shared/xr-room.js';
+
+const loaderEl = document.getElementById('loader');
+const barEl = document.querySelector('#bar i');
+const pctEl = document.getElementById('pct');
+const errEl = document.getElementById('err');
+const viewsEl = document.getElementById('views');
+const tipEl = document.getElementById('tip');
+
+/* Same embed contract as the other rooms: a parent page can host this one and
+   take its own cover away once we report a drawn frame. */
+const params = new URLSearchParams(location.search);
+const embedded = params.has('embed');
+if (embedded) loaderEl.style.display = 'none';
+
+const leaveTo = (href) => { window.top.location.href = href; };
+
+function fail(msg) {
+  errEl.style.display = 'block';
+  errEl.textContent = msg;
+  pctEl.textContent = 'Could not load';
+}
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+} catch (e) {
+  console.error(e);
+  fail('This browser cannot display 3D (WebGL is unavailable). The painting studio still runs in 2D.');
+  errEl.insertAdjacentHTML('beforeend',
+    '<p style="margin-top:14px"><a href="/natural-media-lab" target="_top" style="color:#f0c274">Open the studio</a></p>');
+  throw e;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.95;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0710);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.04, 120);
+camera.position.set(0.45, 2.45, 4.02);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 1.9, -0.6);
+controls.maxPolarAngle = Math.PI * 0.9;
+controls.minDistance = 0.4;
+controls.maxDistance = 14;
+
+/* The GLB ships with no lights — the Blender scene has 13, seven of them area
+   lights glTF cannot represent, so the window washes, the skylight, the light
+   box, the bench wash and the canvas bounce all have to be rebuilt here.
+   Unlike the Luminarium this room is only partly emissive: the pigment jars,
+   the skylight, the canvas and the candle flames glow, but the oak, plaster and
+   marble are lit surfaces and need real lamps.
+
+   Blender is Z-up and the export is Y-up, so a Blender (x, y, z) lands here at
+   (x, z, -y). Every position below is the converted twin of the lamp rig in
+   artroom_tools/scene.py. */
+scene.add(new THREE.HemisphereLight(0x46508c, 0x140f14, 0.20));
+scene.add(new THREE.AmbientLight(0xffffff, 0.04));
+
+// Moonlight through the three arched windows on the -X wall.
+const moon = new THREE.DirectionalLight(0x8fa8ff, 0.85);
+moon.position.set(-9, 4.2, 0);
+moon.target.position.set(0, 1.6, 0);
+scene.add(moon, moon.target);
+
+// The brass chandelier over the middle of the floor.
+const chandelier = new THREE.PointLight(0xffb877, 9, 16, 2);
+chandelier.position.set(0, 3.55, -0.9);
+scene.add(chandelier);
+
+// The stained-glass skylight, sitting over the far half of the room.
+const sky = new THREE.PointLight(0x7a92e0, 11, 18, 2);
+sky.position.set(0, 5.45, -0.8);
+scene.add(sky);
+
+// The two anglepoise lamps over the drawing board, and its own panel glow.
+const desk = new THREE.PointLight(0xffcc88, 4.5, 7, 2);
+desk.position.set(-3.0, 2.15, 2.1);
+scene.add(desk);
+const boardGlow = new THREE.PointLight(0xbcd0ff, 2.2, 5, 2);
+boardGlow.position.set(-2.95, 1.35, 1.95);
+scene.add(boardGlow);
+
+// The bench: a warm wash down the marble, plus the Tiffany lamp on it.
+const bench = new THREE.PointLight(0xffb877, 7, 14, 2);
+bench.position.set(4.65, 2.30, 0.4);
+scene.add(bench);
+const tiffany = new THREE.PointLight(0xff9a4e, 3.2, 6, 2);
+tiffany.position.set(4.94, 1.55, -1.05);
+scene.add(tiffany);
+
+// The canvas throws its own light back into the room.
+const canvasBounce = new THREE.PointLight(0x9e7dff, 3.0, 6, 2);
+canvasBounce.position.set(-0.35, 2.10, 0.3);
+scene.add(canvasBounce);
+
+const xr = initXRRoom({
+  renderer, scene, camera, controls,
+  walkable: /^(ART_Floor|ART_Splats)/,
+  spawn: { x: 0, z: 3.6, yaw: 0 },   // just inside the near wall, facing the easel
+  exit: { href: '/', label: 'Exit' },
+  roomLabel: 'The Art Room',
+  buttonLabel: 'Enter in VR',
+});
+
+const draco = new DRACOLoader().setDecoderPath('/gallery/vendor/draco/gltf/');
+const gltfLoader = new GLTFLoader().setDRACOLoader(draco);
+
+/* Target wiring — the same contract as the music room and the Luminarium: the
+   export writes href/label/slug onto the meshes you can click, so whatever the
+   ray hits either carries a route or is scenery. Three targets here: the canvas
+   on the easel, the lit drawing board, and the framed work on the walls. */
+const targets = [];
+const byMesh = new Map();
+let hovered = null;
+
+function wireTargets(root) {
+  const bySlug = new Map();
+  root.traverse((o) => {
+    const x = o.userData || {};
+    if (!x.href) return;
+
+    /* Not `if (!o.isMesh) return`. A Blender object carrying more than one
+       material exports as a glTF mesh with one primitive per material, and
+       GLTFLoader turns that into a Group of Meshes with the extras on the
+       Group — so the meshes the ray can actually hit have no href at all.
+       ART_WallArt is exactly that (two framed canvases share the object), and
+       tagging only `o` silently dropped it. Collect the mesh descendants. */
+    const meshes = [];
+    o.traverse((c) => { if (c.isMesh) meshes.push(c); });
+    if (!meshes.length) return;
+
+    let t = bySlug.get(x.slug);
+    if (!t) {
+      t = {
+        slug: x.slug,
+        href: x.href,
+        label: x.label || x.slug,
+        live: x.live !== false,
+        anchor: meshes[0],
+        glows: [],
+        base: [],
+      };
+      bySlug.set(x.slug, t);
+      targets.push(t);
+    }
+    for (const m of meshes) {
+      m.material = m.material.clone();   // so a hover boost is not shared
+      t.glows.push(m);
+      t.base.push(m.material.emissiveIntensity ?? 1);
+      byMesh.set(m, t);
+    }
+  });
+  return targets.length;
+}
+
+function setHover(t) {
+  if (hovered === t) return;
+  if (hovered) hovered.glows.forEach((m, i) => {
+    m.material.emissiveIntensity = hovered.base[i];
+  });
+  hovered = t;
+  if (t) {
+    t.glows.forEach((m, i) => { m.material.emissiveIntensity = t.base[i] * 1.6; });
+    tipEl.innerHTML = `<b>${t.label}</b><small>Click to open</small>`;
+    tipEl.classList.add('on');
+    renderer.domElement.style.cursor = 'pointer';
+  } else {
+    tipEl.classList.remove('on');
+    renderer.domElement.style.cursor = '';
+  }
+}
+
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let downAt = null;
+let root = null;
+
+/* Raycasts the whole room and only counts a target if it is the nearest thing
+   hit, so the canvas cannot be picked through the easel or the door. */
+function pick(x, y) {
+  if (!root) return null;
+  ndc.set((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObject(root, true);
+  if (!hits.length) return null;
+  return byMesh.get(hits[0].object) || null;
+}
+
+let pendingPointer = null;
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (xr.presenting || e.pointerType === 'touch') return;
+  pendingPointer = [e.clientX, e.clientY];
+});
+renderer.domElement.addEventListener('pointerleave', () => {
+  pendingPointer = null;
+  setHover(null);
+});
+
+renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!downAt) return;
+  const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+  downAt = null;
+  // Distinguish a click from a look-around that happened to end on a target.
+  if (moved > 6) return;
+  const t = pick(e.clientX, e.clientY);
+  if (!t) return;
+  if (!t.live) { setHover(t); return; }
+  leaveTo(t.href);
+});
+
+/* Touch has no hover, so the first tap names the route and the second opens it. */
+renderer.domElement.addEventListener('touchend', (e) => {
+  const t = e.changedTouches[0];
+  if (!t) return;
+  const hit = pick(t.clientX, t.clientY);
+  if (hit && hit !== hovered) { setHover(hit); e.preventDefault(); }
+}, { passive: false });
+
+gltfLoader.load('/artroom/artroom-web.glb',
+  (gltf) => {
+    scene.add(gltf.scene);
+    xr.setRoot(gltf.scene);
+    root = gltf.scene;
+
+    const n = wireTargets(gltf.scene);
+    if (n !== 3) console.warn(`art room: wired ${n} targets, expected 3`);
+
+    const cams = [];
+    gltf.scene.traverse((o) => { if (o.isCamera) cams.push(o); });
+
+    const ORDER = ['ARTCAM_Hero', 'ARTCAM_Easel', 'ARTCAM_Bench', 'ARTCAM_Desk'];
+    const LABEL = {
+      ARTCAM_Hero: 'The Studio', ARTCAM_Easel: 'The Easel',
+      ARTCAM_Bench: 'The Pigments', ARTCAM_Desk: 'The Board',
+    };
+    cams.sort((a, b) => {
+      const ia = ORDER.indexOf(a.name), ib = ORDER.indexOf(b.name);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+
+    const goTo = (cam, btn) => {
+      const pos = new THREE.Vector3();
+      cam.getWorldPosition(pos);
+      // Take the authored lens: the hero is an 11 mm wide angle and the easel
+      // camera is 35 mm, so one default focal length would either crop the room
+      // or leave the canvas unreadably distant.
+      camera.fov = Math.min(cam.fov, 82);
+      camera.updateProjectionMatrix();
+      const dir = new THREE.Vector3(0, 0, -1)
+        .applyQuaternion(cam.getWorldQuaternion(new THREE.Quaternion()));
+      camera.position.copy(pos);
+      controls.target.copy(pos).addScaledVector(dir, 3.5);
+      controls.update();
+      viewsEl.querySelectorAll('button').forEach((b) =>
+        b.setAttribute('aria-current', String(b === btn)));
+    };
+
+    const offered = cams.filter((c) => ORDER.includes(c.name));
+    const bar = offered.length ? offered : cams;
+
+    bar.forEach((cam, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = LABEL[cam.name] || cam.name.replace(/^ARTCAM_/, '');
+      b.addEventListener('click', () => goTo(cam, b));
+      viewsEl.appendChild(b);
+      if (i === 0) goTo(cam, b);
+    });
+    if (bar.length) viewsEl.hidden = false;
+
+    /* Console hook, the same idea as window.__foyer, __arcade and __music. */
+    window.__artroom = {
+      scene, camera, controls, renderer,
+      targets: () => targets.map((t) => ({ slug: t.slug, label: t.label, href: t.href })),
+      cameras: () => cams.map((c) => c.name),
+      view: (name) => {
+        const c = cams.find((x) => x.name === name);
+        if (c) goTo(c, null);
+      },
+    };
+
+    renderer.render(scene, camera);
+
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      loaderEl.classList.add('done');
+      setTimeout(() => loaderEl.remove(), 900);
+      if (embedded && window.parent !== window) {
+        window.parent.postMessage({ type: 'artroom-ready' }, location.origin);
+      }
+    };
+    requestAnimationFrame(reveal);
+    /* rAF does not fire while the document is hidden, so on its own this
+       strands anyone who switched tabs during the load. */
+    setTimeout(reveal, 400);
+  },
+  (evt) => {
+    if (!evt.lengthComputable) { pctEl.textContent = 'Loading…'; return; }
+    const p = Math.round((evt.loaded / evt.total) * 100);
+    barEl.style.width = p + '%';
+    pctEl.textContent = 'Loading ' + p + '%';
+  },
+  (e) => {
+    console.error(e);
+    fail('The Art Room failed to load. If you are opening this file directly from disk, ' +
+         'serve it over http:// instead — browsers block module and WASM loading on file:// URLs.');
+  }
+);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const tipPos = new THREE.Vector3();
+renderer.setAnimationLoop(() => {
+  if (!xr.presenting) controls.update();
+  xr.update();
+
+  if (pendingPointer && !xr.presenting) {
+    setHover(pick(pendingPointer[0], pendingPointer[1]));
+    pendingPointer = null;
+  }
+
+  if (hovered && !xr.presenting) {
+    hovered.anchor.getWorldPosition(tipPos);
+    tipPos.project(camera);
+    tipEl.style.left = ((tipPos.x * 0.5 + 0.5) * innerWidth) + 'px';
+    tipEl.style.top = ((-tipPos.y * 0.5 + 0.5) * innerHeight) + 'px';
+  }
+
+  renderer.render(scene, camera);
+});
+</script>
+
+<script src="/shared/rooms.js" defer></script>
+<script src="/shared/room-menu.js" data-exit="/" data-exit-label="Exit" defer></script>
+</body>
+</html>

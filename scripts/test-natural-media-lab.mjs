@@ -9,13 +9,14 @@ const output = mkdtempSync(join(tmpdir(), "nml-tests-"));
 try {
   execFileSync(process.execPath, [
     join(process.cwd(), "node_modules", "typescript", "bin", "tsc"),
-    "app/natural-media-lab/documentModel.ts", "app/natural-media-lab/pdfEncoder.ts", "app/natural-media-lab/brushEngine.ts",
+    "app/natural-media-lab/documentModel.ts", "app/natural-media-lab/pdfEncoder.ts", "app/natural-media-lab/brushEngine.ts", "app/natural-media-lab/viewportMath.ts",
     "--target", "ES2022", "--module", "commonjs", "--outDir", output, "--skipLibCheck",
   ], { stdio: "pipe" });
   const require = createRequire(import.meta.url);
   const { parseProject } = require(join(output, "documentModel.js"));
   const { encodeComicPdf } = require(join(output, "pdfEncoder.js"));
   const { BRUSHES } = require(join(output, "brushEngine.js"));
+  const { clampEditorZoom, clientPointToPaperRatio, getCanvasViewportGeometry, getPaperBaseSize, paperRatioToClientPoint } = require(join(output, "viewportMath.js"));
   const oldProject = {
     format: "natural-media-lab", version: 1, name: "Legacy", width: 100, height: 100,
     layers: [{ id: "layer", name: "Paint", dataUrl: "", visible: true, locked: false, opacity: 1, blendMode: "source-over" }],
@@ -30,6 +31,22 @@ try {
   assert.ok(marker.opacity >= 0.9);
   assert.ok(marker.flow >= 0.9);
   assert.ok(marker.grain <= 0.02);
+  assert.equal(clampEditorZoom(5), 35);
+  assert.equal(clampEditorZoom(200), 160);
+  const baseSize = getPaperBaseSize(1920, 1080, 1280, 720);
+  assert.equal(baseSize.width, 900);
+  assert.equal(baseSize.height, 506.25);
+  const zoomed = getCanvasViewportGeometry(baseSize, 160, 100, 0);
+  assert.equal(zoomed.paperWidth, 1440);
+  assert.equal(zoomed.paperHeight, 810);
+  assert.equal(zoomed.viewportWidth, 1520);
+  const rotated = getCanvasViewportGeometry(baseSize, 160, 100, 90);
+  assert.ok(Math.abs(rotated.viewportWidth - 890) < 0.0001);
+  assert.ok(Math.abs(rotated.viewportHeight - 1520) < 0.0001);
+  const paperRatio = clientPointToPaperRatio(480, 360, 400, 300, 640, 360, 30);
+  const restoredClientPoint = paperRatioToClientPoint(paperRatio.x, paperRatio.y, 400, 300, 640, 360, 30);
+  assert.ok(Math.abs(restoredClientPoint.x - 480) < 0.0001);
+  assert.ok(Math.abs(restoredClientPoint.y - 360) < 0.0001);
   for (const filename of ["natural-media-sketchbook.nml", "three-panel-comic.nml", "full-studio-showcase.nml"]) {
     const example = parseProject(JSON.parse(readFileSync(join(process.cwd(), "public", "examples", filename), "utf8")));
     assert.ok(example.layers.length > 0);
