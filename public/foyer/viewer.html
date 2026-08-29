@@ -106,11 +106,30 @@ const tipEl = document.getElementById('tip');
    through the front door into near-black, so the handover is black-to-black
    even before the still underneath it loads — a slow network degrades to a
    dark hold, never to a white flash. */
-const arriving = new URLSearchParams(location.search).has('arrive');
-if (arriving) {
+const params = new URLSearchParams(location.search);
+const arriving = params.has('arrive');
+
+/* Embedded behind the home page's entry film. The film is playing full-screen
+   over this document for its whole 4.6 s while the room builds underneath, so
+   there is nothing for a loading screen to do — and the arrival still is worse
+   than useless here, because the film's own last frame is already that picture.
+   The parent removes the film once we say we have drawn a frame.
+
+   Note this document must stay COMPOSITED to load: WebGL does not draw and
+   requestAnimationFrame does not fire in a hidden one, so the parent covers
+   this iframe rather than hiding it. */
+const embedded = params.has('embed');
+if (embedded) {
+  loaderEl.style.display = 'none';
+} else if (arriving) {
   loaderEl.classList.add('arriving');
   loaderEl.style.backgroundImage = "url('/foyer/arrival-frame.jpg')";
 }
+
+/* Anything that leaves the foyer has to leave the whole page, not just this
+   frame, or an embedded visitor gets the site nested inside itself. In a
+   top-level document window.top === window, so this is a no-op there. */
+const leaveTo = (href) => { window.top.location.href = href; };
 
 function fail(msg) {
   loaderEl.classList.remove('arriving');
@@ -335,7 +354,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   const p = pick(e.clientX, e.clientY);
   if (!p) return;
   if (!p.live) { setHover(p); return; }
-  location.href = p.href;
+  leaveTo(p.href);
 });
 
 /* Touch has no hover, so the first tap reveals the label and the second
@@ -398,7 +417,22 @@ gltfLoader.load('/foyer/foyer-web.glb',
         b.setAttribute('aria-current', String(b === btn)));
     };
 
-    cams.forEach((cam, i) => {
+    /* Only two viewpoints are offered. The .glb carries five, but three of them
+       are near-duplicates of the arrival shot from a step away, so the bar read
+       as five ways to see the same thing rather than a real choice. Entrance
+       and Balcony are the two that show genuinely different rooms — the floor
+       you land on, and the deck the upper portals live off.
+
+       `cams` itself is left whole: the sort keeps CAM_Arrival first so it stays
+       the opening view, and window.__foyer.view() can still reach the hidden
+       cameras, which is how the arrival still gets captured. Falling back to
+       the full list means a re-export that renames a camera loses the trimming
+       rather than shipping a bar with no buttons in it. */
+    const SHOWN = ['CAM_Arrival', 'BalconyCam'];
+    const offered = cams.filter((c) => SHOWN.includes(c.name));
+    const bar = offered.length ? offered : cams;
+
+    bar.forEach((cam, i) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = LABEL[cam.name] || cam.name.replace(/^(CAM_|Foyer)/, '');
@@ -406,7 +440,7 @@ gltfLoader.load('/foyer/foyer-web.glb',
       viewsEl.appendChild(b);
       if (i === 0) goTo(cam, b);
     });
-    if (cams.length) viewsEl.hidden = false;
+    if (bar.length) viewsEl.hidden = false;
 
     /* Console hook, same idea as the theatre viewer's window.__sgt: lets the
        light rig be nudged and the arrival still be captured without a build
@@ -447,10 +481,27 @@ gltfLoader.load('/foyer/foyer-web.glb',
        reads as a black blink — and on the arrival path that blink lands
        exactly where the whole sequence is trying to be invisible. */
     renderer.render(scene, camera);
-    requestAnimationFrame(() => {
+
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
       loaderEl.classList.add('done');
       setTimeout(() => loaderEl.remove(), 900);
-    });
+      /* Tell the home page the room is drawn, so it can take the film away.
+         Same-origin by construction; targeted anyway rather than '*'. */
+      if (embedded && window.parent !== window) {
+        window.parent.postMessage({ type: 'foyer-ready' }, location.origin);
+      }
+    };
+
+    requestAnimationFrame(reveal);
+    /* requestAnimationFrame does not fire while the document is hidden, so on
+       its own this strands anyone who switched tabs during the load: they come
+       back to the loading screen and it only lifts once a frame finally runs.
+       On a visible document rAF wins this race by ~16 ms and the timeout never
+       matters; hidden, the timeout is the only thing that gets us out. */
+    setTimeout(reveal, 400);
   },
   (evt) => {
     if (!evt.lengthComputable) { pctEl.textContent = 'Loading…'; return; }

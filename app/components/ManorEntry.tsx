@@ -6,9 +6,11 @@ import { createPortal } from "react-dom";
 /**
  * "Enter the Manor" — the home page's entry cinematic into The Foyer.
  *
- * Clicking plays a 4.5 s film over the page and then lands the visitor in the
- * interactive foyer at /foyer/viewer.html. Three things make the handover read
- * as one continuous move rather than a video followed by a website:
+ * Clicking plays a 4.6 s film over the page and lands the visitor in the
+ * interactive foyer. The foyer is NOT navigated to: it is mounted in a
+ * full-viewport iframe underneath the film and builds itself while the film
+ * plays, so when the film is taken away the room is already live and there is
+ * no loading screen at any point.
  *
  *  1. The white flashes. The hero loop behind this button is at an
  *     unpredictable frame when the click lands, so cutting straight to the
@@ -16,30 +18,38 @@ import { createPortal } from "react-dom";
  *     covers the three frames where the figure teleports closer, which is why
  *     Blender only has to move it rather than render a glitch.
  *
- *  2. The film IS the loading screen. The foyer is a 2.3 MB glTF; the fetch
- *     starts on the same click (earlier, on hover) and runs under the film, so
- *     the download costs no visible wait. This is the whole reason the
- *     sequence earns its place rather than just delaying people.
+ *  2. The film IS the loading screen — now literally. The room costs about
+ *     400 ms of Draco decode and scene build on top of a 2.3 MB fetch that
+ *     starts on hover, against 4.6 s of film. It finishes with room to spare
+ *     and waits for the film rather than the other way round.
  *
- *  3. The last frame of the film is rendered from the same camera the 3D
- *     viewer opens on, and the viewer paints that exact still behind its own
- *     loader. Film, still and first live frame are the same picture, so the
- *     page navigation in the middle of it has nothing to give away.
+ *  3. The film's last frame is rendered from the camera the viewer opens on,
+ *     so the cut from film to live room is a cut between two copies of the
+ *     same picture.
  *
- * Everything degrades: no video, a stalled network, reduced motion or a second
- * visit all end up in the same foyer, just without the film.
+ * Why an iframe and not a navigation. Playing the film here keeps the click's
+ * user activation, which is what lets it play WITH SOUND — a fresh document
+ * after a navigation has no activation, and Chrome refuses unmuted autoplay
+ * without it unless the visitor already has engagement on the domain. A
+ * first-time visitor is exactly who this is for, and the lightning is cut to
+ * the thunder, so a silent film is not an acceptable degradation.
+ *
+ * Why the iframe is covered rather than hidden: WebGL does not draw and
+ * requestAnimationFrame does not fire in a hidden document, so a display:none
+ * or offscreen frame would sit there doing nothing and hand over a cold room.
+ * Being merely occluded by the film costs nothing — visibility is per-document,
+ * not per-pixel.
+ *
+ * Everything degrades: no video, a stalled room, reduced motion or a second
+ * visit all end up in the same foyer, just by ordinary navigation.
  */
 
 const FOYER = "/foyer/viewer.html";
 const MODEL = "/foyer/foyer-web.glb";
-const ARRIVAL_STILL = "/foyer/arrival-frame.jpg";
-/* The film's OWN first frame, and not ARRIVAL_STILL, which is its last.
-   `poster` is what a <video> paints before it has decoded anything, so the
-   arrival still put the foyer doors — the end of the journey — on screen for
-   however long the 970 KB film took to buffer, and the film then cut back to
-   the house outside and travelled to those doors a second time. On localhost
-   the film is ready inside a frame and it never showed; over a real
-   connection it is the first thing a visitor sees. */
+/** The film's OWN first frame, not the arrival still, which is its last.
+ *  `poster` is what a <video> paints before it has decoded anything, so the
+ *  arrival still used to put the end of the journey on screen for however long
+ *  the film took to buffer. */
 const FIRST_FRAME = "/assets/manor-entry-first-frame.jpg";
 
 /** Where the lightning fires, in milliseconds.
@@ -64,17 +74,26 @@ const FLASH_HOLD_MS = 260;
 /** Long enough that the flash has cleared, short enough to catch an impatient
  *  second visitor before they feel trapped. */
 const SKIP_AFTER_MS = 900;
+/** How long to hold on the film's last frame waiting for a room that has not
+ *  reported in. It should never be reached — the room is ready in well under a
+ *  second — so this exists only so a broken iframe cannot strand anyone. Past
+ *  it we give up on the seamless path and navigate properly. */
+const ROOM_WAIT_MS = 8000;
 const SEEN_KEY = "pm-manor-entered";
 const SOUND_KEY = "pm-manor-sound";
 
 export default function ManorEntry({ className }: { className?: string }) {
   const [playing, setPlaying] = useState(false);
+  const [filmDone, setFilmDone] = useState(false);
+  const [roomReady, setRoomReady] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const [canSkip, setCanSkip] = useState(false);
   const [flash, setFlash] = useState(false);
   const [muted, setMuted] = useState(false);
   /* Gates the portal: document.body does not exist during the server render. */
   const [mounted, setMounted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const warmed = useRef(false);
   const timers = useRef<number[]>([]);
   const leaving = useRef(false);
@@ -127,24 +146,19 @@ export default function ManorEntry({ className }: { className?: string }) {
   useEffect(() => clearTimers, []);
   useEffect(() => setMounted(true), []);
 
-  /* Start the downloads on intent rather than on click, the same way
+  /* Start the download on intent rather than on click, the same way
      EnterRoomLink warms the gallery: it buys the time between "thinking about
      it" and "clicking", which is most of the model's transfer on a good line.
      Not prefetched on page load — most home page visitors never click. */
   const warm = useCallback(() => {
     if (warmed.current) return;
     warmed.current = true;
-    for (const [href, as] of [
-      [MODEL, "fetch"],
-      [ARRIVAL_STILL, "image"],
-    ] as const) {
-      const l = document.createElement("link");
-      l.rel = "prefetch";
-      l.as = as;
-      l.href = href;
-      if (as === "fetch") l.crossOrigin = "anonymous";
-      document.head.appendChild(l);
-    }
+    const l = document.createElement("link");
+    l.rel = "prefetch";
+    l.as = "fetch";
+    l.href = MODEL;
+    l.crossOrigin = "anonymous";
+    document.head.appendChild(l);
     /* `preload` has to come off "none" before `load()`, or the browser is
        within its rights to fetch nothing at all and the warm-up buys nothing
        — which is the whole point of doing this on hover. */
@@ -166,12 +180,78 @@ export default function ManorEntry({ className }: { className?: string }) {
     } catch {}
   }, []);
 
+  /** The ordinary way out: a real navigation. Used for every path that is not
+   *  the cinematic — reduced motion, a repeat visit, or a room that failed. */
   const go = useCallback((arriving: boolean) => {
     if (leaving.current) return;
     leaving.current = true;
     clearTimers();
     window.location.href = arriving ? `${FOYER}?arrive=1` : FOYER;
   }, []);
+
+  /* The handover. Both halves have to be true: the film has finished (or been
+     skipped) AND the room has drawn a frame. Whichever is late, the other
+     waits — the film holds on its own last frame, which is the arrival view,
+     so waiting is invisible. */
+  useEffect(() => {
+    if (!playing || revealed || !filmDone || !roomReady) return;
+    setRevealed(true);
+    clearTimers();
+
+    /* The address bar has been showing "/" throughout. Push rather than
+       replace so Back returns to the home page instead of leaving the site. */
+    try {
+      window.history.pushState({ pmFoyer: true }, "", FOYER);
+    } catch {}
+
+    /* Nothing behind the room is visible any more; stop it costing frames. */
+    document.querySelectorAll<HTMLVideoElement>("video.manor-hero-image").forEach((v) => v.pause());
+
+    // Keyboard control (drag to look, portals) belongs to the room now.
+    iframeRef.current?.focus();
+  }, [playing, revealed, filmDone, roomReady]);
+
+  /* Back out of the foyer. The room was never a document of its own, so the
+     browser cannot restore the home page for us — we take the iframe down and
+     put the hero back the way it was. */
+  useEffect(() => {
+    if (!revealed) return;
+    const onPop = () => {
+      setRevealed(false);
+      setPlaying(false);
+      setFilmDone(false);
+      setRoomReady(false);
+      setCanSkip(false);
+      leaving.current = false;
+      document
+        .querySelectorAll<HTMLVideoElement>("video.manor-hero-image")
+        .forEach((v) => void v.play().catch(() => {}));
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [revealed]);
+
+  /* The room reporting in. Same-origin by construction, but check anyway:
+     postMessage is reachable by anyone who can get a frame onto this page. */
+  useEffect(() => {
+    if (!playing) return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.source !== iframeRef.current?.contentWindow) return;
+      if (e.data?.type === "foyer-ready") setRoomReady(true);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [playing]);
+
+  /* If the film is over and the room still has not reported, something is
+     wrong with the frame rather than merely slow. Fall back to the ordinary
+     navigation so nobody is left staring at a held frame. */
+  useEffect(() => {
+    if (!filmDone || roomReady || revealed) return;
+    const t = window.setTimeout(() => go(true), ROOM_WAIT_MS);
+    return () => window.clearTimeout(t);
+  }, [filmDone, roomReady, revealed, go]);
 
   const onEnter = useCallback(
     (e: React.MouseEvent) => {
@@ -197,10 +277,12 @@ export default function ManorEntry({ className }: { className?: string }) {
       if (video) {
         video.currentTime = 0;
         // User-initiated, so sound is allowed here even though the hero loop
-        // behind it must stay muted. The thunder opens near full scale, so a
-        // visitor who silenced it before is not made to discover that twice —
-        // localStorage rather than session, because the film only plays once
-        // per session and the preference would otherwise never be read back.
+        // behind it must stay muted. This is the whole reason the film plays
+        // on this page instead of on the foyer's: the activation dies with the
+        // document, and with it the thunder. The film opens near full scale,
+        // so a visitor who silenced it before is not made to discover that
+        // twice — localStorage rather than session, because the film only
+        // plays once per session and the preference would never be read back.
         let wantsSilence = false;
         try {
           wantsSilence = localStorage.getItem(SOUND_KEY) === "off";
@@ -240,20 +322,22 @@ export default function ManorEntry({ className }: { className?: string }) {
         );
       }
       timers.current.push(window.setTimeout(() => setCanSkip(true), SKIP_AFTER_MS));
-      // Backstop: if the video stalls or never fires `ended`, leave anyway.
-      timers.current.push(window.setTimeout(() => go(true), FILM_MS + 900));
+      /* Backstop for `ended`, which a stalled video may never fire. This only
+         declares the FILM over — the reveal still waits on the room, and the
+         room has its own backstop above. */
+      timers.current.push(window.setTimeout(() => setFilmDone(true), FILM_MS + 900));
     },
     [go, warm, strike, syncFlashesToVideo]
   );
 
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || revealed) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") go(true);
+      if (e.key === "Escape") setFilmDone(true);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [playing, go]);
+  }, [playing, revealed]);
 
   return (
     <>
@@ -271,93 +355,106 @@ export default function ManorEntry({ className }: { className?: string }) {
       {mounted &&
         createPortal(
           <>
-            {/* Portalled to <body>, which is the only place this can cover the page
-                from.
+            {/* The room. Mounted on the click and left to build under the film.
+                Covered, never hidden — see the note at the top of this file. */}
+            {playing && (
+              <iframe
+                ref={iframeRef}
+                src={`${FOYER}?embed=1`}
+                title="The Foyer"
+                className="fixed inset-0 z-[90] h-full w-full border-0"
+                /* The foyer offers VR and fullscreen; both are gated on the
+                   frame being allowed to ask for them. */
+                allow="xr-spatial-tracking; fullscreen; gyroscope; accelerometer"
+                onError={() => go(true)}
+              />
+            )}
+
+            {/* The film. Portalled to <body>, which is the only place it can
+                cover the page from.
 
                 `fixed inset-0 z-[100]` was being resolved against two nested
-                stacking contexts on the way up — the hero's own `z-10` copy block,
-                inside the `isolate` on <section class="manor-hero"> — and that
-                section paints at z-index auto. So the film's 100 and the lightning's
-                110 were competing inside the hero, not against the page, and the
-                fixed NavBar (z-50, a sibling of the hero at the root) sat on top of
-                the cinematic for its whole 4.6 s: a translucent bar with a border
-                and a backdrop-blur straight across the film. Portalling makes the
-                two z-indices mean what they say.
+                stacking contexts on the way up — the hero's own `z-10` copy
+                block, inside the `isolate` on <section class="manor-hero"> —
+                and that section paints at z-index auto. So the film's 100 and
+                the lightning's 110 were competing inside the hero, not against
+                the page, and the fixed NavBar (z-50, a sibling of the hero at
+                the root) sat on top of the cinematic for its whole run.
+                Portalling makes the two z-indices mean what they say.
 
-                Still kept mounted-but-hidden so `load()` on hover has somewhere to
-                buffer into. preload="none" until then: it is several MB and most
-                visitors never click. */}
-            <div
-              /* Appears instantly rather than fading in: the first flash fires on
-                 the same tick and covers it, whereas a fade would show the home page
-                 dimming for a fifth of a second before the film starts — the one
-                 moment the sequence cannot afford to look like a page transition. */
-              className={`fixed inset-0 z-[100] bg-black ${
-                playing ? "opacity-100" : "pointer-events-none opacity-0"
-              }`}
-              aria-hidden={!playing}
-              inert={!playing}
-            >
-              {/* `cover`, matching the END of the sequence rather than the start.
-
-                  The film has two seams to serve and only one fit to serve them
-                  with. Going in it cuts from the hero loop; coming out it hands to
-                  the foyer's arrival still and then to the live canvas. Those two
-                  are both viewport-filling — `#loader.arriving` is `center/cover`
-                  and the WebGL canvas is the full viewport — so a `contain` film
-                  sits letterboxed at 1440x810 and the navigation pops it to
-                  1600x900 on identical imagery. That pop is completely unhidden:
-                  the whole point of the handover is that the film's last frame,
-                  the still and the first live frame are the same picture, and
-                  there is no flash over it.
-
-                  The entry seam can afford the mismatch instead. It no longer
-                  matches on ANY fit — the hero loop is the wide establishing shot
-                  and the film opens pushed in, two different cameras — and the
-                  full-strength lightning covers it, which is what it is for.
-                  Match the exit; flash the entrance. */}
-              <video
-                ref={videoRef}
-                className="h-full w-full object-cover"
-                playsInline
-                preload="none"
-                poster={FIRST_FRAME}
-                onEnded={() => go(true)}
-                onError={() => playing && go(true)}
+                Kept mounted-but-hidden before the click so `load()` on hover
+                has somewhere to buffer into. preload="none" until then: it is
+                about a megabyte and most visitors never click. */}
+            {!revealed && (
+              <div
+                /* Appears instantly rather than fading in: the first flash
+                   fires on the same tick and covers it, whereas a fade would
+                   show the home page dimming for a fifth of a second before
+                   the film starts — the one moment the sequence cannot afford
+                   to look like a page transition. */
+                className={`fixed inset-0 z-[100] bg-black ${
+                  playing ? "opacity-100" : "pointer-events-none opacity-0"
+                }`}
+                aria-hidden={!playing}
+                inert={!playing}
               >
-                <source src="/assets/manor-entry.webm" type="video/webm" />
-                <source src="/assets/manor-entry.mp4" type="video/mp4" />
-              </video>
+                {/* `cover`, matching the live canvas underneath it. The room
+                    fills the viewport, so a `contain` film would sit
+                    letterboxed and the handover would pop the same picture
+                    from 1440x810 to 1600x900 — on a cut that is meant to be
+                    invisible and has no flash over it. The entry cut can
+                    afford a mismatch instead: the hero loop is the wide
+                    establishing shot and the film opens pushed in, so nothing
+                    matches on any fit, and the lightning covers it.
+                    Match the exit; flash the entrance. */}
+                <video
+                  ref={videoRef}
+                  className="h-full w-full object-cover"
+                  playsInline
+                  preload="none"
+                  poster={FIRST_FRAME}
+                  onEnded={() => setFilmDone(true)}
+                  /* A film that cannot play should not also cost the room.
+                     Declare it over and let the reveal wait on the room. */
+                  onError={() => playing && setFilmDone(true)}
+                >
+                  <source src="/assets/manor-entry.webm" type="video/webm" />
+                  <source src="/assets/manor-entry.mp4" type="video/mp4" />
+                </video>
 
-              {playing && canSkip && (
-                <div className="absolute bottom-8 right-8 flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={toggleSound}
-                    aria-label={muted ? "Turn sound on" : "Turn sound off"}
-                    className="rounded-sm border border-white/25 bg-black/50 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 backdrop-blur-sm transition hover:border-brass-300 hover:text-brass-200"
-                  >
-                    {muted ? "Sound on" : "Sound off"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => go(true)}
-                    className="rounded-sm border border-white/25 bg-black/50 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 backdrop-blur-sm transition hover:border-brass-300 hover:text-brass-200"
-                  >
-                    Skip
-                  </button>
-                </div>
-              )}
-            </div>
+                {playing && canSkip && (
+                  <div className="absolute bottom-8 right-8 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={toggleSound}
+                      aria-label={muted ? "Turn sound on" : "Turn sound off"}
+                      className="rounded-sm border border-white/25 bg-black/50 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 backdrop-blur-sm transition hover:border-brass-300 hover:text-brass-200"
+                    >
+                      {muted ? "Sound on" : "Sound off"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilmDone(true)}
+                      className="rounded-sm border border-white/25 bg-black/50 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 backdrop-blur-sm transition hover:border-brass-300 hover:text-brass-200"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
-            {/* The lightning. Painted above the film so it can cover the film's own
-                cuts, and above the page so it can cover the cut into the film. */}
-            <div
-              className={`pointer-events-none fixed inset-0 z-[110] bg-white ${
-                flash ? "manor-flash" : "opacity-0"
-              }`}
-              aria-hidden="true"
-            />
+            {/* The lightning. Painted above the film so it can cover the film's
+                own cuts, and above the page so it can cover the cut into the
+                film. */}
+            {!revealed && (
+              <div
+                className={`pointer-events-none fixed inset-0 z-[110] bg-white ${
+                  flash ? "manor-flash" : "opacity-0"
+                }`}
+                aria-hidden="true"
+              />
+            )}
           </>,
           document.body
         )}

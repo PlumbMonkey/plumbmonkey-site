@@ -487,8 +487,12 @@ export function initXRRoom(opts) {
   function onSelectStart(hand) {
     const row = menuHit(hand);
     if (row) {
-      /* Navigating ends the session — which is what leaving a room means. */
-      window.location.href = row.item.href;
+      /* Navigating ends the session — which is what leaving a room means.
+         `top` rather than `window`: the foyer can be running inside the home
+         page's entry cinematic, and leaving a room has to leave the whole page
+         rather than nest the site inside its own iframe. In a top-level
+         document top === window, so the gallery and theatre are unaffected. */
+      window.top.location.href = row.item.href;
       return;
     }
     if (menu.visible) { menu.visible = false; return; }

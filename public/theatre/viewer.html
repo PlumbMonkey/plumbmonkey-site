@@ -353,12 +353,23 @@ gltfLoader.load('./theatre-web.glb',
       gltf.animations.forEach(c => mixer.clipAction(c).play());
     }
 
-    Object.keys(MODES).forEach((name, i) => {
+    /* The room opens as a cinema: drapes part-gathered, screen down, the
+       player mounted on it. The button order is left alone — Stage still reads
+       first as the room's original state — so this is the opening mode, not a
+       reordering. Falls back to the first mode if MODES is ever renamed, so a
+       typo here cannot leave the theatre with no mode applied at all.
+
+       Safe to do on load because the YouTube embed carries no autoplay: the
+       screen comes down showing a play button, and nothing makes a sound until
+       someone asks it to. */
+    const DEFAULT_MODE = 'Cinema' in MODES ? 'Cinema' : Object.keys(MODES)[0];
+
+    Object.keys(MODES).forEach((name) => {
       const b = document.createElement('button');
       b.type = 'button'; b.textContent = name;
       b.addEventListener('click', () => applyMode(name, b));
       modesEl.appendChild(b);
-      if (i === 0) applyMode(name, b);
+      if (name === DEFAULT_MODE) applyMode(name, b);
     });
     modesEl.hidden = false;
 
