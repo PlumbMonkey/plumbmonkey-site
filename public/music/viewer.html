@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>The Music Room — Spectral Manor</title>
+<meta name="description" content="The manor's music room. Two consoles and a song desk, each one opening a real instrument." />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #07060c; overflow: hidden;
+    font: 400 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #e8e4f2; }
+  canvas { display: block; }
+
+  #loader { position: fixed; inset: 0; display: grid; place-content: center; gap: 18px;
+    justify-items: center; background: #07060c; z-index: 40; transition: opacity .8s ease; }
+  #loader.done { opacity: 0; pointer-events: none; }
+  #loader h1 { margin: 0; font-size: clamp(20px, 4vw, 30px); font-weight: 700;
+    letter-spacing: .06em; color: #f0c274; text-align: center; }
+  #loader p { margin: 0; color: #9a93ad; font-size: 13px; letter-spacing: .12em;
+    text-transform: uppercase; }
+  #bar { width: min(320px, 70vw); height: 3px; background: rgba(240,194,116,.16); border-radius: 3px; }
+  #bar i { display: block; height: 100%; width: 0%; background: #f0c274; border-radius: 3px;
+    transition: width .25s ease; }
+  #err { max-width: 42ch; text-align: center; color: #ff9c9c; font-size: 13px; display: none; }
+
+  #views { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; z-index: 30;
+    padding: 6px; border-radius: 12px; background: rgba(12,10,20,.78);
+    border: 1px solid rgba(240,194,116,.24); backdrop-filter: blur(8px); max-width: calc(100vw - 24px); }
+  #views button { cursor: pointer; border: 0; border-radius: 8px; padding: 8px 12px;
+    background: transparent; color: #cfc8de; font: 600 13px system-ui, sans-serif; white-space: nowrap; }
+  #views button:hover { background: rgba(240,194,116,.16); color: #ffd9a0; }
+  #views button[aria-current="true"] { background: rgba(240,194,116,.9); color: #17121f; }
+
+  /* Screen label. Follows whichever app screen the pointer is over, projected
+     from its world position each frame. */
+  #tip { position: fixed; z-index: 32; pointer-events: none; opacity: 0;
+    transform: translate(-50%, -140%); transition: opacity .18s ease;
+    padding: 7px 13px; border-radius: 999px; white-space: nowrap;
+    background: rgba(10,8,16,.9); border: 1px solid rgba(240,194,116,.45);
+    box-shadow: 0 6px 26px rgba(0,0,0,.6);
+    font: 700 13px/1 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+  #tip.on { opacity: 1; }
+  #tip b { color: #f0c274; font-weight: 700; }
+  #tip small { display: block; margin-top: 5px; font-size: 10px; letter-spacing: .14em;
+    color: #8d86a3; font-weight: 600; }
+
+  /* The room's own hamburger hides itself when framed, and /music frames this
+     page — so without this there is no route from the 3D room back to the
+     sandbox page, which is where the project-resume and the store live. */
+  #studio { position: fixed; left: 12px; bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 31; text-decoration: none; padding: 8px 13px; border-radius: 10px;
+    background: rgba(12,10,20,.78); border: 1px solid rgba(240,194,116,.24);
+    backdrop-filter: blur(8px); color: #cfc8de; font: 600 12px system-ui, sans-serif; }
+  #studio:hover { border-color: rgba(240,194,116,.6); color: #ffd9a0; }
+  @media (max-width: 640px) { #studio { font-size: 11px; padding: 6px 10px; } }
+
+  #hint { position: fixed; right: 12px; bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px));
+    z-index: 30; font-size: 12px; color: #7e7791; text-align: right; pointer-events: none; }
+  @media (max-width: 640px) { #hint { display: none; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    #loader, #tip { transition: none; }
+  }
+</style>
+<link rel="stylesheet" href="/shared/room-menu.css" />
+</head>
+<body>
+
+<div id="loader">
+  <h1>The Music Room</h1>
+  <div id="bar"><i></i></div>
+  <p id="pct">Loading 0%</p>
+  <div id="err"></div>
+</div>
+
+<nav id="views" hidden aria-label="Viewpoints"></nav>
+<div id="tip" aria-hidden="true"></div>
+<a id="studio" href="/music/studio" target="_top">The sandbox &amp; downloads</a>
+<div id="hint">drag to look · scroll to zoom · click a screen to open it</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/gallery/vendor/three.module.js",
+    "three/addons/": "/gallery/vendor/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { initXRRoom } from '/shared/xr-room.js';
+
+const loaderEl = document.getElementById('loader');
+const barEl = document.querySelector('#bar i');
+const pctEl = document.getElementById('pct');
+const errEl = document.getElementById('err');
+const viewsEl = document.getElementById('views');
+const tipEl = document.getElementById('tip');
+
+/* Same embed contract as the foyer and the arcade: a parent page can host this
+   room and take its own cover away once we report a drawn frame. */
+const params = new URLSearchParams(location.search);
+const embedded = params.has('embed');
+if (embedded) loaderEl.style.display = 'none';
+
+/* Opening an instrument has to leave the whole page, not just this frame. In a
+   top-level document window.top === window, so this is a no-op there. */
+const leaveTo = (href) => { window.top.location.href = href; };
+
+function fail(msg) {
+  errEl.style.display = 'block';
+  errEl.textContent = msg;
+  pctEl.textContent = 'Could not load';
+}
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+} catch (e) {
+  console.error(e);
+  fail('This browser cannot display 3D (WebGL is unavailable). Every instrument is still ' +
+       'reachable from the music sandbox.');
+  errEl.insertAdjacentHTML('beforeend',
+    '<p style="margin-top:14px"><a href="/music/studio" target="_top" style="color:#f0c274">Open the sandbox</a></p>');
+  throw e;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.85;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x06050b);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 200);
+camera.position.set(0, 1.82, 7.7);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 1.6, 2.0);
+controls.maxPolarAngle = Math.PI * 0.9;
+controls.minDistance = 0.4;
+controls.maxDistance = 16;
+
+/* The GLB ships with no lights — the Blender scene has 19, five of them area
+   lights glTF cannot represent.
+   Like the arcade and unlike the foyer, this needed no bake stage to survive
+   that: thirty of the room's materials are emissive and carry the mood on
+   their own — neon at 3.0-3.2, drum pads at 2.4, the mixer glow at 2.4 and the
+   candle flames at 16. This rig only keeps the panelling, boards and rug off
+   black. Turning it up washes out the screens and the neon, which are the two
+   things the room is actually made of. */
+scene.add(new THREE.HemisphereLight(0x5568a8, 0x140f1c, 0.16));
+scene.add(new THREE.AmbientLight(0xffffff, 0.03));
+
+// The chandelier over the middle of the room.
+const chandelier = new THREE.PointLight(0xffb877, 7, 15, 2);
+chandelier.position.set(0, 3.4, 4.0);
+scene.add(chandelier);
+
+/* A pool over each console, and one on the song desk between them. Placed on
+   the manifest's own dock positions so they follow the furniture rather than
+   sitting where the room used to be. */
+for (const [x, z, colour] of [[-3.29, 3.92, 0x7fd8ff], [3.29, 3.92, 0xff9ad8]]) {
+  const l = new THREE.PointLight(colour, 4.5, 7, 2);
+  l.position.set(x, 2.6, z);
+  scene.add(l);
+}
+const song = new THREE.PointLight(0xc9a4ff, 3.6, 8, 2);
+song.position.set(0, 2.7, 3.1);
+scene.add(song);
+
+// Moonlight through the window wall, raked across the boards.
+const moon = new THREE.DirectionalLight(0x9fb4ff, 0.5);
+moon.position.set(-8, 6, 9);
+moon.target.position.set(0, 0, 2);
+scene.add(moon, moon.target);
+
+const xr = initXRRoom({
+  renderer, scene, camera, controls,
+  walkable: /^(FLR_Boards|FLR_Seams|RUG_)/,
+  spawn: { x: 0, z: 6.4, yaw: 0 },   // just inside the door, facing the consoles
+  exit: { href: '/', label: 'Exit' },
+  roomLabel: 'The Music Room',
+  buttonLabel: 'Enter in VR',
+});
+
+const draco = new DRACOLoader().setDecoderPath('/gallery/vendor/draco/gltf/');
+const gltfLoader = new GLTFLoader().setDRACOLoader(draco);
+
+/* Target wiring.
+   Simpler than the arcade's: the export writes href/label/slug straight onto
+   the meshes you can click, so whatever the ray hits either carries a route or
+   is scenery. No parent walking and no pairing markers to their geometry.
+
+   Screens are the unit, not consoles — the drum console opens both DM-1 and
+   DM-2, so a console-sized target could not say which was meant. */
+const targets = [];
+const byMesh = new Map();
+let hovered = null;
+
+function wireTargets(root) {
+  const bySlug = new Map();
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const x = o.userData || {};
+    if (!x.href) return;
+
+    let t = bySlug.get(x.slug);
+    if (!t) {
+      o.material = o.material.clone();   // so a hover boost is not shared
+      t = {
+        slug: x.slug,
+        href: x.href,
+        label: x.label || x.slug,
+        live: x.live !== false,
+        anchor: o,
+        glow: o,
+        base: o.material.emissiveIntensity ?? 1,
+      };
+      bySlug.set(x.slug, t);
+      targets.push(t);
+    }
+    byMesh.set(o, t);
+  });
+  return targets.length;
+}
+
+function setHover(t) {
+  if (hovered === t) return;
+  if (hovered) hovered.glow.material.emissiveIntensity = hovered.base;
+  hovered = t;
+  if (t) {
+    t.glow.material.emissiveIntensity = t.base * 1.6;
+    tipEl.innerHTML = `<b>${t.label}</b><small>Click to open</small>`;
+    tipEl.classList.add('on');
+    renderer.domElement.style.cursor = 'pointer';
+  } else {
+    tipEl.classList.remove('on');
+    renderer.domElement.style.cursor = '';
+  }
+}
+
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let downAt = null;
+let root = null;
+
+/* Raycasts the whole room and only counts a target if it is the nearest thing
+   hit, so a screen behind a console or the far wall cannot be picked through
+   solid geometry. */
+function pick(x, y) {
+  if (!root) return null;
+  ndc.set((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObject(root, true);
+  if (!hits.length) return null;
+  return byMesh.get(hits[0].object) || null;
+}
+
+let pendingPointer = null;
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (xr.presenting || e.pointerType === 'touch') return;
+  pendingPointer = [e.clientX, e.clientY];
+});
+renderer.domElement.addEventListener('pointerleave', () => {
+  pendingPointer = null;
+  setHover(null);
+});
+
+renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!downAt) return;
+  const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+  downAt = null;
+  // Distinguish a click from a look-around that happened to end on a screen.
+  if (moved > 6) return;
+  const t = pick(e.clientX, e.clientY);
+  if (!t) return;
+  if (!t.live) { setHover(t); return; }
+  leaveTo(t.href);
+});
+
+/* Touch has no hover, so the first tap names the app and the second opens it.
+   The screens are small on a phone and two of them sit side by side on each
+   console, so committing on the first tap would open the wrong instrument. */
+renderer.domElement.addEventListener('touchend', (e) => {
+  const t = e.changedTouches[0];
+  if (!t) return;
+  const hit = pick(t.clientX, t.clientY);
+  if (hit && hit !== hovered) { setHover(hit); e.preventDefault(); }
+}, { passive: false });
+
+let mixer = null;
+const clock = new THREE.Clock();
+
+gltfLoader.load('/music/music-web.glb',
+  (gltf) => {
+    scene.add(gltf.scene);
+    xr.setRoot(gltf.scene);
+    root = gltf.scene;
+
+    const n = wireTargets(gltf.scene);
+    if (n !== 6) console.warn(`music room: wired ${n} targets, expected 6`);
+
+    if (gltf.animations && gltf.animations.length) {
+      mixer = new THREE.AnimationMixer(gltf.scene);
+      gltf.animations.forEach((c) => mixer.clipAction(c).play());
+    }
+
+    const cams = [];
+    gltf.scene.traverse((o) => { if (o.isCamera) cams.push(o); });
+
+    /* Four stops, not five. The .glb also carries CAM_MusicEntry, which is the
+       hero shot from a step to the left — a fifth button that lands you
+       somewhere you can already see. The three station cameras each show a
+       different console close enough to read its screens, which is what a
+       viewpoint is for here. It stays reachable from window.__music.view(). */
+    const ORDER = ['CAM_MusicHero', 'CAM_Drum', 'CAM_Synth', 'CAM_SongView'];
+    const LABEL = {
+      CAM_MusicHero: 'The Room', CAM_Drum: 'Drum Machine',
+      CAM_Synth: 'Synthesizer', CAM_SongView: 'Song View',
+    };
+    cams.sort((a, b) => {
+      const ia = ORDER.indexOf(a.name), ib = ORDER.indexOf(b.name);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+
+    const goTo = (cam, btn) => {
+      const pos = new THREE.Vector3();
+      cam.getWorldPosition(pos);
+      // Take the authored lens: the hero is an 18 mm wide angle and the station
+      // cameras are 35-40 mm, so a single default focal length would either
+      // crop the room or make the consoles unreadably distant.
+      camera.fov = Math.min(cam.fov, 78);
+      camera.updateProjectionMatrix();
+      const dir = new THREE.Vector3(0, 0, -1)
+        .applyQuaternion(cam.getWorldQuaternion(new THREE.Quaternion()));
+      camera.position.copy(pos);
+      controls.target.copy(pos).addScaledVector(dir, 4);
+      controls.update();
+      viewsEl.querySelectorAll('button').forEach((b) =>
+        b.setAttribute('aria-current', String(b === btn)));
+    };
+
+    const offered = cams.filter((c) => ORDER.includes(c.name));
+    const bar = offered.length ? offered : cams;
+
+    bar.forEach((cam, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = LABEL[cam.name] || cam.name.replace(/^CAM_/, '');
+      b.addEventListener('click', () => goTo(cam, b));
+      viewsEl.appendChild(b);
+      if (i === 0) goTo(cam, b);
+    });
+    if (bar.length) viewsEl.hidden = false;
+
+    /* Console hook, the same idea as window.__foyer and window.__arcade: lets
+       the light rig be nudged and the wiring checked without a build step. */
+    window.__music = {
+      scene, camera, controls, renderer,
+      targets: () => targets.map((t) => ({ slug: t.slug, label: t.label, href: t.href })),
+      cameras: () => cams.map((c) => c.name),
+      view: (name) => {
+        const c = cams.find((x) => x.name === name);
+        if (c) goTo(c, null);
+      },
+    };
+
+    renderer.render(scene, camera);
+
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      loaderEl.classList.add('done');
+      setTimeout(() => loaderEl.remove(), 900);
+      if (embedded && window.parent !== window) {
+        window.parent.postMessage({ type: 'music-ready' }, location.origin);
+      }
+    };
+    requestAnimationFrame(reveal);
+    /* rAF does not fire while the document is hidden, so on its own this
+       strands anyone who switched tabs during the load. On a visible document
+       rAF wins by ~16 ms and this never matters. */
+    setTimeout(reveal, 400);
+  },
+  (evt) => {
+    if (!evt.lengthComputable) { pctEl.textContent = 'Loading…'; return; }
+    const p = Math.round((evt.loaded / evt.total) * 100);
+    barEl.style.width = p + '%';
+    pctEl.textContent = 'Loading ' + p + '%';
+  },
+  (e) => {
+    console.error(e);
+    fail('The music room failed to load. If you are opening this file directly from disk, ' +
+         'serve it over http:// instead — browsers block module and WASM loading on file:// URLs.');
+  }
+);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const tipPos = new THREE.Vector3();
+renderer.setAnimationLoop(() => {
+  if (mixer) mixer.update(clock.getDelta());
+  if (!xr.presenting) controls.update();
+  xr.update();
+
+  if (pendingPointer && !xr.presenting) {
+    setHover(pick(pendingPointer[0], pendingPointer[1]));
+    pendingPointer = null;
+  }
+
+  if (hovered && !xr.presenting) {
+    hovered.anchor.getWorldPosition(tipPos);
+    tipPos.project(camera);
+    tipEl.style.left = ((tipPos.x * 0.5 + 0.5) * innerWidth) + 'px';
+    tipEl.style.top = ((-tipPos.y * 0.5 + 0.5) * innerHeight) + 'px';
+  }
+
+  renderer.render(scene, camera);
+});
+</script>
+
+<script src="/shared/rooms.js" defer></script>
+<script src="/shared/room-menu.js" data-exit="/" data-exit-label="Exit" defer></script>
+</body>
+</html>

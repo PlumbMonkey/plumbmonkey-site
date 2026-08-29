@@ -6,7 +6,9 @@ const js = await readFile(new URL("../public/visual/visual.js", import.meta.url)
 const css = await readFile(new URL("../public/visual/luminarium.css", import.meta.url), "utf8");
 const rooms = await readFile(new URL("../public/shared/rooms.js", import.meta.url), "utf8");
 const doors = await readFile(new URL("../app/components/RoomDoors.tsx", import.meta.url), "utf8");
-const music = await readFile(new URL("../app/music/page.tsx", import.meta.url), "utf8");
+// The sandbox page, which carries the Luminarium hand-off. It moved to
+// /music/studio when /music became the 3D music room.
+const music = await readFile(new URL("../app/music/studio/page.tsx", import.meta.url), "utf8");
 const demoAudio = await stat(new URL("../public/visual/demo/guitar-piano-improv.mp3", import.meta.url));
 
 assert.match(html, /<title>The Luminarium \| Plumbmonkey<\/title>/);

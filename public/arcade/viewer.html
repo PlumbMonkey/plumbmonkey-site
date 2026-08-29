@@ -10,7 +10,15 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: #07060c; overflow: hidden;
     font: 400 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #e8e4f2; }
-  canvas { display: block; }
+  canvas { display: block; position: fixed; inset: 0; z-index: 1; }
+
+  /* The live attract frames.
+     They sit BEHIND the canvas rather than being hidden, because a display:none
+     or visibility:hidden iframe does not run requestAnimationFrame — the game
+     inside would freeze on frame one and the screens would be stills. The
+     canvas is opaque and covers them completely, so nothing shows through. */
+  #live { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  #live iframe { position: absolute; left: 0; top: 0; width: 480px; height: 270px; border: 0; }
 
   #loader { position: fixed; inset: 0; display: grid; place-content: center; gap: 18px;
     justify-items: center; background: #07060c; z-index: 40; transition: opacity .8s ease; }
@@ -49,6 +57,13 @@
   /* The room's own hamburger hides itself when framed, and /arcade frames this
      page — so without this there is no route from the 3D room to the flat list
      and its leaderboards, which is the only place the scores are readable. */
+  #sound { position: fixed; right: 12px; top: 12px; z-index: 31; cursor: pointer;
+    padding: 8px 13px; border-radius: 10px; background: rgba(12,10,20,.78);
+    border: 1px solid rgba(240,194,116,.24); backdrop-filter: blur(8px);
+    color: #cfc8de; font: 600 12px system-ui, sans-serif; }
+  #sound:hover { border-color: rgba(240,194,116,.6); color: #ffd9a0; }
+  #sound[aria-pressed="true"] { background: rgba(240,194,116,.9); color: #17121f; border-color: transparent; }
+
   #list { position: fixed; left: 12px; bottom: max(14px, env(safe-area-inset-bottom));
     z-index: 31; text-decoration: none; padding: 8px 13px; border-radius: 10px;
     background: rgba(12,10,20,.78); border: 1px solid rgba(240,194,116,.24);
@@ -77,6 +92,8 @@
 
 <nav id="views" hidden aria-label="Viewpoints"></nav>
 <div id="tip" aria-hidden="true"></div>
+<div id="live" aria-hidden="true"></div>
+<button id="sound" type="button" aria-pressed="false" hidden>Sound off</button>
 <a id="list" href="/arcade/list" target="_top">All games &amp; high scores</a>
 <div id="hint">drag to look · scroll to zoom · click a cabinet to play</div>
 
@@ -232,6 +249,8 @@ function wireCabinets(root) {
 
     const c = {
       node: cab,
+      screen,
+      slug: x.slug || cab.name.slice(4),
       anchor: marquee || screen || parts[0],
       href: x.href,
       label: x.label || cab.name.slice(4),
@@ -239,6 +258,10 @@ function wireCabinets(root) {
       glow: [screen, marquee].filter(Boolean),
     };
     c.base = c.glow.map((m) => m.material.emissiveIntensity ?? 1);
+    // Kept so a cabinet dropping out of the live budget can go back to its
+    // painted art rather than to a blank screen.
+    c.baseMap = screen ? (screen.material.emissiveMap || screen.material.map) : null;
+    c.slot = cabinets.length;
     cabinets.push(c);
     for (const p of parts) byMesh.set(p, c);
   });
@@ -260,6 +283,179 @@ function setHover(c) {
     tipEl.classList.remove('on');
     renderer.domElement.style.cursor = '';
   }
+  if (soundOn) applySound();
+}
+
+/* ---- Live screens -------------------------------------------------------
+
+   The old flat arcade ran every game in an attract-mode iframe so the grid was
+   full of moving pictures. The same thing works here, and better, because the
+   screen is a texture on the real quad: the picture takes the cabinet's tilt
+   and perspective from the geometry, so there is nothing to skew by hand and
+   nothing to keep aligned when the camera moves.
+
+   How it works: the game runs in a same-origin iframe (so its <canvas> can be
+   read), and that canvas is wrapped in a CanvasTexture that replaces the
+   painted screen art. It is genuinely the game, playing.
+
+   Two constraints, both learned the hard way:
+
+     · The frames must be COMPOSITED, not hidden. requestAnimationFrame does
+       not run in a hidden document, so a display:none frame freezes on its
+       first painted frame. They live behind the opaque canvas instead.
+
+     · The texture must inherit the original's mapping. glTF textures load with
+       flipY false; a CanvasTexture defaults to true, so copying it is the
+       difference between a game and an upside-down game.
+
+   Only the nearest few run. Twelve canvas games plus a WebGL room is a lot to
+   ask of a laptop, and from any given viewpoint most of the screens are edge-on
+   or behind you. The rest keep their painted art, which is a still of the same
+   game and reads correctly until you walk up. */
+const LIVE_BUDGET = 6;
+/* The room only needs the screens to look alive, not to be smooth: at 15 the
+   upload cost is a third of what it is at 60 and the difference is invisible
+   on a screen this size. */
+const LIVE_FPS = 15;
+const liveHost = document.getElementById('live');
+const soundBtn = document.getElementById('sound');
+let soundOn = false;
+let liveNext = 0;
+
+function startLive(c) {
+  if (c.frame || !c.screen) return;
+  const f = document.createElement('iframe');
+  f.title = c.label + ' (attract mode)';
+  f.src = `/arcade/games/${c.href.split('/')[3]}/index.html?attract=1`;
+  // Staggered so twelve frames cannot stack on the same pixel and force the
+  // compositor to keep them all in one layer.
+  f.style.top = (c.slot * 4) + 'px';
+  liveHost.appendChild(f);
+  c.frame = f;
+  f.addEventListener('load', () => {
+    // The game builds its canvas on load; attract chrome sizes it a tick later.
+    setTimeout(() => {
+      try {
+        const cv = f.contentDocument && f.contentDocument.getElementById('gameCanvas');
+        if (!cv) return;
+        const src = c.screen.material.emissiveMap || c.screen.material.map;
+        const tex = new THREE.CanvasTexture(cv);
+        if (src) {
+          tex.flipY = src.flipY;
+          tex.wrapS = src.wrapS;
+          tex.wrapT = src.wrapT;
+          tex.colorSpace = src.colorSpace;
+          tex.channel = src.channel;
+        }
+        c.liveTex = tex;
+        if (c.screen.material.emissiveMap) c.screen.material.emissiveMap = tex;
+        if (c.screen.material.map) c.screen.material.map = tex;
+        c.screen.material.needsUpdate = true;
+      } catch (e) { console.warn('arcade: could not take over ' + c.slug, e); }
+    }, 400);
+  });
+}
+
+function stopLive(c) {
+  if (!c.frame) return;
+  audioFor(c, false);
+  if (c.liveTex) {
+    if (c.screen.material.emissiveMap === c.liveTex) c.screen.material.emissiveMap = c.baseMap;
+    if (c.screen.material.map === c.liveTex) c.screen.material.map = c.baseMap;
+    c.screen.material.needsUpdate = true;
+    c.liveTex.dispose();
+    c.liveTex = null;
+  }
+  c.frame.remove();
+  c.frame = null;
+}
+
+/* Each game keeps its own AudioContext through the shared ArcadeAudio mixer.
+   Suspend/resume rather than ArcadeAudio.set('muted') on purpose: `set` writes
+   the level to localStorage, which the real games read — muting eleven attract
+   frames that way would leave the actual game silent when you sat down to play
+   it. Suspending touches nothing that persists. */
+function audioFor(c, on) {
+  const w = c.frame && c.frame.contentWindow;
+  if (!w) return;
+  try {
+    const aa = w.eval('typeof ArcadeAudio !== "undefined" ? ArcadeAudio : null');
+    if (!aa) return;
+    const ctx = aa.context();
+    if (!ctx) return;
+    if (on) ctx.resume(); else if (ctx.state === 'running') ctx.suspend();
+  } catch (e) {}
+}
+
+/* Which cabinets earn a live screen: the ones nearest the camera that are also
+   in front of it. Distance alone put the budget on the row behind your head
+   whenever you turned around. */
+const camDir = new THREE.Vector3();
+const toCab = new THREE.Vector3();
+function updateLiveSet() {
+  if (!cabinets.length) return;
+  camera.getWorldDirection(camDir);
+  const ranked = cabinets.map((c) => {
+    c.node.getWorldPosition(toCab);
+    const dist = toCab.distanceTo(camera.position);
+    toCab.sub(camera.position).normalize();
+    const facing = toCab.dot(camDir);           // 1 = dead ahead
+    return { c, score: dist + (facing < 0.1 ? 60 : 0) };
+  }).sort((a, b) => a.score - b.score);
+
+  const keep = new Set(ranked.slice(0, LIVE_BUDGET).map((r) => r.c));
+  for (const c of cabinets) {
+    if (keep.has(c)) startLive(c); else stopLive(c);
+  }
+  if (soundOn) applySound();
+}
+
+/* Sound follows the one cabinet you are closest to looking at, never the whole
+   room: twelve soundtracks at once is noise, not atmosphere. */
+function applySound() {
+  let focus = null;
+  if (soundOn) {
+    focus = hovered && hovered.frame ? hovered : null;
+    if (!focus) {
+      camera.getWorldDirection(camDir);
+      let best = -1;
+      for (const c of cabinets) {
+        if (!c.frame) continue;
+        c.node.getWorldPosition(toCab);
+        toCab.sub(camera.position).normalize();
+        const facing = toCab.dot(camDir);
+        if (facing > best) { best = facing; focus = c; }
+      }
+    }
+  }
+  for (const c of cabinets) audioFor(c, soundOn && c === focus);
+}
+
+soundBtn.addEventListener('click', () => {
+  soundOn = !soundOn;
+  soundBtn.setAttribute('aria-pressed', String(soundOn));
+  soundBtn.textContent = soundOn ? 'Sound on' : 'Sound off';
+  // The click itself is the user gesture the audio needs; resuming any later
+  // would be refused by the autoplay policy.
+  applySound();
+});
+
+/* A heartbeat, because the policy cannot be applied once and trusted.
+   A game only builds its AudioContext when it first plays a sound, which can
+   be long after this room decided which cabinet was allowed to be heard — and
+   a context created after the visitor has clicked anything starts RUNNING,
+   because the page now has user activation. Without this, the fifth cabinet to
+   fire a sound effect simply joins in. Re-asserting it costs six property
+   reads a second and makes "at most one cabinet is audible" true by
+   construction rather than by timing. */
+setInterval(() => { if (cabinets.some((c) => c.frame)) applySound(); }, 1200);
+
+let liveTimer = null;
+function scheduleLiveUpdate() {
+  clearTimeout(liveTimer);
+  // Debounced: recomputing mid-drag would tear frames down and rebuild them
+  // several times a second, and a game reloads from scratch every time.
+  liveTimer = setTimeout(updateLiveSet, 450);
 }
 
 const ray = new THREE.Raycaster();
@@ -346,32 +542,103 @@ gltfLoader.load('/arcade/arcade-web.glb',
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
     });
 
-    const goTo = (cam, btn) => {
-      const pos = new THREE.Vector3();
-      cam.getWorldPosition(pos);
+    const goToPose = (pos, dir, fov, btn) => {
       // Take the authored lens, not just the position: both arcade cameras are
       // wide (20-21 mm, past 80 degrees) and the viewer defaults to 60, so
       // without this the room reads far tighter than it was framed to.
-      camera.fov = Math.min(cam.fov, 78);
+      camera.fov = Math.min(fov, 78);
       camera.updateProjectionMatrix();
-      const dir = new THREE.Vector3(0, 0, -1)
-        .applyQuaternion(cam.getWorldQuaternion(new THREE.Quaternion()));
       camera.position.copy(pos);
       controls.target.copy(pos).addScaledVector(dir, 5);
       controls.update();
       viewsEl.querySelectorAll('button').forEach((b) =>
         b.setAttribute('aria-current', String(b === btn)));
+      // A viewpoint jump moves the camera without any OrbitControls event.
+      scheduleLiveUpdate();
     };
 
-    cams.forEach((cam, i) => {
+    const goTo = (cam, btn) => {
+      const pos = new THREE.Vector3();
+      cam.getWorldPosition(pos);
+      const dir = new THREE.Vector3(0, 0, -1)
+        .applyQuaternion(cam.getWorldQuaternion(new THREE.Quaternion()));
+      goToPose(pos, dir, cam.fov, btn);
+    };
+
+    /* A third stop: standing in the aisle, turned to face a row.
+       It looks ACROSS the aisle rather than along it, which is the whole point
+       of the viewpoint. The aisle is about 6 m wide and only 4 m long, so from
+       the middle of it the two rows sit outside a 75-degree frustum entirely —
+       looking down the aisle from here frames an empty floor and the far door,
+       and the cabinets you are standing between are behind your shoulders.
+       Turned side-on, all six of that row read head-on with their marquees and
+       screens legible, which is what the room is for.
+
+       Everything is derived from the cabinets, not typed: stand at their
+       centroid at the hero camera's eye height, and look at the centroid of
+       whichever row has more machines. Move the rows in Blender and this
+       follows them — they have been moved down the hall once already. */
+    function midAislePose() {
+      if (!cabinets.length) return null;
+      const hero = cams.find((c) => c.name === 'CAM_ArcadeHero') || cams[0];
+      const heroPos = new THREE.Vector3();
+      if (hero) hero.getWorldPosition(heroPos);
+
+      const at = [];
+      const one = new THREE.Vector3();
+      const mid = new THREE.Vector3();
+      for (const c of cabinets) {
+        c.node.getWorldPosition(one);
+        at.push(one.clone());
+        mid.add(one);
+      }
+      mid.divideScalar(at.length);
+      mid.y = hero ? heroPos.y : 1.6;
+
+      // Split into the two rows either side of the aisle and aim at the fuller
+      // one; a tie takes the +x side, which is the natural first turn from the
+      // door and carries the windows behind it.
+      const plus = at.filter((p) => p.x >= mid.x);
+      const minus = at.filter((p) => p.x < mid.x);
+      const row = plus.length >= minus.length ? plus : minus;
+      if (!row.length) return null;
+
+      const target = row.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(row.length);
+      const dir = target.sub(mid);
+      dir.y = 0;
+      if (dir.lengthSq() < 1e-6) return null;
+      return { pos: mid, dir: dir.normalize() };
+    }
+
+    /* Ordered as a walk through the room: arrive, step in among the cabinets,
+       then turn to the board on the side wall. */
+    const stops = cams.map((cam) => ({
+      label: LABEL[cam.name] || cam.name.replace(/^CAM_/, ''),
+      go: (btn) => goTo(cam, btn),
+    }));
+
+    const midPose = midAislePose();
+    if (midPose) {
+      stops.splice(Math.min(1, stops.length), 0, {
+        label: 'Mid Aisle',
+        go: (btn) => goToPose(midPose.pos, midPose.dir, 75, btn),
+      });
+    }
+
+    stops.forEach((stop, i) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = LABEL[cam.name] || cam.name.replace(/^CAM_/, '');
-      b.addEventListener('click', () => goTo(cam, b));
+      b.textContent = stop.label;
+      b.addEventListener('click', () => stop.go(b));
       viewsEl.appendChild(b);
-      if (i === 0) goTo(cam, b);
+      if (i === 0) stop.go(b);
     });
-    if (cams.length) viewsEl.hidden = false;
+    if (stops.length) viewsEl.hidden = false;
+
+    soundBtn.hidden = false;
+    updateLiveSet();
+    // Moving the camera changes which screens are worth running.
+    controls.addEventListener('end', scheduleLiveUpdate);
 
     /* Console hook, the same idea as the foyer's window.__foyer and the
        theatre's window.__sgt: lets the light rig be nudged and the cabinet
@@ -380,6 +647,7 @@ gltfLoader.load('/arcade/arcade-web.glb',
       scene, camera, controls, renderer,
       cabinets: () => cabinets.map((c) => ({ name: c.node.name, label: c.label, href: c.href, live: c.live })),
       cameras: () => cams.map((c) => c.name),
+      live: () => cabinets.filter((c) => c.frame).map((c) => ({ slug: c.slug, textured: !!c.liveTex })),
       view: (name) => {
         const c = cams.find((x) => x.name === name);
         if (c) goTo(c, null);
@@ -432,6 +700,12 @@ renderer.setAnimationLoop(() => {
   if (pendingPointer && !xr.presenting) {
     setHover(pick(pendingPointer[0], pendingPointer[1]));
     pendingPointer = null;
+  }
+
+  const now = performance.now();
+  if (now >= liveNext) {
+    liveNext = now + 1000 / LIVE_FPS;
+    for (const c of cabinets) if (c.liveTex) c.liveTex.needsUpdate = true;
   }
 
   if (hovered && !xr.presenting) {
