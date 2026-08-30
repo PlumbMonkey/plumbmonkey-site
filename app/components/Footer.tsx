@@ -1,7 +1,9 @@
 import Link from "next/link";
 
-// Same canonical list the top bar reads — see public/shared/rooms.js.
-import { ROOMS, CTA } from "@/public/shared/rooms";
+// Same canonical list the top bar reads — see public/shared/rooms.js, and the
+// same entrance() it links through, so the footer and the bar cannot send you
+// to two different doors of the same room on the same page.
+import { ROOMS, CTA, entrance } from "@/public/shared/rooms";
 
 /* The studio side of the site. These pages exist and are finished, but the top
    bar is the seven rooms plus one CTA and has no room for them, so before this
@@ -32,7 +34,7 @@ export default function Footer() {
           <ul className="grid gap-2.5 sm:grid-cols-2">
             {ROOMS.map((room) => (
               <li key={room.href}>
-                <Link href={room.href} className="text-moonlit-300 transition hover:text-brass-300">
+                <Link href={entrance(room)} className="text-moonlit-300 transition hover:text-brass-300">
                   {room.label}
                 </Link>
               </li>

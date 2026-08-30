@@ -47,7 +47,9 @@
      rendered wrong. */
   var ROOMS = window.PM_ROOMS;
   var CTA = window.PM_CTA;
-  if (!ROOMS || !CTA) {
+  var entrance = window.PM_ENTRANCE;
+  var roomPaths = window.PM_ROOM_PATHS;
+  if (!ROOMS || !CTA || !entrance || !roomPaths) {
     console.error("site-nav.js: /shared/rooms.js must load first");
     return;
   }
@@ -68,9 +70,14 @@
   }
   var here = segment(location.pathname);
 
+  /* The link goes to the room's door (entrance()), but the room is marked
+     current from ANY of its addresses (roomPaths()). Those differ for the two
+     rooms that have a 3D space: the bar points at /luminarium/viewer.html while
+     /visual/index.html — the page this very bar is sitting on — is still the
+     Luminarium, and would otherwise stop highlighting itself. */
   function link(room, cls) {
-    var current = segment(room.href) === here;
-    return '<a href="' + esc(room.href) + '"' +
+    var current = roomPaths(room).some(function (p) { return segment(p) === here; });
+    return '<a href="' + esc(entrance(room)) + '"' +
       (cls ? ' class="' + cls + '"' : "") +
       (current ? ' aria-current="page"' : "") +
       ">" + esc(room.label) + "</a>";

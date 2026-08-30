@@ -6,7 +6,11 @@ import { useEffect, useState } from "react";
 // Canonical room list — see public/shared/rooms.js. The static pages read the
 // same file at runtime, so the nav cannot drift between the React side and the
 // standalone tools.
-import { ROOMS as LINKS, CTA } from "@/public/shared/rooms";
+//
+// entrance() is where a room's door is: its 3D space when it has one, its page
+// otherwise. Link to it rather than to `href`, or the Luminarium and the Art
+// Room lose the only menu that reaches their rooms.
+import { ROOMS as LINKS, CTA, entrance } from "@/public/shared/rooms";
 
 export default function NavBar() {
   const [open, setOpen] = useState(false);
@@ -34,7 +38,11 @@ export default function NavBar() {
 
         <div className="hidden items-center gap-6 text-xs uppercase tracking-[0.14em] text-moonlit-200 lg:flex">
           {LINKS.map((link) => (
-            <Link key={link.href} href={link.href} className="transition hover:text-brass-300">
+            <Link
+              key={link.href}
+              href={entrance(link)}
+              className="transition hover:text-brass-300"
+            >
               {link.label}
             </Link>
           ))}
@@ -65,7 +73,7 @@ export default function NavBar() {
         {LINKS.map((link) => (
           <Link
             key={link.href}
-            href={link.href}
+            href={entrance(link)}
             className="border-b border-white/10 py-3 text-sm uppercase tracking-[0.16em] text-moonlit-100"
             onClick={() => setOpen(false)}
           >

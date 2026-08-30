@@ -46,7 +46,9 @@
        <script src="/shared/room-menu.js" data-exit="..." defer></script>
      Deferred scripts run in document order, so that ordering holds. */
   var ROOMS = window.PM_ROOMS;
-  if (!ROOMS) {
+  var entrance = window.PM_ENTRANCE;
+  var roomPaths = window.PM_ROOM_PATHS;
+  if (!ROOMS || !entrance || !roomPaths) {
     console.error("room-menu.js: /shared/rooms.js must load first");
     return;
   }
@@ -82,9 +84,17 @@
     if (document.querySelector(".pm-room-menu")) return;
     var here = segment(currentHref);
 
+    /* Room to room, this menu is the only way across the manor, so it links to
+       each room's door (entrance()) — the 3D space for the rooms that have one.
+       Current-room marking still accepts any of a room's addresses, so standing
+       in the rotunda and standing in the 2D visualiser both mark "Luminarium".
+       data-room on those viewers is what makes that fire. */
     var links = ROOMS.map(function (r) {
-      var current = r.href === currentHref || segment(r.href) === here;
-      return '<a href="' + esc(r.href) + '"' + (current ? ' aria-current="page"' : "") +
+      var paths = roomPaths(r);
+      var current = paths.some(function (p) {
+        return p === currentHref || segment(p) === here;
+      });
+      return '<a href="' + esc(entrance(r)) + '"' + (current ? ' aria-current="page"' : "") +
         ">" + esc(r.label) + "</a>";
     }).join("");
 
