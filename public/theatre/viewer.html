@@ -61,6 +61,10 @@
   @media (max-width:700px){ #hint{ display:none; } }
 </style>
 <link rel="stylesheet" href="/shared/room-menu.css" />
+<!-- Synchronous and before the loader markup on purpose: this wears the
+     arrival film over the loader, and a deferred copy would let the
+     loader paint its own text first. -->
+<script src="/shared/walk-in.js"></script>
 </head>
 <body>
 
@@ -92,6 +96,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { initXRRoom } from '/shared/xr-room.js';
+import { createRoomBounds } from '/shared/room-bounds.js';
 
 /* WHAT PLAYS ON THE CINEMA SCREEN.
    Change this one id to run something else; nothing else in the file knows
@@ -129,6 +134,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(52, innerWidth/innerHeight, 0.1, 600);
 camera.position.set(0, 8, 24);
 
+let bounds = null;               // set once the room's own bounds are known
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.06;
 controls.target.set(0, 6, -4);
@@ -338,6 +344,11 @@ gltfLoader.load('./theatre-web.glb',
     scene.add(gltf.scene);
     xr.setRoot(gltf.scene);
 
+    /* Fence the camera into the house. maxDistance alone is 90 here against a
+       room 45 m deep, so the auditorium could be orbited out of entirely. */
+    bounds = createRoomBounds({ camera, controls, object: gltf.scene,
+                                margin: 0.6, floorY: 0.8 });
+
     gltf.scene.traverse((o) => {
       if (!o.isMesh) return;
       if (/SGT_Drape_[LR]/.test(o.name)) drapes.push(o);
@@ -429,7 +440,10 @@ renderer.setAnimationLoop(() => {
      which is exactly what three fills from the headset pose each XR frame.
      Damping runs even when controls.enabled is false, hence the guard here
      rather than relying on the flag. */
-  if (!xr.presenting) controls.update();
+  if (!xr.presenting) {
+    controls.update();
+    if (bounds) bounds.apply();
+  }
   xr.update();
   renderer.render(scene, camera);
   if (videoObj) css3d.render(scene, camera);

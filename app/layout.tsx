@@ -89,6 +89,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
         />
+        {/* The arriving half of a room transition. Synchronous and ahead of the
+            body on purpose: it wears the hallway film over a room that is still
+            loading, and a deferred copy would let the page paint underneath it
+            first. Inert on every page that was not reached with ?walk. */}
+        <script src="/shared/walk-in.js" />
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-512918665" />
         <script
           dangerouslySetInnerHTML={{

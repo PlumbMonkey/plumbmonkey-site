@@ -1,28 +1,31 @@
 /* ============================================================
    Plumbmonkey — room transitions.
 
-   Leaving a room plays a short film of the manor's own hallways and stairs
-   while the destination's model downloads, then navigates. The films are
-   rendered from VictorianHouse_Interiors.blend (five modular sets: a straight
-   corridor, an L that turns each way, a flight of stairs and the spiral), so
-   the walk between two rooms is a real walk through the same house.
+   Leaving a room walks you there, through the manor's own hallways and stairs.
+   The films come from VictorianHouse_Interiors.blend (five modular sets: a
+   straight corridor, an L that turns each way, a flight of stairs and the
+   spiral), so the trip between two rooms is a real trip through the house.
 
-   WHY A FILM AND THEN A NAVIGATION, rather than the entry cinematic's trick of
-   holding the room in an iframe underneath.
+   There are two ways it can play, and which one a room gets depends on how
+   long that room takes to appear.
 
-   ManorEntry can do that because the home page is a real page with a real nav
-   bar, and /shared/site-nav.js and /shared/room-menu.js both deliberately draw
-   NO chrome inside a frame — "the framed page inherits the parent's bar, which
-   is the one the visitor can actually use". A bare film page has no bar to
-   inherit, so a room left living in one would strand the visitor with no menu,
-   no address bar, and a Back button pointing at the wrong document.
+   1. HEAVY 3D ROOMS — anything with a `model` in rooms.js — dip to black, and
+      the film travels WITH the visitor as ?walk=<film>, played over the
+      destination's own loader by /shared/walk-in.js. The room downloads and
+      builds behind it, and the film lifts only when both are done.
 
-   So the film covers the DOWNLOAD instead of the whole load. That is the part
-   worth covering: the models are 2-4 MB against roughly 400 ms of decode and
-   scene build. By the time we navigate the .glb is in the HTTP cache, and the
-   few hundred milliseconds of building that remain land behind the film's
-   fade-out on the destination's own dark loader — black to black, which is the
-   same reason the films end by pushing into an unlit doorway.
+      This is not where it started. The film used to play here and then
+      navigate, covering the download only, on the assumption that the build
+      behind it was a few hundred milliseconds. Measured, the Arcade takes
+      ~990 ms from navigation to first frame with its .glb already served from
+      cache — module parse, Draco decode, scene build, shader compile — none of
+      which a prefetch can do early. So the film ended and a loading bar
+      appeared, which is precisely the seam the film existed to hide.
+
+   2. ORDINARY PAGES — the Workshop, the Theatre's page — have nothing to load
+      and appear immediately, so there is nothing at the far end for a film to
+      cover. Those play it here and navigate when it finishes, with the
+      destination warmed in the background while it runs.
 
    Everything degrades to a plain navigation: reduced motion, no video codec, a
    missing film, a stalled fetch, an impatient click, or a room with no film
@@ -68,11 +71,22 @@
      free to drop, and this one has a deadline: it is worth nothing if it has
      not landed by the time the film ends. `credentials: omit` keeps it the
      same request the viewer will make, so it hits the same cache entry. */
+  var warmed = {};
   function warm(url) {
-    if (!url) return;
+    if (!url || warmed[url]) return;
+    warmed[url] = true;
     try {
       fetch(url, { credentials: "omit", mode: "same-origin" }).catch(function () {});
     } catch (e) { /* no fetch: the room simply loads normally */ }
+  }
+
+  /* Start a room's download the moment the pointer rests on its door, the way
+     the entry cinematic already warms the foyer on hover. A hovered arch is a
+     strong signal, the fetch is idempotent, and by click time the film usually
+     has only the scene build left to cover rather than several megabytes. */
+  function prefetch(href) {
+    var route = routeFor(href);
+    if (route) warm(route.model);
   }
 
   function styles() {
@@ -83,11 +97,29 @@
       "#pm-transit{position:fixed;inset:0;z-index:2147483000;background:#000;" +
       "opacity:0;transition:opacity " + FADE_MS + "ms ease}" +
       "#pm-transit.on{opacity:1}" +
+      "#pm-transit.dip{transition:opacity 170ms ease}" +
       "#pm-transit video{width:100%;height:100%;object-fit:cover;display:block}" +
       "#pm-transit p{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);" +
       "margin:0;font:600 11px/1 system-ui,sans-serif;letter-spacing:.16em;" +
       "text-transform:uppercase;color:rgba(207,200,222,.5);pointer-events:none}";
     doc.head.appendChild(s);
+  }
+
+  /** Send the film with the visitor, for a room heavy enough to need it. */
+  function handOff(href, film, leave) {
+    var url = href + (href.indexOf("?") < 0 ? "?" : "&") + "walk=" +
+              encodeURIComponent(film);
+    /* A short dip to black first: the destination opens black and its film
+       fades up from black, so without this the lit room we are leaving cuts
+       straight to it. */
+    styles();
+    var wrap = doc.createElement("div");
+    wrap.id = "pm-transit";
+    wrap.className = "dip";
+    doc.body.appendChild(wrap);
+    void wrap.offsetWidth;
+    wrap.classList.add("on");
+    root.setTimeout(function () { leave(url); }, 170);
   }
 
   /**
@@ -101,6 +133,12 @@
     leave = leave || function (h) { root.location.href = h; };
     var route = routeFor(href);
     if (!route || shouldSkip()) { leave(href); return; }
+
+    /* Any room with a model is a heavy 3D load, and every one of them can wear
+       the film itself — whether it IS the viewer (/artroom/viewer.html) or
+       merely frames one (/arcade). walk-in.js handles both, and is loaded on the
+       viewers directly and on every Next page through app/layout.tsx. */
+    if (route.model) { handOff(href, route.film, leave); return; }
 
     warm(route.model);
     styles();
@@ -164,5 +202,5 @@
     if (p && p.catch) p.catch(finish);
   }
 
-  root.PM_TRANSITION = { play: play, routeFor: routeFor };
+  root.PM_TRANSITION = { play: play, routeFor: routeFor, prefetch: prefetch };
 })(typeof globalThis !== "undefined" ? globalThis : this, document);

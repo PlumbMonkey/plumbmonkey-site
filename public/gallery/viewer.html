@@ -38,6 +38,10 @@
   @media (max-width: 640px) { #hint { display: none; } }
 </style>
 <link rel="stylesheet" href="/shared/room-menu.css" />
+<!-- Synchronous and before the loader markup on purpose: this wears the
+     arrival film over the loader, and a deferred copy would let the
+     loader paint its own text first. -->
+<script src="/shared/walk-in.js"></script>
 </head>
 <body>
 

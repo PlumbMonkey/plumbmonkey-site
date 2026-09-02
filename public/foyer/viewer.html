@@ -65,6 +65,10 @@
   }
 </style>
 <link rel="stylesheet" href="/shared/room-menu.css" />
+<!-- Synchronous and before the loader markup on purpose: this wears the
+     arrival film over the loader, and a deferred copy would let the
+     loader paint its own text first. -->
+<script src="/shared/walk-in.js"></script>
 </head>
 <body>
 
@@ -94,6 +98,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { initXRRoom } from '/shared/xr-room.js';
+import { createRoomBounds } from '/shared/room-bounds.js';
 
 const loaderEl = document.getElementById('loader');
 const barEl = document.querySelector('#bar i');
@@ -179,6 +184,7 @@ scene.background = new THREE.Color(0x05040a);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.05, 200);
 camera.position.set(0, 2.7, 5.8);
 
+let bounds = null;               // set once the room's own bounds are known
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
@@ -311,6 +317,8 @@ function setHover(p) {
       : `<b>${p.label}</b><small>Under construction</small>`;
     tipEl.classList.add('on');
     renderer.domElement.style.cursor = p.live ? 'pointer' : 'not-allowed';
+    // Start the room downloading while they are still deciding.
+    if (p.live && p.href && window.PM_TRANSITION) window.PM_TRANSITION.prefetch(p.href);
   } else {
     tipEl.classList.remove('on');
     renderer.domElement.style.cursor = '';
@@ -384,6 +392,12 @@ gltfLoader.load('/foyer/foyer-web.glb',
   (gltf) => {
     scene.add(gltf.scene);
     xr.setRoot(gltf.scene);
+
+    /* Fence the camera into the room: nothing is modelled on the outside
+       of the shell, so orbiting through a wall shows it for the box it is.
+       Here, the foyer's bounds reach y = -2 under the floor. */
+    bounds = createRoomBounds({ camera, controls, object: gltf.scene,
+                                margin: 0.5, floorY: 0.6 });
     root = gltf.scene;
 
     const n = wirePortals(gltf.scene);
@@ -501,7 +515,12 @@ gltfLoader.load('/foyer/foyer-web.glb',
       setTimeout(() => loaderEl.remove(), 900);
       /* Tell the home page the room is drawn, so it can take the film away.
          Same-origin by construction; targeted anyway rather than '*'. */
-      if (embedded && window.parent !== window) {
+      /* Announce readiness to ANY parent, not just an ?embed host. A
+         framing page cannot otherwise tell when the room is live, and
+         /shared/walk-in.js needs exactly that to know when to lift the
+         arrival film. Strictly more information; nothing behaves
+         differently for a page that ignores the message. */
+      if (window.parent !== window) {
         window.parent.postMessage({ type: 'foyer-ready' }, location.origin);
       }
     };
@@ -536,7 +555,10 @@ addEventListener('resize', () => {
 const tipPos = new THREE.Vector3();
 renderer.setAnimationLoop(() => {
   if (mixer) mixer.update(clock.getDelta());
-  if (!xr.presenting) controls.update();
+  if (!xr.presenting) {
+    controls.update();
+    if (bounds) bounds.apply();
+  }
   xr.update();
 
   if (pendingPointer && !xr.presenting) {

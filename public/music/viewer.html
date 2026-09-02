@@ -65,6 +65,10 @@
   }
 </style>
 <link rel="stylesheet" href="/shared/room-menu.css" />
+<!-- Synchronous and before the loader markup on purpose: this wears the
+     arrival film over the loader, and a deferred copy would let the
+     loader paint its own text first. -->
+<script src="/shared/walk-in.js"></script>
 </head>
 <body>
 
@@ -95,6 +99,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { initXRRoom } from '/shared/xr-room.js';
+import { createRoomBounds } from '/shared/room-bounds.js';
 
 const loaderEl = document.getElementById('loader');
 const barEl = document.querySelector('#bar i');
@@ -143,6 +148,7 @@ scene.background = new THREE.Color(0x06050b);
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 200);
 camera.position.set(0, 1.82, 7.7);
 
+let bounds = null;               // set once the room's own bounds are known
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
@@ -307,6 +313,11 @@ gltfLoader.load('/music/music-web.glb',
   (gltf) => {
     scene.add(gltf.scene);
     xr.setRoot(gltf.scene);
+
+    /* Fence the camera into the room: nothing is modelled on the outside
+       of the shell, so orbiting through a wall shows it for the box it is. */
+    bounds = createRoomBounds({ camera, controls, object: gltf.scene,
+                                margin: 0.45, floorY: 0.5 });
     root = gltf.scene;
 
     const n = wireTargets(gltf.scene);
@@ -385,7 +396,12 @@ gltfLoader.load('/music/music-web.glb',
       revealed = true;
       loaderEl.classList.add('done');
       setTimeout(() => loaderEl.remove(), 900);
-      if (embedded && window.parent !== window) {
+      /* Announce readiness to ANY parent, not just an ?embed host. A
+         framing page cannot otherwise tell when the room is live, and
+         /shared/walk-in.js needs exactly that to know when to lift the
+         arrival film. Strictly more information; nothing behaves
+         differently for a page that ignores the message. */
+      if (window.parent !== window) {
         window.parent.postMessage({ type: 'music-ready' }, location.origin);
       }
     };
@@ -417,7 +433,10 @@ addEventListener('resize', () => {
 const tipPos = new THREE.Vector3();
 renderer.setAnimationLoop(() => {
   if (mixer) mixer.update(clock.getDelta());
-  if (!xr.presenting) controls.update();
+  if (!xr.presenting) {
+    controls.update();
+    if (bounds) bounds.apply();
+  }
   xr.update();
 
   if (pendingPointer && !xr.presenting) {
