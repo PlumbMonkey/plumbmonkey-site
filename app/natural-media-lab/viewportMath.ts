@@ -4,6 +4,14 @@ export const DEFAULT_EDITOR_ZOOM = 70;
 
 export type ViewportSize = { width: number; height: number };
 
+export type PaperClientSpace = {
+  centerX: number;
+  centerY: number;
+  paperWidth: number;
+  paperHeight: number;
+  rotationDegrees: number;
+};
+
 export type CanvasViewportGeometry = {
   paperWidth: number;
   paperHeight: number;
@@ -74,6 +82,33 @@ export const clientPointToPaperRatio = (
   return {
     x: localX / Math.max(1, paperWidth) + 0.5,
     y: localY / Math.max(1, paperHeight) + 0.5,
+  };
+};
+
+export const clientPointToPaperRatioInSpace = (
+  clientX: number,
+  clientY: number,
+  space: PaperClientSpace,
+) => clientPointToPaperRatio(
+  clientX,
+  clientY,
+  space.centerX,
+  space.centerY,
+  space.paperWidth,
+  space.paperHeight,
+  space.rotationDegrees,
+);
+
+export const clientPointToDocumentPoint = (
+  clientX: number,
+  clientY: number,
+  space: PaperClientSpace,
+  documentSize: ViewportSize,
+) => {
+  const ratio = clientPointToPaperRatioInSpace(clientX, clientY, space);
+  return {
+    x: ratio.x * documentSize.width,
+    y: ratio.y * documentSize.height,
   };
 };
 

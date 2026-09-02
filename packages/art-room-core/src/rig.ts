@@ -1,4 +1,6 @@
-import { AnimationFrame, NaturalMediaDocument } from "./documentModel";
+import type { AnimationFrame, NaturalMediaDocument } from "./documentModel";
+
+export type Point = { x: number; y: number };
 
 export const boneWorld = (document: NaturalMediaDocument, frame: AnimationFrame, boneId: string): { x: number; y: number; rotation: number } => {
   const bone = document.rig.bones.find((item) => item.id === boneId);
@@ -7,10 +9,23 @@ export const boneWorld = (document: NaturalMediaDocument, frame: AnimationFrame,
   if (!bone.parentId) return { x: bone.x, y: bone.y, rotation: localRotation };
   const parent = document.rig.bones.find((item) => item.id === bone.parentId);
   const world = boneWorld(document, frame, bone.parentId);
-  return { x: world.x + Math.cos(world.rotation * Math.PI / 180) * (parent?.length ?? 0), y: world.y + Math.sin(world.rotation * Math.PI / 180) * (parent?.length ?? 0), rotation: world.rotation + localRotation };
+  return {
+    x: world.x + Math.cos(world.rotation * Math.PI / 180) * (parent?.length ?? 0),
+    y: world.y + Math.sin(world.rotation * Math.PI / 180) * (parent?.length ?? 0),
+    rotation: world.rotation + localRotation,
+  };
 };
 
 export const poseRotation = (document: NaturalMediaDocument, frame: AnimationFrame, boneId: string): number => {
   const bone = document.rig.bones.find((item) => item.id === boneId);
   return (frame.bonePose[boneId] ?? 0) + (bone?.parentId ? poseRotation(document, frame, bone.parentId) : 0);
+};
+
+export const getBoneEndpointEdit = (start: Point, target: Point, parentRotation: number, posedRotation: number) => {
+  const offsetX = target.x - start.x;
+  const offsetY = target.y - start.y;
+  return {
+    length: Math.max(20, Math.hypot(offsetX, offsetY)),
+    restRotation: Math.atan2(offsetY, offsetX) * 180 / Math.PI - parentRotation - posedRotation,
+  };
 };

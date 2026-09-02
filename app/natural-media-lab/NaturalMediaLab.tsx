@@ -1,16 +1,38 @@
 "use client";
 
 import { CSSProperties, ChangeEvent, PointerEvent, WheelEvent, useCallback, useEffect, useRef, useState } from "react";
-import { AnimationFrame, BlendMode, ComicPanel, ComicText, NaturalMediaDocument, RigBone, createDocument, createLayer, loadRecovery, parseProject, saveRecovery } from "./documentModel";
+import { AnimationFrame, BlendMode, ComicPanel, ComicText, NaturalMediaDocument, PaintLayer, RigBone, createDocument, createLayer, parseProject } from "./documentModel";
+import { applyEditorCommand } from "../../packages/art-room-core/src/editorCommands";
+import type { EditorCommand } from "../../packages/art-room-core/src/editorCommands";
+import { appendJournalEntry, compactJournalAtCheckpoint, createCommandJournal, moveJournalHead, shouldCreateCheckpoint } from "../../packages/art-room-core/src/commandJournal";
+import type { CommandJournal } from "../../packages/art-room-core/src/commandJournal";
+import { dirtyRectForSegment, unionRasterRects } from "../../packages/art-room-core/src/rasterSurface";
+import type { RasterRect } from "../../packages/art-room-core/src/rasterSurface";
+import type { RasterRecoverySnapshotV1 } from "../../packages/art-room-core/src/rasterRecovery";
+import type { RasterTileRevisionCommand } from "../../packages/art-room-core/src/rasterRevision";
+import { RasterSession } from "../../packages/art-room-core/src/rasterSession";
+import { historyEntryRequiresRasterReset, recordHistoryEntry, takeHistoryStep } from "../../packages/art-room-core/src/historyController";
+import type { SnapshotHistoryEntry } from "../../packages/art-room-core/src/historyController";
+import { planComicPdfExport, planGifExport, planRasterExport, safeExportStem } from "../../packages/art-room-core/src/exportPlanning";
+import { captureDocumentSnapshot } from "../../packages/art-room-core/src/documentSnapshot";
+import { DEFAULT_LAYER_TRANSFORM, framePlaybackDelay, resolveLayerTransform } from "../../packages/art-room-core/src/animation";
+import { renderAnimationFrame, renderAnimationImageData } from "../../packages/art-room-core/src/animationRenderer";
+import { pagesWithActiveComicState, renderComicPage } from "../../packages/art-room-core/src/comicRenderer";
+import { cropCanvasLayer, fillCanvasLinearGradient, flattenCanvas, flipCanvasLayer, mergeCanvasLayers, resizeCanvasLayer } from "../../packages/art-room-core/src/canvasOperations";
 import { BRUSHES, renderBrushStroke } from "./brushEngine";
 import { PROCEDURAL_BRUSHES, renderProceduralStroke } from "./proceduralEngine";
 import { encodeGif } from "./gifEncoder";
 import { encodeComicPdf } from "./pdfEncoder";
-import { boneWorld, poseRotation } from "./rigEngine";
-import { DEFAULT_EDITOR_ZOOM, clampEditorZoom, clientPointToPaperRatio, getCanvasViewportGeometry, getPaperBaseSize, paperRatioToClientPoint } from "./viewportMath";
+import { getComicTransformPatch } from "../../packages/art-room-core/src/comicLayout";
+import { boneWorld, getBoneEndpointEdit, poseRotation } from "../../packages/art-room-core/src/rig";
+import { loadRecovery, saveRecovery } from "./persistence";
+import { DEFAULT_EDITOR_ZOOM, PaperClientSpace, clampEditorZoom, clientPointToDocumentPoint, clientPointToPaperRatio, clientPointToPaperRatioInSpace, getCanvasViewportGeometry, getPaperBaseSize, paperRatioToClientPoint } from "./viewportMath";
+import { compositeCanvasLayers, createCanvasRasterSurface } from "./canvasRasterSurface";
 import styles from "./natural-media-lab.module.css";
 
 const SWATCHES = ["#1d2220", "#6c2e2a", "#bd6b3c", "#d6a95f", "#65734d", "#41636a", "#42476f", "#7a4f6b"];
+type ArtRoomCommand = EditorCommand | RasterTileRevisionCommand;
+type EditorHistoryEntry = SnapshotHistoryEntry<NaturalMediaDocument, RasterTileRevisionCommand>;
 const PRESETS = [
   ["Landscape", 1600, 1000], ["Square", 1200, 1200],
   ["HD", 1920, 1080], ["A4 portrait", 1240, 1754],
@@ -22,21 +44,6 @@ const TOUR = [
   ["Publish locally", "Export artwork, GIF animation, print-ready pages, or a complete PDF without uploading your work."],
 ] as const;
 const clone = (value: NaturalMediaDocument): NaturalMediaDocument => JSON.parse(JSON.stringify(value));
-const DEFAULT_TRANSFORM = { x: 0, y: 0, scale: 100, rotation: 0, opacity: 100, easing: "linear" as AnimationFrame["transforms"][string]["easing"] };
-const easeValue = (value: number, easing: string) => easing === "hold" ? 0 : easing === "ease-in" ? value * value : easing === "ease-out" ? 1 - (1 - value) ** 2 : easing === "ease-in-out" ? value < .5 ? 2 * value * value : 1 - (-2 * value + 2) ** 2 / 2 : value;
-const resolveTransform = (frames: AnimationFrame[], index: number, layerId: string) => {
-  const exact = frames[index]?.transforms[layerId]; if (exact) return exact;
-  let previous = -1, next = -1;
-  for (let i = index - 1; i >= 0; i--) if (frames[i].transforms[layerId]) { previous = i; break; }
-  for (let i = index + 1; i < frames.length; i++) if (frames[i].transforms[layerId]) { next = i; break; }
-  if (previous < 0 && next < 0) return DEFAULT_TRANSFORM;
-  if (previous < 0) return { ...DEFAULT_TRANSFORM, ...frames[next].transforms[layerId] };
-  const from = { ...DEFAULT_TRANSFORM, ...frames[previous].transforms[layerId] };
-  if (next < 0 || from.easing === "hold") return from;
-  const to = { ...DEFAULT_TRANSFORM, ...frames[next].transforms[layerId] };
-  const t = easeValue((index - previous) / (next - previous), from.easing);
-  return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t, scale: from.scale + (to.scale - from.scale) * t, rotation: from.rotation + (to.rotation - from.rotation) * t, opacity: from.opacity + (to.opacity - from.opacity) * t, easing: from.easing };
-};
 const layerRigRotation = (document: NaturalMediaDocument, frame: AnimationFrame, layerId: string) => {
   const binding = document.rig.layerBindings[layerId];
   return binding ? poseRotation(document, frame, binding.boneId) : 0;
@@ -134,8 +141,14 @@ export default function NaturalMediaLab() {
   const selectionOriginRef = useRef<{ x: number; y: number } | null>(null);
   const strokeSeedRef = useRef(1);
   const strokeCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const historyRef = useRef<NaturalMediaDocument[]>([]);
-  const redoRef = useRef<NaturalMediaDocument[]>([]);
+  const dirtyStrokeRef = useRef<RasterRect | null>(null);
+  const historyRef = useRef<EditorHistoryEntry[]>([]);
+  const redoRef = useRef<EditorHistoryEntry[]>([]);
+  const pendingStrokeHistoryIdRef = useRef<string | null>(null);
+  const commandJournalRef = useRef<CommandJournal<ArtRoomCommand>>(createCommandJournal<ArtRoomCommand>());
+  const commandBaselineRef = useRef<{ sequence: number; document: NaturalMediaDocument } | null>(null);
+  const rasterSessionRef = useRef<RasterSession | null>(null);
+  const rasterSession = rasterSessionRef.current ??= new RasterSession();
   const fileRef = useRef<HTMLInputElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
@@ -144,14 +157,14 @@ export default function NaturalMediaLab() {
   const pdfCancelRef = useRef(false);
   const pdfWorkerRef = useRef<Worker | null>(null);
   const pdfRejectRef = useRef<((reason?: unknown) => void) | null>(null);
-  const comicDragRef = useRef<{ kind: "panel" | "text"; id: string; mode: "move" | "resize" | "crop"; startX: number; startY: number; width: number; height: number; base: ComicPanel } | null>(null);
+  const comicDragRef = useRef<{ kind: "panel" | "text"; id: string; mode: "move" | "resize" | "crop"; startPaperX: number; startPaperY: number; base: ComicPanel } | null>(null);
   const activeLayer = document.layers.find((layer) => layer.id === document.activeLayerId) ?? document.layers[0];
   const activeFrameIndex = document.animation.frames.findIndex((frame) => frame.id === document.animation.activeFrameId);
   const activeFrame = document.animation.frames[activeFrameIndex];
   const paperBaseSize = getPaperBaseSize(document.width, document.height, browserViewport.width, browserViewport.height);
   const viewRotation = view.rotation + activeFrame.camera.rotation;
   const viewportGeometry = getCanvasViewportGeometry(paperBaseSize, zoom, activeFrame.camera.zoom, viewRotation);
-  const activeTransform = resolveTransform(document.animation.frames, activeFrameIndex, activeLayer.id);
+  const activeTransform = resolveLayerTransform(document.animation.frames, activeFrameIndex, activeLayer.id);
   const selectedBone = document.rig.bones.find((bone) => bone.id === selectedBoneId) ?? null;
   const selectedPanel = document.comic.panels.find((panel) => panel.id === selectedPanelId) ?? null;
   const selectedText = document.comic.text.find((item) => item.id === selectedTextId) ?? null;
@@ -161,6 +174,17 @@ export default function NaturalMediaLab() {
     const page = document.comic.pages.find((item) => item.id === panel.sourcePageId);
     const layer = [...document.layers].reverse().find((item) => item.visible && page?.layerData[item.id]);
     return layer && page ? page.layerData[layer.id] : "";
+  };
+  const getPaperClientSpace = (): PaperClientSpace | null => {
+    const paper = paperRef.current; if (!paper) return null;
+    const bounds = paper.getBoundingClientRect();
+    return {
+      centerX: bounds.left + bounds.width / 2,
+      centerY: bounds.top + bounds.height / 2,
+      paperWidth: paper.clientWidth,
+      paperHeight: paper.clientHeight,
+      rotationDegrees: viewRotation,
+    };
   };
 
   const getSimulationBuffers = useCallback((layerId: string, width: number, height: number) => {
@@ -175,18 +199,44 @@ export default function NaturalMediaLab() {
     return buffers;
   }, []);
 
+  const resetRasterTileCache = () => {
+    rasterSession.reset();
+    dirtyStrokeRef.current = null;
+  };
+
+  const persistCanvasTiles = (layerId: string, canvas: HTMLCanvasElement, dirty: RasterRect, historyEntryId?: string | null) => {
+    void rasterSession.persist({
+        layerId,
+        source: createCanvasRasterSurface(canvas),
+        dirty,
+      }).then((revision) => {
+      if (!revision) return;
+      commandJournalRef.current = appendJournalEntry(commandJournalRef.current, {
+        id: revision.id,
+        kind: revision.type,
+        createdAt: revision.createdAt,
+        payload: revision,
+        undoable: true,
+      });
+      if (historyEntryId) {
+        const historyEntry = [...historyRef.current, ...redoRef.current].find((entry) => entry.id === historyEntryId);
+        if (historyEntry) {
+          historyEntry.rasterRevision = revision;
+          historyEntry.rasterRevisionPending = false;
+          historyEntry.commandSequence = commandJournalRef.current.head;
+        }
+      }
+    }).catch(() => setPerformanceNote("Tile cache update deferred; project recovery remains available."));
+  };
+
   const paintCanvases = useCallback((next: NaturalMediaDocument) => {
     next.layers.forEach((layer) => {
       const canvas = canvasRefs.current.get(layer.id);
       if (!canvas) return;
-      canvas.width = next.width; canvas.height = next.height;
-      const context = canvas.getContext("2d");
-      context?.clearRect(0, 0, next.width, next.height);
-      if (context && layer.dataUrl) {
-        const image = new Image();
-        image.onload = () => context.drawImage(image, 0, 0);
-        image.src = layer.dataUrl;
-      }
+      const surface = createCanvasRasterSurface(canvas);
+      surface.resize(next.width, next.height);
+      surface.clear();
+      if (layer.dataUrl) void surface.restoreDataUrl(layer.dataUrl);
       const buffers = getSimulationBuffers(layer.id, next.width, next.height);
       ([["wet", layer.simulation.wetMapUrl], ["height", layer.simulation.heightMapUrl]] as const).forEach(([kind, url]) => {
         const target = buffers[kind], targetContext = target.getContext("2d");
@@ -198,8 +248,31 @@ export default function NaturalMediaLab() {
     });
   }, [getSimulationBuffers]);
 
+  const createCurrentRasterRecovery = async () => {
+    return rasterSession.createRecovery();
+  };
+
+  const restoreRecoveredRaster = async (snapshot: RasterRecoverySnapshotV1, recoveredDocument: NaturalMediaDocument) => {
+    if (!await rasterSession.restore(snapshot)) return;
+    const resolver = rasterSession.createResolver();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    for (const layer of recoveredDocument.layers) {
+      const canvas = canvasRefs.current.get(layer.id), descriptor = rasterSession.layerDescriptor(layer.id);
+      if (!canvas || !descriptor) continue;
+      const surface = createCanvasRasterSurface(canvas);
+      surface.resize(recoveredDocument.width, recoveredDocument.height);
+      surface.clear();
+      if (layer.dataUrl) await surface.restoreDataUrl(layer.dataUrl);
+      await surface.restoreTileSet(descriptor, (handleId) => resolver.resolve(handleId));
+    }
+  };
+
   useEffect(() => {
-    loadRecovery().then((saved) => saved && setDocument(saved))
+    loadRecovery().then((saved) => {
+      if (!saved) return;
+      setDocument(saved.document);
+      if (saved.raster) void restoreRecoveredRaster(saved.raster, saved.document).catch(() => setPerformanceNote("Tile recovery unavailable; restored the document snapshot instead."));
+    })
       .catch(() => setSaveState("Local recovery unavailable")).finally(() => setHydrated(true));
   }, []);
   useEffect(() => {
@@ -244,41 +317,100 @@ export default function NaturalMediaLab() {
   useEffect(() => {
     if (!hydrated) return;
     const timer = window.setTimeout(() => {
-      saveRecovery(document).then(() => setSaveState("Saved on this device"))
+      createCurrentRasterRecovery().then((raster) => saveRecovery(document, raster)).then(() => setSaveState("Saved on this device"))
         .catch(() => setSaveState("Recovery save failed"));
     }, 500);
     return () => window.clearTimeout(timer);
   }, [document, hydrated]);
 
   const captureDocument = useCallback((): NaturalMediaDocument => {
-    const layers = document.layers.map((layer) => ({
-      ...layer,
-      dataUrl: canvasRefs.current.get(layer.id)?.toDataURL("image/png") ?? layer.dataUrl,
-      simulation: {
-        wetMapUrl: simulationRefs.current.get(layer.id)?.wet.toDataURL("image/png") ?? layer.simulation.wetMapUrl,
-        heightMapUrl: simulationRefs.current.get(layer.id)?.height.toDataURL("image/png") ?? layer.simulation.heightMapUrl,
+    return captureDocumentSnapshot(document, {
+      layerDataUrl: (layer) => {
+        const canvas = canvasRefs.current.get(layer.id);
+        return canvas && createCanvasRasterSurface(canvas).snapshotDataUrl();
       },
-    }));
-    const layerData = Object.fromEntries(layers.map((layer) => [layer.id, layer.dataUrl]));
-    return {
-      ...document, layers,
-      animation: { ...document.animation, frames: document.animation.frames.map((frame) => frame.id === document.animation.activeFrameId ? { ...frame, layerData } : frame) },
-      comic: { ...document.comic, pages: document.comic.pages.map((page) => page.id === document.comic.activePageId ? { ...page, panels: document.comic.panels, text: document.comic.text, layerData } : page) },
-      updatedAt: new Date().toISOString(),
-    };
+      simulationDataUrl: (layer, kind) => simulationRefs.current.get(layer.id)?.[kind].toDataURL("image/png"),
+    });
   }, [document]);
   const commit = useCallback(() => {
     const next = captureDocument(); setDocument(next); setSaveState("Saving…"); return next;
   }, [captureDocument]);
-  const pushHistory = () => {
-    historyRef.current.push(clone(captureDocument()));
-    if (historyRef.current.length > 16) historyRef.current.shift();
-    redoRef.current = [];
+  const pruneRasterHistoryPayloads = () => {
+    const retained = [...historyRef.current, ...redoRef.current].flatMap((entry) => [entry.rasterRevision?.before, entry.rasterRevision?.after]);
+    void rasterSession.prune(retained);
   };
-  const restoreSnapshot = (source: NaturalMediaDocument[], destination: NaturalMediaDocument[]) => {
-    const snapshot = source.pop(); if (!snapshot) return;
-    destination.push(clone(captureDocument())); setDocument(snapshot);
-    window.setTimeout(() => paintCanvases(snapshot));
+  const pushHistory = (rasterCompatible = false, rasterRevisionPending = false) => {
+    const snapshot = clone(captureDocument());
+    if (commandJournalRef.current.head > 0 && shouldCreateCheckpoint(commandJournalRef.current)) {
+      const sequence = commandJournalRef.current.head;
+      commandBaselineRef.current = { sequence, document: clone(snapshot) };
+      commandJournalRef.current = compactJournalAtCheckpoint(commandJournalRef.current, {
+        sequence,
+        createdAt: new Date().toISOString(),
+        path: `recovery/journal-checkpoints/${sequence}.json`,
+      }).journal;
+    }
+    const id = crypto.randomUUID();
+    recordHistoryEntry(historyRef.current, redoRef.current, { id, document: snapshot, rasterCompatible, rasterRevisionPending });
+    pruneRasterHistoryPayloads();
+    return id;
+  };
+  const dispatchEditorCommand = (command: EditorCommand) => {
+    commandJournalRef.current = appendJournalEntry(commandJournalRef.current, {
+      id: command.id,
+      kind: command.type,
+      createdAt: command.createdAt,
+      payload: command,
+      undoable: true,
+    });
+    const historyEntry = historyRef.current[historyRef.current.length - 1];
+    if (historyEntry && historyEntry.commandSequence === undefined) historyEntry.commandSequence = commandJournalRef.current.head;
+    setDocument((current) => applyEditorCommand(current, command));
+  };
+  const commandIdentity = () => ({ id: crypto.randomUUID(), createdAt: new Date().toISOString() });
+  const restoreHistory = (source: EditorHistoryEntry[], destination: EditorHistoryEntry[], direction: "undo" | "redo") => {
+    const entry = takeHistoryStep(source, destination, clone(captureDocument())); if (!entry) return;
+    if (entry.commandSequence !== undefined) {
+      const requestedHead = direction === "undo" ? entry.commandSequence - 1 : entry.commandSequence;
+      const checkpointSequence = commandJournalRef.current.checkpoint?.sequence;
+      if (checkpointSequence !== undefined && requestedHead < checkpointSequence) {
+        commandJournalRef.current = createCommandJournal<ArtRoomCommand>();
+        commandBaselineRef.current = null;
+        [...historyRef.current, ...redoRef.current].forEach((historyEntry) => delete historyEntry.commandSequence);
+      } else {
+        commandJournalRef.current = moveJournalHead(commandJournalRef.current, requestedHead);
+      }
+    } else {
+      commandJournalRef.current = createCommandJournal<ArtRoomCommand>();
+      commandBaselineRef.current = null;
+    }
+    if (!entry.rasterRevision) {
+      if (historyEntryRequiresRasterReset(entry)) resetRasterTileCache();
+      setDocument(entry.document);
+      window.setTimeout(() => paintCanvases(entry.document));
+      return;
+    }
+    rasterSession.applyRevision(entry.rasterRevision, direction);
+    setDocument(entry.document);
+    window.setTimeout(() => {
+      paintCanvases(entry.document);
+      void (async () => {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        const layer = entry.document.layers.find((item) => item.id === entry.rasterRevision!.layerId);
+        const canvas = canvasRefs.current.get(entry.rasterRevision!.layerId);
+        const descriptor = direction === "undo" ? entry.rasterRevision!.before : entry.rasterRevision!.after;
+        if (!layer || !canvas) return;
+        const surface = createCanvasRasterSurface(canvas);
+        surface.resize(entry.document.width, entry.document.height);
+        surface.clear();
+        if (layer.dataUrl) await surface.restoreDataUrl(layer.dataUrl);
+        if (descriptor) {
+          const resolver = rasterSession.createResolver();
+          await surface.restoreTileSet(descriptor, (handleId) => resolver.resolve(handleId));
+        }
+      })().catch(() => setPerformanceNote("Tile history restore used the document snapshot fallback."));
+    });
+    pruneRasterHistoryPayloads();
   };
   const canvasPoint = (event: PointerEvent<HTMLCanvasElement>) => {
     const point = {
@@ -297,8 +429,8 @@ export default function NaturalMediaLab() {
       return;
     }
     if (activeLayer.locked || !activeLayer.visible) return;
-    event.currentTarget.setPointerCapture(event.pointerId); pushHistory();
-    drawingRef.current = true; pointRef.current = canvasPoint(event); strokeCanvasRef.current = event.currentTarget;
+    event.currentTarget.setPointerCapture(event.pointerId); pendingStrokeHistoryIdRef.current = pushHistory(true, true);
+    drawingRef.current = true; pointRef.current = canvasPoint(event); strokeCanvasRef.current = event.currentTarget; dirtyStrokeRef.current = null;
   };
   const drawStroke = (event: PointerEvent<HTMLCanvasElement>) => {
     if (selectionOriginRef.current) {
@@ -307,9 +439,12 @@ export default function NaturalMediaLab() {
       return;
     }
     if (!drawingRef.current) return;
-    const context = event.currentTarget.getContext("2d"); if (!context) return;
+    const context = createCanvasRasterSurface(event.currentTarget).context2d();
     const point = canvasPoint(event), pressure = event.pressure || .5;
     const scaledSize = size * document.width / event.currentTarget.getBoundingClientRect().width;
+    const proceduralRadius = document.procedural.scale * document.width / event.currentTarget.getBoundingClientRect().width * 3;
+    const dirty = dirtyRectForSegment(pointRef.current, point, toolFamily === "procedural" ? proceduralRadius : scaledSize * 1.8, document.width, document.height, mirror);
+    dirtyStrokeRef.current = unionRasterRects(dirtyStrokeRef.current, dirty);
     const buffers = getSimulationBuffers(activeLayer.id, document.width, document.height);
     if (toolFamily === "procedural") {
       renderProceduralStroke(context, pointRef.current, point, proceduralTool, {
@@ -339,47 +474,52 @@ export default function NaturalMediaLab() {
     if (drawingRef.current) {
       drawingRef.current = false;
       const canvas = strokeCanvasRef.current;
+      const historyEntryId = pendingStrokeHistoryIdRef.current;
+      pendingStrokeHistoryIdRef.current = null;
+      const finishStroke = () => {
+        commit();
+        if (canvas && dirtyStrokeRef.current) persistCanvasTiles(activeLayer.id, canvas, dirtyStrokeRef.current, historyEntryId);
+        dirtyStrokeRef.current = null;
+      };
       if (toolFamily === "natural" && tool.id === "watercolor" && canvas && document.effects.strength > 0) {
+        dirtyStrokeRef.current = { x: 0, y: 0, width: document.width, height: document.height };
         let passes = 0;
         const settle = () => {
-          const context = canvas.getContext("2d"); if (!context) return commit();
+          const context = canvas.getContext("2d"); if (!context) return finishStroke();
           const copy = window.document.createElement("canvas"); copy.width = canvas.width; copy.height = canvas.height;
           copy.getContext("2d")?.drawImage(canvas, 0, 0);
           context.save(); context.globalAlpha = .025 + document.effects.strength / 5000;
           context.filter = `blur(${1 + document.effects.strength / 35}px)`;
           context.drawImage(copy, -1, -1, canvas.width + 2, canvas.height + 2); context.restore();
           passes += 1;
-          if (passes < 4) requestAnimationFrame(settle); else commit();
+          if (passes < 4) requestAnimationFrame(settle); else finishStroke();
         };
         requestAnimationFrame(settle);
-      } else commit();
+      } else finishStroke();
     }
   };
-  const updateLayer = (id: string, patch: Partial<NaturalMediaDocument["layers"][number]>) => {
-    pushHistory();
-    setDocument((current) => ({ ...current, layers: current.layers.map((layer) => layer.id === id ? { ...layer, ...patch } : layer), updatedAt: new Date().toISOString() }));
+  const updateLayer = (id: string, patch: Partial<Pick<PaintLayer, "name" | "visible" | "locked" | "opacity" | "blendMode">>) => {
+    pushHistory(true);
+    dispatchEditorCommand({ ...commandIdentity(), type: "layer.update", layerId: id, patch });
   };
   const addLayer = () => {
-    pushHistory(); const layer = createLayer(`Paint layer ${document.layers.length + 1}`);
-    setDocument((current) => ({ ...current, layers: [...current.layers, layer], activeLayerId: layer.id }));
+    pushHistory(true); const layer = createLayer(`Paint layer ${document.layers.length + 1}`);
+    dispatchEditorCommand({ ...commandIdentity(), type: "layer.add", layer, makeActive: true });
   };
   const deleteLayer = () => {
-    if (document.layers.length === 1) return; pushHistory();
-    const layers = document.layers.filter((layer) => layer.id !== activeLayer.id);
-    setDocument({ ...document, layers, activeLayerId: layers[layers.length - 1].id });
+    if (document.layers.length === 1) return; pushHistory(true);
+    dispatchEditorCommand({ ...commandIdentity(), type: "layer.delete", layerId: activeLayer.id });
   };
   const moveLayer = (direction: -1 | 1) => {
     const index = document.layers.findIndex((layer) => layer.id === activeLayer.id), target = index + direction;
-    if (target < 0 || target >= document.layers.length) return; pushHistory();
-    const layers = [...document.layers]; [layers[index], layers[target]] = [layers[target], layers[index]];
-    setDocument({ ...document, layers });
+    if (target < 0 || target >= document.layers.length) return; pushHistory(true);
+    dispatchEditorCommand({ ...commandIdentity(), type: "layer.move", layerId: activeLayer.id, direction });
   };
   const duplicateLayer = () => {
-    pushHistory();
+    pushHistory(true);
     const copy = { ...activeLayer, id: crypto.randomUUID(), name: `${activeLayer.name} copy`, dataUrl: canvasRefs.current.get(activeLayer.id)?.toDataURL("image/png") ?? activeLayer.dataUrl };
     const index = document.layers.findIndex((layer) => layer.id === activeLayer.id);
-    const layers = [...document.layers]; layers.splice(index + 1, 0, copy);
-    setDocument({ ...document, layers, activeLayerId: copy.id });
+    dispatchEditorCommand({ ...commandIdentity(), type: "layer.add", layer: copy, index: index + 1, makeActive: true });
   };
   const mergeDown = () => {
     const index = document.layers.findIndex((layer) => layer.id === activeLayer.id);
@@ -387,21 +527,20 @@ export default function NaturalMediaLab() {
     pushHistory();
     const lower = document.layers[index - 1], lowerCanvas = canvasRefs.current.get(lower.id), activeCanvas = canvasRefs.current.get(activeLayer.id);
     if (!lowerCanvas || !activeCanvas) return;
-    const merged = window.document.createElement("canvas"); merged.width = document.width; merged.height = document.height;
-    const context = merged.getContext("2d")!;
-    context.globalAlpha = lower.opacity; context.globalCompositeOperation = lower.blendMode; context.drawImage(lowerCanvas, 0, 0);
-    context.globalAlpha = activeLayer.opacity; context.globalCompositeOperation = activeLayer.blendMode; context.drawImage(activeCanvas, 0, 0);
+    const merged = mergeCanvasLayers(document.width, document.height, [
+      { canvas: lowerCanvas, opacity: lower.opacity, blendMode: lower.blendMode },
+      { canvas: activeCanvas, opacity: activeLayer.opacity, blendMode: activeLayer.blendMode },
+    ]);
     const layers = document.layers.filter((layer) => layer.id !== activeLayer.id).map((layer) => layer.id === lower.id ? { ...layer, dataUrl: merged.toDataURL("image/png"), opacity: 1, blendMode: "source-over" as BlendMode } : layer);
+    resetRasterTileCache(); persistCanvasTiles(lower.id, merged, { x: 0, y: 0, width: document.width, height: document.height });
     setDocument({ ...document, layers, activeLayerId: lower.id });
   };
   const flipLayer = (vertical = false) => {
     const canvas = canvasRefs.current.get(activeLayer.id); if (!canvas) return;
     pushHistory();
-    const copy = window.document.createElement("canvas"); copy.width = document.width; copy.height = document.height;
-    const context = copy.getContext("2d")!;
-    context.translate(vertical ? 0 : document.width, vertical ? document.height : 0);
-    context.scale(vertical ? 1 : -1, vertical ? -1 : 1); context.drawImage(canvas, 0, 0);
+    const copy = flipCanvasLayer(canvas, document.width, document.height, vertical);
     const next = { ...document, layers: document.layers.map((layer) => layer.id === activeLayer.id ? { ...layer, dataUrl: copy.toDataURL("image/png") } : layer) };
+    persistCanvasTiles(activeLayer.id, copy, { x: 0, y: 0, width: document.width, height: document.height });
     setDocument(next); window.setTimeout(() => paintCanvases(next));
   };
   const resizeProject = () => {
@@ -410,11 +549,10 @@ export default function NaturalMediaLab() {
     if (!Number.isFinite(width) || !Number.isFinite(height) || width < 64 || height < 64 || width > 4096 || height > 4096) return;
     pushHistory();
     const layers = document.layers.map((layer) => {
-      const source = canvasRefs.current.get(layer.id), resized = window.document.createElement("canvas");
-      resized.width = width; resized.height = height;
-      if (source) resized.getContext("2d")?.drawImage(source, 0, 0, width, height);
+      const source = canvasRefs.current.get(layer.id), resized = resizeCanvasLayer(source, width, height);
       return { ...layer, dataUrl: resized.toDataURL("image/png") };
     });
+    resetRasterTileCache();
     setDocument({ ...document, width, height, layers });
   };
   const cropToSelection = () => {
@@ -422,30 +560,24 @@ export default function NaturalMediaLab() {
     pushHistory();
     const width = Math.round(selection.width), height = Math.round(selection.height);
     const layers = document.layers.map((layer) => {
-      const source = canvasRefs.current.get(layer.id), cropped = window.document.createElement("canvas");
-      cropped.width = width; cropped.height = height;
-      if (source) cropped.getContext("2d")?.drawImage(source, selection.x, selection.y, selection.width, selection.height, 0, 0, width, height);
+      const source = canvasRefs.current.get(layer.id), cropped = cropCanvasLayer(source, selection);
       return { ...layer, dataUrl: cropped.toDataURL("image/png") };
     });
+    resetRasterTileCache();
     setDocument({ ...document, width, height, layers }); setSelection(null); setSelectionMode("paint");
   };
   const fillGradient = () => {
     const canvas = canvasRefs.current.get(activeLayer.id); if (!canvas || activeLayer.locked) return;
-    pushHistory(); const context = canvas.getContext("2d")!;
-    const gradient = context.createLinearGradient(0, 0, document.width, document.height);
+    pushHistory();
     const hsl = rgbToHsl(hexToRgb(color));
-    gradient.addColorStop(0, color); gradient.addColorStop(1, hslToHex((hsl.h + 180) % 360, hsl.s, hsl.l));
-    context.fillStyle = gradient; context.fillRect(0, 0, document.width, document.height); commit();
+    fillCanvasLinearGradient(canvas, color, hslToHex((hsl.h + 180) % 360, hsl.s, hsl.l)); commit();
+    persistCanvasTiles(activeLayer.id, canvas, { x: 0, y: 0, width: document.width, height: document.height });
   };
   const composite = () => {
-    const output = window.document.createElement("canvas"); output.width = document.width; output.height = document.height;
-    const context = output.getContext("2d")!;
-    if (document.background === "paper") { context.fillStyle = "#f1ede3"; context.fillRect(0, 0, output.width, output.height); }
-    document.layers.forEach((layer) => {
-      const canvas = canvasRefs.current.get(layer.id); if (!layer.visible || !canvas) return;
-      context.globalAlpha = layer.opacity; context.globalCompositeOperation = layer.blendMode; context.drawImage(canvas, 0, 0);
-    });
-    return output;
+    return compositeCanvasLayers(document.width, document.height, document.background, document.layers.flatMap((layer) => {
+      const canvas = canvasRefs.current.get(layer.id);
+      return canvas ? [{ canvas, visible: layer.visible, opacity: layer.opacity, blendMode: layer.blendMode }] : [];
+    }));
   };
   const chooseColor = (next: string) => {
     setColor(next);
@@ -457,15 +589,13 @@ export default function NaturalMediaLab() {
   };
   const exportArtwork = () => {
     const canvas = composite();
-    if (exportFormat !== "png" && document.background === "transparent") {
-      const flattened = window.document.createElement("canvas");
-      flattened.width = canvas.width; flattened.height = canvas.height;
-      const context = flattened.getContext("2d")!;
-      context.fillStyle = "#f1ede3"; context.fillRect(0, 0, flattened.width, flattened.height); context.drawImage(canvas, 0, 0);
-      download(flattened.toDataURL(`image/${exportFormat}`, .92), `${document.name}.${exportFormat === "jpeg" ? "jpg" : exportFormat}`);
+    const plan = planRasterExport(document.name, exportFormat, document.background);
+    if (plan.flattenColor) {
+      const flattened = flattenCanvas(canvas, plan.flattenColor);
+      download(flattened.toDataURL(plan.mediaType, plan.quality), plan.filename);
       return;
     }
-    download(canvas.toDataURL(`image/${exportFormat}`, .92), `${document.name}.${exportFormat === "jpeg" ? "jpg" : exportFormat}`);
+    download(canvas.toDataURL(plan.mediaType, plan.quality), plan.filename);
   };
   const beginPan = (event: PointerEvent<HTMLDivElement>) => {
     if (!spaceRef.current && event.button !== 1) return;
@@ -515,52 +645,25 @@ export default function NaturalMediaLab() {
   };
   const saveProject = () => {
     const url = URL.createObjectURL(new Blob([JSON.stringify(captureDocument())], { type: "application/json" }));
-    download(url, `${document.name}.nml`); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    download(url, `${safeExportStem(document.name)}.nml`); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   const loadProject = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; if (!file) return;
     try {
       const project = parseProject(JSON.parse(await file.text()));
-      historyRef.current = []; redoRef.current = []; setDocument(project);
+      historyRef.current = []; redoRef.current = []; commandJournalRef.current = createCommandJournal<ArtRoomCommand>(); resetRasterTileCache(); setDocument(project);
       window.setTimeout(() => paintCanvases(project));
     } catch (error) { alert(error instanceof Error ? error.message : "Could not open this project."); }
     event.target.value = "";
   };
   const createNew = () => {
-    pushHistory(); setDocument(createDocument(newSize.width, newSize.height, newSize.background)); setShowNew(false);
-  };
-  const frameCanvas = async (frameId: string, sourceDocument = document) => {
-    const frame = sourceDocument.animation.frames.find((item) => item.id === frameId);
-    const canvas = window.document.createElement("canvas"); canvas.width = sourceDocument.width; canvas.height = sourceDocument.height;
-    const context = canvas.getContext("2d")!;
-    if (sourceDocument.background === "paper") { context.fillStyle = "#f1ede3"; context.fillRect(0, 0, canvas.width, canvas.height); }
-    const frameIndex = sourceDocument.animation.frames.findIndex((item) => item.id === frameId);
-    const camera = frame?.camera ?? { x: 0, y: 0, zoom: 100, rotation: 0, shake: 0 };
-    const shakeX = Math.sin(frameIndex * 12.9898) * camera.shake, shakeY = Math.cos(frameIndex * 8.233) * camera.shake;
-    context.save(); context.translate(sourceDocument.width / 2 + camera.x + shakeX, sourceDocument.height / 2 + camera.y + shakeY); context.rotate(camera.rotation * Math.PI / 180); context.scale(camera.zoom / 100, camera.zoom / 100); context.translate(-sourceDocument.width / 2, -sourceDocument.height / 2);
-    for (const layer of sourceDocument.layers) {
-      const variants = sourceDocument.rig.sprites[layer.id] ?? [];
-      const url = variants[frame?.spriteExposure[layer.id] ?? -1]?.dataUrl ?? frame?.layerData[layer.id]; if (!url || !layer.visible) continue;
-      const image = new Image(); await new Promise<void>((resolve) => { image.onload = () => resolve(); image.onerror = () => resolve(); image.src = url; });
-      const transform = resolveTransform(sourceDocument.animation.frames, frameIndex, layer.id);
-      context.save(); context.globalAlpha = layer.opacity * transform.opacity / 100; context.globalCompositeOperation = layer.blendMode;
-      context.translate(sourceDocument.width / 2 + transform.x, sourceDocument.height / 2 + transform.y);
-      context.rotate(transform.rotation * Math.PI / 180); context.scale(transform.scale / 100, transform.scale / 100);
-      const binding = sourceDocument.rig.layerBindings[layer.id];
-      if (binding) {
-        const pivotX = binding.pivotX - sourceDocument.width / 2, pivotY = binding.pivotY - sourceDocument.height / 2;
-        context.translate(pivotX, pivotY); context.rotate(poseRotation(sourceDocument, frame!, binding.boneId) * Math.PI / 180); context.translate(-pivotX, -pivotY);
-      }
-      context.drawImage(image, -sourceDocument.width / 2, -sourceDocument.height / 2); context.restore();
-    }
-    context.restore();
-    return canvas;
+    pushHistory(); commandJournalRef.current = createCommandJournal<ArtRoomCommand>(); resetRasterTileCache(); setDocument(createDocument(newSize.width, newSize.height, newSize.background)); setShowNew(false);
   };
   const goToFrame = async (frameId: string) => {
     const captured = captureDocument();
     const target = captured.animation.frames.find((frame) => frame.id === frameId); if (!target) return;
     const targetIndex = captured.animation.frames.findIndex((frame) => frame.id === frameId);
-    if (onionSkin && targetIndex > 0) setOnionUrl((await frameCanvas(captured.animation.frames[targetIndex - 1].id, captured)).toDataURL("image/png")); else setOnionUrl("");
+    if (onionSkin && targetIndex > 0) setOnionUrl((await renderAnimationFrame(captured, captured.animation.frames[targetIndex - 1].id)).toDataURL("image/png")); else setOnionUrl("");
     const next = { ...captured, layers: captured.layers.map((layer) => ({ ...layer, dataUrl: target.layerData[layer.id] ?? "" })), animation: { ...captured.animation, activeFrameId: frameId } };
     setDocument(next); window.setTimeout(() => paintCanvases(next));
   };
@@ -583,8 +686,8 @@ export default function NaturalMediaLab() {
     const frames = [...document.animation.frames]; [frames[index], frames[target]] = [frames[target], frames[index]];
     setDocument({ ...document, animation: { ...document.animation, frames } });
   };
-  const updateTransform = (patch: Partial<typeof DEFAULT_TRANSFORM>) => {
-    setDocument((current) => ({ ...current, animation: { ...current.animation, frames: current.animation.frames.map((frame) => frame.id === current.animation.activeFrameId ? { ...frame, transforms: { ...frame.transforms, [current.activeLayerId]: { ...DEFAULT_TRANSFORM, ...resolveTransform(current.animation.frames, current.animation.frames.findIndex((item) => item.id === frame.id), current.activeLayerId), ...patch } } } : frame) } }));
+  const updateTransform = (patch: Partial<typeof DEFAULT_LAYER_TRANSFORM>) => {
+    setDocument((current) => ({ ...current, animation: { ...current.animation, frames: current.animation.frames.map((frame) => frame.id === current.animation.activeFrameId ? { ...frame, transforms: { ...frame.transforms, [current.activeLayerId]: { ...DEFAULT_LAYER_TRANSFORM, ...resolveLayerTransform(current.animation.frames, current.animation.frames.findIndex((item) => item.id === frame.id), current.activeLayerId), ...patch } } } : frame) } }));
   };
   const addBone = () => {
     const parent = selectedBone;
@@ -598,14 +701,12 @@ export default function NaturalMediaLab() {
   };
   const dragBoneEndpoint = (event: PointerEvent<HTMLButtonElement>, bone: RigBone) => {
     if (!(event.buttons & 1)) return;
-    const paper = event.currentTarget.parentElement?.getBoundingClientRect(); if (!paper) return;
-    const targetX = (event.clientX - paper.left) * document.width / paper.width;
-    const targetY = (event.clientY - paper.top) * document.height / paper.height;
+    const paperSpace = getPaperClientSpace(); if (!paperSpace) return;
+    const target = clientPointToDocumentPoint(event.clientX, event.clientY, paperSpace, document);
     const world = boneWorld(document, activeFrame, bone.id);
     const parentRotation = bone.parentId ? boneWorld(document, activeFrame, bone.parentId).rotation : 0;
-    const length = Math.max(20, Math.hypot(targetX - world.x, targetY - world.y));
-    const desired = Math.atan2(targetY - world.y, targetX - world.x) * 180 / Math.PI;
-    setDocument((current) => ({ ...current, rig: { ...current.rig, bones: current.rig.bones.map((item) => item.id === bone.id ? { ...item, length, restRotation: desired - parentRotation - (activeFrame.bonePose[bone.id] ?? 0) } : item) } }));
+    const edit = getBoneEndpointEdit(world, target, parentRotation, activeFrame.bonePose[bone.id] ?? 0);
+    setDocument((current) => ({ ...current, rig: { ...current.rig, bones: current.rig.bones.map((item) => item.id === bone.id ? { ...item, ...edit } : item) } }));
   };
   const deleteBone = () => {
     if (!selectedBone) return;
@@ -711,19 +812,18 @@ export default function NaturalMediaLab() {
   const beginComicTransform = (event: PointerEvent<HTMLElement>, kind: "panel" | "text", id: string, mode: "move" | "resize" | "crop") => {
     event.stopPropagation(); event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
     const item = kind === "panel" ? document.comic.panels.find((panel) => panel.id === id) : document.comic.text.find((text) => text.id === id);
-    const paper = event.currentTarget.closest(`.${styles.paper}`)?.getBoundingClientRect(); if (!item || !paper) return;
-    pushHistory(); comicDragRef.current = { kind, id, mode, startX: event.clientX, startY: event.clientY, width: paper.width, height: paper.height, base: item };
+    const paperSpace = getPaperClientSpace(); if (!item || !paperSpace) return;
+    const start = clientPointToPaperRatioInSpace(event.clientX, event.clientY, paperSpace);
+    pushHistory(); comicDragRef.current = { kind, id, mode, startPaperX: start.x * 100, startPaperY: start.y * 100, base: item };
     setSelectedComicIds((current) => event.shiftKey ? current.includes(id) ? current.filter((item) => item !== id) : [...current, id] : [id]);
     if (kind === "panel") { setSelectedPanelId(id); setSelectedTextId(null); } else { setSelectedTextId(id); setSelectedPanelId(null); }
   };
   const moveComicTransform = (event: PointerEvent<HTMLElement>) => {
     const drag = comicDragRef.current; if (!drag) return; event.stopPropagation();
-    const dx = (event.clientX - drag.startX) / drag.width * 100, dy = (event.clientY - drag.startY) / drag.height * 100;
-    let patch: Partial<ComicPanel> = drag.mode === "crop"
-      ? { cropX: (drag.base.cropX ?? 0) + dx, cropY: (drag.base.cropY ?? 0) + dy }
-      : drag.mode === "move"
-      ? { x: Math.max(0, Math.min(100 - drag.base.width, drag.base.x + dx)), y: Math.max(0, Math.min(100 - drag.base.height, drag.base.y + dy)) }
-      : { width: Math.max(5, Math.min(100 - drag.base.x, drag.base.width + dx)), height: Math.max(5, Math.min(100 - drag.base.y, drag.base.height + dy)) };
+    const paperSpace = getPaperClientSpace(); if (!paperSpace) return;
+    const current = clientPointToPaperRatioInSpace(event.clientX, event.clientY, paperSpace);
+    const dx = current.x * 100 - drag.startPaperX, dy = current.y * 100 - drag.startPaperY;
+    let patch: Partial<ComicPanel> = getComicTransformPatch(drag.base, drag.mode, dx, dy);
     if (snap && drag.mode === "move") {
       const snapValue = (value: number, size: number) => { const candidates = [document.comic.margin, 50 - size / 2, 100 - document.comic.margin - size]; const target = candidates.find((candidate) => Math.abs(candidate - value) < 1.5); return { value: target ?? value, guide: target === undefined ? undefined : target + size / 2 }; };
       const sx = snapValue(patch.x ?? drag.base.x, drag.base.width), sy = snapValue(patch.y ?? drag.base.y, drag.base.height);
@@ -778,98 +878,25 @@ export default function NaturalMediaLab() {
     const master = document.comic.pageMasters.find((item) => item.id === id); if (!master) return; pushHistory();
     setDocument((current) => ({ ...current, comic: { ...current.comic, panels: master.panels.map((panel) => ({ ...panel, id: crypto.randomUUID() })) } }));
   };
-  const pageArtworkCanvas = async (pageId: string) => {
-    const output = window.document.createElement("canvas"); output.width = document.width; output.height = document.height;
-    const context = output.getContext("2d")!, page = document.comic.pages.find((item) => item.id === pageId);
-    if (document.background === "paper") { context.fillStyle = "#f1ede3"; context.fillRect(0, 0, output.width, output.height); }
-    for (const layer of document.layers) {
-      const url = pageId === document.comic.activePageId ? canvasRefs.current.get(layer.id)?.toDataURL("image/png") : page?.layerData[layer.id];
-      if (!url || !layer.visible) continue;
-      const image = new Image(); await new Promise<void>((resolve) => { image.onload = () => resolve(); image.onerror = () => resolve(); image.src = url; });
-      context.globalAlpha = layer.opacity; context.globalCompositeOperation = layer.blendMode; context.drawImage(image, 0, 0);
-    }
-    context.globalAlpha = 1; context.globalCompositeOperation = "source-over"; return output;
-  };
   const exportComicPage = async (format: "png" | "jpeg") => {
-    const output = composite(), context = output.getContext("2d")!;
-    context.globalAlpha = 1; context.globalCompositeOperation = "source-over";
-    context.lineJoin = "round"; context.lineWidth = Math.max(3, document.width * document.comic.gutter / 500);
-    context.strokeStyle = "#171816";
-    for (const panel of document.comic.panels) {
-      if (!panel.sourcePageId) continue;
-      const source = await pageArtworkCanvas(panel.sourcePageId), x = panel.x / 100 * output.width, y = panel.y / 100 * output.height, width = panel.width / 100 * output.width, height = panel.height / 100 * output.height, zoom = (panel.zoom ?? 100) / 100;
-      context.save(); context.beginPath(); context.rect(x, y, width, height); context.clip();
-      context.translate(x + width / 2 + (panel.cropX ?? 0) / 100 * width, y + height / 2 + (panel.cropY ?? 0) / 100 * height); context.scale(zoom, zoom);
-      context.drawImage(source, -width / 2, -height / 2, width, height); context.restore();
-    }
-    document.comic.panels.forEach((panel) => context.strokeRect(panel.x / 100 * output.width, panel.y / 100 * output.height, panel.width / 100 * output.width, panel.height / 100 * output.height));
-    document.comic.text.forEach((item) => {
-      const x = item.x / 100 * output.width, y = item.y / 100 * output.height, width = item.width / 100 * output.width, height = item.height / 100 * output.height;
-      context.save(); context.beginPath();
-      if (item.type === "caption") context.rect(x, y, width, height);
-      else context.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
-      context.fillStyle = item.type === "caption" ? "#171816" : "#fffdf8"; context.fill(); context.strokeStyle = "#171816"; context.lineWidth = Math.max(2, output.width / 500); context.stroke();
-      if (item.type !== "caption") {
-        const tailX = x + item.tailX / 100 * width, tailY = y + item.tailY / 100 * height;
-        if (item.type === "speech") { context.beginPath(); context.moveTo(x + width * .42, y + height * .82); context.lineTo(x + width * .58, y + height * .82); context.lineTo(tailX, tailY); context.closePath(); context.fill(); context.stroke(); }
-        else { [0, 1, 2].forEach((index) => { const t = (index + 1) / 4; context.beginPath(); context.arc(x + width / 2 + (tailX - (x + width / 2)) * t, y + height / 2 + (tailY - (y + height / 2)) * t, Math.max(3, width * (.055 - index * .012)), 0, Math.PI * 2); context.fill(); context.stroke(); }); }
-      }
-      const families = { sans: "Arial", serif: "Georgia", hand: "'Comic Sans MS'" };
-      context.fillStyle = item.type === "caption" ? "#fff" : "#171816"; context.font = `700 ${Math.max(12, Math.round(output.width * item.fontSize / 1400))}px ${families[item.fontFamily]}`; context.textAlign = item.align; context.textBaseline = "middle";
-      const words = item.text.split(/\s+/), lines: string[] = []; let line = "";
-      words.forEach((word) => { const test = `${line} ${word}`.trim(); if (context.measureText(test).width > width * .82 && line) { lines.push(line); line = word; } else line = test; }); if (line) lines.push(line);
-      const lineHeight = Math.max(16, output.width * item.fontSize / 1150), textX = item.align === "left" ? x + width * .1 : item.align === "right" ? x + width * .9 : x + width / 2;
-      lines.slice(0, 4).forEach((value, index) => context.fillText(value, textX, y + height / 2 + (index - (Math.min(lines.length, 4) - 1) / 2) * lineHeight));
-      context.restore();
-    });
-    if (format === "jpeg" && document.background === "transparent") {
-      const flattened = window.document.createElement("canvas"); flattened.width = output.width; flattened.height = output.height;
-      const flat = flattened.getContext("2d")!; flat.fillStyle = "#fff"; flat.fillRect(0, 0, flattened.width, flattened.height); flat.drawImage(output, 0, 0);
-      download(flattened.toDataURL("image/jpeg", .94), `${document.name}-comic.jpg`);
-    } else download(output.toDataURL(`image/${format}`, .94), `${document.name}-comic.${format === "jpeg" ? "jpg" : "png"}`);
+    const page = { ...activeComicPage, panels: document.comic.panels, text: document.comic.text };
+    const output = await renderComicPage(document, page, { activeCanvas: (layerId) => canvasRefs.current.get(layerId) });
+    const plan = planRasterExport(document.name, format, document.background, "-comic");
+    if (plan.flattenColor) {
+      const flattened = flattenCanvas(output, plan.flattenColor);
+      download(flattened.toDataURL(plan.mediaType, .94), plan.filename);
+    } else download(output.toDataURL(plan.mediaType, .94), plan.filename);
   };
-  const printComicPage = () => {
-    const output = composite(), context = output.getContext("2d")!;
-    context.globalAlpha = 1; context.globalCompositeOperation = "source-over"; context.lineWidth = Math.max(3, document.width * document.comic.gutter / 500); context.strokeStyle = "#171816";
-    document.comic.panels.forEach((panel) => context.strokeRect(panel.x / 100 * output.width, panel.y / 100 * output.height, panel.width / 100 * output.width, panel.height / 100 * output.height));
-    document.comic.text.forEach((item) => {
-      const x = item.x / 100 * output.width, y = item.y / 100 * output.height, width = item.width / 100 * output.width, height = item.height / 100 * output.height;
-      context.beginPath(); if (item.type === "caption") context.rect(x, y, width, height); else context.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
-      context.fillStyle = item.type === "caption" ? "#171816" : "#fffdf8"; context.fill(); context.stroke();
-      context.fillStyle = item.type === "caption" ? "#fff" : "#171816"; context.font = `700 ${Math.max(12, output.width * item.fontSize / 1400)}px ${item.fontFamily === "serif" ? "Georgia" : item.fontFamily === "hand" ? "Comic Sans MS" : "Arial"}`; context.textAlign = item.align; context.textBaseline = "middle";
-      context.fillText(item.text, item.align === "left" ? x + width * .1 : item.align === "right" ? x + width * .9 : x + width / 2, y + height / 2, width * .82);
-    });
+  const printComicPage = async () => {
+    const page = { ...activeComicPage, panels: document.comic.panels, text: document.comic.text };
+    const output = await renderComicPage(document, page, { activeCanvas: (layerId) => canvasRefs.current.get(layerId) });
     const dataUrl = output.toDataURL("image/png"), popup = window.open("", "_blank");
     if (!popup) { alert("Allow pop-ups to open the print-ready page."); return; }
     popup.document.write(`<title>${document.name} — print page</title><style>@page{margin:0}html,body{margin:0;background:#fff}img{display:block;width:100%;height:auto}</style><img src="${dataUrl}" onload="print()">`); popup.document.close();
   };
   const printComicBook = async () => {
-    const pages = document.comic.pages.map((page) => page.id === document.comic.activePageId ? { ...page, panels: document.comic.panels, text: document.comic.text } : page);
-    const images = await Promise.all(pages.map(async (page) => {
-      const output = window.document.createElement("canvas"); output.width = document.width; output.height = document.height;
-      const context = output.getContext("2d")!;
-      if (document.background === "paper") { context.fillStyle = "#f1ede3"; context.fillRect(0, 0, output.width, output.height); }
-      for (const layer of document.layers) {
-        const url = page.id === document.comic.activePageId ? canvasRefs.current.get(layer.id)?.toDataURL("image/png") : page.layerData[layer.id]; if (!url || !layer.visible) continue;
-        const image = new Image(); await new Promise<void>((resolve) => { image.onload = () => resolve(); image.onerror = () => resolve(); image.src = url; });
-        context.globalAlpha = layer.opacity; context.globalCompositeOperation = layer.blendMode; context.drawImage(image, 0, 0);
-      }
-      context.globalAlpha = 1; context.globalCompositeOperation = "source-over"; context.lineWidth = Math.max(3, document.width * document.comic.gutter / 500); context.strokeStyle = "#171816";
-      for (const panel of page.panels) {
-        if (!panel.sourcePageId) continue;
-        const source = await pageArtworkCanvas(panel.sourcePageId), x = panel.x / 100 * output.width, y = panel.y / 100 * output.height, width = panel.width / 100 * output.width, height = panel.height / 100 * output.height, zoom = (panel.zoom ?? 100) / 100;
-        context.save(); context.beginPath(); context.rect(x, y, width, height); context.clip(); context.translate(x + width / 2 + (panel.cropX ?? 0) / 100 * width, y + height / 2 + (panel.cropY ?? 0) / 100 * height); context.scale(zoom, zoom); context.drawImage(source, -width / 2, -height / 2, width, height); context.restore();
-      }
-      page.panels.forEach((panel) => context.strokeRect(panel.x / 100 * output.width, panel.y / 100 * output.height, panel.width / 100 * output.width, panel.height / 100 * output.height));
-      page.text.forEach((item) => {
-        const x = item.x / 100 * output.width, y = item.y / 100 * output.height, width = item.width / 100 * output.width, height = item.height / 100 * output.height;
-        context.beginPath(); if (item.type === "caption") context.rect(x, y, width, height); else context.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
-        context.fillStyle = item.type === "caption" ? "#171816" : "#fffdf8"; context.fill(); context.stroke();
-        context.fillStyle = item.type === "caption" ? "#fff" : "#171816"; context.font = `700 ${Math.max(12, output.width * item.fontSize / 1400)}px ${item.fontFamily === "serif" ? "Georgia" : item.fontFamily === "hand" ? "Comic Sans MS" : "Arial"}`; context.textAlign = item.align; context.textBaseline = "middle";
-        context.fillText(item.text, item.align === "left" ? x + width * .1 : item.align === "right" ? x + width * .9 : x + width / 2, y + height / 2, width * .82);
-      });
-      return output.toDataURL("image/jpeg", .94);
-    }));
+    const pages = pagesWithActiveComicState(document);
+    const images = await Promise.all(pages.map(async (page) => (await renderComicPage(document, page, { activeCanvas: (layerId) => canvasRefs.current.get(layerId) })).toDataURL("image/jpeg", .94)));
     const popup = window.open("", "_blank"); if (!popup) { alert("Allow pop-ups to open the print-ready book."); return; }
     popup.document.write(`<title>${document.name} — comic book</title><style>@page{margin:0}html,body{margin:0}.page{break-after:page}.page:last-child{break-after:auto}img{display:block;width:100%;height:auto}</style>${images.map((url, index) => `<div class="page"><img src="${url}" alt="Page ${index + 1}"></div>`).join("")}<script>Promise.all([...document.images].map(i=>i.complete?Promise.resolve():new Promise(r=>i.onload=r))).then(()=>print())</script>`); popup.document.close();
   };
@@ -878,25 +905,19 @@ export default function NaturalMediaLab() {
     pdfCancelRef.current = false; setIsPdfExporting(true);
     const startedAt = performance.now();
     setSaveState("Building PDF…");
-    const pages = document.comic.pages.map((page) => page.id === document.comic.activePageId ? { ...page, panels: document.comic.panels, text: document.comic.text } : page);
-    const profile = document.comic.print.profile === "a4" ? { width: 595.28, height: 841.89, mm: 210 } : { width: 612, height: 792, mm: 215.9 };
-    const bleedPoints = document.comic.print.bleedMm / 25.4 * 72;
+    const pages = pagesWithActiveComicState(document);
+    const pdfPlan = planComicPdfExport(document.comic.print.profile, document.comic.print.bleedMm, document.width);
     const rendered = [];
     for (const page of pages) {
       if (pdfCancelRef.current) { setIsPdfExporting(false); return; }
-      const artwork = await pageArtworkCanvas(page.id), bleedPx = Math.round(document.width / profile.mm * document.comic.print.bleedMm);
-      const output = window.document.createElement("canvas"); output.width = document.width + bleedPx * 2; output.height = document.height + bleedPx * 2;
-      const context = output.getContext("2d")!; context.fillStyle = "#fff"; context.fillRect(0, 0, output.width, output.height); context.drawImage(artwork, bleedPx, bleedPx);
-      for (const panel of page.panels) {
-        const x = bleedPx + panel.x / 100 * document.width, y = bleedPx + panel.y / 100 * document.height, width = panel.width / 100 * document.width, height = panel.height / 100 * document.height;
-        if (panel.sourcePageId) { const source = await pageArtworkCanvas(panel.sourcePageId); context.save(); context.beginPath(); context.rect(x, y, width, height); context.clip(); const zoom = (panel.zoom ?? 100) / 100; context.translate(x + width / 2 + (panel.cropX ?? 0) / 100 * width, y + height / 2 + (panel.cropY ?? 0) / 100 * height); context.scale(zoom, zoom); context.drawImage(source, -width / 2, -height / 2, width, height); context.restore(); }
-        context.strokeStyle = "#171816"; context.lineWidth = Math.max(2, document.width * document.comic.gutter / 500); context.strokeRect(x, y, width, height);
-      }
-      page.text.forEach((item) => { const x = bleedPx + item.x / 100 * document.width, y = bleedPx + item.y / 100 * document.height, width = item.width / 100 * document.width, height = item.height / 100 * document.height; context.beginPath(); item.type === "caption" ? context.rect(x, y, width, height) : context.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2); context.fillStyle = item.type === "caption" ? "#171816" : "#fffdf8"; context.fill(); context.stroke(); context.fillStyle = item.type === "caption" ? "#fff" : "#171816"; context.font = `700 ${Math.max(12, document.width * item.fontSize / 1400)}px Arial`; context.textAlign = item.align; context.textBaseline = "middle"; context.fillText(item.text, item.align === "left" ? x + width * .1 : item.align === "right" ? x + width * .9 : x + width / 2, y + height / 2, width * .82); });
-      if (document.comic.print.cropMarks && bleedPx > 0) { context.strokeStyle = "#000"; context.lineWidth = 1; const mark = Math.max(8, bleedPx * .75); [[bleedPx, bleedPx], [output.width - bleedPx, bleedPx], [bleedPx, output.height - bleedPx], [output.width - bleedPx, output.height - bleedPx]].forEach(([x, y]) => { context.beginPath(); context.moveTo(x - mark, y); context.lineTo(x + mark, y); context.moveTo(x, y - mark); context.lineTo(x, y + mark); context.stroke(); }); }
+      const output = await renderComicPage(document, page, {
+        activeCanvas: (layerId) => canvasRefs.current.get(layerId),
+        bleedPixels: pdfPlan.bleedPixels,
+        cropMarks: document.comic.print.cropMarks,
+      });
       rendered.push({ jpegDataUrl: output.toDataURL("image/jpeg", .96), pixelWidth: output.width, pixelHeight: output.height });
     }
-    const pageWidth = profile.width + bleedPoints * 2, pageHeight = profile.height + bleedPoints * 2;
+    const pageWidth = pdfPlan.pageWidth, pageHeight = pdfPlan.pageHeight;
     let blob: Blob, usedWorker = false;
     try {
       const worker = new Worker(new URL("./pdf.worker.ts", import.meta.url), { type: "module" });
@@ -914,7 +935,7 @@ export default function NaturalMediaLab() {
       blob = encodeComicPdf(rendered, pageWidth, pageHeight, document.name);
     }
     const url = URL.createObjectURL(blob);
-    download(url, `${document.name}.pdf`); window.setTimeout(() => URL.revokeObjectURL(url), 1000); setSaveState("PDF exported");
+    download(url, `${safeExportStem(document.name)}.pdf`); window.setTimeout(() => URL.revokeObjectURL(url), 1000); setSaveState("PDF exported");
     const elapsed = Math.round(performance.now() - startedAt), megapixels = Math.round(rendered.reduce((sum, page) => sum + page.pixelWidth * page.pixelHeight, 0) / 1_000_000);
     setPerformanceNote(`${rendered.length} pages · ${megapixels} MP · ${elapsed} ms · ${usedWorker ? "worker" : "safe fallback"}`);
     setIsPdfExporting(false);
@@ -926,18 +947,12 @@ export default function NaturalMediaLab() {
   };
   const exportGif = async () => {
     setSaveState("Building GIF…");
-    const maxWidth = 480, scale = Math.min(1, maxWidth / document.width);
-    const width = Math.max(1, Math.round(document.width * scale)), height = Math.max(1, Math.round(document.height * scale));
-    const images: ImageData[] = [];
+    const gifPlan = planGifExport(document.width, document.height);
+    const width = gifPlan.width, height = gifPlan.height;
     const captured = captureDocument();
-    for (const frame of captured.animation.frames) {
-      const source = await frameCanvas(frame.id, captured), reduced = window.document.createElement("canvas");
-      reduced.width = width; reduced.height = height;
-      const context = reduced.getContext("2d")!; context.drawImage(source, 0, 0, width, height);
-      images.push(context.getImageData(0, 0, width, height));
-    }
+    const images = await renderAnimationImageData(captured, width, height);
     const url = URL.createObjectURL(encodeGif(images, width, height, captured.animation.fps, captured.animation.loop, captured.animation.frames.map((frame) => frame.hold)));
-    download(url, `${document.name}.gif`); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    download(url, `${safeExportStem(document.name)}.gif`); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     setSaveState("GIF exported");
   };
 
@@ -949,7 +964,7 @@ export default function NaturalMediaLab() {
       const next = index + 1;
       if (next >= frames.length && !document.animation.loop) { setIsPlaying(false); return; }
       void goToFrame(frames[next % frames.length].id);
-    }, (1000 / document.animation.fps) * (active?.hold ?? 1));
+    }, framePlaybackDelay(document.animation.fps, active?.hold));
     return () => window.clearTimeout(timer);
   }, [isPlaying, document.animation.activeFrameId, document.animation.fps, document.animation.loop, document.animation.frames.length]);
 
@@ -967,8 +982,8 @@ export default function NaturalMediaLab() {
           <button className={styles.helpButton} onClick={() => setShowHelp(true)}>Help</button>
           <input ref={fileRef} type="file" accept=".nml,application/json" hidden onChange={loadProject} />
           <button onClick={saveProject}>Save .nml</button>
-          <button onClick={() => restoreSnapshot(historyRef.current, redoRef.current)} disabled={!historyRef.current.length} aria-label="Undo">↶ <span>Undo</span></button>
-          <button onClick={() => restoreSnapshot(redoRef.current, historyRef.current)} disabled={!redoRef.current.length} aria-label="Redo">↷ <span>Redo</span></button>
+          <button onClick={() => restoreHistory(historyRef.current, redoRef.current, "undo")} disabled={!historyRef.current.length} aria-label="Undo">↶ <span>Undo</span></button>
+          <button onClick={() => restoreHistory(redoRef.current, historyRef.current, "redo")} disabled={!redoRef.current.length} aria-label="Redo">↷ <span>Redo</span></button>
           <select className={styles.formatSelect} value={exportFormat} onChange={(event) => setExportFormat(event.target.value as typeof exportFormat)} aria-label="Export format"><option value="png">PNG</option><option value="jpeg">JPG</option><option value="webp">WEBP</option></select>
           <button className={styles.export} onClick={exportArtwork}>Export</button>
         </div>
@@ -992,7 +1007,7 @@ export default function NaturalMediaLab() {
                 ref={(node) => { if (node) canvasRefs.current.set(layer.id, node); else canvasRefs.current.delete(layer.id); }}
                 width={document.width} height={document.height}
                 className={layer.id === activeLayer.id ? styles.activeCanvas : ""}
-                style={{ opacity: layer.visible ? layer.opacity * resolveTransform(document.animation.frames, activeFrameIndex, layer.id).opacity / 100 : 0, mixBlendMode: layer.blendMode === "source-over" ? "normal" : layer.blendMode, transformOrigin: layerPivot(document, layer.id), transform: `translate(${resolveTransform(document.animation.frames, activeFrameIndex, layer.id).x / document.width * 100}%, ${resolveTransform(document.animation.frames, activeFrameIndex, layer.id).y / document.height * 100}%) rotate(${resolveTransform(document.animation.frames, activeFrameIndex, layer.id).rotation + layerRigRotation(document, activeFrame, layer.id)}deg) scale(${resolveTransform(document.animation.frames, activeFrameIndex, layer.id).scale / 100})` }}
+                style={{ opacity: layer.visible ? layer.opacity * resolveLayerTransform(document.animation.frames, activeFrameIndex, layer.id).opacity / 100 : 0, mixBlendMode: layer.blendMode === "source-over" ? "normal" : layer.blendMode, transformOrigin: layerPivot(document, layer.id), transform: `translate(${resolveLayerTransform(document.animation.frames, activeFrameIndex, layer.id).x / document.width * 100}%, ${resolveLayerTransform(document.animation.frames, activeFrameIndex, layer.id).y / document.height * 100}%) rotate(${resolveLayerTransform(document.animation.frames, activeFrameIndex, layer.id).rotation + layerRigRotation(document, activeFrame, layer.id)}deg) scale(${resolveLayerTransform(document.animation.frames, activeFrameIndex, layer.id).scale / 100})` }}
                 aria-label={`${layer.name} drawing canvas`}
                 onPointerDown={layer.id === activeLayer.id ? beginStroke : undefined} onPointerMove={layer.id === activeLayer.id ? drawStroke : undefined}
                 onPointerUp={layer.id === activeLayer.id ? endStroke : undefined} onPointerCancel={layer.id === activeLayer.id ? endStroke : undefined} />)}
@@ -1007,7 +1022,7 @@ export default function NaturalMediaLab() {
             </div>
             </div>
           </div>
-          <div className={styles.statusbar}><span>{toolFamily === "procedural" ? proceduralTool.name : tool.name} · {activeLayer.locked ? "Layer locked" : saveState}</span><div className={styles.viewControls}><button onClick={() => setView((current) => ({ ...current, rotation: current.rotation - 15 }))}>−15°</button><button onClick={resetView}>Reset view</button><button onClick={() => setView((current) => ({ ...current, rotation: current.rotation + 15 }))}>+15°</button><label>View zoom <input type="range" min="35" max="160" value={zoom} onChange={(e) => setEditorZoom(Number(e.target.value))} /> {zoom}%</label></div></div>
+          <div className={styles.statusbar}><span>{toolFamily === "procedural" ? proceduralTool.name : tool.name} · {activeLayer.locked ? "Layer locked" : saveState}</span><div className={styles.viewControls}><button onClick={() => setView((current) => ({ ...current, rotation: current.rotation - 15 }))}>−15°</button><button onClick={resetView}>Reset view</button><button onClick={() => setView((current) => ({ ...current, rotation: current.rotation + 15 }))}>+15°</button><button onClick={() => setEditorZoom(zoom - 5)} aria-label="Zoom out">−</button><label>View zoom <input type="range" min="35" max="160" value={zoom} onChange={(e) => setEditorZoom(Number(e.target.value))} /> {zoom}%</label><button onClick={() => setEditorZoom(zoom + 5)} aria-label="Zoom in">+</button></div></div>
         </section>
         <aside className={styles.inspector}>
           <section><div className={styles.panelHeading}><p className={styles.panelLabel}>Colour</p><select className={styles.miniSelect} value={colorSpace} onChange={(event) => setColorSpace(event.target.value as "hsl" | "hsv")} aria-label="Color model"><option value="hsl">HSL</option><option value="hsv">HSV</option></select></div><div className={styles.colorRow}><input type="color" value={color} onChange={(e) => chooseColor(e.target.value)} aria-label="Brush colour" /><div><strong>{color.toUpperCase()}</strong><span>{Object.values(hexToRgb(color)).join(" · ")} RGB</span></div></div>{colorSpace === "hsl" ? <div className={styles.hslControls}>{(["h", "s", "l"] as const).map((channel) => { const hsl = rgbToHsl(hexToRgb(color)); return <label key={channel}>{channel.toUpperCase()}<input type="number" min="0" max={channel === "h" ? 359 : 100} value={hsl[channel]} onChange={(event) => chooseColor(hslToHex(channel === "h" ? Number(event.target.value) : hsl.h, channel === "s" ? Number(event.target.value) : hsl.s, channel === "l" ? Number(event.target.value) : hsl.l))} /></label>; })}</div> : <div className={styles.hslControls}>{(["h", "s", "v"] as const).map((channel) => { const hsv = rgbToHsv(hexToRgb(color)); return <label key={channel}>{channel.toUpperCase()}<input type="number" min="0" max={channel === "h" ? 359 : 100} value={hsv[channel]} onChange={(event) => chooseColor(hsvToHex(channel === "h" ? Number(event.target.value) : hsv.h, channel === "s" ? Number(event.target.value) : hsv.s, channel === "v" ? Number(event.target.value) : hsv.v))} /></label>; })}</div>}<div className={styles.swatches}>{SWATCHES.map((swatch) => <button key={swatch} style={{ background: swatch }} onClick={() => chooseColor(swatch)} aria-label={`Use ${swatch}`} />)}</div><p className={styles.subLabel}>Harmony</p><div className={styles.harmony}>{[-30, 30, 180].map((offset) => { const hsl = rgbToHsl(hexToRgb(color)), swatch = hslToHex((hsl.h + offset + 360) % 360, hsl.s, hsl.l); return <button key={offset} style={{ background: swatch }} onClick={() => chooseColor(swatch)} aria-label="Use harmony color" />; })}<button className={styles.gradientButton} onClick={fillGradient}>Fill gradient</button></div>{recentColors.length > 0 && <><p className={styles.subLabel}>Recent</p><div className={styles.swatches}>{recentColors.map((swatch) => <button key={swatch} style={{ background: swatch }} onClick={() => chooseColor(swatch)} aria-label={`Reuse ${swatch}`} />)}</div></>}</section>

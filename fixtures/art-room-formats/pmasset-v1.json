@@ -1,0 +1,29 @@
+{
+  "format": "plumbmonkey-asset",
+  "version": 1,
+  "assetId": "spectral-arcade-cabinet",
+  "assetVersion": 1,
+  "name": "Spectral Arcade Cabinet",
+  "assetType": "model",
+  "createdAt": "2026-08-31T00:00:00.000Z",
+  "updatedAt": "2026-08-31T00:00:00.000Z",
+  "entrypoint": "payload/cabinet.glb",
+  "preview": "previews/thumbnail.png",
+  "tags": ["arcade", "cabinet", "spectral"],
+  "dependencies": [],
+  "binaries": [
+    {
+      "id": "cabinet-glb",
+      "mediaType": "model/gltf-binary",
+      "byteLength": 256,
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "location": { "kind": "embedded", "path": "payload/cabinet.glb" }
+    }
+  ],
+  "provenance": {
+    "createdAt": "2026-08-31T00:00:00.000Z",
+    "creator": "Plumbmonkey",
+    "source": { "kind": "created" },
+    "license": { "label": "Original studio asset", "redistributable": "yes" }
+  }
+}

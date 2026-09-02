@@ -1,0 +1,31 @@
+{
+  "format": "natural-media-lab",
+  "version": 1,
+  "name": "Legacy fixture",
+  "width": 64,
+  "height": 64,
+  "layers": [
+    {
+      "id": "paint layer/1",
+      "name": "Paint",
+      "dataUrl": "data:image/png;base64,AA==",
+      "simulation": {
+        "wetMapUrl": "data:image/png;base64,AQ==",
+        "heightMapUrl": ""
+      }
+    }
+  ],
+  "animation": {
+    "frames": [
+      { "id": "frame 1", "layerData": { "paint layer/1": "data:image/png;base64,Ag==" } }
+    ]
+  },
+  "rig": {
+    "sprites": {
+      "paint layer/1": [
+        { "name": "Pose 1", "dataUrl": "data:image/png;base64,Aw==" }
+      ]
+    }
+  },
+  "comic": { "pages": [] }
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "nml-layer-paint-layer-1-pixels",
+    "jsonPointer": "/layers/0/dataUrl",
+    "packagePath": "binary/layers/paint-layer-1/pixels.png",
+    "mediaType": "image/png"
+  },
+  {
+    "id": "nml-layer-paint-layer-1-wet",
+    "jsonPointer": "/layers/0/simulation/wetMapUrl",
+    "packagePath": "binary/layers/paint-layer-1/wet.png",
+    "mediaType": "image/png"
+  },
+  {
+    "id": "nml-frame-frame-1-paint-layer-1",
+    "jsonPointer": "/animation/frames/0/layerData/paint layer~11",
+    "packagePath": "binary/frames/frame-1/paint-layer-1.png",
+    "mediaType": "image/png"
+  },
+  {
+    "id": "nml-sprite-paint-layer-1-1",
+    "jsonPointer": "/rig/sprites/paint layer~11/0/dataUrl",
+    "packagePath": "binary/sprites/paint-layer-1/1.png",
+    "mediaType": "image/png"
+  }
+]

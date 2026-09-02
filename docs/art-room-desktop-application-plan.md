@@ -1,6 +1,6 @@
 # Art Room desktop application — product summary, technical audit, and roadmap
 
-Date: 2026-08-29
+Updated: 2026-08-30
 
 ## Executive recommendation
 
@@ -14,6 +14,7 @@ The recommended foundation is:
 - Use the user's installed Blender as the high-quality geometry, simulation, rigging, animation, and rendering worker.
 - Use a separately licensed Blender bridge add-on for jobs that require `bpy`. Keep the MIT application core separate from GPL Blender/add-on code.
 - Use GLB/glTF for fast preview and delivery, USD for large editable scenes, OpenRaster for layered 2D interchange, and a new zipped `.pmstudio` project format as the product's source of truth.
+- Put the local asset catalog and drag-and-drop browser into the first desktop milestone. The supplied Blender projects are broad enough to seed a distinctive Plumbmonkey library before the procedural generators are complete.
 
 This gives us a credible path to a useful desktop release while leaving room for increasingly original Plumbmonkey generators.
 
@@ -94,39 +95,13 @@ The present implementation is a strong prototype, but it is not yet a safe found
 - Recovery stores one browser-local autosave rather than maintaining projects, versions, backups, and recoverable job state.
 - Browser interaction and cross-browser regression tests are not yet automated.
 
-## 3. Canvas zoom glitch
+## 3. Canvas zoom fix — completed separately
 
-### Diagnosis
+The website repair was implemented and verified before expanding this roadmap. Zoom now changes the paper's real layout dimensions, a rotation-aware viewport supplies correct scroll bounds, Space/middle-button panning scrolls the viewport, and the center row can no longer grow underneath the timeline. Accessible zoom-in/out buttons were added beside the slider.
 
-The zoom glitch is architectural rather than a bad slider value.
+Tests cover 35%, 70%, 100%, and 160%, pointer-coordinate round trips, and rotated bounds. Interactive checks confirmed that all canvas edges are reachable at 160%, including with a 15° rotation, and that the animation timeline no longer covers the view controls.
 
-The stage is a centered CSS grid with `overflow: auto`. The paper keeps its original layout size and is enlarged only with a CSS `transform: ... scale(...)`. CSS transforms change the visual rectangle but not the element's normal layout dimensions. Once the canvas is larger than the viewport, the visual content grows around its centre while the scrollable layout box still represents the unscaled paper. This can clip the top/left portion and make it impossible to scroll back to it.
-
-Other usability issues compound this:
-
-- Zoom is centred on the paper rather than the pointer, so the focal artwork jumps during zoom.
-- Editor zoom and animation-camera zoom are multiplied together but presented in different areas, which can look like a broken editor zoom.
-- The same transform combines editor pan, camera pan, editor rotation, camera rotation, and zoom, making coordinate conversion and automated testing harder.
-- The paper is also given fixed responsive widths, so document size, viewport size, CSS size, and zoom are four separate scales.
-
-### Recommended fix
-
-1. Introduce a dedicated viewport model with explicit `scale`, `rotation`, and translation matrices.
-2. Add an untransformed **canvas sizer** whose layout width and height equal the displayed document size after zoom. Put the transformed paper inside that sizer.
-3. Use top-left positioning for overflow, adding calculated margins only when the scaled canvas is smaller than the viewport. Never rely on `place-items: center` for oversized content.
-4. Zoom around the mouse/pen position: record the document-space point under the pointer, change the zoom, then update pan so that point stays under the pointer.
-5. Convert pointer coordinates with the inverse viewport matrix. This supports rotation, future 3D overlays, and precise selections.
-6. Rename controls to **Editor view zoom** and **Animation camera zoom**.
-7. Add Fit, 100%, Fit Width, Fit Height, and Reset Rotation commands.
-8. Add automated tests at 35%, 70%, 100%, and 160%, with landscape, portrait, rotated, panned, and narrow-window cases. Confirm all four canvas corners can be reached.
-
-### Acceptance criteria
-
-- No canvas edge is permanently clipped at any supported zoom or rotation.
-- Zooming under the pointer keeps the same document point stationary within one screen pixel.
-- Panning works with Space-drag, middle mouse, pen, and touch.
-- Drawing, selections, rig handles, comic handles, and smart guides retain correct document coordinates after pan/zoom/rotation.
-- Editor zoom never alters exported pixels or animation-camera keys.
+The detailed diagnosis, measurements, changed files, and limited follow-on hardening are recorded in `docs/art-room-zoom-fix.md`. The desktop phases below can therefore treat the repaired viewport as the Phase 0 baseline instead of carrying the website defect into the new shell.
 
 ## 4. Proposed desktop architecture
 
@@ -188,7 +163,76 @@ The app should detect a compatible local Blender installation and let the user s
 
 Replace whole-document undo snapshots with an append-only command journal and checkpoints. Generator parameters, random seeds, inputs, dependencies, application version, and Blender version should be stored with every generated asset. This makes results reproducible and generators upgradable.
 
-## 5. Product workspaces and feature plan
+### Intuitive drag-and-drop asset browser
+
+The browser is a core workspace, not a file-open dialog added at the end. It should index user-approved folders, `.pmstudio` projects, Blender Asset Catalogs, and imported packs without altering the source files.
+
+Every item receives a thumbnail or turntable, type, tags, dimensions/polycount, dependencies, rig compatibility, generator recipe, source path, modification date, hash, license/provenance state, and missing-file warnings. Search must support plain language, filters, saved collections, favourites, recently used items, and visual categories.
+
+Import modes are explicit:
+
+- **Copy into project** for a self-contained editable asset.
+- **Link to source** for a file that should update when its original changes.
+- **Instance** for many lightweight placements of one asset.
+- **Reference only** for mood boards, model sheets, and non-exporting guides.
+
+Drop behavior is contextual and reversible:
+
+| Drop target | Result |
+|---|---|
+| 2D canvas | New raster/vector/reference layer at the drop point |
+| Comic panel | Fill or link the panel artwork while preserving crop controls |
+| Timeline | Create image, animation, audio, video, pose, or camera clips |
+| 3D viewport | Place a scene instance on the surface/grid under the pointer |
+| Character | Attach clothing, hair, prop, material, pose, or animation to a compatible socket/role |
+| Material slot | Assign or instance the material, with an undoable replacement preview |
+| Asset collection | Copy, link, tag, or add a non-destructive catalogue reference |
+
+The browser must never execute an imported `.blend` script automatically. Blender files are scanned in a background process, missing dependencies are reported, and assets are appended/linked only after the user chooses an import mode.
+
+## 5. Supplied Blender asset library and ingest plan
+
+A read-only Blender 5.2 inventory was run against the supplied working files and the `.blend` payloads inside the three archives. The material is broad enough to seed the first application library and exercise most of the planned browser categories.
+
+### Source overview
+
+| Source | Inventory highlights | Strong initial asset families |
+|---|---|---|
+| Ghost Circuit rehearsal room | 1,133 objects, 997 mesh objects, 81 materials, four armatures, eight drum actions, 20 marked assets | Guitars, basses, keyboards, drums, amps, stands, cables, rehearsal-room shell, lights, cameras |
+| Rad Casino V2 | 632 objects, about 2.08M vertices/1.92M polygons, 201 materials, 43 lights, six actions | Casino floor, poker/roulette/blackjack props, lounge/bar furniture, exterior strip, signs, landscaping, cameras |
+| Spectral Arcade | 285 objects, 12 named cabinet families, 16 text objects, 35 lights, 14 of 15 images packed | Arcade cabinets, bezels, controls, marquee art, docking points, high-score displays, room kit |
+| Spectral Luminarium | 65 objects, 46 meshes, 22 materials, 16 lights, three cameras | Dome architecture, console, glass/crystal/gold materials, chandelier, dais and lighting kit |
+| Spectral Music Room | 168 objects, 119 meshes, 47 materials, five cameras | Drum/synth stations, consoles, cables, screens, room architecture, decorative lighting |
+| Furnished house study | 435 objects, 356K vertices, 43 materials, 67 Geometry Nodes modifiers | Doors, baseboards, furniture, fixtures, trees, room components, procedural-detail experiments |
+| Extended theatre | Two scenes, 1,178 objects, 138 lights, 120 Geometry Nodes modifiers, linked performance-theatre library | Auditorium, stage, green room, corridors, curtains, seating, dressing room, piano, stage props, moving-light rig |
+| Performance theatre library | 535 objects, 24 lights, theatre architecture and stage collections | Reusable theatre shell, seating, curtains, piano, stage props, spot/wash movers |
+| NYC street and alley | Two scenes, 63 objects, 44 meshes, 58 materials, 17 lights | Modular buildings, wet streets, alleys, roofs/pipes, props, fog/atmosphere, skyline, sodium lighting |
+| Victorian house and weather | Five seasonal/interior scenes, 496 objects, about 1.64M vertices, 37 Geometry Nodes modifiers, 24 lightning actions, one volume plus 150 VDB frames | Victorian exterior/foyer, seasons, trees/flowers/weeds, fog/clouds, lightning, tornado and wind/weather presets |
+
+The two theatre archives also contain 42 build scripts; the NYC archive contains 23. Those scripts are valuable references for turning existing manual builds into original parameterized generators, but they should be reviewed and ported into typed generator recipes rather than executed from the asset browser.
+
+### Ingest pipeline
+
+1. Scan a source file read-only and store a manifest; never rewrite the artist's original `.blend`.
+2. Detect scenes, collections, object types, marked assets, materials, images, libraries, rigs, actions, Geometry Nodes, simulation caches, dimensions, and complexity.
+3. Report missing or external dependencies and offer relinking/packing in a disposable working copy.
+4. Review ownership and licenses for every embedded or linked dependency, even when the scene composition and modelling are original.
+5. Classify reusable collections into architecture, interiors, props, instruments, vehicles, vegetation, characters/rigs, lighting, cameras, effects, materials, and generators.
+6. Normalize names, units, origin/pivot, transforms, scale, material slots, UVs, preview camera, collision/LOD policy, and export axes in a generated working copy.
+7. Generate thumbnails/turntables and optimized GLB proxies while keeping `.blend` as the editable authority.
+8. Approve the result into a versioned `.pmasset` package with provenance, dependencies, source link, and update status.
+
+### First import waves
+
+1. **Spectral rooms and arcade:** compact, organized, mostly self-contained, and ideal for validating thumbnails, materials, cameras, lights, hotspots, and room-kit drag/drop.
+2. **Theatre and rehearsal assets:** rich reusable props, instruments, marked assets, stage architecture, lighting rigs, and linked-library behavior.
+3. **NYC and Victorian environment kits:** validate modular city pieces, seasons, Geometry Nodes, atmosphere, volumes, VDB sequences, and effects animation.
+4. **Casino:** optimize before general browsing because of its roughly 1.9M polygons; split into room, furniture, gaming, exterior, sign, vehicle, and landscaping packs.
+5. **House study:** use after reviewing training/source provenance and missing references; its 67 Geometry Nodes modifiers make it valuable generator research even if some finished assets remain reference-only.
+
+Three missing images were reported in the rehearsal file, three in the casino, and one in the house study. The theatre/NYC/Victorian archive payloads were otherwise clean in the scan. The asset browser must make this condition visible rather than silently substituting blank textures.
+
+## 6. Product workspaces and feature plan
 
 ### A. Paint and illustration
 
@@ -201,7 +245,36 @@ Replace whole-document undo snapshots with an append-only command journal and ch
 
 - A shared timeline for raster frames, vector/keyframe animation, 2D rigs, 3D shots, cameras, audio, markers, and dialogue.
 - Exposure sheets, frame ranges, copy/paste, nested clips, graph editor, motion paths, audio scrubbing, automatic lip-sync suggestions, and MP4/WebM image-sequence export.
-- Comic spreads, templates, richer typography, linked characters/props, vector balloons, style libraries, preflight, CMYK-aware print handoff, and publisher presets.
+- A story workspace for scripts, beats, issues/chapters, scenes, locations, cast, reference boards, shot lists, and continuity notes. Script lines can create panel/dialogue placeholders without locking the artist into an automatic layout.
+- Page, spread, infinite-scroll, webtoon, strip, manga/right-to-left, storyboard, and presentation formats. Include templates, master pages, facing-page preview, page numbering, section breaks, reordering, duplication, variants, and imposition preview.
+- Panel tools for rectangular, polygon, curved, borderless, inset, overlapping, and bleeding panels; editable gutters; perspective grids; panel masks; camera guides; safe/action/title areas; and reusable layouts.
+- Smart panels can retain a link to a 2D scene, 2D rig, or 3D shot. The artist can pose, light, and rerender the source while preserving crop, lettering, paint-over, and page layout.
+- Vector speech/thought/whisper/shout/radio balloons, editable multi-point tails, connectors, linked balloon chains, captions, sound effects, emphasis marks, and reading-order guides.
+- Rich lettering with font collections, favourites, fallback checks, OpenType features, vertical text, ruby/furigana support, reusable character/balloon/SFX styles, spell check, find/replace, and translation variants.
+- Character, prop, costume, location, and pose libraries exposed directly in the page browser. Dragging a reusable character into a panel can create a linked 2D puppet, a 3D render source, or a flattened copy.
+- Non-destructive filters, halftone/screentone libraries, speed lines, focus lines, hatching, ink trapping, panel colour grades, global issue palettes, and style-safe batch updates.
+- Print/prepress tools: trim/bleed/safe areas, DPI checks, missing-font/image checks, colour-profile warnings, black-ink coverage warnings, PDF/X handoff research, publisher presets, proof sheets, and export reports.
+- Digital publishing tools: accessible reading order, optional alt text/transcripts, tap targets, panel-by-panel export, webtoon slicing, EPUB/fixed-layout research, and localized editions.
+
+#### 2D auto-rigging and deformation
+
+Support two complementary rig types:
+
+1. **Cut-out rig:** separate head/torso/limb/hand/face layers connected by pivots, parenting, draw order, constraints, IK, switches, and replaceable sprites. This is predictable and best for clean production characters.
+2. **Mesh-deformation rig:** triangulate one painting or a group of layers, bind it to bones, paint rigidity/pins/weights, and deform the art smoothly. This is best for single illustrations, hair, cloth, faces, and organic secondary motion.
+
+The assisted setup flow should:
+
+1. Import layered OpenRaster/SVG/PNG sequences or a flattened character.
+2. Detect alpha islands and suggest semantic pieces from layer names and geometry.
+3. Optionally use on-device pose/face/hand landmarks to suggest joints and facial controls; require a user review before creating the rig.
+4. Generate pivots or a deformation mesh, propose a bone hierarchy, and calculate initial weights.
+5. Let the artist paint weights, rigidity, pins, flex zones, and stacking-order influence.
+6. Add angle limits, stretch rules, two-bone IK, pole controls, space switching, transform constraints, paths, and simple springs/dynamics.
+7. Create turn/pose/sprite switches, blink controls, mouth/viseme sets, phoneme timing, and reusable expression boards.
+8. Run silhouette, joint-bend, draw-order, and extreme-pose checks before publishing the puppet.
+
+OpenToonz is the most useful permissive code/behavior reference: its BSD-licensed Plastic workflow combines triangulated meshes, skeleton vertices, rigidity painting, angle bounds, stacking order, multiple skeletons, and function curves. Synfig's GPL Skeleton Deformation layer is a useful behavior reference but should not be copied into the MIT core. Godot's MIT `Skeleton2D`/`Bone2D` design is another useful runtime reference. MediaPipe code is Apache-2.0 and can suggest landmarks locally, but model redistribution and telemetry terms must be verified before bundling any model.
 
 ### C. 3D scene and asset workspace
 
@@ -246,8 +319,10 @@ GarmentCode is the strongest permissively licensed research starting point for p
 
 #### Automatic rigging
 
-- Production path: fit landmarks, generate a Rigify metarig, create control/deform rigs, calculate/transfer weights, run deformation tests, and publish a clean export skeleton.
-- Rigify already includes human and several animal metarigs and is the best open, maintainable base for an original Plumbmonkey workflow.
+- Define an engine-neutral **Rig Recipe** first: semantic landmarks, bone roles, deform hierarchy, controller roles, constraints, twist/roll policy, sockets, facial controls, weight groups, test poses, and export mapping. Project features must target semantic roles such as `left_hand`, not Rigify or Auto-Rig Pro bone names.
+- Each rig driver implements the same operations: validate mesh, fit guide/metarig, generate controls/deform skeleton, bind/weight, create facial rig, test deformation, bake animation, retarget, and export.
+- Production fallback path: fit landmarks, generate a Rigify metarig, create control/deform rigs, calculate/transfer weights, run deformation tests, and publish a clean export skeleton.
+- Rigify already includes human and several animal metarigs and is the best free, maintainable base for an original Plumbmonkey workflow.
 - R&D path: evaluate UniRig for diverse skeleton/skin prediction and RigNet as an older baseline. Both need quality, dependency, model-license, and redistribution review before product use.
 
 ### G. Auto-Rig Pro interoperability
@@ -262,10 +337,32 @@ Local inspection found:
 Recommended approach:
 
 - Do not make the main application depend on Auto-Rig Pro.
-- Add an optional adapter that detects the installed add-on and invokes documented Blender operators for users who own/install it.
+- Add an optional adapter that detects the installed add-on and invokes documented Blender operators for users who own/install it. Detection records Blender path/version, add-on version, enabled state, and required operator capabilities; it never installs or updates the add-on automatically.
 - Treat generated rigs as user project assets.
 - Build the default original rigging workflow on Rigify and Blender APIs.
 - If any Auto-Rig Pro GPL source is adapted, keep that derivative in the GPL Blender bridge and publish the corresponding source. Do not copy it into the MIT desktop core.
+
+### Rig-driver switch behavior
+
+On first use, the application runs a capability check:
+
+- **Auto-Rig Pro available and compatible:** offer **Auto-Rig Pro** and **Free Rigify**. Remember the user's default, but allow a per-character choice.
+- **Auto-Rig Pro missing, disabled, or incompatible:** select **Free Rigify** automatically and show a non-blocking explanation. Every core character workflow remains usable.
+- **No compatible Blender/Rigify:** allow mesh/landmark preparation and queue generation until Blender is configured; never strand the project in a proprietary state.
+
+The project stores the selected driver, driver version, Rig Recipe version, generated control rig, and a clean semantic deform/export skeleton. Animation clips and attachments target the semantic skeleton so they can be retargeted between drivers. Switching a character with existing animation creates a new rig variant and runs retarget/deformation tests; it does not destructively replace the working rig.
+
+The user-facing choice should remain simple:
+
+```text
+Rig driver
+● Auto-Rig Pro 3.78.26 — installed and compatible
+○ Free Rigify — always available with Blender
+
+[Generate rig]  [Advanced mapping…]
+```
+
+Auto-Rig Pro-specific options belong inside its adapter panel. Common controls—body type, landmarks, fingers, face, twist bones, export target, weight quality, and test poses—use the shared schema.
 
 ### H. Natural landscape generator
 
@@ -309,7 +406,7 @@ Pipeline:
 
 Meyda is a practical MIT-licensed JavaScript analyzer for the live TypeScript path. Blender 5.2 can also sample sound frequencies directly in Geometry Nodes, making the installed version unusually well suited to the offline/final-render path. FFmpeg is appropriate for encoding only with a documented LGPL/GPL build and codec review.
 
-## 6. Open-source shortlist
+## 7. Open-source shortlist
 
 | Project | License | Best use here | Important caution |
 |---|---|---|---|
@@ -320,6 +417,10 @@ Meyda is a practical MIT-licensed JavaScript analyzer for the live TypeScript pa
 | libmypaint | ISC | Mature brush behavior and tiled-surface research | Native integration/WASM work required |
 | CanvasKit/Skia | BSD-style | GPU-accelerated 2D paths, text, shaders, compositing | Large WASM and more manual editor architecture |
 | OpenRaster | Open specification | Layered 2D interchange | Spec extensions vary between applications |
+| OpenToonz | Modified BSD; third-party folders vary | 2D mesh/skeleton/rigidity/stacking workflow reference | Reuse only clearly licensed core files; do not absorb the whole editor architecture |
+| Synfig | GPL | Skeleton and raster-deformation behavior reference | Keep as research/interop unless a GPL boundary is desired |
+| Godot Engine | MIT | `Skeleton2D`/`Bone2D` runtime and 2D skinning reference | Integrating the whole engine is unnecessary; borrow concepts or isolated permissive code only |
+| MediaPipe | Apache-2.0 code | Optional local pose/face/hand landmark suggestions | Verify each model's redistribution terms and telemetry behavior before bundling |
 | MPFB | GPL; core assets CC0 | Parametric humans, clothing/assets, Rigify | Blender-side boundary; asset provenance still matters |
 | Rigify | GPL | Original human/animal rig-generator foundation | It creates controls; fitting and skinning still need work |
 | Auto-Rig Pro | GPL code plus asset-specific terms | Optional installed adapter and export compatibility | Do not require it or mix source into the MIT core |
@@ -338,78 +439,119 @@ Meyda is a practical MIT-licensed JavaScript analyzer for the live TypeScript pa
 | glTF/GLB | Royalty-free standard | Runtime delivery, web/game/AR assets | Not ideal as the only editable scene source |
 | OpenUSD | TOST license | Large editable scene composition/interchange | More complex toolchain and concepts |
 
-## 7. Delivery roadmap
+## 8. Delivery roadmap
 
 The whole vision is comparable in breadth to several mature creative applications. Deliver it through vertical slices that end in usable art, not through one long infrastructure project.
 
-### Phase 0 — Stabilize and extract (2–4 weeks)
+The time bands below describe concentrated engineering effort for a small experienced team; a solo build should expect substantially longer calendar time. Product/design QA, original asset preparation, and licence review run alongside engineering.
 
-- Fix canvas zoom/pan/rotation and add viewport regression tests.
-- Split the current component into document core, renderer, commands, persistence, export, and UI packages.
-- Replace data URLs in working memory with binary asset handles.
-- Define `.pmstudio` v1 and `.nml` migration.
-- Add crash fixtures, larger-document benchmarks, and browser tests.
+### Phase 0A — Website viewport repair — complete
 
-Exit gate: the website Art Room is more reliable than v0.8.1 and its core runs without Next.js-specific assumptions.
+- The zoom repair was implemented separately before desktop work.
+- Geometry tests, the existing application suite, a production build, and hands-on 35–160%/rotation/scroll checks pass.
 
-### Phase 1 — Desktop foundation (4–8 weeks)
+Exit gate: met on 2026-08-30. The repaired website viewport is the desktop extraction baseline.
 
-- Tauri shell, native open/save, recent projects, recovery, preferences, update channel, asset index, background jobs, and logs.
-- Preserve all existing painting, animation, comic, and export features.
-- Add OpenRaster and image-sequence workflows.
+### Phase 0B — Extract and stabilize the 2D core (3–5 weeks)
 
-Exit gate: a signed Windows alpha can create, save, recover, reopen, and export real projects without browser storage.
+- Progress through checkpoint 11: rotated manipulation, project/package contracts, versioned document and raster recovery, the shared document/command core, verified binary checkpoints, raster-surface adapters, a handle-backed live raster session, dirty-tile persistence/restoration, reversible tile-revision commands, unified mixed Undo/Redo history, bounded in-memory journal compaction, shared document snapshots, animation interpolation/timing, shared canvas operations, unified comic rendering, export planning, workload profiling, deterministic generator/encoder tests, and the destructive-edit/forced-restart regression gate are complete.
+- Split the current component into document, viewport, renderer, commands, persistence, rig, comic, export, and UI packages.
+- Apply inverse viewport mapping to rotated bone and comic manipulation.
+- Replace data URLs in working memory with binary handles and tiled/lazy layer storage.
+- Define `.pmstudio` v1, `.pmasset` v1, and `.nml` migration.
+- Add large-document benchmarks, recovery/crash fixtures, viewport end-to-end tests, and deterministic generator tests.
 
-### Phase 2 — 3D and Blender bridge (6–10 weeks)
+Exit gate: the complete current Art Room runs from reusable packages without Next.js-specific assumptions and survives forced restart/recovery tests.
 
-- Babylon viewport, scene outliner, transforms, cameras/lights/materials, GLB/USD import/export, and asset validation.
-- Blender discovery, version check, job protocol, progress/cancellation, thumbnail/render jobs, and Open in Blender.
-- Ship a small original Geometry Nodes generator to prove round-trip editing.
+### Phase 1 — Desktop and project foundation (4–8 weeks)
 
-Exit gate: one project mixes a layered painting, a 3D scene, a camera animation, and a Blender render without losing editability.
+- Tauri shell, native open/save, recent projects, recovery versions, preferences, background jobs, logs, and Windows packaging.
+- Project graph, command journal/checkpoints, asset references, cache invalidation, job cancellation, and missing-file relinking.
+- Preserve existing painting, animation, comics, PDF, GIF, and `.nml` workflows; add OpenRaster and image sequences.
 
-### Phase 3 — Character vertical slice (8–14 weeks)
+Exit gate: a Windows alpha can create, save, recover, reopen, migrate, and export real projects without browser storage.
 
-- MPFB human adapter, neutral engine schema, body/face controls, material presets.
-- Hair guide generator, clothing-pattern MVP, drape job, Rigify fitting/skinning, deformation tests, GLB export.
-- Optional Auto-Rig Pro adapter.
+### Phase 2 — Asset browser and Plumbmonkey starter library (5–8 weeks)
 
-Exit gate: create a human, change proportions, generate hair and one fitted outfit, rig/pose it, and export a working animated GLB.
+- Folder watching, SQLite index, background `.blend` scan, thumbnails/turntables, collections, tags, favourites, filters, provenance, dependency warnings, and Copy/Link/Instance/Reference modes.
+- Implement the contextual drop contracts for the canvas, comic panels, timeline, 3D placeholder, characters, materials, and collections.
+- Ingest the Spectral rooms/arcade first, then theatre/rehearsal, NYC/Victorian, casino, and house-study research assets.
+- Add `.pmasset` packaging, versioning, source-update detection, proxy generation, and batch approval tools.
 
-### Phase 4 — World vertical slice (8–14 weeks)
+Exit gate: users can point the app at the supplied source folders, find assets visually, drag them into projects, reopen those projects, and understand every missing dependency or source update.
 
-- Seeded terrain, biome scatter, road sketch, parcels, one building grammar, rooms, doors/windows, and interior furnishing rules.
-- GIS/OSM import prototype with attribution tracking.
-- IFC import/export experiment through IfcOpenShell.
+### Phase 3 — Advanced comics and 2D animation/auto-rigging (8–12 weeks)
 
-Exit gate: create a small natural or urban environment, edit its seed/constraints, place a character, and render a shot.
+- Story/script/continuity workspace, page/spread/webtoon formats, advanced panel geometry, linked smart panels, richer lettering/balloons/SFX, styles, preflight, and digital/print publishing presets.
+- Cut-out rig improvements: semantic layers, auto pivots, IK, limits, space switching, draw-order animation, sprite/pose switches, visemes, and reusable puppets.
+- Mesh-deformation rig MVP: triangulation, bones, initial weight generation, painted weights/rigidity/pins, bend tests, and baked/exported animation.
+- Optional local landmark suggestions behind an explicit reviewed setup flow.
+- Link a 2D puppet or future 3D shot to a comic panel and preserve paint-over plus crop/lettering when rerendering.
 
-### Phase 5 — Audio-visual vertical slice (6–10 weeks)
+Exit gate: create a multi-page issue containing hand-painted panels, a reusable auto-assisted 2D character rig, linked panel updates, professional lettering, and print/digital preflight.
 
-- Shared audio-analysis cache, mapping node graph, live preview, MIDI/OSC, 2D/3D targets, and bake-to-keyframes.
-- Blender 5.2 sound-node templates, render queue, and documented FFmpeg packaging.
+### Phase 4 — 3D viewport and Blender bridge (6–10 weeks)
 
-Exit gate: turn an Art Room graphic or animation into a repeatable custom visualizer and export a synchronized video.
+- Babylon viewport, scene outliner, transforms/gizmos, snapping, cameras, lights, PBR materials, GLB/USD import/export, drag/drop placement, and asset validation.
+- Blender discovery/version check, separately licensed bridge, typed job protocol, progress/cancellation, logs, dependency collection, thumbnail/render jobs, and **Open in Blender**.
+- Ship one original Geometry Nodes generator and prove parameter/seed round trips.
 
-### Phase 6 — Production hardening (ongoing)
+Exit gate: one `.pmstudio` project mixes layered artwork, a supplied 3D environment asset, a camera animation, and a Blender render without losing editability or provenance.
+
+### Phase 5 — Characters, dual rig drivers, hair, and clothing (10–16 weeks)
+
+- Neutral character and Rig Recipe schemas, MPFB human adapter, face/body controls, materials, test poses, and semantic export skeleton.
+- Free Rigify driver as the guaranteed path; capability detection and optional Auto-Rig Pro 3.78.26+ adapter as the alternate driver.
+- Driver selection, generation, weight tests, retargeting, rig variants, attachment sockets, action library, and GLB/Blender export.
+- Hair guides/interpolation/dynamics/LOD MVP and one parametric GarmentCode-derived outfit with Blender drape, weight transfer, and corrective tools.
+- Begin generic quadruped plus one dog/wolf or cat template after the human workflow passes deformation tests.
+
+Exit gate: create a character, change proportions, add hair and clothing, choose Auto-Rig Pro or the free driver, pose/animate it, switch through a tested rig variant, and export an animated GLB.
+
+### Phase 6 — Landscapes, cities, architecture, and interiors (10–16 weeks)
+
+- Seeded terrain/erosion, water, biome scatter, weather zones, LOD tiles, road sketch, parcels, and one editable building grammar.
+- Rebuild selected NYC/Victorian/theatre construction ideas as typed original generators with stored parameters and seeds.
+- Rooms, walls, slabs, roofs, doors/windows, stairs, furnishings, lighting layouts, style kits, and drag/drop asset population.
+- GIS/OSM import with attribution tracking and an IFC import/export experiment through IfcOpenShell.
+- VDB/weather ingest and safe cache packaging based on the Victorian archive.
+
+Exit gate: create a natural or urban environment, generate/edit a structure and interior, populate it from the asset browser, place a character, apply weather, and render a shot.
+
+### Phase 7 — Audio-visual pipeline (6–10 weeks)
+
+- Shared local audio-analysis cache, mapping node graph, smoothing/envelopes, live preview, MIDI/OSC, 2D/3D/rig/material/light targets, and bake-to-keyframes.
+- Convert an Art Room painting, comic panel, 2D puppet, Spectral-room scene, or custom Geometry Nodes graph into a reusable visualizer template.
+- Blender 5.2 sound-node templates, deterministic render queue, transparent passes, and documented FFmpeg packaging.
+
+Exit gate: turn an original graphic, animation, or 3D scene into a repeatable custom visualization and export synchronized live and rendered versions.
+
+### Phase 8 — Production hardening and expansion (ongoing)
 
 - macOS/Linux packaging, GPU fallbacks, performance tiers, colour management, accessibility, localization, signed updates, plugin SDK, asset licensing UI, telemetry opt-in, backups, and crash recovery.
-- Expand species, garments, terrain, architecture, interior styles, visualizer templates, render farms, and collaborative interchange only after each earlier vertical slice is stable.
+- Expand species, garments, terrain, architecture, interiors, comics, visualizer templates, render farms, and interchange only after each earlier vertical slice is stable.
 
-## 8. First implementation backlog
+## 9. First implementation backlog
 
-1. Fix and test the website canvas viewport.
-2. Write `.pmstudio` v1 and a migration plan from `.nml` version 1.
-3. Extract the current 2D document/command engine from the React component.
-4. Prototype Tauri file open/save and recovery on Windows.
-5. Prototype one Babylon GLB viewport next to the existing 2D canvas.
-6. Define the Blender job protocol and make a version/render smoke test against Blender 5.2.
-7. Build one original Geometry Nodes generator and round-trip its parameters.
-8. Prototype MPFB → Rigify → GLB as the first character path.
-9. Prototype GarmentCode pattern parameters → Blender cloth drape for one shirt or dress.
-10. Import an existing Art Room image into the visualizer and map bass/mid/treble/onset to four editable properties.
+1. **Completed:** repair and verify the website canvas viewport; preserve the separate fix report.
+2. **Completed:** finish inverse rotated-coordinate handling for bone and comic dragging; geometry coverage is in place, with the modifier-wheel browser interaction still tracked as a QA follow-up.
+3. **Completed:** specify `.pmstudio` v1, `.pmasset` v1, binary handles, provenance, and `.nml` migration fixtures.
+4. **In progress:** extract viewport, document, commands, persistence, painting, rigging, comics, and export services from the React component. The document model, recovery, commands, binary/checkpoint storage, raster geometry, handle-backed raster session, incremental tile persistence/restoration, revision commands, mixed raster-aware history controller, compatibility snapshot boundary, animation interpolation/timing, canvas operations/compositing, comic layout/rendering, export planner, and workload profiler are now separated. The remaining Phase 0B work is the strict working-document handle boundary plus animation-frame/GIF rendering and export-job coordination.
+5. Prototype Tauri native open/save, versioned recovery, command journal, and background-job cancellation on Windows.
+6. Turn the read-only Blender inventory script into the asset-manifest worker and add missing-file/dependency/complexity reports.
+7. Build the thumbnail/search/collection browser and ingest Spectral Arcade plus Spectral Luminarium as the first approved pack.
+8. Implement Copy/Link/Instance/Reference plus canvas, panel, and timeline drag/drop contracts.
+9. Specify the advanced comic book, smart-panel, lettering-style, story/continuity, and preflight data models.
+10. Prototype a small 2D deformation rig: triangulated alpha mesh, bone hierarchy, automatic starting weights, rigidity painting, IK, and pose export.
+11. Prototype one Babylon GLB viewport and drag a catalogued `.pmasset` into it.
+12. Define the Blender job protocol and complete version, capability, render, cancel, and progress smoke tests against Blender 5.2.
+13. Specify Rig Recipe v1 and prove capability detection for **Free Rigify** and the installed **Auto-Rig Pro 3.78.26** without copying add-on code.
+14. Prototype MPFB → Rig Recipe → Rigify → semantic export skeleton → animated GLB; add the Auto-Rig Pro driver only after the neutral path passes.
+15. Prototype one hair preset, one GarmentCode-derived garment/drape, and one asset-browser character attachment.
+16. Rebuild one supplied environment construction script as an original typed/seeded generator and round-trip its parameters.
+17. Import an Art Room graphic into the visualizer and map bass/mid/treble/onset to four editable 2D/3D properties.
 
-## 9. Research references
+## 10. Research references
 
 - [Tauri 2 architecture](https://v2.tauri.app/concept/architecture/)
 - [Tauri external binaries/sidecars](https://github.com/tauri-apps/tauri-docs/blob/v2/src/content/docs/develop/sidecar.mdx)
@@ -436,8 +578,12 @@ Exit gate: turn an Art Room graphic or animation into a repeatable custom visual
 - [libmypaint](https://github.com/mypaint/libmypaint)
 - [CanvasKit](https://docs.skia.org/docs/user/modules/canvaskit/)
 - [OpenRaster](https://www.openraster.org/)
+- [OpenToonz Plastic mesh and skeleton workflow](https://github.com/opentoonz/opentoonz_docs/blob/master/source/create_animations_using_plastic_tool.rst)
+- [OpenToonz source and Modified BSD licensing](https://github.com/opentoonz/opentoonz)
+- [Synfig Skeleton Deformation Layer](https://synfig.readthedocs.io/en/stable/layers/skeleton_deformation.html)
+- [Godot Bone2D and Skeleton2D](https://docs.godotengine.org/en/stable/classes/class_bone2d.html)
+- [MediaPipe](https://github.com/google-ai-edge/mediapipe)
 - [Meyda](https://github.com/meyda/meyda)
 - [FFmpeg legal/license information](https://ffmpeg.org/legal.html)
 - [glTF](https://www.khronos.org/gltf/)
 - [OpenUSD](https://openusd.org/)
-

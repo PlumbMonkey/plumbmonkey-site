@@ -1,0 +1,33 @@
+{
+  "format": "plumbmonkey-studio",
+  "version": 1,
+  "projectId": "project-demo",
+  "title": "Phase 0B fixture",
+  "createdAt": "2026-08-31T00:00:00.000Z",
+  "updatedAt": "2026-08-31T00:00:00.000Z",
+  "application": { "version": "0.9.0-alpha.1" },
+  "document": {
+    "path": "document/document.json",
+    "format": "natural-media-document",
+    "version": 1,
+    "width": 1600,
+    "height": 1000
+  },
+  "binaries": [
+    {
+      "id": "layer-1-pixels",
+      "mediaType": "image/png",
+      "byteLength": 128,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "location": { "kind": "embedded", "path": "binary/layers/layer-1/pixels.png" }
+    }
+  ],
+  "assets": [
+    { "id": "placed-arcade", "assetId": "spectral-arcade", "assetVersion": 1, "mode": "instance" }
+  ],
+  "journal": {
+    "path": "journal/commands.jsonl",
+    "head": 12,
+    "checkpoint": { "sequence": 10, "path": "journal/checkpoints/10.json" }
+  }
+}
