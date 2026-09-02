@@ -10,7 +10,7 @@ try {
   execFileSync(process.execPath, [
     join(process.cwd(), "node_modules", "typescript", "bin", "tsc"),
     "app/natural-media-lab/documentModel.ts", "app/natural-media-lab/pdfEncoder.ts", "app/natural-media-lab/gifEncoder.ts", "app/natural-media-lab/brushEngine.ts", "app/natural-media-lab/proceduralEngine.ts", "app/natural-media-lab/viewportMath.ts",
-    "packages/art-room-core/src/recovery.ts", "packages/art-room-core/src/projectFormats.ts", "packages/art-room-core/src/commandJournal.ts", "packages/art-room-core/src/documentModel.ts", "packages/art-room-core/src/documentSnapshot.ts", "packages/art-room-core/src/animation.ts", "packages/art-room-core/src/animationRenderer.ts", "packages/art-room-core/src/rig.ts", "packages/art-room-core/src/comicLayout.ts", "packages/art-room-core/src/comicRenderer.ts", "packages/art-room-core/src/canvasOperations.ts", "packages/art-room-core/src/editorCommands.ts", "packages/art-room-core/src/binaryStorage.ts", "packages/art-room-core/src/rasterSurface.ts", "packages/art-room-core/src/rasterRecovery.ts", "packages/art-room-core/src/rasterRevision.ts", "packages/art-room-core/src/rasterSession.ts", "packages/art-room-core/src/historyController.ts", "packages/art-room-core/src/exportPlanning.ts", "packages/art-room-core/src/workload.ts",
+    "packages/art-room-core/src/recovery.ts", "packages/art-room-core/src/projectFormats.ts", "packages/art-room-core/src/commandJournal.ts", "packages/art-room-core/src/documentModel.ts", "packages/art-room-core/src/documentSnapshot.ts", "packages/art-room-core/src/workingDocument.ts", "packages/art-room-core/src/animation.ts", "packages/art-room-core/src/animationRenderer.ts", "packages/art-room-core/src/rig.ts", "packages/art-room-core/src/comicLayout.ts", "packages/art-room-core/src/comicRenderer.ts", "packages/art-room-core/src/canvasOperations.ts", "packages/art-room-core/src/editorCommands.ts", "packages/art-room-core/src/binaryStorage.ts", "packages/art-room-core/src/rasterSurface.ts", "packages/art-room-core/src/rasterRecovery.ts", "packages/art-room-core/src/rasterRevision.ts", "packages/art-room-core/src/rasterSession.ts", "packages/art-room-core/src/historyController.ts", "packages/art-room-core/src/exportPlanning.ts", "packages/art-room-core/src/workload.ts",
     "--target", "ES2022", "--module", "commonjs", "--rootDir", ".", "--outDir", output, "--skipLibCheck",
   ], { stdio: "pipe" });
   const require = createRequire(import.meta.url);
@@ -28,6 +28,7 @@ try {
   const { createVersionedRecoveryService, latestRecoveryRecord, recoveryRecordsToDelete, sortRecoveryRecords } = require(coreCompiled("recovery.js"));
   const { applyEditorCommand } = require(coreCompiled("editorCommands.js"));
   const { captureDocumentSnapshot } = require(coreCompiled("documentSnapshot.js"));
+  const { projectWorkingDocument, workingDocumentHandleIds } = require(coreCompiled("workingDocument.js"));
   const { DEFAULT_LAYER_TRANSFORM, easeTimelineValue, framePlaybackDelay, resolveLayerTransform } = require(coreCompiled("animation.js"));
   const { animationCameraState, animationLayerSourceUrl, renderAnimationFrame, renderAnimationImageData } = require(coreCompiled("animationRenderer.js"));
   const { comicPanelSourceTransform, comicRectToPixels, comicTextPosition, getComicTransformPatch, wrapComicText } = require(coreCompiled("comicLayout.js"));
@@ -335,6 +336,23 @@ try {
   assert.deepEqual(rasterSession.layerDescriptor("paint"), sessionFirstRevision.after);
   rasterSession.applyRevision(sessionSecondRevision, "redo");
   assert.deepEqual(rasterSession.layerDescriptor("paint"), sessionSecondRevision.after);
+  const handleBackedSource = structuredClone(migrated);
+  handleBackedSource.layers[0].id = "paint";
+  handleBackedSource.layers[0].dataUrl = "data:image/png;base64,layer-compatibility";
+  handleBackedSource.layers[0].simulation.wetMapUrl = "data:image/png;base64,wet-compatibility";
+  handleBackedSource.animation.frames[0].layerData.paint = "data:image/png;base64,frame-compatibility";
+  handleBackedSource.comic.pages[0].layerData.paint = "data:image/png;base64,page-compatibility";
+  handleBackedSource.rig.sprites.paint = [{ name: "Pose", dataUrl: "data:image/png;base64,sprite-compatibility" }];
+  const workingDocument = rasterSession.createWorkingDocument(handleBackedSource);
+  assert.equal(workingDocument.format, "art-room-working-document");
+  assert.deepEqual(workingDocument.layers[0].raster, sessionSecondRevision.after);
+  assert.deepEqual(workingDocumentHandleIds(workingDocument).sort(), sessionSecondRevision.after.tiles.map((tile) => tile.handleId).sort());
+  assert.ok(!JSON.stringify(workingDocument).includes("data:image"));
+  assert.deepEqual(workingDocument.animation.frames[0].populatedLayerIds, ["paint"]);
+  assert.deepEqual(workingDocument.comic.pages[0].populatedLayerIds, ["paint"]);
+  assert.deepEqual(workingDocument.rig.sprites.paint, [{ name: "Pose" }]);
+  const standaloneWorkingDocument = projectWorkingDocument(handleBackedSource, { paint: sessionSecondRevision.after });
+  assert.deepEqual(standaloneWorkingDocument.layers[0].raster, workingDocument.layers[0].raster);
   const sessionRecovery = await rasterSession.createRecovery();
   assert.equal(sessionRecovery.payloads.length, 2);
   await rasterSession.prune();

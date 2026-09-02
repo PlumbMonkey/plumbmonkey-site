@@ -37,6 +37,28 @@ for (const room of ROOMS ?? []) {
       problems.push(`${room.label}: room3d ${room.room3d} does not exist under public/`);
     }
   }
+
+  // Same reasoning for the transition walk. A film named here but not encoded
+  // is invisible until someone clicks that arch and gets a black hold instead
+  // of a corridor, so it is checked rather than trusted. Both codecs, because
+  // the <video> lists both sources and Safari only takes the mp4.
+  if (room.film) {
+    for (const ext of ["mp4", "webm"]) {
+      const film = new URL(`../public/assets/transit-${room.film}.${ext}`, import.meta.url);
+      if (!existsSync(film)) {
+        problems.push(`${room.label}: film transit-${room.film}.${ext} is missing from public/assets/`);
+      }
+    }
+  }
+  if (room.model) {
+    const model = new URL("../public" + room.model, import.meta.url);
+    if (!existsSync(model)) {
+      problems.push(`${room.label}: model ${room.model} does not exist under public/`);
+    }
+  }
+  if (room.model && !room.film) {
+    problems.push(`${room.label}: has a model to warm but no film to warm it behind`);
+  }
 }
 if (!CTA?.href || !CTA?.label) problems.push("rooms.js exports no usable CTA");
 

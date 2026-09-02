@@ -131,6 +131,17 @@ if (embedded) {
    top-level document window.top === window, so this is a no-op there. */
 const leaveTo = (href) => { window.top.location.href = href; };
 
+/* Walking to a room, rather than cutting to it. /shared/room-transition.js
+   plays a film of the manor's hallways or stairs while the destination's model
+   downloads, then calls leaveTo. It is loaded as a deferred classic script, so
+   it is always present by the time a click can happen — but this falls back to
+   an ordinary navigation regardless, because a missing transition must never
+   cost the visitor the door. */
+const walkTo = (href) => {
+  if (window.PM_TRANSITION) window.PM_TRANSITION.play(href, leaveTo);
+  else leaveTo(href);
+};
+
 function fail(msg) {
   loaderEl.classList.remove('arriving');
   errEl.style.display = 'block';
@@ -354,7 +365,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   const p = pick(e.clientX, e.clientY);
   if (!p) return;
   if (!p.live) { setHover(p); return; }
-  leaveTo(p.href);
+  walkTo(p.href);
 });
 
 /* Touch has no hover, so the first tap reveals the label and the second
@@ -545,6 +556,7 @@ renderer.setAnimationLoop(() => {
 </script>
 
 <script src="/shared/rooms.js" defer></script>
+<script src="/shared/room-transition.js" defer></script>
 <script src="/shared/room-menu.js" data-exit="/" data-exit-label="Exit" defer></script>
 </body>
 </html>

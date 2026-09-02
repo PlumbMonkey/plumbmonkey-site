@@ -35,20 +35,32 @@
    started as data that nothing rendered, which left the rotunda live on the
    site and unreachable from any menu on it.
 
+   `film` and `model` drive /shared/room-transition.js: leaving the Foyer plays
+   a short walk through the manor's own hallways or stairs (rendered from
+   VictorianHouse_Interiors.blend) while `model` downloads in the background.
+   `film` names an /assets/transit-<film>.{mp4,webm} pair. `model` is the big
+   asset the walk is buying time for, and is only warmed when the visitor is
+   headed for the 3D entrance — see filmFor() below. A room with no `film`
+   simply navigates the old way.
+
    `npm test` accepts a foyer arch pointing at either address, and checks the
-   room3d file is really there.
+   room3d file, the film pair and the model are really there.
    ============================================================ */
 (function (root) {
   "use strict";
 
   var ROOMS = [
-    { href: "/arcade", label: "Arcade" },
-    { href: "/music", label: "Music Sandbox" },
-    { href: "/visual/index.html", label: "Luminarium", room3d: "/luminarium/viewer.html" },
-    { href: "/natural-media-lab", label: "Art Room", room3d: "/artroom/viewer.html" },
-    { href: "/screening-room", label: "Theatre" },
-    { href: "/gallery", label: "Gallery" },
-    { href: "/workshop", label: "Workshop" }
+    { href: "/arcade", label: "Arcade", film: "hall-turn-right",
+      model: "/arcade/arcade-web.glb" },
+    { href: "/music", label: "Music Sandbox", film: "hall-straight",
+      model: "/music/music-web.glb" },
+    { href: "/visual/index.html", label: "Luminarium", room3d: "/luminarium/viewer.html",
+      film: "spiral", model: "/luminarium/luminarium-web.glb" },
+    { href: "/natural-media-lab", label: "Art Room", room3d: "/artroom/viewer.html",
+      film: "stair", model: "/artroom/artroom-web.glb" },
+    { href: "/screening-room", label: "Theatre", film: "hall-turn-left" },
+    { href: "/gallery", label: "Gallery", film: "hall-straight" },
+    { href: "/workshop", label: "Workshop", film: "hall-turn-right" }
   ];
 
   var CTA = { href: "/onboarding/orientation", label: "Work with me" };
@@ -69,12 +81,47 @@
     return room.room3d ? [room.href, room.room3d] : [room.href];
   }
 
+  /* The room an href belongs to, by longest matching path — so
+     /luminarium/viewer.html resolves to the Luminarium rather than to whichever
+     room happens to sit earlier in the list with a shorter prefix. */
+  function roomFor(href) {
+    if (!href || href.charAt(0) !== "/") return null;
+    var best = null, bestLen = -1;
+    for (var i = 0; i < ROOMS.length; i++) {
+      var paths = roomPaths(ROOMS[i]);
+      for (var j = 0; j < paths.length; j++) {
+        var base = paths[j].replace(/\/index\.html$|\/viewer\.html$/, "");
+        if (base && href.indexOf(base) === 0 && base.length > bestLen) {
+          best = ROOMS[i];
+          bestLen = base.length;
+        }
+      }
+    }
+    return best;
+  }
+
+  /* The walk that leads to a room, for /shared/room-transition.js.
+
+     `model` is only worth warming when the visitor is actually headed for the
+     3D space: a room with a `room3d` also answers to a 2D href (the Luminarium
+     is still /visual/index.html) and fetching a 4 MB .glb on the way to a
+     canvas tool would be pure waste. */
+  function filmFor(href) {
+    var room = roomFor(href);
+    if (!room || !room.film) return null;
+    var wants3d = !room.room3d || href.indexOf(room.room3d.replace(/\/viewer\.html$/, "")) === 0;
+    return { film: room.film, model: wants3d ? (room.model || null) : null, room: room };
+  }
+
   root.PM_ROOMS = ROOMS;
   root.PM_CTA = CTA;
   root.PM_ENTRANCE = entrance;
   root.PM_ROOM_PATHS = roomPaths;
+  root.PM_ROOM_FOR = roomFor;
+  root.PM_FILM_FOR = filmFor;
 
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { ROOMS: ROOMS, CTA: CTA, entrance: entrance, roomPaths: roomPaths };
+    module.exports = { ROOMS: ROOMS, CTA: CTA, entrance: entrance,
+                       roomPaths: roomPaths, roomFor: roomFor, filmFor: filmFor };
   }
 })(typeof globalThis !== "undefined" ? globalThis : this);

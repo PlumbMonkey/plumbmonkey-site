@@ -3,6 +3,8 @@ import { BinaryHandle } from "./projectFormats";
 import { RasterRecoverySnapshotV1, createRasterRecoverySnapshot, restoreRasterRecoverySnapshot } from "./rasterRecovery";
 import { RasterRegionSource, RasterRect, persistDirtyRasterTiles } from "./rasterSurface";
 import { RasterTileRevisionCommand, applyRasterTileRevision } from "./rasterRevision";
+import type { NaturalMediaDocument } from "./documentModel";
+import { projectWorkingDocument } from "./workingDocument";
 
 export type RasterSessionOptions = {
   createStore?: () => BinaryStore;
@@ -61,6 +63,10 @@ export class RasterSession {
 
   createResolver() {
     return createLazyBinaryResolver([...this.handles.values()], this.store);
+  }
+
+  createWorkingDocument(source: NaturalMediaDocument) {
+    return projectWorkingDocument(source, this.layerDescriptors());
   }
 
   persist(request: RasterSessionPersistRequest) {
