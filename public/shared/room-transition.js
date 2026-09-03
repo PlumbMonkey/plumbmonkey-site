@@ -202,5 +202,65 @@
     if (p && p.catch) p.catch(finish);
   }
 
-  root.PM_TRANSITION = { play: play, routeFor: routeFor, prefetch: prefetch };
+  /* ---------------------------------------------------------------- links
+     Every way into a room should walk you there, not just the Foyer's arches:
+     the nav bar, the footer's room column, the home page's door grid, the
+     hamburger inside a 3D room, and any link added later. Rather than teach
+     each of those about transitions — five files that have drifted apart
+     before — one delegated listener on the document covers all of them and
+     anything written next.
+
+     Capture phase, because next/link attaches its own click handler and would
+     otherwise start a client-side route change first. A full navigation is
+     required regardless: walk-in.js runs on document load, and a soft route
+     change never gives it one.
+
+     A hovered room door starts downloading too, for the same reason the Foyer
+     does it — by click time the film usually has only the build left to hide. */
+  function isPlainLeftClick(e) {
+    return !e.defaultPrevented && e.button === 0 &&
+           !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+  }
+
+  function roomLinkFrom(node) {
+    var a = node && node.closest ? node.closest("a[href]") : null;
+    if (!a) return null;
+    if (a.target && a.target !== "_self") return null;
+    if (a.hasAttribute("download") || a.hasAttribute("data-no-walk")) return null;
+    var url;
+    try { url = new URL(a.getAttribute("href"), root.location.href); }
+    catch (err) { return null; }
+    if (url.origin !== root.location.origin) return null;
+    // Already standing in it: let the link behave normally rather than
+    // walking someone down a corridor back to where they are.
+    if (url.pathname === root.location.pathname) return null;
+    return routeFor(url.pathname) ? url.pathname + url.search : null;
+  }
+
+  function attach() {
+    doc.addEventListener("click", function (e) {
+      if (!isPlainLeftClick(e)) return;
+      var href = roomLinkFrom(e.target);
+      if (!href) return;
+      e.preventDefault();
+      e.stopPropagation();
+      play(href, function (h) { root.top.location.href = h; });
+    }, true);
+
+    var warmOn = function (e) {
+      var href = roomLinkFrom(e.target);
+      if (href) prefetch(href);
+    };
+    doc.addEventListener("pointerover", warmOn, true);
+    doc.addEventListener("focusin", warmOn, true);
+  }
+
+  if (doc.readyState === "loading") {
+    doc.addEventListener("DOMContentLoaded", attach, { once: true });
+  } else {
+    attach();
+  }
+
+  root.PM_TRANSITION = { play: play, routeFor: routeFor, prefetch: prefetch,
+                         roomLinkFrom: roomLinkFrom };
 })(typeof globalThis !== "undefined" ? globalThis : this, document);

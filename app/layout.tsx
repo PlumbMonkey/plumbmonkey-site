@@ -94,6 +94,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             loading, and a deferred copy would let the page paint underneath it
             first. Inert on every page that was not reached with ?walk. */}
         <script src="/shared/walk-in.js" />
+        {/* The departing half. rooms.js first — room-transition.js reads the
+            canonical room list from it — and neither is deferred, because the
+            click interceptor has to be listening before anyone can click. */}
+        <script src="/shared/rooms.js" />
+        <script src="/shared/room-transition.js" />
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-512918665" />
         <script
           dangerouslySetInnerHTML={{

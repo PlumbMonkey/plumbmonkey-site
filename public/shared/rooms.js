@@ -59,7 +59,8 @@
     { href: "/natural-media-lab", label: "Art Room", room3d: "/artroom/viewer.html",
       film: "stair", model: "/artroom/artroom-web.glb" },
     { href: "/screening-room", label: "Theatre", film: "hall-turn-left" },
-    { href: "/gallery", label: "Gallery", film: "hall-straight" },
+    { href: "/gallery", label: "Gallery", film: "hall-straight",
+      model: "/gallery/gallery-web.glb" },
     { href: "/workshop", label: "Workshop", film: "hall-turn-right" }
   ];
 
