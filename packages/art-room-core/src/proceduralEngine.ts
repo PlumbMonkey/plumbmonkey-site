@@ -1,4 +1,4 @@
-import { Point, seededRandom } from "./brushEngine";
+import { RasterStrokePoint, seededRandom } from "./brushEngine";
 
 export type ProceduralKind = "grass" | "leaves" | "stars" | "snow" | "rain" | "vines" | "fire" | "smoke" | "clouds" | "lightning";
 export type ProceduralPreset = { id: ProceduralKind; name: string; mark: string; description: string };
@@ -47,8 +47,8 @@ const starPath = (context: CanvasRenderingContext2D, x: number, y: number, radiu
 
 export function renderProceduralStroke(
   context: CanvasRenderingContext2D,
-  from: Point,
-  to: Point,
+  from: RasterStrokePoint,
+  to: RasterStrokePoint,
   preset: ProceduralPreset,
   settings: ProceduralSettings,
 ) {

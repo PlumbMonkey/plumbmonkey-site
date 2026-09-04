@@ -19,8 +19,10 @@ import { DEFAULT_LAYER_TRANSFORM, framePlaybackDelay, resolveLayerTransform } fr
 import { renderAnimationFrame, renderAnimationImageData } from "../../packages/art-room-core/src/animationRenderer";
 import { pagesWithActiveComicState, renderComicPage } from "../../packages/art-room-core/src/comicRenderer";
 import { cropCanvasLayer, fillCanvasLinearGradient, flattenCanvas, flipCanvasLayer, mergeCanvasLayers, resizeCanvasLayer } from "../../packages/art-room-core/src/canvasOperations";
-import { BRUSHES, renderBrushStroke } from "./brushEngine";
-import { PROCEDURAL_BRUSHES, renderProceduralStroke } from "./proceduralEngine";
+import { ExportJobCancelledError, ExportJobController, isExportJobCancelled } from "../../packages/art-room-core/src/exportJob";
+import { BRUSHES, renderBrushStroke } from "../../packages/art-room-core/src/brushEngine";
+import { PROCEDURAL_BRUSHES, renderProceduralStroke } from "../../packages/art-room-core/src/proceduralEngine";
+import { createLiveDocumentState, refreshLiveDocumentRaster, restoreLiveDocumentState, updateLiveDocumentState } from "../../packages/art-room-core/src/liveDocument";
 import { encodeGif } from "./gifEncoder";
 import { encodeComicPdf } from "./pdfEncoder";
 import { getComicTransformPatch } from "../../packages/art-room-core/src/comicLayout";
@@ -94,7 +96,13 @@ const hsvToHex = (h: number, s: number, v: number) => {
 };
 
 export default function NaturalMediaLab() {
-  const [document, setDocument] = useState(() => createDocument());
+  const rasterSessionRef = useRef<RasterSession | null>(null);
+  const rasterSession = rasterSessionRef.current ??= new RasterSession();
+  const [liveDocument, setLiveDocument] = useState(() => createLiveDocumentState(createDocument()));
+  const document = liveDocument.document;
+  const setDocument = useCallback((update: NaturalMediaDocument | ((document: NaturalMediaDocument) => NaturalMediaDocument)) => {
+    setLiveDocument((current) => updateLiveDocumentState(current, update, rasterSession.layerDescriptors()));
+  }, [rasterSession]);
   const [tool, setTool] = useState(BRUSHES[0]);
   const [toolFamily, setToolFamily] = useState<"natural" | "procedural">("natural");
   const [proceduralTool, setProceduralTool] = useState(PROCEDURAL_BRUSHES[0]);
@@ -147,16 +155,13 @@ export default function NaturalMediaLab() {
   const pendingStrokeHistoryIdRef = useRef<string | null>(null);
   const commandJournalRef = useRef<CommandJournal<ArtRoomCommand>>(createCommandJournal<ArtRoomCommand>());
   const commandBaselineRef = useRef<{ sequence: number; document: NaturalMediaDocument } | null>(null);
-  const rasterSessionRef = useRef<RasterSession | null>(null);
-  const rasterSession = rasterSessionRef.current ??= new RasterSession();
+  const exportJobRef = useRef<ExportJobController | null>(null);
+  const exportJob = exportJobRef.current ??= new ExportJobController();
   const fileRef = useRef<HTMLInputElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
   const spaceRef = useRef(false);
   const panningRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
-  const pdfCancelRef = useRef(false);
-  const pdfWorkerRef = useRef<Worker | null>(null);
-  const pdfRejectRef = useRef<((reason?: unknown) => void) | null>(null);
   const comicDragRef = useRef<{ kind: "panel" | "text"; id: string; mode: "move" | "resize" | "crop"; startPaperX: number; startPaperY: number; base: ComicPanel } | null>(null);
   const activeLayer = document.layers.find((layer) => layer.id === document.activeLayerId) ?? document.layers[0];
   const activeFrameIndex = document.animation.frames.findIndex((frame) => frame.id === document.animation.activeFrameId);
@@ -201,6 +206,7 @@ export default function NaturalMediaLab() {
 
   const resetRasterTileCache = () => {
     rasterSession.reset();
+    setLiveDocument((current) => refreshLiveDocumentRaster(current, {}));
     dirtyStrokeRef.current = null;
   };
 
@@ -211,6 +217,7 @@ export default function NaturalMediaLab() {
         dirty,
       }).then((revision) => {
       if (!revision) return;
+      setLiveDocument((current) => refreshLiveDocumentRaster(current, rasterSession.layerDescriptors()));
       commandJournalRef.current = appendJournalEntry(commandJournalRef.current, {
         id: revision.id,
         kind: revision.type,
@@ -254,6 +261,7 @@ export default function NaturalMediaLab() {
 
   const restoreRecoveredRaster = async (snapshot: RasterRecoverySnapshotV1, recoveredDocument: NaturalMediaDocument) => {
     if (!await rasterSession.restore(snapshot)) return;
+    setLiveDocument((current) => refreshLiveDocumentRaster(current, rasterSession.layerDescriptors()));
     const resolver = rasterSession.createResolver();
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     for (const layer of recoveredDocument.layers) {
@@ -270,8 +278,8 @@ export default function NaturalMediaLab() {
   useEffect(() => {
     loadRecovery().then((saved) => {
       if (!saved) return;
-      setDocument(saved.document);
-      if (saved.raster) void restoreRecoveredRaster(saved.raster, saved.document).catch(() => setPerformanceNote("Tile recovery unavailable; restored the document snapshot instead."));
+      setLiveDocument(restoreLiveDocumentState(saved.document, "working" in saved ? saved.working : undefined));
+      if ("raster" in saved && saved.raster) void restoreRecoveredRaster(saved.raster, saved.document).catch(() => setPerformanceNote("Tile recovery unavailable; restored the document snapshot instead."));
     })
       .catch(() => setSaveState("Local recovery unavailable")).finally(() => setHydrated(true));
   }, []);
@@ -317,11 +325,11 @@ export default function NaturalMediaLab() {
   useEffect(() => {
     if (!hydrated) return;
     const timer = window.setTimeout(() => {
-      createCurrentRasterRecovery().then((raster) => saveRecovery(document, raster)).then(() => setSaveState("Saved on this device"))
+      createCurrentRasterRecovery().then((raster) => saveRecovery(document, liveDocument.working, raster)).then(() => setSaveState("Saved on this device"))
         .catch(() => setSaveState("Recovery save failed"));
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [document, hydrated]);
+  }, [liveDocument, hydrated]);
 
   const captureDocument = useCallback((): NaturalMediaDocument => {
     return captureDocumentSnapshot(document, {
@@ -391,6 +399,7 @@ export default function NaturalMediaLab() {
       return;
     }
     rasterSession.applyRevision(entry.rasterRevision, direction);
+    setLiveDocument((current) => refreshLiveDocumentRaster(current, rasterSession.layerDescriptors()));
     setDocument(entry.document);
     window.setTimeout(() => {
       paintCanvases(entry.document);
@@ -901,59 +910,86 @@ export default function NaturalMediaLab() {
     popup.document.write(`<title>${document.name} — comic book</title><style>@page{margin:0}html,body{margin:0}.page{break-after:page}.page:last-child{break-after:auto}img{display:block;width:100%;height:auto}</style>${images.map((url, index) => `<div class="page"><img src="${url}" alt="Page ${index + 1}"></div>`).join("")}<script>Promise.all([...document.images].map(i=>i.complete?Promise.resolve():new Promise(r=>i.onload=r))).then(()=>print())</script>`); popup.document.close();
   };
   const exportComicPdf = async () => {
-    if (isPdfExporting) return;
-    pdfCancelRef.current = false; setIsPdfExporting(true);
+    if (exportJob.running) return;
+    setIsPdfExporting(true);
     const startedAt = performance.now();
     setSaveState("Building PDF…");
-    const pages = pagesWithActiveComicState(document);
-    const pdfPlan = planComicPdfExport(document.comic.print.profile, document.comic.print.bleedMm, document.width);
-    const rendered = [];
-    for (const page of pages) {
-      if (pdfCancelRef.current) { setIsPdfExporting(false); return; }
-      const output = await renderComicPage(document, page, {
-        activeCanvas: (layerId) => canvasRefs.current.get(layerId),
-        bleedPixels: pdfPlan.bleedPixels,
-        cropMarks: document.comic.print.cropMarks,
-      });
-      rendered.push({ jpegDataUrl: output.toDataURL("image/jpeg", .96), pixelWidth: output.width, pixelHeight: output.height });
-    }
-    const pageWidth = pdfPlan.pageWidth, pageHeight = pdfPlan.pageHeight;
-    let blob: Blob, usedWorker = false;
     try {
-      const worker = new Worker(new URL("./pdf.worker.ts", import.meta.url), { type: "module" });
-      pdfWorkerRef.current = worker;
-      const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-        pdfRejectRef.current = reject;
-        const timer = window.setTimeout(() => reject(new Error("PDF worker timed out")), 30000);
-        worker.onmessage = (event: MessageEvent<{ buffer?: ArrayBuffer; error?: string }>) => { window.clearTimeout(timer); event.data.buffer ? resolve(event.data.buffer) : reject(new Error(event.data.error)); };
-        worker.onerror = () => { window.clearTimeout(timer); reject(new Error("PDF worker unavailable")); };
-        worker.postMessage({ pages: rendered, pageWidth, pageHeight, title: document.name });
+      const result = await exportJob.run("comic-pdf", async (job) => {
+        const pages = pagesWithActiveComicState(document);
+        const pdfPlan = planComicPdfExport(document.comic.print.profile, document.comic.print.bleedMm, document.width);
+        const rendered = [];
+        for (const page of pages) {
+          job.throwIfCancelled();
+          const output = await renderComicPage(document, page, {
+            activeCanvas: (layerId) => canvasRefs.current.get(layerId),
+            bleedPixels: pdfPlan.bleedPixels,
+            cropMarks: document.comic.print.cropMarks,
+          });
+          rendered.push({ jpegDataUrl: output.toDataURL("image/jpeg", .96), pixelWidth: output.width, pixelHeight: output.height });
+        }
+        job.throwIfCancelled();
+        const pageWidth = pdfPlan.pageWidth, pageHeight = pdfPlan.pageHeight;
+        let blob: Blob;
+        let usedWorker = false;
+        try {
+          const worker = new Worker(new URL("./pdf.worker.ts", import.meta.url), { type: "module" });
+          job.defer(() => worker.terminate());
+          const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+            const timer = window.setTimeout(() => reject(new Error("PDF worker timed out")), 30000);
+            job.defer(() => window.clearTimeout(timer));
+            job.onCancel(() => { worker.terminate(); reject(new ExportJobCancelledError()); });
+            worker.onmessage = (event: MessageEvent<{ buffer?: ArrayBuffer; error?: string }>) => { window.clearTimeout(timer); event.data.buffer ? resolve(event.data.buffer) : reject(new Error(event.data.error)); };
+            worker.onerror = () => { window.clearTimeout(timer); reject(new Error("PDF worker unavailable")); };
+            worker.postMessage({ pages: rendered, pageWidth, pageHeight, title: document.name });
+          });
+          job.throwIfCancelled();
+          blob = new Blob([buffer], { type: "application/pdf" });
+          usedWorker = true;
+        } catch (error) {
+          job.throwIfCancelled();
+          if (isExportJobCancelled(error)) throw error;
+          blob = encodeComicPdf(rendered, pageWidth, pageHeight, document.name);
+        }
+        return { blob, rendered, usedWorker };
       });
-      worker.terminate(); pdfWorkerRef.current = null; pdfRejectRef.current = null; blob = new Blob([buffer], { type: "application/pdf" }); usedWorker = true;
-    } catch {
-      if (pdfCancelRef.current) { setIsPdfExporting(false); return; }
-      blob = encodeComicPdf(rendered, pageWidth, pageHeight, document.name);
+      const url = URL.createObjectURL(result.blob);
+      download(url, `${safeExportStem(document.name)}.pdf`); window.setTimeout(() => URL.revokeObjectURL(url), 1000); setSaveState("PDF exported");
+      const elapsed = Math.round(performance.now() - startedAt), megapixels = Math.round(result.rendered.reduce((sum, page) => sum + page.pixelWidth * page.pixelHeight, 0) / 1_000_000);
+      setPerformanceNote(`${result.rendered.length} pages · ${megapixels} MP · ${elapsed} ms · ${result.usedWorker ? "worker" : "safe fallback"}`);
+    } catch (error) {
+      if (isExportJobCancelled(error)) {
+        setSaveState("PDF export cancelled");
+        setPerformanceNote("Export cancelled safely");
+      } else {
+        setSaveState("PDF export failed");
+        setPerformanceNote(error instanceof Error ? error.message : "PDF export failed");
+      }
+    } finally {
+      setIsPdfExporting(false);
     }
-    const url = URL.createObjectURL(blob);
-    download(url, `${safeExportStem(document.name)}.pdf`); window.setTimeout(() => URL.revokeObjectURL(url), 1000); setSaveState("PDF exported");
-    const elapsed = Math.round(performance.now() - startedAt), megapixels = Math.round(rendered.reduce((sum, page) => sum + page.pixelWidth * page.pixelHeight, 0) / 1_000_000);
-    setPerformanceNote(`${rendered.length} pages · ${megapixels} MP · ${elapsed} ms · ${usedWorker ? "worker" : "safe fallback"}`);
-    setIsPdfExporting(false);
   };
   const cancelPdfExport = () => {
-    pdfCancelRef.current = true; pdfWorkerRef.current?.terminate(); pdfWorkerRef.current = null;
-    pdfRejectRef.current?.(new Error("PDF export cancelled")); pdfRejectRef.current = null;
-    setIsPdfExporting(false); setSaveState("PDF export cancelled"); setPerformanceNote("Export cancelled safely");
+    exportJob.cancel();
+    setSaveState("PDF export cancelled"); setPerformanceNote("Export cancelled safely");
   };
   const exportGif = async () => {
+    if (exportJob.running) return;
     setSaveState("Building GIF…");
-    const gifPlan = planGifExport(document.width, document.height);
-    const width = gifPlan.width, height = gifPlan.height;
-    const captured = captureDocument();
-    const images = await renderAnimationImageData(captured, width, height);
-    const url = URL.createObjectURL(encodeGif(images, width, height, captured.animation.fps, captured.animation.loop, captured.animation.frames.map((frame) => frame.hold)));
-    download(url, `${safeExportStem(document.name)}.gif`); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setSaveState("GIF exported");
+    try {
+      const result = await exportJob.run("animation-gif", async (job) => {
+        const gifPlan = planGifExport(document.width, document.height);
+        const captured = captureDocument();
+        const images = await renderAnimationImageData(captured, gifPlan.width, gifPlan.height);
+        job.throwIfCancelled();
+        return { blob: encodeGif(images, gifPlan.width, gifPlan.height, captured.animation.fps, captured.animation.loop, captured.animation.frames.map((frame) => frame.hold)), captured };
+      });
+      const url = URL.createObjectURL(result.blob);
+      download(url, `${safeExportStem(result.captured.name)}.gif`); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setSaveState("GIF exported");
+    } catch (error) {
+      setSaveState(isExportJobCancelled(error) ? "GIF export cancelled" : "GIF export failed");
+    }
   };
 
   useEffect(() => {

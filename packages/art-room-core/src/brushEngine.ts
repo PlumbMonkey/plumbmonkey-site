@@ -1,4 +1,4 @@
-export type Point = { x: number; y: number };
+export type RasterStrokePoint = { x: number; y: number };
 export type BrushPreset = {
   id: string;
   name: string;
@@ -61,8 +61,8 @@ export const BRUSHES: BrushPreset[] = [
 
 export function renderBrushStroke(
   context: CanvasRenderingContext2D,
-  from: Point,
-  to: Point,
+  from: RasterStrokePoint,
+  to: RasterStrokePoint,
   preset: BrushPreset,
   settings: BrushSettings,
 ) {

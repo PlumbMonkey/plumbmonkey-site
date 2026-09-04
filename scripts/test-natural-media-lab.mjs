@@ -9,8 +9,8 @@ const output = mkdtempSync(join(tmpdir(), "nml-tests-"));
 try {
   execFileSync(process.execPath, [
     join(process.cwd(), "node_modules", "typescript", "bin", "tsc"),
-    "app/natural-media-lab/documentModel.ts", "app/natural-media-lab/pdfEncoder.ts", "app/natural-media-lab/gifEncoder.ts", "app/natural-media-lab/brushEngine.ts", "app/natural-media-lab/proceduralEngine.ts", "app/natural-media-lab/viewportMath.ts",
-    "packages/art-room-core/src/recovery.ts", "packages/art-room-core/src/projectFormats.ts", "packages/art-room-core/src/commandJournal.ts", "packages/art-room-core/src/documentModel.ts", "packages/art-room-core/src/documentSnapshot.ts", "packages/art-room-core/src/workingDocument.ts", "packages/art-room-core/src/animation.ts", "packages/art-room-core/src/animationRenderer.ts", "packages/art-room-core/src/rig.ts", "packages/art-room-core/src/comicLayout.ts", "packages/art-room-core/src/comicRenderer.ts", "packages/art-room-core/src/canvasOperations.ts", "packages/art-room-core/src/editorCommands.ts", "packages/art-room-core/src/binaryStorage.ts", "packages/art-room-core/src/rasterSurface.ts", "packages/art-room-core/src/rasterRecovery.ts", "packages/art-room-core/src/rasterRevision.ts", "packages/art-room-core/src/rasterSession.ts", "packages/art-room-core/src/historyController.ts", "packages/art-room-core/src/exportPlanning.ts", "packages/art-room-core/src/workload.ts",
+    "app/natural-media-lab/documentModel.ts", "app/natural-media-lab/pdfEncoder.ts", "app/natural-media-lab/gifEncoder.ts", "app/natural-media-lab/viewportMath.ts",
+    "packages/art-room-core/src/recovery.ts", "packages/art-room-core/src/projectFormats.ts", "packages/art-room-core/src/commandJournal.ts", "packages/art-room-core/src/documentModel.ts", "packages/art-room-core/src/documentSnapshot.ts", "packages/art-room-core/src/workingDocument.ts", "packages/art-room-core/src/liveDocument.ts", "packages/art-room-core/src/animation.ts", "packages/art-room-core/src/animationRenderer.ts", "packages/art-room-core/src/rig.ts", "packages/art-room-core/src/comicLayout.ts", "packages/art-room-core/src/comicRenderer.ts", "packages/art-room-core/src/canvasOperations.ts", "packages/art-room-core/src/exportJob.ts", "packages/art-room-core/src/brushEngine.ts", "packages/art-room-core/src/proceduralEngine.ts", "packages/art-room-core/src/editorCommands.ts", "packages/art-room-core/src/binaryStorage.ts", "packages/art-room-core/src/rasterSurface.ts", "packages/art-room-core/src/rasterRecovery.ts", "packages/art-room-core/src/rasterRevision.ts", "packages/art-room-core/src/rasterSession.ts", "packages/art-room-core/src/historyController.ts", "packages/art-room-core/src/exportPlanning.ts", "packages/art-room-core/src/workload.ts",
     "--target", "ES2022", "--module", "commonjs", "--rootDir", ".", "--outDir", output, "--skipLibCheck",
   ], { stdio: "pipe" });
   const require = createRequire(import.meta.url);
@@ -19,8 +19,8 @@ try {
   const { parseProject } = require(appCompiled("documentModel.js"));
   const { encodeComicPdf } = require(appCompiled("pdfEncoder.js"));
   const { encodeGif } = require(appCompiled("gifEncoder.js"));
-  const { BRUSHES, seededRandom } = require(appCompiled("brushEngine.js"));
-  const { PROCEDURAL_BRUSHES, renderProceduralStroke } = require(appCompiled("proceduralEngine.js"));
+  const { BRUSHES, seededRandom } = require(coreCompiled("brushEngine.js"));
+  const { PROCEDURAL_BRUSHES, renderProceduralStroke } = require(coreCompiled("proceduralEngine.js"));
   const { clampEditorZoom, clientPointToDocumentPoint, clientPointToPaperRatio, clientPointToPaperRatioInSpace, getCanvasViewportGeometry, getPaperBaseSize, paperRatioToClientPoint } = require(appCompiled("viewportMath.js"));
   const { getBoneEndpointEdit } = require(coreCompiled("rig.js"));
   const { isSafePackagePath, parsePmAssetManifest, parsePmStudioManifest, planNmlBinaryMigration } = require(coreCompiled("projectFormats.js"));
@@ -28,12 +28,14 @@ try {
   const { createVersionedRecoveryService, latestRecoveryRecord, recoveryRecordsToDelete, sortRecoveryRecords } = require(coreCompiled("recovery.js"));
   const { applyEditorCommand } = require(coreCompiled("editorCommands.js"));
   const { captureDocumentSnapshot } = require(coreCompiled("documentSnapshot.js"));
-  const { projectWorkingDocument, workingDocumentHandleIds } = require(coreCompiled("workingDocument.js"));
+  const { parseWorkingDocument, projectWorkingDocument, workingDocumentHandleIds } = require(coreCompiled("workingDocument.js"));
+  const { createLiveDocumentState, refreshLiveDocumentRaster, restoreLiveDocumentState, updateLiveDocumentState } = require(coreCompiled("liveDocument.js"));
   const { DEFAULT_LAYER_TRANSFORM, easeTimelineValue, framePlaybackDelay, resolveLayerTransform } = require(coreCompiled("animation.js"));
   const { animationCameraState, animationLayerSourceUrl, renderAnimationFrame, renderAnimationImageData } = require(coreCompiled("animationRenderer.js"));
   const { comicPanelSourceTransform, comicRectToPixels, comicTextPosition, getComicTransformPatch, wrapComicText } = require(coreCompiled("comicLayout.js"));
   const { pagesWithActiveComicState } = require(coreCompiled("comicRenderer.js"));
   const { cropCanvasLayer, fillCanvasLinearGradient, flattenCanvas, flipCanvasLayer, mergeCanvasLayers, resizeCanvasLayer } = require(coreCompiled("canvasOperations.js"));
+  const { ExportJobCancelledError, ExportJobController, isExportJobCancelled } = require(coreCompiled("exportJob.js"));
   const { createLazyBinaryResolver, createMemoryBinaryStore, createNmlBinaryCheckpoint, decodeDataUrl, encodeDataUrl, parseArtRoomCheckpoint, parseTileSetDescriptor } = require(coreCompiled("binaryStorage.js"));
   const { clipRasterRect, dirtyRectForSegment, persistDirtyRasterTiles, tilesForRasterRect, unionRasterRects } = require(coreCompiled("rasterSurface.js"));
   const { createRasterRecoverySnapshot, parseRasterRecoverySnapshot, restoreRasterRecoverySnapshot } = require(coreCompiled("rasterRecovery.js"));
@@ -77,6 +79,28 @@ try {
   assert.equal(easeTimelineValue(.25, "ease-in"), .0625);
   assert.equal(framePlaybackDelay(8, 2), 250);
   assert.equal(framePlaybackDelay(0, 0), 1000);
+  const exportStates = [];
+  let exportTimestamp = 0;
+  const exportController = new ExportJobController({ createId: () => "export-1", now: () => `2026-09-03T00:00:0${exportTimestamp++}.000Z`, onState: (state) => exportStates.push(state) });
+  assert.equal(await exportController.run("test", async (job) => { assert.equal(job.signal.aborted, false); return 42; }), 42);
+  assert.equal(exportController.state.status, "succeeded");
+  assert.deepEqual(exportStates.map((state) => state.status), ["running", "succeeded"]);
+  const cancellationCleanup = [];
+  const cancellationController = new ExportJobController({ createId: () => "cancel-1" });
+  const cancelledJob = cancellationController.run("slow", async (job) => {
+    job.defer(() => cancellationCleanup.push("deferred-first"));
+    job.defer(() => cancellationCleanup.push("deferred-second"));
+    return new Promise((resolve, reject) => job.onCancel(() => reject(new ExportJobCancelledError())));
+  });
+  await assert.rejects(() => cancellationController.run("duplicate", async () => undefined), /already running/);
+  assert.equal(cancellationController.cancel(), true);
+  await assert.rejects(() => cancelledJob, (error) => isExportJobCancelled(error));
+  assert.equal(cancellationController.state.status, "cancelled");
+  assert.deepEqual(cancellationCleanup, ["deferred-second", "deferred-first"]);
+  assert.equal(cancellationController.cancel(), false);
+  const failedController = new ExportJobController({ createId: () => "failed-1" });
+  await assert.rejects(() => failedController.run("broken", async () => { throw new Error("encoder failed"); }), /encoder failed/);
+  assert.deepEqual({ status: failedController.state.status, error: failedController.state.error }, { status: "failed", error: "encoder failed" });
   const cameraDocument = JSON.parse(JSON.stringify(migrated));
   cameraDocument.animation.frames[0].camera = { x: 4, y: -3, zoom: 110, rotation: 5, shake: 6 };
   cameraDocument.animation.frames[0].layerData.layer = "data:image/png;base64,frame";
@@ -351,8 +375,34 @@ try {
   assert.deepEqual(workingDocument.animation.frames[0].populatedLayerIds, ["paint"]);
   assert.deepEqual(workingDocument.comic.pages[0].populatedLayerIds, ["paint"]);
   assert.deepEqual(workingDocument.rig.sprites.paint, [{ name: "Pose" }]);
+  assert.deepEqual(parseWorkingDocument(structuredClone(workingDocument)), workingDocument);
+  const unsupportedWorkingDocument = structuredClone(workingDocument);
+  unsupportedWorkingDocument.version = 2;
+  assert.throws(() => parseWorkingDocument(unsupportedWorkingDocument), /not a supported Art Room working document/);
+  const invalidWorkingDimensions = structuredClone(workingDocument);
+  invalidWorkingDimensions.width = 0;
+  assert.throws(() => parseWorkingDocument(invalidWorkingDimensions), /positive integers/);
+  const compatibilityWorkingDocument = structuredClone(workingDocument);
+  compatibilityWorkingDocument.layers[0].dataUrl = "data:image/png;base64,not-allowed";
+  assert.throws(() => parseWorkingDocument(compatibilityWorkingDocument), /compatibility data URL field/);
+  const invalidWorkingRaster = structuredClone(workingDocument);
+  invalidWorkingRaster.layers[0].raster.width = 0;
+  assert.throws(() => parseWorkingDocument(invalidWorkingRaster), /positive integer/);
   const standaloneWorkingDocument = projectWorkingDocument(handleBackedSource, { paint: sessionSecondRevision.after });
   assert.deepEqual(standaloneWorkingDocument.layers[0].raster, workingDocument.layers[0].raster);
+  const liveDocument = createLiveDocumentState(handleBackedSource, { paint: sessionSecondRevision.after });
+  assert.equal(liveDocument.document, handleBackedSource);
+  assert.deepEqual(liveDocument.working, workingDocument);
+  const renamedLiveDocument = updateLiveDocumentState(liveDocument, (document) => ({ ...document, name: "Handle-backed study" }), { paint: sessionSecondRevision.after });
+  assert.equal(renamedLiveDocument.document.name, "Handle-backed study");
+  assert.equal(renamedLiveDocument.working.name, "Handle-backed study");
+  assert.ok(!JSON.stringify(renamedLiveDocument.working).includes("data:image"));
+  const rasterClearedLiveDocument = refreshLiveDocumentRaster(renamedLiveDocument, {});
+  assert.equal(rasterClearedLiveDocument.working.layers[0].raster, null);
+  assert.deepEqual(restoreLiveDocumentState(handleBackedSource, structuredClone(workingDocument)).working, workingDocument);
+  const mismatchedWorkingDocument = structuredClone(workingDocument);
+  mismatchedWorkingDocument.width += 1;
+  assert.throws(() => restoreLiveDocumentState(handleBackedSource, mismatchedWorkingDocument), /dimensions do not match/);
   const sessionRecovery = await rasterSession.createRecovery();
   assert.equal(sessionRecovery.payloads.length, 2);
   await rasterSession.prune();

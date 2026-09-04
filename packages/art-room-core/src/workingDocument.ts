@@ -1,3 +1,4 @@
+import { parseTileSetDescriptor } from "./binaryStorage";
 import type { TileSetDescriptorV1 } from "./binaryStorage";
 import type { NaturalMediaDocument } from "./documentModel";
 
@@ -58,6 +59,27 @@ export const projectWorkingDocument = (
 });
 
 export type WorkingDocumentV1 = ReturnType<typeof projectWorkingDocument>;
+
+const assertNoCompatibilityDataUrls = (value: unknown, path = "workingDocument") => {
+  if (typeof value !== "object" || value === null) return;
+  Object.entries(value).forEach(([key, child]) => {
+    if (key.toLowerCase().endsWith("dataurl")) throw new Error(`${path}.${key} is a compatibility data URL field.`);
+    assertNoCompatibilityDataUrls(child, `${path}.${key}`);
+  });
+};
+
+export const parseWorkingDocument = (value: unknown): WorkingDocumentV1 => {
+  const source = value as Partial<WorkingDocumentV1>;
+  if (source?.format !== ART_ROOM_WORKING_DOCUMENT_FORMAT || source.version !== ART_ROOM_WORKING_DOCUMENT_VERSION) throw new Error("This is not a supported Art Room working document.");
+  if (!Number.isInteger(source.width) || Number(source.width) < 1 || !Number.isInteger(source.height) || Number(source.height) < 1) throw new Error("Working document dimensions must be positive integers.");
+  if (!Array.isArray(source.layers) || source.layers.length < 1) throw new Error("Working document must contain at least one layer.");
+  source.layers.forEach((layer, index) => {
+    if (!layer || typeof layer.id !== "string" || !layer.id) throw new Error(`Working document layers[${index}] must have an id.`);
+    if (layer.raster) parseTileSetDescriptor(layer.raster);
+  });
+  assertNoCompatibilityDataUrls(source);
+  return value as WorkingDocumentV1;
+};
 
 export const workingDocumentHandleIds = (source: WorkingDocumentV1) => [...new Set(
   source.layers.flatMap((layer) => layer.raster?.tiles.map((tile) => tile.handleId) ?? []),

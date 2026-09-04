@@ -1,18 +1,27 @@
 import { NaturalMediaDocument, parseProject } from "./documentModel";
 import { DEFAULT_MAXIMUM_RECOVERY_VERSIONS, RecoveryRecord, RecoveryStore, createVersionedRecoveryService } from "../../packages/art-room-core/src/recovery";
 import { RasterRecoverySnapshotV1, parseRasterRecoverySnapshot } from "../../packages/art-room-core/src/rasterRecovery";
+import { WorkingDocumentV1, parseWorkingDocument } from "../../packages/art-room-core/src/workingDocument";
 
 export const NATURAL_MEDIA_RECOVERY_FORMAT = "natural-media-recovery" as const;
-export const NATURAL_MEDIA_RECOVERY_VERSION = 1 as const;
+export const NATURAL_MEDIA_RECOVERY_VERSION = 2 as const;
 
 export type NaturalMediaRecoveryEnvelope = {
   format: typeof NATURAL_MEDIA_RECOVERY_FORMAT;
   version: typeof NATURAL_MEDIA_RECOVERY_VERSION;
   document: NaturalMediaDocument;
+  working: WorkingDocumentV1;
   raster?: RasterRecoverySnapshotV1;
 };
 
-type StoredRecoveryValue = NaturalMediaDocument | NaturalMediaRecoveryEnvelope;
+type LegacyNaturalMediaRecoveryEnvelope = {
+  format: typeof NATURAL_MEDIA_RECOVERY_FORMAT;
+  version: 1;
+  document: NaturalMediaDocument;
+  raster?: RasterRecoverySnapshotV1;
+};
+
+type StoredRecoveryValue = NaturalMediaDocument | LegacyNaturalMediaRecoveryEnvelope | NaturalMediaRecoveryEnvelope;
 
 const DATABASE_NAME = "natural-media-lab";
 const DATABASE_VERSION = 2;
@@ -72,10 +81,11 @@ const recoveryStore: RecoveryStore<StoredRecoveryValue> = {
 
 const recoveryService = createVersionedRecoveryService(recoveryStore, { maximumVersions: MAX_RECOVERY_VERSIONS });
 
-export const saveRecovery = (document: NaturalMediaDocument, raster?: RasterRecoverySnapshotV1) => recoveryService.save({
+export const saveRecovery = (document: NaturalMediaDocument, working: WorkingDocumentV1, raster?: RasterRecoverySnapshotV1) => recoveryService.save({
   format: NATURAL_MEDIA_RECOVERY_FORMAT,
   version: NATURAL_MEDIA_RECOVERY_VERSION,
   document,
+  working: parseWorkingDocument(working),
   ...(raster ? { raster } : {}),
 });
 
@@ -86,8 +96,13 @@ export const loadRecovery = async () => {
   if (latest) {
     const stored = latest.document;
     if ((stored as Partial<NaturalMediaRecoveryEnvelope>).format === NATURAL_MEDIA_RECOVERY_FORMAT) {
-      const envelope = stored as NaturalMediaRecoveryEnvelope;
-      return { document: parseProject(envelope.document), raster: envelope.raster ? parseRasterRecoverySnapshot(envelope.raster) : undefined };
+      const envelope = stored as NaturalMediaRecoveryEnvelope | LegacyNaturalMediaRecoveryEnvelope;
+      if (envelope.version !== 1 && envelope.version !== NATURAL_MEDIA_RECOVERY_VERSION) throw new Error("This recovery version is not supported.");
+      return {
+        document: parseProject(envelope.document),
+        ...("working" in envelope ? { working: parseWorkingDocument(envelope.working) } : {}),
+        raster: envelope.raster ? parseRasterRecoverySnapshot(envelope.raster) : undefined,
+      };
     }
     return { document: parseProject(stored) };
   }
