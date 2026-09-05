@@ -64,7 +64,8 @@ export default function HeroVideo() {
           ended ? "opacity-0" : "opacity-100"
         }`}
         style={{ width: "100vw", height: "56.25vw", minWidth: "177.77vh" }}
-        src="https://www.youtube.com/embed/yOZtEoB2-UE?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&modestbranding=1&enablejsapi=1"
+        src="https://youtu.be/yOZtEoB2-UE
+      "
         title="Plumbmonkey Hero Video"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
