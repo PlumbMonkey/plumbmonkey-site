@@ -64,7 +64,12 @@
     { href: "/workshop", label: "Workshop", film: "hall-turn-right" }
   ];
 
-  var CTA = { href: "/onboarding/orientation", label: "Work with me" };
+  /* Points at /services, not at the intake form. "Work with me" used to drop a
+     first-time visitor straight into a fifteen-question brief that opened
+     "Let's talk about your video" — before they had been told what the studio
+     does or what any of it costs. /services answers both and carries its own
+     links into the form. */
+  var CTA = { href: "/services", label: "Work with me" };
 
   /* Where a nav link for this room points. A room with an immersive entrance is
      entered through it — building the space and then routing every menu past it

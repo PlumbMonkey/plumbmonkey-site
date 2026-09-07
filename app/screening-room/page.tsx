@@ -3,7 +3,7 @@ import EnterRoomLink from "../components/EnterRoomLink";
 import RoomHero from "../components/RoomHero";
 
 export const metadata: Metadata = {
-  title: "The Screening Room | Plumbmonkey",
+  title: "The Screening Room",
   description:
     "Professional video editing, motion graphics, and audio production. Transparent pricing, fast turnaround, cinematic quality.",
 };

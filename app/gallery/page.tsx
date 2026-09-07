@@ -3,7 +3,7 @@ import EnterRoomLink from "../components/EnterRoomLink";
 import RoomHero from "../components/RoomHero";
 
 export const metadata: Metadata = {
-  title: "The Gallery | Plumbmonkey",
+  title: "The Gallery",
   description: "3D & digital art — models, materials, and animation assets.",
 };
 

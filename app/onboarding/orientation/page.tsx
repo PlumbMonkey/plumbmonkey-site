@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import OrientationQuestionnaire from "@/app/components/OrientationQuestionnaire";
 import { formatQuestionnaireForEmail } from "@/lib/intake/questionnaireFormatter";
@@ -87,28 +88,46 @@ export default function OrientationPage() {
   };
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-50 py-24 px-6">
-      <div className="max-w-2xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold mb-2">Let's talk about your video.</h1>
-          <p className="text-lg text-zinc-400">
-            Quick questions to help me understand your project better.
-          </p>
-        </div>
-
-        {statusMessage && (
-          <div
-            className={`mb-6 p-4 rounded-lg border ${
-              isError
-                ? "bg-red-900/20 border-red-700 text-red-200"
-                : "bg-green-900/20 border-green-700 text-green-200"
-            }`}
-          >
-            {statusMessage}
+    <main className="min-h-screen bg-moonlit-950 pt-16">
+      <div className="relative overflow-hidden px-6 py-20 md:py-24">
+        <div className="manor-glow pointer-events-none absolute inset-0" aria-hidden="true" />
+        <div className="relative mx-auto max-w-2xl">
+          <div className="mb-10">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.36em] text-brass-300">
+              Start a project
+            </p>
+            {/* Was "Let's talk about your video." The studio sells five lines now
+                and four of them are not video, so the form opens by asking which
+                one this is (Q0) rather than assuming. */}
+            <h1 className="font-display text-4xl font-semibold leading-tight text-white md:text-5xl">
+              Tell me what you're making.
+            </h1>
+            <p className="mt-5 text-lg leading-relaxed text-moonlit-200">
+              Software, a score, design and animation, a video, or some combination — these
+              questions help me understand it properly before we talk. Not sure what you
+              need?{" "}
+              <Link href="/services" className="text-brass-300 underline underline-offset-4 transition hover:text-brass-200">
+                See what the studio does
+              </Link>
+              .
+            </p>
           </div>
-        )}
 
-        <OrientationQuestionnaire onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+          {statusMessage && (
+            <div
+              role="status"
+              className={`mb-6 border px-4 py-3 text-sm ${
+                isError
+                  ? "border-burgundy-400/60 bg-burgundy-950/40 text-burgundy-100"
+                  : "border-brass-500/50 bg-brass-900/20 text-brass-100"
+              }`}
+            >
+              {statusMessage}
+            </div>
+          )}
+
+          <OrientationQuestionnaire onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+        </div>
       </div>
     </main>
   );

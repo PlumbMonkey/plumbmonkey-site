@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import BookingClient from "./BookingClient";
 
 export const metadata: Metadata = {
-  title: "Book a Production Slot | Plumbmonkey",
+  title: "Book a Production Slot",
   description: "Secure your production slot with Plumbmonkey. Select your package and pay via Stripe.",
   robots: { index: false, follow: false },
 };

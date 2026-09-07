@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "The Music Room | Plumbmonkey",
+  title: "The Music Room",
   description:
     "Step into the manor's music room in 3D. Two consoles and a song desk, each one opening a real instrument you can play in the browser.",
   keywords: ["Stave", "SY-2 synthesizer", "DM-2 drum machine", "browser synth", "browser drum machine", "3D music room"],

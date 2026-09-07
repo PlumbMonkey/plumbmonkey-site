@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import RoomHero from "../components/RoomHero";
 
 export const metadata: Metadata = {
-  title: "The Studio | Plumbmonkey",
+  title: "The Studio",
   description: "Original music scoring, for hire — composed to picture.",
 };
 

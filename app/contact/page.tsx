@@ -1,126 +1,167 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import Link from "next/link";
+import { useState } from "react";
+import { SERVICES } from "@/lib/services";
 
+const FORMSPREE = "https://formspree.io/f/mqawknwn";
+const EMAIL = "plumbmonkey@proton.me";
+
+/**
+ * The short way in. /onboarding/orientation is the full brief; this is for
+ * "can you do X, and roughly what would it cost" — the question that was
+ * previously answered by a bare unstyled form with a teal button that looked
+ * like a default template dropped onto the site.
+ *
+ * The subject line is drawn from lib/services.ts rather than typed here, so a
+ * new service line shows up in the dropdown without anyone remembering to add
+ * it in two places.
+ */
 export default function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('');
+  const [statusMessage, setStatusMessage] = useState("");
   const [isError, setIsError] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
     setIsSubmitting(true);
-    setStatusMessage('');
+    setStatusMessage("");
     setIsError(false);
 
-    const formData = new FormData(e.currentTarget);
-    const data = Object.fromEntries(formData);
-
     try {
-      const response = await fetch('https://formspree.io/f/mqawknwn', {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
+      const response = await fetch(FORMSPREE, {
+        method: "POST",
+        body: JSON.stringify(Object.fromEntries(new FormData(form))),
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
       });
 
-      let responseData: any = {};
-      try {
-        responseData = await response.json();
-      } catch (e) {
-        // If JSON parsing fails, that's okay - check status
-      }
-      
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
-      console.log('Response data:', responseData);
-      
-      // If we got here, the request succeeded - show success message
-      // Formspree returns 200 on success
-      if (response.status === 200 || response.ok || responseData.ok) {
-        // Track conversion in Google Analytics
-        if (typeof window !== 'undefined' && typeof (window as any).gtag !== 'undefined') {
-          (window as any).gtag('event', 'form_submit', {
-            'event_category': 'engagement',
-            'event_label': 'contact_form',
+      if (response.ok) {
+        if (typeof window !== "undefined" && typeof (window as any).gtag !== "undefined") {
+          (window as any).gtag("event", "form_submit", {
+            event_category: "engagement",
+            event_label: "contact_form",
           });
         }
-        setStatusMessage("Message sent! I'll get back to you within 24 hours.");
+        setStatusMessage("Message sent. I'll come back to you within a day.");
         setIsError(false);
-        e.currentTarget.reset();
+        form.reset();
       } else {
+        /* Say it failed when it failed. This branch used to report success on
+           any response and even on a thrown request, which turned every dropped
+           message into a visitor who believed they had reached the studio. */
         setIsError(true);
-        setStatusMessage('Failed to send message. Please try again or email plumbmonkey@proton.me');
+        setStatusMessage(`That didn't send. Email me directly at ${EMAIL} and it'll reach me.`);
       }
-    } catch (error) {
-      console.error('Form submission error:', error);
-      setIsError(false);
-      // Even if there's a network error, the form might have been submitted
-      setStatusMessage("Sent! Check your email or contact plumbmonkey@proton.me if you don't hear back.");
+    } catch {
+      setIsError(true);
+      setStatusMessage(`That didn't send — the request never left. Email ${EMAIL} instead.`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const field =
+    "w-full border border-moonlit-700 bg-moonlit-950/80 px-4 py-3 text-moonlit-50 " +
+    "placeholder:text-moonlit-500 transition focus:border-brass-500 focus:outline-none " +
+    "focus:ring-1 focus:ring-brass-500/50";
+  const label = "mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-brass-400";
+
   return (
-    <section className="min-h-screen py-24 bg-zinc-950 text-zinc-50">
-      <div className="container mx-auto px-6">
-        <h1 className="text-4xl font-bold mb-12 text-center">Get in Touch</h1>
-        <div className="max-w-2xl mx-auto">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium mb-2">
-                Name
-              </label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                required
-                className="w-full px-4 py-2 rounded bg-zinc-800 border border-zinc-700 text-zinc-50 focus:outline-none focus:border-teal-500"
-              />
+    <main className="min-h-screen bg-moonlit-950 pt-16">
+      <section className="relative overflow-hidden px-6 py-20 md:py-28">
+        <div className="manor-glow pointer-events-none absolute inset-0" aria-hidden="true" />
+
+        <div className="relative mx-auto max-w-2xl">
+          <div className="text-center">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.36em] text-brass-300">
+              Pull the bell
+            </p>
+            <h1 className="font-display text-4xl font-semibold leading-tight text-white md:text-5xl">
+              Get in touch
+            </h1>
+            <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-moonlit-200">
+              A question, a rough idea, or a project that already has a deadline — all
+              welcome. If you would rather answer a few questions and get a considered
+              reply,{" "}
+              <Link href="/onboarding/orientation" className="text-brass-300 underline underline-offset-4 transition hover:text-brass-200">
+                start a project brief
+              </Link>{" "}
+              instead.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-12 space-y-6">
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div>
+                <label htmlFor="name" className={label}>
+                  Name
+                </label>
+                <input id="name" name="name" type="text" required className={field} />
+              </div>
+              <div>
+                <label htmlFor="email" className={label}>
+                  Email
+                </label>
+                <input id="email" name="email" type="email" required className={field} />
+              </div>
             </div>
+
             <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-2">
-                Email
+              <label htmlFor="subject" className={label}>
+                What is it about?
               </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className="w-full px-4 py-2 rounded bg-zinc-800 border border-zinc-700 text-zinc-50 focus:outline-none focus:border-teal-500"
-              />
+              <select id="subject" name="subject" defaultValue="" className={field}>
+                <option value="">Pick one, or leave it blank</option>
+                {SERVICES.map((service) => (
+                  <option key={service.slug} value={service.name}>
+                    {service.name}
+                  </option>
+                ))}
+                <option value="Something else">Something else</option>
+              </select>
             </div>
+
             <div>
-              <label htmlFor="message" className="block text-sm font-medium mb-2">
+              <label htmlFor="message" className={label}>
                 Message
               </label>
-              <textarea
-                id="message"
-                name="message"
-                rows={6}
-                required
-                className="w-full px-4 py-2 rounded bg-zinc-800 border border-zinc-700 text-zinc-50 focus:outline-none focus:border-teal-500"
-              ></textarea>
+              <textarea id="message" name="message" rows={7} required className={field} />
             </div>
+
             {statusMessage && (
-              <div className={`p-4 rounded ${isError ? 'bg-red-900/20 text-red-300' : 'bg-teal-900/20 text-teal-300'}`}>
+              <p
+                role="status"
+                className={`border px-4 py-3 text-sm ${
+                  isError
+                    ? "border-burgundy-400/60 bg-burgundy-950/40 text-burgundy-100"
+                    : "border-brass-500/50 bg-brass-900/20 text-brass-100"
+                }`}
+              >
                 {statusMessage}
-              </div>
+              </p>
             )}
+
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full px-6 py-3 bg-teal-600 text-white font-semibold rounded hover:bg-teal-500 transition disabled:opacity-50"
+              className="w-full bg-brass-300 px-6 py-4 text-sm font-bold uppercase tracking-[0.18em] text-moonlit-950 transition hover:bg-brass-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSubmitting ? 'Sending...' : 'Send Message'}
+              {isSubmitting ? "Sending…" : "Send message"}
             </button>
           </form>
+
+          <p className="mt-8 text-center text-sm text-moonlit-400">
+            Or email{" "}
+            <a
+              href={`mailto:${EMAIL}`}
+              className="text-brass-300 underline underline-offset-4 transition hover:text-brass-200"
+            >
+              {EMAIL}
+            </a>
+          </p>
         </div>
-      </div>
-    </section>
+      </section>
+    </main>
   );
 }

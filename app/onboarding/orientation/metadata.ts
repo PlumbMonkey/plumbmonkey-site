@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Project Questionnaire | Plumbmonkey",
+  title: "Project Questionnaire",
   description: "Tell me about your video project in a few quick questions. No technical jargon needed.",
   openGraph: {
     title: "Project Questionnaire | Plumbmonkey",

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Spectral Manor Arcade | Plumbmonkey Media",
+  title: "Spectral Manor Arcade",
   description:
     "Step into the manor's arcade in 3D. Twelve original games from the Ghost Circuit universe, each in its own cabinet.",
   keywords: [

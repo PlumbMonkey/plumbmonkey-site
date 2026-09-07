@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import RoomHero from "../components/RoomHero";
 
 export const metadata: Metadata = {
-  title: "The Gift Shop | Plumbmonkey",
+  title: "The Gift Shop",
   description: "Print-ready art and merch from Plumbmonkey.",
 };
 

@@ -3,7 +3,7 @@ import ArcadeRoom from "../ArcadeRoom";
 import NeonCursor from "../../components/NeonCursor";
 
 export const metadata: Metadata = {
-  title: "Spectral Manor Arcade | Plumbmonkey Media",
+  title: "Spectral Manor Arcade",
   description:
     "Play twelve original games from the Spectral Manor series, each with its own world, challenges, characters and leaderboard.",
   keywords: [

@@ -1,25 +1,36 @@
 import type { QuestionnaireInput } from "./schema";
+import { SERVICE_OPTIONS } from "../services";
 
 export function formatQuestionnaireForEmail(responses: QuestionnaireInput): string {
   const lines: string[] = ["--- ORIENTATION QUESTIONNAIRE ---", ""];
 
+  // Q0 - Project Type. First line of the email on purpose: it decides which of
+  // the five service lines the enquiry belongs to, and everything below reads
+  // differently depending on the answer.
+  if (responses.projectType) {
+    const match = SERVICE_OPTIONS.find((o) => o.value === responses.projectType);
+    lines.push("What kind of project is this?");
+    lines.push(match ? match.label : responses.projectType);
+    lines.push("");
+  }
+
   // Q1 - Core Reason
   if (responses.coreReason) {
-    lines.push("Why are you making this video right now?");
+    lines.push("Why are you making this right now?");
     lines.push(responses.coreReason);
     lines.push("");
   }
 
   // Q2 - Desired Outcome
   if (responses.desiredOutcome) {
-    lines.push("If this video works perfectly, what changes after people watch it?");
+    lines.push("If this works perfectly, what changes for the people who see it?");
     lines.push(responses.desiredOutcome);
     lines.push("");
   }
 
   // Q3 - Intended Audience
   if (responses.intendedAudience) {
-    lines.push("Who is this video meant for?");
+    lines.push("Who is this meant for?");
     lines.push(responses.intendedAudience);
     lines.push("");
   }
@@ -40,11 +51,93 @@ export function formatQuestionnaireForEmail(responses: QuestionnaireInput): stri
 
   // Q5 - Emotional Direction
   if (responses.emotionalDirection && responses.emotionalDirection.length > 0) {
-    lines.push("How should the video feel overall?");
+    lines.push("How should it feel overall?");
     lines.push(responses.emotionalDirection.map((e) => `- ${e}`).join("\n"));
     if (responses.emotionalDirectionFreeText) {
       lines.push(`Additional notes: ${responses.emotionalDirectionFreeText}`);
     }
+    lines.push("");
+  }
+
+  // ---- SOFTWARE ----------------------------------------------------------
+  if (responses.softwarePlatform && responses.softwarePlatform.length > 0) {
+    lines.push("What should the software run on?");
+    lines.push(responses.softwarePlatform.map((x) => `- ${x}`).join("\n"));
+    lines.push("");
+  }
+
+  if (responses.softwareStage) {
+    const labels: Record<string, string> = {
+      idea: "An idea, nothing written down yet",
+      spec: "Has notes, a spec or designs",
+      existing: "Something exists and needs building on",
+      rebuild: "Something exists and needs replacing",
+      unsure: "Not sure",
+    };
+    lines.push("How far along is it?");
+    lines.push(labels[responses.softwareStage] || responses.softwareStage);
+    lines.push("");
+  }
+
+  if (responses.softwareUsers) {
+    lines.push("Who will use it?");
+    lines.push(responses.softwareUsers);
+    lines.push("");
+  }
+
+  if (responses.softwareMustDo) {
+    lines.push("If it only did one thing well, what would it be?");
+    lines.push(responses.softwareMustDo);
+    lines.push("");
+  }
+
+  // ---- SCORING -----------------------------------------------------------
+  if (responses.scoringMedium && responses.scoringMedium.length > 0) {
+    lines.push("What is the score for?");
+    lines.push(responses.scoringMedium.map((x) => `- ${x}`).join("\n"));
+    lines.push("");
+  }
+
+  if (responses.scoringToPicture) {
+    const labels: Record<string, string> = {
+      locked: "Yes — a locked edit",
+      rough: "Yes — a rough cut that may still move",
+      standalone: "No — the music comes first",
+      unsure: "Not sure yet",
+    };
+    lines.push("Is there picture to write to?");
+    lines.push(labels[responses.scoringToPicture] || responses.scoringToPicture);
+    lines.push("");
+  }
+
+  if (responses.scoringAdaptive) {
+    const labels: Record<string, string> = {
+      linear: "Linear — plays start to finish, like a film cue",
+      loopable: "Loops seamlessly",
+      adaptive: "Adaptive — layers or shifts with what is happening",
+      unsure: "Not sure — wants advice",
+    };
+    lines.push("How does the music need to behave?");
+    lines.push(labels[responses.scoringAdaptive] || responses.scoringAdaptive);
+    lines.push("");
+  }
+
+  if (responses.scoringAmount) {
+    lines.push("How much music, and how many pieces?");
+    lines.push(responses.scoringAmount);
+    lines.push("");
+  }
+
+  if (responses.scoringLicence) {
+    const labels: Record<string, string> = {
+      personal: "A personal or student project",
+      single: "One commercial project",
+      broadcast: "Broadcast, streaming or a released game",
+      buyout: "Wants to own it outright",
+      unsure: "Not sure — wants it talked through",
+    };
+    lines.push("Where will it be heard? (licence)");
+    lines.push(labels[responses.scoringLicence] || responses.scoringLicence);
     lines.push("");
   }
 
@@ -107,14 +200,14 @@ export function formatQuestionnaireForEmail(responses: QuestionnaireInput): stri
 
   // Q7.2 - Music Usage Context
   if (responses.musicUsageContext && responses.musicUsageContext.length > 0) {
-    lines.push("Where will the video be used?");
+    lines.push("Where will it be used?");
     lines.push(responses.musicUsageContext.map((u) => `- ${u}`).join("\n"));
     lines.push("");
   }
 
   // Q8 - Platforms
   if (responses.platforms && responses.platforms.length > 0) {
-    lines.push("Where do they expect this video to live?");
+    lines.push("Where do they expect this to live?");
     lines.push(responses.platforms.map((p) => `- ${p}`).join("\n"));
     lines.push("");
   }

@@ -12,6 +12,7 @@ import { ROOMS, CTA, entrance } from "@/public/shared/rooms";
    Deliberately NOT added to the top bar — that bar is the creative world, and
    at eight items it already wraps below 1100px. */
 const STUDIO = [
+  { href: "/services", label: "What I do" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/pricing-scope", label: "Pricing & scope" },
   { href: "/sales-hub", label: "Store" },
