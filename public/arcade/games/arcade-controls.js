@@ -290,18 +290,31 @@ const ArcadeControls = (function () {
 
     // --- movement cluster (left) ---
     const dpad = document.createElement('div');
-    dpad.className = 'ac-dpad' + (opts.move === 'horizontal' ? ' horizontal' : '');
-    const mk = (code, glyph, cls) => {
+    dpad.className = 'ac-dpad' + (opts.move === 'horizontal' ? ' horizontal' : opts.move === 'diagonal' ? ' diagonal' : '');
+    const mk = (code, glyph, cls, label = code) => {
       const b = document.createElement('button');
       b.className = 'ac-btn ac-dir ' + cls;
       b.textContent = glyph;
-      b.setAttribute('aria-label', code);
-      bindHold(b, code);
+      b.setAttribute('aria-label', label);
+      // Discrete hopping games need every tap, including a click completed
+      // between animation frames and keyboard activation of this button.
+      if (opts.move === 'diagonal' && typeof opts.onDirectionTap === 'function') {
+        b.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          opts.onDirectionTap(code);
+        });
+      } else bindHold(b, code);
       return b;
     };
     if (opts.move === 'horizontal') {
       dpad.appendChild(mk('ArrowLeft', '◀', 'l'));
       dpad.appendChild(mk('ArrowRight', '▶', 'r'));
+    } else if (opts.move === 'diagonal') {
+      dpad.appendChild(mk('ArrowLeft', '↖', 'l', 'Hop up-left'));
+      dpad.appendChild(mk('ArrowUp', '↗', 'u', 'Hop up-right'));
+      dpad.appendChild(mk('ArrowDown', '↙', 'd', 'Hop down-left'));
+      dpad.appendChild(mk('ArrowRight', '↘', 'r', 'Hop down-right'));
     } else {
       dpad.appendChild(mk('ArrowUp', '▲', 'u'));
       dpad.appendChild(mk('ArrowLeft', '◀', 'l'));
@@ -437,6 +450,11 @@ const ArcadeControls = (function () {
         grid-template-rows: 72px; }
       .ac-dpad.horizontal .ac-dir { width: 72px; height: 72px; }
       .ac-dpad.horizontal .l, .ac-dpad.horizontal .r { grid-area: auto; }
+      .ac-dpad.diagonal { grid-template-columns: repeat(2, 62px); grid-template-rows: repeat(2, 62px); }
+      .ac-dpad.diagonal .l { grid-area: 1 / 1; }
+      .ac-dpad.diagonal .u { grid-area: 1 / 2; }
+      .ac-dpad.diagonal .d { grid-area: 2 / 1; }
+      .ac-dpad.diagonal .r { grid-area: 2 / 2; }
 
       .ac-actions { position: absolute; right: 14px; bottom: 14px;
         display: flex; align-items: flex-end; gap: 10px; }
@@ -465,6 +483,7 @@ const ArcadeControls = (function () {
       @media (max-width: 720px) {
         .ac-dpad { grid-template-columns: repeat(3, 54px); grid-template-rows: repeat(3, 54px); }
         .ac-dpad .ac-dir { width: 54px; height: 54px; }
+        .ac-dpad.diagonal { grid-template-columns: repeat(2, 54px); grid-template-rows: repeat(2, 54px); }
         .ac-act { min-width: 70px; height: 66px; font-size: 12px; }
       }
     `;

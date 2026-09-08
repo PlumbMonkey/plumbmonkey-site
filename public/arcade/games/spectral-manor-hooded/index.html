@@ -1,1 +1,46 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>House of the Hooded — Spectral Manor Arcade</title><link rel="stylesheet" href="../wave3/wave3.css"></head><body data-game="houseOfTheHooded" data-accent="#c084fc"><main class="game"><p class="kicker">Spectral Manor Arcade</p><h1>HOUSE OF THE HOODED</h1><div class="frame"><canvas id="gameCanvas"></canvas><div id="toast" class="toast"></div><div id="startOverlay" class="overlay"></div></div><div class="topbar">SCORE <b id="score">0</b> LIVES <b id="lives">3</b> LEVEL <b id="level">1</b> BEST <b id="high">0</b></div><p class="controls">Every hop is diagonal — Up-left: A/← · Up-right: W/↑ · Down-left: S/↓ · Down-right: D/→ · Pause: P/Esc · Start: Enter</p><p id="intro" hidden>Hop across the mansion roof and light every Gothic tile. Each move is diagonal, so read the pyramid, not the arrow keys. Stepping off an edge is fatal, and Frankenstein, the witch and the ghost never stop hunting.</p></main><script src="../leaderboard.js"></script><script src="../arcade-controls.js"></script><script src="../arcade-audio.js?v=1"></script><script src="../wave3/wave3.js"></script><script>ArcadeControls.init(window.wave3Keys, { accent: '#c084fc', move: 'full', buttons: [] });</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>House of the Hooded — Spectral Manor Arcade</title>
+  <link rel="stylesheet" href="../wave3/wave3.css">
+  <style>
+    /* Keep CRT shading subtle enough to read the roof's crisp linework. */
+    body[data-game="houseOfTheHooded"] .frame:before{opacity:.32}
+    body[data-game="houseOfTheHooded"] .frame:after{box-shadow:inset 0 0 35px 5px #0005}
+    body[data-game="houseOfTheHooded"] canvas{border-radius:inherit}
+    body[data-game="houseOfTheHooded"] .controls{font-size:.8rem;color:#cbc3dc}
+    body[data-game="houseOfTheHooded"] .ac-dpad.diagonal{left:18px;bottom:18px}
+    @media(max-width:650px){
+      body[data-game="houseOfTheHooded"] .controls{font-size:.7rem}
+      body[data-game="houseOfTheHooded"] .overlay{padding:4%;overflow:auto;justify-content:flex-start}
+      body[data-game="houseOfTheHooded"] .overlay h2{font-size:1.2rem;margin-bottom:.25rem}
+      body[data-game="houseOfTheHooded"] .overlay p{font-size:.75rem;line-height:1.3}
+      body[data-game="houseOfTheHooded"] .overlay button{margin-top:.35rem;padding:.4rem 1rem;flex-shrink:0}
+      body[data-game="houseOfTheHooded"] .frame:has(.ac-pad.show){overflow:visible;margin-bottom:135px}
+      body[data-game="houseOfTheHooded"] .ac-dpad.diagonal{left:calc(50% - 56.5px);bottom:-128px}
+    }
+  </style>
+</head>
+<body data-game="houseOfTheHooded" data-accent="#c084fc">
+  <main class="game">
+    <p class="kicker">Spectral Manor Arcade</p>
+    <h1>HOUSE OF THE HOODED</h1>
+    <div class="frame">
+      <canvas id="gameCanvas" aria-label="Light all 28 roof tiles. Every move is diagonal. Use A for up-left, W for up-right, S for down-left, and D for down-right."></canvas>
+      <div id="toast" class="toast" role="status"></div>
+      <div id="startOverlay" class="overlay"></div>
+    </div>
+    <div class="topbar">SCORE <b id="score">0</b> LIVES <b id="lives">3</b> LEVEL <b id="level">1</b> BEST <b id="high">0</b></div>
+    <p class="controls">↖ A / ← &nbsp; ↗ W / ↑ &nbsp; ↙ S / ↓ &nbsp; ↘ D / →<br>Tap to hop · P / Esc: Pause · Enter: Start</p>
+    <p id="intro" hidden>Light all 28 tiles. Tap a diagonal direction; queue your next hop in the air. Avoid every edge. Marked tiles warn of enemy landings. Frankenstein chases, the ghost follows your trail, and the witch patrols a diamond. A cyan ring protects you briefly.</p>
+  </main>
+  <script src="../leaderboard.js"></script>
+  <script src="../arcade-controls.js?v=2"></script>
+  <script src="../arcade-audio.js?v=1"></script>
+  <script src="../wave3/hooded.js?v=2"></script>
+  <script src="../wave3/wave3.js?v=2"></script>
+  <script>ArcadeControls.init(window.wave3Keys, { accent: '#c084fc', move: 'diagonal', buttons: [], onDirectionTap: code => window.wave3Tap(code) });</script>
+</body>
+</html>
