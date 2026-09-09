@@ -166,6 +166,26 @@ const monsterDefs = [
 ];
 let monsters = [];
 
+/* Scatter and chase.
+
+   The AI comment said "simple chase / scatter" and every monster had a
+   `scatter` field, but nothing ever read it — all of them simply beelined at
+   the player forever. With four permanent pursuers and no corner assist, the
+   maze had no rhythm and no safe moment to go and collect anything.
+
+   Now the hunt breathes: for SCATTER_FRAMES the monsters head for their own
+   home corner (which is where they already spawn, so it reads as retreating),
+   then they hunt for CHASE_FRAMES. Chase is much longer, so the maze is still
+   mostly dangerous — this is breathing room, not a holiday. */
+/* Same collision box as the player. At 7 against the player's 8 the hunters
+   cornered better than you did, which is a strange way to lose. */
+const MONSTER_R = 8;
+
+const SCATTER_FRAMES = 7 * 60;
+const CHASE_FRAMES = 20 * 60;
+let aiPhase = 0;               // 0 = scatter, 1 = chase
+let aiPhaseTimer = SCATTER_FRAMES;
+
 // ---------- Helpers ----------
 function cellAt(x, y) {
   const c = Math.floor(x / CELL);
@@ -181,8 +201,59 @@ function canMove(x, y, r = 8) {
          !isWall(x - r, y + r) && !isWall(x + r, y + r);
 }
 
+/* ---- Cornering feel -------------------------------------------------------
+
+   Corridors are one cell wide (24px) and the player's collision box is 16px,
+   so there are only 4px of slack either side. Turning used to be tested from
+   wherever the player happened to be, with nothing pulling them onto the middle
+   of the corridor — so if you entered a corridor a few pixels off-centre you
+   stayed off-centre, and every junction after that refused your turn. That is
+   what made the maze feel like it was grabbing you, and why level one was
+   effectively unclearable.
+
+   Two assists fix it without removing the friction entirely:
+
+     CENTRE_PULL  eases you onto the corridor's centre line as you travel, so
+                  drift does not accumulate down a long run.
+     TURN_SLACK   lets a turn succeed when you are within this many pixels of
+                  the centre line, snapping you onto it as you go.
+
+   TURN_SLACK is deliberately less than the 12px half-cell: a genuinely mistimed
+   turn still misses, so a corner can still cost you. Raise it toward 12 for a
+   more forgiving maze, drop it toward 3 to bring back the old bite. */
+const CENTRE_PULL = 1.1;   // px per frame, ~4 frames to centre at walking speed
+const TURN_SLACK = 6;      // px of grace either side of the centre line
+
+/* The centre line of the corridor a coordinate sits in. */
+function laneCentre(v) {
+  return (Math.floor(v / CELL) + 0.5) * CELL;
+}
+
+/* Ease `value` toward `target` by at most `step`, without overshooting. */
+function easeTo(value, target, step) {
+  const delta = target - value;
+  if (Math.abs(delta) <= step) return target;
+  return value + Math.sign(delta) * step;
+}
+
 // ---------- Init / Level ----------
+/* A tiny deterministic PRNG, so a level's crystal layout is the same every time
+   you play it. It used to be Math.random(), which meant "level 1" was a
+   different board on every attempt — a different crystal count, a different
+   route — so you could never learn it and never tell whether you were improving
+   or the board had simply been kinder. Seeded by level, so levels still differ
+   from each other. */
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function buildMaze() {
+  const rand = mulberry32((level * 2654435761));
   maze = mazeTemplate.map(row => row.split('').map(ch => parseInt(ch)));
   // place crystals
   crystalsLeft = 0;
@@ -193,7 +264,7 @@ function buildMaze() {
         if ((r === 9 && c === 20) || (r === 9 && c === 19) ||
             (r === 3 && c === 3) || (r === 18 && c === 36)) {
           maze[r][c] = 3;
-        } else if (Math.random() < 0.55) {
+        } else if (rand() < 0.55) {
           maze[r][c] = 2;
           crystalsLeft++;
         }
@@ -204,14 +275,22 @@ function buildMaze() {
   crystalsLeft += 4;
 }
 
+/* How many hunters are loose. All four used to be out from level one, coming at
+   you from all four corners at once with nowhere to run. The maze needs room to
+   get harder, so it starts with two and gains one per level. */
+function monsterCountFor(lvl) {
+  return Math.min(monsterDefs.length, 2 + Math.floor((lvl - 1) / 2));
+}
+
 function spawnMonsters() {
-  monsters = monsterDefs.map(d => ({
+  monsters = monsterDefs.slice(0, monsterCountFor(level)).map(d => ({
     ...d,
     x: d.home.c * CELL + CELL/2,
     y: d.home.r * CELL + CELL/2,
-    dir: {x:0, y:0},
-    scatter: 0
+    dir: {x:0, y:0}
   }));
+  aiPhase = 0;
+  aiPhaseTimer = SCATTER_FRAMES;
 }
 
 function startGame() {
@@ -325,11 +404,28 @@ function update() {
   if (keys['ArrowUp']   || keys['KeyW']) player.nextDir = {x:0,  y:-1};
   if (keys['ArrowDown'] || keys['KeyS']) player.nextDir = {x:0,  y:1};
 
-  // Try to change direction if possible
-  const nx = player.x + player.nextDir.x * player.speed;
-  const ny = player.y + player.nextDir.y * player.speed;
-  if (canMove(nx, ny)) {
-    player.dir = {...player.nextDir};
+  /* Try to change direction. Tested straight first; if that fails, retry from
+     the corridor's centre line and snap there, which is what lets a turn taken
+     a few pixels wide of the junction still land. */
+  const want = player.nextDir;
+  if (want.x || want.y) {
+    if (canMove(player.x + want.x * player.speed, player.y + want.y * player.speed)) {
+      player.dir = {...want};
+    } else if (want.x !== 0) {
+      const cy = laneCentre(player.y);
+      if (Math.abs(cy - player.y) <= TURN_SLACK &&
+          canMove(player.x + want.x * player.speed, cy)) {
+        player.y = cy;
+        player.dir = {...want};
+      }
+    } else if (want.y !== 0) {
+      const cx = laneCentre(player.x);
+      if (Math.abs(cx - player.x) <= TURN_SLACK &&
+          canMove(cx, player.y + want.y * player.speed)) {
+        player.x = cx;
+        player.dir = {...want};
+      }
+    }
   }
 
   // Move
@@ -337,8 +433,33 @@ function update() {
   let my = player.y + player.dir.y * player.speed;
   if (canMove(mx, my)) {
     player.x = mx; player.y = my;
+
+    /* Ease onto the centre of the corridor being travelled. Only ever applied
+       across the direction of travel, so it never pushes you forwards into a
+       wall or backwards out of a junction you just entered. */
+    if (player.dir.x !== 0) {
+      const cy = laneCentre(player.y);
+      if (canMove(player.x, easeTo(player.y, cy, CENTRE_PULL))) {
+        player.y = easeTo(player.y, cy, CENTRE_PULL);
+      }
+    } else if (player.dir.y !== 0) {
+      const cx = laneCentre(player.x);
+      if (canMove(easeTo(player.x, cx, CENTRE_PULL), player.y)) {
+        player.x = easeTo(player.x, cx, CENTRE_PULL);
+      }
+    }
   } else {
-    // snap to center of cell for clean turns
+    /* Stopped against a wall. Square up on the axis crossing the corridor so
+       the turn you make next actually fits — this is the "snap to center of
+       cell" the old comment promised and never did, which is how a player
+       ended up wedged in a corner with no legal move. */
+    if (player.dir.x !== 0) {
+      const cy = laneCentre(player.y);
+      if (canMove(player.x, cy)) player.y = cy;
+    } else if (player.dir.y !== 0) {
+      const cx = laneCentre(player.x);
+      if (canMove(cx, player.y)) player.x = cx;
+    }
     player.dir = {x:0,y:0};
   }
 
@@ -371,38 +492,43 @@ function update() {
   // Level clear
   if (crystalsLeft <= 0) nextLevel();
 
-  // Monsters AI (simple chase / scatter) — frozen monsters stand still
+  /* Advance the scatter/chase clock. Frozen monsters do not get to sit out
+     their scatter phase — the clock is the maze's rhythm, not theirs. */
+  if (--aiPhaseTimer <= 0) {
+    aiPhase = aiPhase === 0 ? 1 : 0;
+    aiPhaseTimer = aiPhase === 0 ? SCATTER_FRAMES : CHASE_FRAMES;
+  }
+
+  // Monsters AI — frozen monsters stand still
   monsters.forEach(m => {
     if (freezeTime > 0) return;
     // occasionally pick new direction
     if (Math.random() < 0.04 || (m.dir.x === 0 && m.dir.y === 0)) {
       const options = [];
       [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy]) => {
-        if (canMove(m.x + dx * 12, m.y + dy * 12, 7)) options.push({x:dx,y:dy});
+        if (canMove(m.x + dx * 12, m.y + dy * 12, MONSTER_R)) options.push({x:dx,y:dy});
       });
       if (options.length) {
-        // prefer toward player when not in magic field, away when magic field
-        if (magicField > 0) {
-          // run away
-          options.sort((a,b) => {
-            const da = Math.hypot(m.x + a.x - player.x, m.y + a.y - player.y);
-            const db = Math.hypot(m.x + b.x - player.x, m.y + b.y - player.y);
-            return db - da;
-          });
-        } else {
-          options.sort((a,b) => {
-            const da = Math.hypot(m.x + a.x - player.x, m.y + a.y - player.y);
-            const db = Math.hypot(m.x + b.x - player.x, m.y + b.y - player.y);
-            return da - db;
-          });
-        }
+        /* Where this monster wants to be right now: its home corner while
+           scattering, the player while hunting. The magic field inverts it —
+           it runs from wherever it was headed. */
+        const scattering = aiPhase === 0 && magicField === 0;
+        const goal = scattering
+          ? { x: m.home.c * CELL + CELL / 2, y: m.home.r * CELL + CELL / 2 }
+          : player;
+        const flee = magicField > 0;
+        options.sort((a, b) => {
+          const da = Math.hypot(m.x + a.x - goal.x, m.y + a.y - goal.y);
+          const db = Math.hypot(m.x + b.x - goal.x, m.y + b.y - goal.y);
+          return flee ? db - da : da - db;
+        });
         m.dir = options[0];
       }
     }
     const speed = magicField > 0 ? m.speed * 0.7 : m.speed;
     let nmx = m.x + m.dir.x * speed;
     let nmy = m.y + m.dir.y * speed;
-    if (canMove(nmx, nmy, 7)) {
+    if (canMove(nmx, nmy, MONSTER_R)) {
       m.x = nmx; m.y = nmy;
     } else {
       m.dir = {x:0,y:0};
@@ -441,15 +567,25 @@ function draw() {
     for (let c = 0; c < COLS; c++) {
       const x = c * CELL, y = r * CELL;
       if (maze[r][c] === 1) {
-        // hedge
-        ctx.fillStyle = '#1a3a1a';
+        /* Hedge, lit from above. It used to be two flat squares and two dots,
+           which read as tiling rather than planting. The leaf clusters are
+           placed off the cell's own coordinates rather than randomly, so a
+           hedge does not shimmer between frames. */
+        ctx.fillStyle = '#0d1a0b';
         ctx.fillRect(x, y, CELL, CELL);
-        ctx.fillStyle = '#2d5a2d';
-        ctx.fillRect(x+2, y+2, CELL-4, CELL-4);
-        // little leaf dots
-        ctx.fillStyle = '#3d7a3d';
-        ctx.fillRect(x+6, y+6, 3, 3);
-        ctx.fillRect(x+14, y+12, 3, 3);
+        ctx.fillStyle = '#193318';
+        ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 3);
+        ctx.fillStyle = '#23461f';
+        ctx.fillRect(x + 1, y + 1, CELL - 2, 5);        // sunlit crown
+        ctx.fillStyle = '#080f07';
+        ctx.fillRect(x + 1, y + CELL - 4, CELL - 2, 3); // shaded underside
+        const seed = (r * 7 + c * 13) % 5;
+        ctx.fillStyle = '#2d5828';
+        ctx.fillRect(x + 4 + seed, y + 7, 4, 3);
+        ctx.fillRect(x + 13 - seed, y + 13, 4, 3);
+        ctx.fillStyle = '#3a6f33';
+        ctx.fillRect(x + 5 + seed, y + 8, 2, 1);
+        ctx.fillRect(x + 14 - seed, y + 14, 2, 1);
       } else if (maze[r][c] === 2) {
         // small crystal
         ctx.fillStyle = '#67e8f9';
@@ -536,82 +672,52 @@ function draw() {
     ctx.globalAlpha = 1;
   });
 
-  // Monsters — each classic monster gets its own look
+  /* Monsters — the Vampire, Frankenstein, Werewolf and Witch from
+     wave3/sprite-kit.js, the same four figures Mess Hall and House of the
+     Hooded draw. They were flat rectangles and arcs here.
+
+     Drawn from the kit's MINIATURE cast, not its full figures. The full ones
+     are authored for a 75px body and turn to mud below about 40px; a 24px
+     corridor leaves roughly 22px, so these are the versions drawn at that size
+     to begin with.
+
+     The frozen and magic-field tints are preserved by tinting the whole sprite
+     through globalCompositeOperation, so a scared monster still reads cyan
+     without needing a second set of artwork. */
   const frozen = freezeTime > 0;
+  const KIT_NAME = { Vampire: 'vampire', Frank: 'frank', Werewolf: 'werewolf', Witch: 'witch' };
+
   monsters.forEach(m => {
-    ctx.save();
-    ctx.translate(m.x, m.y);
     const scared = magicField > 0;
-    if (scared) ctx.globalAlpha = 0.7 + Math.sin(Date.now()*0.01)*0.2;
-    const body = frozen ? '#93c5fd' : (scared ? '#67e8f9' : m.color);
-    ctx.shadowColor = body;
+    const tint = frozen ? '#93c5fd' : (scared ? '#67e8f9' : null);
+
+    ctx.save();
+    ctx.translate(m.x, m.y + 2);
+    if (scared) ctx.globalAlpha = 0.75 + Math.sin(Date.now() * 0.01) * 0.2;
+    ctx.shadowColor = tint || m.color;
     ctx.shadowBlur = 10;
 
-    if (m.name === 'Vampire') {
-      // cape
-      ctx.fillStyle = frozen || scared ? body : '#1e1b4b';
-      ctx.beginPath();
-      ctx.moveTo(-10, -4); ctx.lineTo(0, 11); ctx.lineTo(10, -4);
-      ctx.closePath(); ctx.fill();
-      // head
-      ctx.fillStyle = body;
-      ctx.beginPath(); ctx.arc(0, -2, 7, 0, Math.PI*2); ctx.fill();
-      // widow's peak hair
-      ctx.fillStyle = '#0f0a1a';
-      ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(0, -2); ctx.lineTo(6, -6); ctx.lineTo(6, -9); ctx.lineTo(-6, -9); ctx.closePath(); ctx.fill();
-      // eyes + fangs
-      ctx.fillStyle = frozen ? '#0f0a1a' : '#ff5555';
-      ctx.fillRect(-4, -3, 2.5, 2.5); ctx.fillRect(1.5, -3, 2.5, 2.5);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(-3, 2, 2, 3); ctx.fillRect(1, 2, 2, 3);
-    } else if (m.name === 'Frank') {
-      // flat green head + bolts
-      ctx.fillStyle = body;
-      ctx.fillRect(-8, -9, 16, 18);
-      ctx.fillStyle = '#14532d';
-      ctx.fillRect(-9, -11, 18, 4);
-      ctx.fillStyle = '#a1a1aa';
-      ctx.fillRect(-11, -2, 3, 4); ctx.fillRect(8, -2, 3, 4);
-      ctx.fillStyle = '#0f0a1a';
-      ctx.fillRect(-5, -4, 3, 3); ctx.fillRect(2, -4, 3, 3);
-      ctx.strokeStyle = '#14532d';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(-4, 4); ctx.lineTo(4, 5); ctx.stroke();
-    } else if (m.name === 'Werewolf') {
-      // furry head with ears + snout
-      ctx.fillStyle = body;
-      ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(-8, -6); ctx.lineTo(-6, -14); ctx.lineTo(-2, -7); ctx.closePath(); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(8, -6); ctx.lineTo(6, -14); ctx.lineTo(2, -7); ctx.closePath(); ctx.fill();
-      // snout
-      ctx.fillStyle = frozen ? '#60a5fa' : '#57534e';
-      ctx.beginPath(); ctx.ellipse(0, 4, 5, 3.5, 0, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#0f0a1a';
-      ctx.beginPath(); ctx.arc(0, 3, 1.5, 0, Math.PI*2); ctx.fill();
-      // glowing eyes
-      ctx.fillStyle = frozen ? '#0f0a1a' : '#fbbf24';
-      ctx.fillRect(-5, -3, 3, 2.5); ctx.fillRect(2, -3, 3, 2.5);
-    } else {
-      // Witch — hat + green eyes
-      ctx.fillStyle = body;
-      ctx.beginPath(); ctx.arc(0, 1, 7, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = frozen || scared ? body : '#4c1d95';
-      ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(-8, -3); ctx.lineTo(8, -3); ctx.closePath(); ctx.fill();
-      ctx.fillRect(-10, -5, 20, 3);
-      ctx.fillStyle = frozen ? '#0f0a1a' : '#4ade80';
-      ctx.fillRect(-4, 0, 2.5, 2.5); ctx.fillRect(1.5, 0, 2.5, 2.5);
-    }
+    const drew = window.SpriteKit && SpriteKit.drawMini(ctx, KIT_NAME[m.name], 0, 0, {
+      t: Date.now() / 1000
+    });
+    ctx.shadowBlur = 0;
 
-    // icy overlay when frozen
-    if (frozen) {
-      ctx.strokeStyle = 'rgba(147,197,253,0.9)';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(-10, -12, 20, 24);
+    if (!drew) {
+      ctx.fillStyle = tint || m.color;
+      ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
+    } else if (tint) {
+      // Wash the figure toward the state colour, keeping its own shading.
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = tint;
+      ctx.globalAlpha = 0.62;
+      ctx.fillRect(-12, -26, 24, 40);
+      ctx.globalCompositeOperation = 'source-over';
     }
     ctx.restore();
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
   });
+
 
   // Player — a glowing spirit with a trailing wisp (hidden while dissolving)
   if (dying === 0 && !awaitingReady) {

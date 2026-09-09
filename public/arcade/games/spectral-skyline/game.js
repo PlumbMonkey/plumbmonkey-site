@@ -145,6 +145,8 @@ const player = {
   gravity: 0.28,
   facing: 1,        // 1 right, -1 left
   invuln: 0,
+  bumpCooldown: 0,  // frames before another joust bounce can register
+
   flapAnim: 0,
   flapStrength: 0,
   flightPhase: 0,
@@ -164,6 +166,11 @@ let boss = null;      // THE SHRIEKER — shows up if you dawdle
 let waveTimer = 0;    // frames spent in the current wave
 let bumpSoundCooldown = 0;
 const BOSS_AFTER = 2700; // ~45 seconds
+
+/* Half-height of the "neither of you won that" band, in pixels. Inside it a
+   joust bounces both parties apart instead of killing Luno. Widen it to make
+   the sky more forgiving; drop it to 0 to restore the old sudden-death rule. */
+const LEVEL_JOUST = 7;
 
 function hurtLuno(color) {
   lives--;
@@ -323,6 +330,7 @@ function update() {
   if (shakeTime > 0) shakeTime--;
   if (bannerTime > 0) bannerTime--;
   if (bumpSoundCooldown > 0) bumpSoundCooldown--;
+  if (player.bumpCooldown > 0) player.bumpCooldown--;
   if (comboTimer > 0) { comboTimer--; if (comboTimer === 0) combo = 0; }
   if (waveDelay > 0) {
     waveDelay--;
@@ -737,8 +745,29 @@ function update() {
       // Who is higher? (center Y)
       const playerMid = player.y + player.h * 0.4;
       const witchMid  = w.y + w.h * 0.4;
+      const advantage = witchMid - playerMid;   // positive means Luno is above
 
-      if (playerMid < witchMid - 4) {
+      /* A near-level collision is a DRAW, not a death.
+
+         The rule used to be "Luno wins if clearly higher, otherwise the witch
+         kills him" — so a dead-even joust, the most common kind, always went to
+         the witch. That is the same unfairness the Soul Circuit corners had: the
+         game punishing you for a near miss rather than a mistake. Joust bounces
+         on a tie, and so does this now: you only lose the exchange when she is
+         properly above you. The bump machinery is the one witches already use on
+         each other. */
+      if (advantage <= LEVEL_JOUST && advantage >= -LEVEL_JOUST && player.bumpCooldown <= 0) {
+        const away = player.x < w.x ? -1 : 1;
+        player.vx = away * 4.2;
+        player.vy -= 1.6;
+        w.vx = -away * 3.4;
+        player.bumpCooldown = 14;
+        triggerShake(2, 5);
+        if (bumpSoundCooldown <= 0) { sfx.bump(); bumpSoundCooldown = 12; }
+        return;
+      }
+
+      if (advantage > LEVEL_JOUST) {
         // Player wins — witch becomes crystal
         w.state = 'crystal';
         combo++;
@@ -953,22 +982,13 @@ function draw() {
     ctx.save();
     ctx.translate(g.x + 14, g.y + 16);
     ctx.globalAlpha = 0.75 + Math.sin(g.phase) * 0.15;
-    ctx.fillStyle = '#c4b5fd';
     ctx.shadowColor = '#a78bfa';
     ctx.shadowBlur = 15;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 14, 18, 0, 0, Math.PI*2);
-    ctx.fill();
-    // wavy bottom
-    ctx.beginPath();
-    ctx.moveTo(-14, 10);
-    ctx.quadraticCurveTo(-7, 20, 0, 12);
-    ctx.quadraticCurveTo(7, 20, 14, 10);
-    ctx.fill();
-    // eyes
-    ctx.fillStyle = '#0f0a1a';
-    ctx.beginPath(); ctx.arc(-5, -4, 3, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(5, -4, 3, 0, Math.PI*2); ctx.fill();
+    // Shared artwork — the same ghost the rest of the manor uses.
+    if (!(window.SpriteKit && SpriteKit.drawMini(ctx, 'ghost', 0, 0, { t: g.phase / 5 }))) {
+      ctx.fillStyle = '#c4b5fd';
+      ctx.beginPath(); ctx.ellipse(0, 0, 14, 18, 0, 0, Math.PI * 2); ctx.fill();
+    }
     ctx.restore();
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
@@ -1125,30 +1145,24 @@ function draw() {
       ctx.stroke();
     }
 
-    // body
-    ctx.fillStyle = w.color || '#7c3aed';
-    ctx.fillRect(-8, -6, 16, 20);
-    // Distinct cloak silhouette for each enemy class.
-    ctx.beginPath();
-    ctx.moveTo(-8, 7); ctx.lineTo(-13, 19); ctx.lineTo(0, 13); ctx.lineTo(13, 19); ctx.lineTo(8, 7);
-    ctx.closePath(); ctx.fill();
-    // hat
-    ctx.fillStyle = w.mount === 'crow' ? '#4a0418' : (w.mount === 'skimmer' ? '#134e4a' : '#4c1d95');
-    ctx.beginPath();
-    ctx.moveTo(0, -28);
-    ctx.lineTo(-12, -8);
-    ctx.lineTo(12, -8);
-    ctx.fill();
-    ctx.fillRect(-14, -10, 28, 4);
-    // face
-    ctx.fillStyle = '#e9d5ff';
-    ctx.beginPath();
-    ctx.arc(0, -4, 7, 0, Math.PI*2);
-    ctx.fill();
-    // eyes
-    ctx.fillStyle = w.accent || '#4ade80';
-    ctx.fillRect(-4, -6, 3, 3);
-    ctx.fillRect(1, -6, 3, 3);
+    /* The rider — shared artwork from wave3/sprite-kit.js. She was a
+       fillRect body, a flat triangle hat and two 3px squares for eyes, which
+       made the thing you actually aim at the flattest object on screen while
+       her crow had a beak, a tail and a flap cycle. The class colours are
+       unchanged: cloak from w.color, eyes from w.accent, hat by mount.
+
+       Walking witches keep their legs (drawn above) and so are drawn a little
+       higher, seated riders sit on whatever is under them. */
+    const hatColour = w.mount === 'crow' ? '#4a0418'
+                    : (w.mount === 'skimmer' ? '#134e4a' : '#4c1d95');
+    if (!(window.SpriteKit && SpriteKit.drawMini(ctx, 'witchRider', 0, w.state === 'walking' ? -2 : 0, {
+      color: w.color || '#7c3aed',
+      hat: hatColour,
+      accent: w.accent || '#4ade80'
+    }))) {
+      ctx.fillStyle = w.color || '#7c3aed';
+      ctx.fillRect(-8, -6, 16, 20);
+    }
 
     if (w.boltCharge > 0) {
       const maxCharge = w.mount === 'skimmer' ? 48 : 36;

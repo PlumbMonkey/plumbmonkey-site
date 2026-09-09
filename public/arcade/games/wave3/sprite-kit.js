@@ -478,7 +478,110 @@
     return true;
   }
 
-  const api = { helpers, draw, monsters: MONSTERS, names: Object.keys(MONSTERS) };
+
+  /* ==========================================================================
+     MINIATURES — the same cast, redrawn for ~22px.
+
+     The full figures carry around forty shapes each and are authored for a 75px
+     body. Scaled down to fit a 24px maze corridor they turn to mud: the bolts,
+     fangs and hat band all collapse below a pixel and what is left is a coloured
+     smudge with an outline. Measured against Soul Circuit's old flat shapes, the
+     shrunk versions were genuinely WORSE — the flat art was at least designed
+     for the size it was drawn at.
+
+     So these are drawn at their final size. Native scale is the correct scale;
+     do not pass a `scale` under about 0.8. Same characters, same palette, same
+     lit eyes — just told with a tenth of the shapes, because at 22px a
+     silhouette and two glowing eyes is all that survives anyway.
+     ========================================================================== */
+  const MINI = {
+    vampire(h) {
+      h.path([[-10,-2],[0,12],[10,-2],[7,-9],[-7,-9]], "#2b1030", INK, 1.5);   // cape
+      h.path([[-6,-9],[6,-9],[5,7],[-5,7]], "#1b1428", INK, 1.5);              // body
+      h.path([[-3,-8],[3,-8],[2,5],[-2,5]], "#7a1633", null);                  // sash
+      h.path([[-6,-13],[6,-13],[6,-8],[-6,-8]], "#e6d3d8", INK, 1.5);          // face
+      h.path([[-6,-14],[6,-14],[5,-11],[0,-9],[-5,-11]], "#120a16", null);     // widow's peak
+      h.glow("#ff4d5e", 5, () => { h.rect(-4,-12,2.5,2,"#ff4d5e"); h.rect(1.5,-12,2.5,2,"#ff4d5e"); });
+    },
+    frank(h) {
+      h.path([[-7,-7],[7,-7],[8,8],[-8,8]], "#3d493d", INK, 1.5);              // body
+      h.rect(-7, 8, 5, 4, "#0c1220"); h.rect(2, 8, 5, 4, "#0c1220");           // boots
+      h.path([[-6,-14],[6,-14],[6,-7],[-6,-7]], "#b0ce7b", INK, 1.5);          // head
+      h.path([[-6,-15],[6,-15],[6,-12],[-6,-12]], "#172431", null);            // flat hair
+      h.rect(-9,-11,2.5,3,"#abc0d0"); h.rect(6.5,-11,2.5,3,"#abc0d0");         // bolts
+      h.glow("#ffedac", 5, () => { h.rect(-4,-11,2.5,2,"#ffedac"); h.rect(1.5,-11,2.5,2,"#ffedac"); });
+      h.line([[-3,-8],[3,-8]], "#445139", 1);
+    },
+    werewolf(h) {
+      h.path([[-8,-6],[8,-6],[7,9],[-7,9]], "#7a6a5d", INK, 1.5);              // body
+      h.path([[-4,-5],[4,-5],[3,7],[-3,7]], "#c9b8a4", null);                  // chest fur
+      h.path([[-7,-11],[-4,-16],[-1,-11]], "#5d5148", INK, 1);                 // ears
+      h.path([[7,-11],[4,-16],[1,-11]], "#5d5148", INK, 1);
+      h.path([[-7,-13],[7,-13],[7,-6],[-7,-6]], "#8a7768", INK, 1.5);          // head
+      h.path([[3,-11],[11,-9],[11,-5],[3,-5]], "#6b5b50", INK, 1);             // muzzle
+      h.ellipse(10,-7,1.6,1.3,"#17110f");
+      h.glow("#ffc93c", 5, () => { h.rect(-4,-11,2.5,2,"#ffc93c"); h.rect(0,-11,2.5,2,"#ffc93c"); });
+    },
+    witch(h) {
+      h.path([[-8,10],[-4,-6],[4,-6],[8,10]], "#795093", INK, 1.5);            // robe
+      h.path([[-5,-13],[5,-13],[5,-6],[-5,-6]], "#bfce97", INK, 1.5);          // face
+      h.path([[-9,-13],[0,-25],[9,-13]], "#64437e", INK, 1.5);                 // hat
+      h.line([[-8,-13],[8,-13]], "#dfb773", 3);                                 // hat band
+      h.glow("#9dff9d", 5, () => { h.rect(-3.5,-11,2.5,2,"#4ade80"); h.rect(1,-11,2.5,2,"#4ade80"); });
+    },
+    /* Luno's Flight's witch, seated on whatever she is riding. No legs — a
+       broom, a crow or a skimmer goes under her, and the game draws that. Takes
+       `color` (cloak) and `accent` (eyes) per instance, because that game marks
+       its three witch classes by colour rather than by shape. */
+    witchRider(h, o) {
+      const cloak = o.color || "#7c3aed";
+      const hat = o.hat || "#4c1d95";
+      const accent = o.accent || "#4ade80";
+      const dark = h.shade(cloak, -0.45), lit = h.shade(cloak, 0.25);
+      // Cloak, hanging and flared by the ride rather than standing.
+      h.path([[-8,-7],[8,-7],[13,15],[0,10],[-13,15]], cloak, INK, 1.5);
+      h.path([[1,-7],[8,-7],[13,15],[3,11]], dark, null);
+      h.path([[-6,-6],[-1,-6],[-3,8],[-8,10]], lit, null);
+      // Hunched shoulders over the handle.
+      h.path([[-9,-8],[9,-8],[7,-2],[-7,-2]], dark, INK, 1);
+      // Face.
+      h.path([[-6,-11],[6,-11],[5,-3],[-5,-3]], "#e9d5ff", INK, 1.5);
+      // Pointed hat, brim first so the crown overlaps it.
+      h.rect(-13, -13, 26, 3.5, hat);
+      h.path([[0,-30],[-11,-12],[11,-12]], hat, INK, 1.5);
+      h.line([[-9,-13],[9,-13]], h.shade(hat, 0.3), 2);
+      h.glow(accent, 6, () => {
+        h.rect(-4, -9, 2.8, 2.4, accent);
+        h.rect(1.2, -9, 2.8, 2.4, accent);
+      });
+    },
+
+    ghost(h, o) {
+      const sway = Math.sin((o.t || 0) * 5) * 2;
+      h.path([[-8,-6],[-8,8],[-4+sway,4],[0,9],[4+sway,4],[8,8],[8,-6],[0,-14]], "#d9c4df", "#f4d6e3", 1.5);
+      h.path([[2,-10],[8,-6],[8,8],[4+sway,4]], "#a988b8", null);
+      h.glow("#ffbac7", 5, () => { h.rect(-4,-8,2.5,3,"#48243f"); h.rect(1.5,-8,2.5,3,"#48243f"); });
+    },
+  };
+
+  /* Draw a miniature. Same signature as draw(), but the figures are already the
+     right size — pass scale only to nudge, never to shrink by half. */
+  function drawMini(c, name, x, y, opts) {
+    const mini = MINI[name];
+    if (!mini) return false;
+    const o = Object.assign({ t: 0, scale: 1 }, opts);
+    c.save();
+    c.translate(x, y);
+    if (o.scale !== 1) c.scale(o.scale, o.scale);
+    c.lineJoin = "round";
+    c.lineCap = "round";
+    mini(helpers(c), o);
+    c.restore();
+    return true;
+  }
+
+  const api = { helpers, draw, drawMini, monsters: MONSTERS, mini: MINI,
+                names: Object.keys(MONSTERS), miniNames: Object.keys(MINI) };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.SpriteKit = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
