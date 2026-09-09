@@ -85,6 +85,77 @@ const mazeTemplate = [
   "1111111111111111111111111111111111111111"
 ];
 
+/* The graveyard and the ethereal plane.
+
+   Both were generated and checked before being pasted in: solid border, the row
+   9 artery kept clear (PLAYER_START and EXIT_CELL both sit on it), all four
+   POWER_CELLS open, and — the important one — every open cell reachable from
+   the start. A sealed pocket holding a single crystal would make the level
+   uncompletable, which is exactly the failure the +4 counting bug produced. */
+const MAZE_SET = [
+  mazeTemplate,
+  [
+    "1111111111111111111111111111111111111111",
+    "1000000000100000000000100000000000001011",
+    "1111111110111111101110011011110111101011",
+    "1000000010001000001010000000000000001011",
+    "1001111011101011111011010110110011100011",
+    "1000101000100010000000000000100010001011",
+    "1110100000101110111111111111101110011011",
+    "1010100010000010001000001000001000100011",
+    "1010101110101011101011111011101011111011",
+    "1000000000000000000000000000000000000001",
+    "1011101011101010101100101110111010111011",
+    "1000000010001000100000100000001000100011",
+    "1010111010111110101110111010100011101111",
+    "1010100010101000001010001000100000101011",
+    "1010101110101010111011101101111110000011",
+    "1010100010100010001010000000100000101011",
+    "1010101110101111101010111110100110101011",
+    "1010100000100010001010000010100010100011",
+    "1010111010111110111011011010111001111001",
+    "1000000000000000100000000000001000000011",
+    "1000000000000000000000000000000000000001",
+    "1111111111111111111111111111111111111111",
+  ],
+  [
+    "1111111111111111111111111111111111111111",
+    "1000001000000000000000000000001000000011",
+    "1111101101111110111011111011111011110011",
+    "1000001000000010000010000000000010001011",
+    "1011111011111010101110111010111110101011",
+    "1000000010001010001000100010000000001011",
+    "1111111110001011111011101111111010101011",
+    "1000000000101010000010000010000000101011",
+    "1011111111101010111111101110101011111011",
+    "1000000000000000000000000000000000000001",
+    "1010101111111011111010111011111110111011",
+    "1000100010001000001010000000100010000011",
+    "1011101010101110101111110111101010101111",
+    "1010001000000000101000000000001010100011",
+    "1000101011111111101011111111111000111011",
+    "1000100000100010001010000000001000101011",
+    "1011111110101010111010101110111011101011",
+    "1000000000101010100010000010100010001011",
+    "1011110111101010111010111010101000101001",
+    "1000000000001000000000000000001000100001",
+    "1000000000000000000000000000000000000001",
+    "1111111111111111111111111111111111111111",
+  ],
+];
+
+/* One theme per maze. Only the walls and the ground change — the crystals stay
+   cyan and the player stays violet, because those two are how you read the
+   board at a glance and they should not move between levels. */
+const THEMES = [
+  { name: 'HEDGE MAZE',      ground: '#0a0614', wall: 'hedge' },
+  { name: 'THE GRAVEYARD',   ground: '#080a10', wall: 'stone' },
+  { name: 'THE ETHEREAL PLANE', ground: '#0b0718', wall: 'aether' }
+];
+
+function themeFor(lvl) { return THEMES[(lvl - 1) % THEMES.length]; }
+function mazeFor(lvl)  { return MAZE_SET[(lvl - 1) % MAZE_SET.length]; }
+
 let maze = [];
 let score = 0, lives = 3, level = 1, crystalsLeft = 0;
 let gameRunning = false, gameOver = false;
@@ -150,6 +221,32 @@ function resumeAfterDeath() {
 
 // Player — starts mid-maze in the open corridor (row 9 is fully open),
 // far from all four monster home corners
+/* The four power crystals.
+
+   THIS LIST USED TO CONTAIN (18,36), WHICH IS A WALL. Only three crystals were
+   ever placed, but the counter did `crystalsLeft += 4` regardless — so the total
+   bottomed out at 1 and `if (crystalsLeft <= 0)` never fired. You could clear
+   every crystal in the maze and the level simply would not end. (18,38) is the
+   nearest open cell on that row.
+
+   Placement is now counted as it happens rather than added as a constant, so a
+   cell that lands on a wall can no longer make the level uncompletable. */
+const POWER_CELLS = [
+  { r: 9,  c: 20 },
+  { r: 9,  c: 19 },
+  { r: 3,  c: 3  },
+  { r: 18, c: 38 }
+];
+
+/* Where the way out appears once the maze is clear. Row 9 is the long open
+   artery, so it is reachable from anywhere, and column 38 is the far end of it
+   from the player's start at column 10 — clearing the maze should still leave
+   you a run for the door. */
+const EXIT_CELL = { r: 9, c: 38 };
+let exitOpen = false;
+let exitPulse = 0;
+let bannerText = '', bannerTime = 0;
+
 const PLAYER_START = { x: 10.5 * CELL, y: 9.5 * CELL }; // open corridor, away from power crystals & monster corners
 const player = {
   x: PLAYER_START.x, y: PLAYER_START.y,
@@ -254,16 +351,16 @@ function mulberry32(seed) {
 
 function buildMaze() {
   const rand = mulberry32((level * 2654435761));
-  maze = mazeTemplate.map(row => row.split('').map(ch => parseInt(ch)));
+  maze = mazeFor(level).map(row => row.split('').map(ch => parseInt(ch)));
   // place crystals
   crystalsLeft = 0;
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       if (maze[r][c] === 0) {
         // power crystals in open areas
-        if ((r === 9 && c === 20) || (r === 9 && c === 19) ||
-            (r === 3 && c === 3) || (r === 18 && c === 36)) {
+        if (POWER_CELLS.some(pc => pc.r === r && pc.c === c)) {
           maze[r][c] = 3;
+          crystalsLeft++;
         } else if (rand() < 0.55) {
           maze[r][c] = 2;
           crystalsLeft++;
@@ -271,8 +368,9 @@ function buildMaze() {
       }
     }
   }
-  // count power as well
-  crystalsLeft += 4;
+
+  exitOpen = false;
+  exitPulse = 0;
 }
 
 /* How many hunters are loose. All four used to be out from level one, coming at
@@ -311,6 +409,9 @@ function startGame() {
 function nextLevel() {
   level++;
   buildMaze();
+  // Name the place you have just walked into.
+  bannerText = themeFor(level).name;
+  bannerTime = 150;
   player.x = PLAYER_START.x; player.y = PLAYER_START.y;
   player.dir = {x:0,y:0}; player.nextDir = {x:0,y:0};
   spawnMonsters();
@@ -490,7 +591,27 @@ function update() {
   if (magicField > 0) magicField--;
 
   // Level clear
-  if (crystalsLeft <= 0) nextLevel();
+  /* Clearing the crystals no longer ends the level on the spot — it opens a way
+     out, and you have to reach it with the hunters still after you. That last
+     run is the most interesting thirty seconds in the maze, and the old code
+     skipped it entirely. */
+  if (crystalsLeft <= 0 && !exitOpen) {
+    exitOpen = true;
+    exitPulse = 0;
+    sfx.power();
+    bannerText = 'THE WAY OUT HAS OPENED';
+    bannerTime = 150;
+  }
+
+  if (exitOpen) {
+    exitPulse++;
+    const ex = (EXIT_CELL.c + 0.5) * CELL, ey = (EXIT_CELL.r + 0.5) * CELL;
+    if (Math.hypot(player.x - ex, player.y - ey) < CELL * 0.7) {
+      score += 250 + level * 100;
+      sfx.collect();
+      nextLevel();
+    }
+  }
 
   /* Advance the scatter/chase clock. Frozen monsters do not get to sit out
      their scatter phase — the clock is the maze's rhythm, not theirs. */
@@ -557,9 +678,72 @@ function update() {
 }
 
 // ---------- Draw ----------
+/* One wall painter per theme. All three are lit from above and shaded beneath
+   so the maze reads as solid objects rather than tiling, and all three derive
+   their detail from the cell's own (r, c) rather than Math.random(), or the
+   walls would shimmer every frame. */
+function drawWall(kind, x, y, r, c) {
+  const seed = (r * 7 + c * 13) % 5;
+  if (kind === 'stone') {
+    // Graveyard: mossy granite blocks with a chiselled top edge.
+    ctx.fillStyle = '#0b0d13';
+    ctx.fillRect(x, y, CELL, CELL);
+    ctx.fillStyle = '#2b3040';
+    ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 3);
+    ctx.fillStyle = '#3c4356';
+    ctx.fillRect(x + 1, y + 1, CELL - 2, 5);
+    ctx.fillStyle = '#070810';
+    ctx.fillRect(x + 1, y + CELL - 4, CELL - 2, 3);
+    // mortar course, offset every other row so blocks stagger
+    ctx.fillStyle = '#161a24';
+    ctx.fillRect(x + 1, y + 11, CELL - 2, 1.5);
+    ctx.fillRect(x + (r % 2 ? 7 : 15), y + 12, 1.5, CELL - 16);
+    // a patch of moss, always in the same corner for this cell
+    ctx.fillStyle = '#2f4a33';
+    ctx.fillRect(x + 3 + seed, y + CELL - 8, 4, 2);
+    return;
+  }
+  if (kind === 'aether') {
+    // Ethereal plane: translucent violet crystal, brighter at the edges.
+    ctx.fillStyle = '#120a22';
+    ctx.fillRect(x, y, CELL, CELL);
+    ctx.fillStyle = 'rgba(124,58,237,0.34)';
+    ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
+    ctx.strokeStyle = 'rgba(196,181,253,0.55)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 1.5, y + 1.5, CELL - 3, CELL - 3);
+    // an internal facet, angled by the cell so the field is not uniform
+    ctx.strokeStyle = 'rgba(232,121,249,0.45)';
+    ctx.beginPath();
+    ctx.moveTo(x + 3, y + 5 + seed);
+    ctx.lineTo(x + CELL - 4, y + CELL - 6 - seed);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(233,213,255,0.5)';
+    ctx.fillRect(x + 4 + seed, y + 4, 2, 2);
+    return;
+  }
+  /* Hedge, lit from above. It used to be two flat squares and two dots, which
+     read as tiling rather than planting. */
+  ctx.fillStyle = '#0d1a0b';
+  ctx.fillRect(x, y, CELL, CELL);
+  ctx.fillStyle = '#193318';
+  ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 3);
+  ctx.fillStyle = '#23461f';
+  ctx.fillRect(x + 1, y + 1, CELL - 2, 5);
+  ctx.fillStyle = '#080f07';
+  ctx.fillRect(x + 1, y + CELL - 4, CELL - 2, 3);
+  ctx.fillStyle = '#2d5828';
+  ctx.fillRect(x + 4 + seed, y + 7, 4, 3);
+  ctx.fillRect(x + 13 - seed, y + 13, 4, 3);
+  ctx.fillStyle = '#3a6f33';
+  ctx.fillRect(x + 5 + seed, y + 8, 2, 1);
+  ctx.fillRect(x + 14 - seed, y + 14, 2, 1);
+}
+
 function draw() {
+  const theme = themeFor(level);
   // Background
-  ctx.fillStyle = '#0a0614';
+  ctx.fillStyle = theme.ground;
   ctx.fillRect(0, 0, W, H);
 
   // Maze hedges
@@ -567,25 +751,7 @@ function draw() {
     for (let c = 0; c < COLS; c++) {
       const x = c * CELL, y = r * CELL;
       if (maze[r][c] === 1) {
-        /* Hedge, lit from above. It used to be two flat squares and two dots,
-           which read as tiling rather than planting. The leaf clusters are
-           placed off the cell's own coordinates rather than randomly, so a
-           hedge does not shimmer between frames. */
-        ctx.fillStyle = '#0d1a0b';
-        ctx.fillRect(x, y, CELL, CELL);
-        ctx.fillStyle = '#193318';
-        ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 3);
-        ctx.fillStyle = '#23461f';
-        ctx.fillRect(x + 1, y + 1, CELL - 2, 5);        // sunlit crown
-        ctx.fillStyle = '#080f07';
-        ctx.fillRect(x + 1, y + CELL - 4, CELL - 2, 3); // shaded underside
-        const seed = (r * 7 + c * 13) % 5;
-        ctx.fillStyle = '#2d5828';
-        ctx.fillRect(x + 4 + seed, y + 7, 4, 3);
-        ctx.fillRect(x + 13 - seed, y + 13, 4, 3);
-        ctx.fillStyle = '#3a6f33';
-        ctx.fillRect(x + 5 + seed, y + 8, 2, 1);
-        ctx.fillRect(x + 14 - seed, y + 14, 2, 1);
+        drawWall(theme.wall, x, y, r, c);
       } else if (maze[r][c] === 2) {
         // small crystal
         ctx.fillStyle = '#67e8f9';
@@ -719,6 +885,37 @@ function draw() {
   });
 
 
+  /* The way out. Only exists once the last crystal is gone, and it is loud on
+     purpose — a spinning gate of light in a maze that is otherwise all greens
+     and dim cyan, so you can find it from across the board without a minimap. */
+  if (exitOpen) {
+    const ex = (EXIT_CELL.c + 0.5) * CELL, ey = (EXIT_CELL.r + 0.5) * CELL;
+    const spin = exitPulse * 0.05;
+    const beat = 1 + Math.sin(exitPulse * 0.12) * 0.12;
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.shadowColor = '#fde68a';
+    ctx.shadowBlur = 26;
+    ctx.fillStyle = 'rgba(253,230,138,0.18)';
+    ctx.beginPath(); ctx.arc(0, 0, 16 * beat, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fde68a';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(0, 0, 11 * beat, 0, Math.PI * 2); ctx.stroke();
+    // Four turning spokes, so the gate reads as active rather than a pickup.
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      const a = spin + i * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5);
+      ctx.lineTo(Math.cos(a) * 14 * beat, Math.sin(a) * 14 * beat);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#fffbeb';
+    ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.shadowBlur = 0;
+  }
+
   // Player — a glowing spirit with a trailing wisp (hidden while dissolving)
   if (dying === 0 && !awaitingReady) {
     ctx.save();
@@ -781,6 +978,24 @@ function draw() {
     ctx.arc(player.x, player.y, 22 + Math.sin(Date.now()*0.02)*3, 0, Math.PI*2);
     ctx.stroke();
   }
+
+  drawBanner();
+}
+
+function drawBanner() {
+  if (bannerTime <= 0) return;
+  bannerTime--;
+  const fade = Math.min(1, bannerTime / 40);
+  ctx.save();
+  ctx.globalAlpha = fade;
+  ctx.font = '600 26px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#fde68a';
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = '#fde68a';
+  ctx.fillText(bannerText, W / 2, 64);
+  ctx.restore();
+  ctx.shadowBlur = 0;
 }
 
 function updateHUD() {

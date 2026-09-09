@@ -80,6 +80,32 @@
 
   const INK = "#0f0a1a";
 
+  /* A boss winding up to hurl something.
+
+     Amp Rampage's bosses telegraph a throw — the arm rises, holds, then whips
+     over — and that telegraph is the player's only warning that a piece of
+     stage gear is about to come down the rig. It lives here so a boss can be
+     drawn from the shared cast without losing the tell.
+
+     `o.throwPhase` is 0..1 through the wind-up, or < 0 for "not throwing".
+     Silent no-op when absent, so every other game is unaffected.
+
+     THE ARM ONLY — no amp. Amp Rampage already draws the held gear as a real
+     physics object (it has to; the thing then falls down the rig and can be
+     jumped), positioned to the boss's LEFT at boss.x-21 and lifted on a sine.
+     Drawing a second one here put a phantom amp on the wrong shoulder. The arm
+     reaches out to meet the real one. */
+  function throwArm(h, o, sleeve) {
+    const phase = o.throwPhase;
+    if (phase === undefined || phase < 0) return;
+    const swing = Math.sin(Math.min(1, phase) * Math.PI);   // 0 -> 1 -> 0
+    const hx = -20 - swing * 10;
+    const hy = -30 - swing * 26;
+    h.line([[-13, -18], [hx, hy]], h.shade(sleeve, -0.35), 8);
+    h.line([[-13, -18], [hx, hy]], sleeve, 5);
+    h.ellipse(hx, hy, 4, 3.6, h.shade(sleeve, 0.2));   // the gripping hand
+  }
+
   /* Each entry draws one character centred on the hips, facing the viewer.
      `o.t` is seconds, for idle motion; `o.feet` includes legs and boots;
      `o.prop` includes the character's held object (the witch's broom). */
@@ -109,6 +135,7 @@
       });
       h.line([[-6,-24],[7,-24]], "#445139");
       h.line([[-9,-43],[-9,-36]], "#536342", 1);
+      throwArm(h, o, "#62764d");
     },
 
     ghost(h, o) {
@@ -172,6 +199,7 @@
       });
       h.path([[-4,-30],[-2,-25],[0,-30]], "#fdfaf5", null);
       h.path([[1,-30],[3,-25],[5,-30]], "#fdfaf5", null);
+      throwArm(h, o, "#3c1230");
     },
 
     werewolf(h, o) {
@@ -493,15 +521,24 @@
      do not pass a `scale` under about 0.8. Same characters, same palette, same
      lit eyes — just told with a tenth of the shapes, because at 22px a
      silhouette and two glowing eyes is all that survives anyway.
+
+     Their eyes sit slightly right of centre on purpose. A caller that mirrors
+     the sprite by direction of travel (Mess Hall does) then gets a figure that
+     looks where it walks — without which a mirrored front-on character is
+     pixel-identical to itself and the flip is invisible.
      ========================================================================== */
   const MINI = {
     vampire(h) {
-      h.path([[-10,-2],[0,12],[10,-2],[7,-9],[-7,-9]], "#2b1030", INK, 1.5);   // cape
-      h.path([[-6,-9],[6,-9],[5,7],[-5,7]], "#1b1428", INK, 1.5);              // body
-      h.path([[-3,-8],[3,-8],[2,5],[-2,5]], "#7a1633", null);                  // sash
+      /* Lifted in value from the full figure's near-black. At 26px on a very
+         dark floor the original #2b1030 cape and #1b1428 body read as a hole
+         rather than a monster — it was the one member of the cast you could
+         lose track of. Still the darkest of the five, just visible. */
+      h.path([[-10,-2],[0,12],[10,-2],[7,-9],[-7,-9]], "#4a1c4e", INK, 1.5);   // cape
+      h.path([[-6,-9],[6,-9],[5,7],[-5,7]], "#332745", INK, 1.5);              // body
+      h.path([[-3,-8],[3,-8],[2,5],[-2,5]], "#a11d42", null);                  // sash
       h.path([[-6,-13],[6,-13],[6,-8],[-6,-8]], "#e6d3d8", INK, 1.5);          // face
       h.path([[-6,-14],[6,-14],[5,-11],[0,-9],[-5,-11]], "#120a16", null);     // widow's peak
-      h.glow("#ff4d5e", 5, () => { h.rect(-4,-12,2.5,2,"#ff4d5e"); h.rect(1.5,-12,2.5,2,"#ff4d5e"); });
+      h.glow("#ff4d5e", 5, () => { h.rect(-2.5,-12,2.5,2,"#ff4d5e"); h.rect(3,-12,2.5,2,"#ff4d5e"); });
     },
     frank(h) {
       h.path([[-7,-7],[7,-7],[8,8],[-8,8]], "#3d493d", INK, 1.5);              // body
@@ -509,7 +546,7 @@
       h.path([[-6,-14],[6,-14],[6,-7],[-6,-7]], "#b0ce7b", INK, 1.5);          // head
       h.path([[-6,-15],[6,-15],[6,-12],[-6,-12]], "#172431", null);            // flat hair
       h.rect(-9,-11,2.5,3,"#abc0d0"); h.rect(6.5,-11,2.5,3,"#abc0d0");         // bolts
-      h.glow("#ffedac", 5, () => { h.rect(-4,-11,2.5,2,"#ffedac"); h.rect(1.5,-11,2.5,2,"#ffedac"); });
+      h.glow("#ffedac", 5, () => { h.rect(-2.5,-11,2.5,2,"#ffedac"); h.rect(3,-11,2.5,2,"#ffedac"); });
       h.line([[-3,-8],[3,-8]], "#445139", 1);
     },
     werewolf(h) {
@@ -520,14 +557,14 @@
       h.path([[-7,-13],[7,-13],[7,-6],[-7,-6]], "#8a7768", INK, 1.5);          // head
       h.path([[3,-11],[11,-9],[11,-5],[3,-5]], "#6b5b50", INK, 1);             // muzzle
       h.ellipse(10,-7,1.6,1.3,"#17110f");
-      h.glow("#ffc93c", 5, () => { h.rect(-4,-11,2.5,2,"#ffc93c"); h.rect(0,-11,2.5,2,"#ffc93c"); });
+      h.glow("#ffc93c", 5, () => { h.rect(-2.5,-11,2.5,2,"#ffc93c"); h.rect(1.5,-11,2.5,2,"#ffc93c"); });
     },
     witch(h) {
       h.path([[-8,10],[-4,-6],[4,-6],[8,10]], "#795093", INK, 1.5);            // robe
       h.path([[-5,-13],[5,-13],[5,-6],[-5,-6]], "#bfce97", INK, 1.5);          // face
       h.path([[-9,-13],[0,-25],[9,-13]], "#64437e", INK, 1.5);                 // hat
       h.line([[-8,-13],[8,-13]], "#dfb773", 3);                                 // hat band
-      h.glow("#9dff9d", 5, () => { h.rect(-3.5,-11,2.5,2,"#4ade80"); h.rect(1,-11,2.5,2,"#4ade80"); });
+      h.glow("#9dff9d", 5, () => { h.rect(-2,-11,2.5,2,"#4ade80"); h.rect(2.5,-11,2.5,2,"#4ade80"); });
     },
     /* Luno's Flight's witch, seated on whatever she is riding. No legs — a
        broom, a crow or a skimmer goes under her, and the game draws that. Takes
@@ -560,7 +597,7 @@
       const sway = Math.sin((o.t || 0) * 5) * 2;
       h.path([[-8,-6],[-8,8],[-4+sway,4],[0,9],[4+sway,4],[8,8],[8,-6],[0,-14]], "#d9c4df", "#f4d6e3", 1.5);
       h.path([[2,-10],[8,-6],[8,8],[4+sway,4]], "#a988b8", null);
-      h.glow("#ffbac7", 5, () => { h.rect(-4,-8,2.5,3,"#48243f"); h.rect(1.5,-8,2.5,3,"#48243f"); });
+      h.glow("#ffbac7", 5, () => { h.rect(-2.5,-8,2.5,3,"#48243f"); h.rect(3,-8,2.5,3,"#48243f"); });
     },
   };
 

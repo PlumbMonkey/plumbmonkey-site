@@ -922,14 +922,39 @@ function draw() {
        the same walkPhase that drove them. Arms stay below, because they carry
        gameplay — a stolen dish held overhead, and the throw wind-up.
 
-       0.6 fits the kit's ~75px figure into this game's 30x34 actor box; the +5
-       drops the hips so the head sits inside the box rather than above it. */
-    const drewBody = window.SpriteKit && SpriteKit.draw(ctx, c.type, 0, 5, {
+       MINIATURES, not the full figures. The full ones are authored for a 75px
+       body, and at the 0.6 needed to fit this game they measured 32x47 (frank)
+       and 38x45 (vampire) against a 30x34 hitbox — up to 40% taller and 8px
+       wider than the thing you can actually hit, and mushy with it. The
+       miniatures at 1.25 measure 24x34 and 28x34: they fit the box, and carry
+       more ink per pixel (0.84 vs 0.72 for frank) so they read as solid rather
+       than smudged.
+
+       The witch's hat still overhangs the box top, which is correct — hats do.
+
+       A small vertical bob stands in for the walk cycle the full figures got
+       from `stomp`; the miniatures are mostly cloaked and have no visible legs
+       to swing. */
+    const bob = Math.sin(c.walkPhase) * 1.2;
+
+    /* Face the way you are going. Every monster used to stare straight out of
+       the screen no matter which way it was walking, which is most of why the
+       room felt like a diorama rather than a chase.
+
+       Only the BODY is mirrored. The arms below are positioned with cos/sin of
+       c.angle in world space — flipping those too would swing a thrown pie in
+       the opposite direction to the one it actually travels. */
+    const face = Math.cos(c.angle) < 0 ? -1 : 1;
+    ctx.save();
+    ctx.scale(face, 1);
+    // A small lean in the direction of travel, dropped while carrying a dish
+    // (both arms are overhead then, so leaning reads as falling over).
+    if (!c.carryDish) ctx.rotate(Math.sin(c.walkPhase) * 0.05);
+    const drewBody = window.SpriteKit && SpriteKit.drawMini(ctx, c.type, 0, 4 + bob, {
       t: c.walkPhase * 0.5,
-      scale: 0.6,
-      prop: false,                                   // no broom; she is on foot here
-      stomp: Math.sin(c.walkPhase) * 0.5 + 0.5
+      scale: 1.25
     });
+    ctx.restore();
 
     if (!drewBody) {
       // Unknown monster type: a plain marker beats an invisible enemy.
