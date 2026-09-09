@@ -858,253 +858,59 @@ function draw() {
   });
   ctx.shadowBlur = 0;
 
-  // Fans
+  // Fans — artwork from wave3/sprite-kit.js. The poses are unchanged: running
+  // stride, kicking legs while carried, arms thrown up and mouth open when
+  // panicked. Those read as gameplay signal at a glance and were left alone.
   fans.forEach(f => {
     ctx.save();
     ctx.translate(f.x + f.w/2, f.y + f.h/2);
-
-    // panic shake
     if (f.panic > 0 || f.grabbed) {
       ctx.translate((Math.random()-0.5)*3, (Math.random()-0.5)*3);
     }
-
-    const S = f.scale;
-    const bodyH = f.type === 'child' ? 9 : 11;
-    const legY = bodyH * S + 3;
-
-    // legs — running stride while moving, planted when still
-    ctx.strokeStyle = f.color;
-    ctx.lineWidth = 2.5 * S;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    if (f.moving && !f.grabbed) {
-      const stride = Math.sin(f.walkPhase || 0) * 5 * S;
-      ctx.moveTo(-2.5 * S, bodyH * S - 2); ctx.lineTo(-2.5 * S + stride, legY + 5 * S);
-      ctx.moveTo(2.5 * S, bodyH * S - 2);  ctx.lineTo(2.5 * S - stride, legY + 5 * S);
-    } else if (f.grabbed) {
-      // dangling, kicking
-      const kick = Math.sin(Date.now() * 0.02) * 3 * S;
-      ctx.moveTo(-2.5 * S, bodyH * S - 2); ctx.lineTo(-3 * S + kick, legY + 4 * S);
-      ctx.moveTo(2.5 * S, bodyH * S - 2);  ctx.lineTo(3 * S - kick, legY + 4 * S);
-    } else {
-      ctx.moveTo(-2.5 * S, bodyH * S - 2); ctx.lineTo(-3 * S, legY + 5 * S);
-      ctx.moveTo(2.5 * S, bodyH * S - 2);  ctx.lineTo(3 * S, legY + 5 * S);
-    }
-    ctx.stroke();
-
-    // body
-    ctx.fillStyle = f.color;
-    if (f.type === 'child') {
-      ctx.beginPath();
-      ctx.ellipse(0, 4, 7 * S, 9 * S, 0, 0, Math.PI*2);
-      ctx.fill();
-    } else {
-      ctx.beginPath();
-      ctx.ellipse(0, 5, 8 * S, 11 * S, 0, 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    // head
-    ctx.fillStyle = '#fde8e8';
-    ctx.beginPath();
-    ctx.arc(0, -9 * f.scale, 7 * f.scale, 0, Math.PI*2);
-    ctx.fill();
-
-    // hair
-    if (f.type === 'female') {
-      ctx.fillStyle = ['#1e1b4b', '#4c1d95', '#831843', '#0f172a'][Math.floor(f.x) % 4];
-      ctx.beginPath();
-      ctx.ellipse(0, -12 * f.scale, 8 * f.scale, 6 * f.scale, 0, 0, Math.PI*2);
-      ctx.fill();
-    } else if (f.type === 'male') {
-      ctx.fillStyle = '#1e293b';
-      ctx.beginPath();
-      ctx.ellipse(0, -12 * f.scale, 7 * f.scale, 4 * f.scale, 0, 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    // eyes (scared)
-    ctx.fillStyle = '#0f0a1a';
-    ctx.fillRect(-3.5 * f.scale, -10 * f.scale, 2.5 * f.scale, 2.5 * f.scale);
-    ctx.fillRect(1 * f.scale, -10 * f.scale, 2.5 * f.scale, 2.5 * f.scale);
-
-    // open mouth scream
-    if (f.panic > 0 || f.grabbed) {
-      ctx.fillStyle = '#0f0a1a';
-      ctx.beginPath();
-      ctx.ellipse(0, -5 * f.scale, 2.5 * f.scale, 3 * f.scale, 0, 0, Math.PI*2);
-      ctx.fill();
-      // little scream lines
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(6 * f.scale, -14 * f.scale);
-      ctx.lineTo(11 * f.scale, -18 * f.scale);
-      ctx.moveTo(7 * f.scale, -10 * f.scale);
-      ctx.lineTo(12 * f.scale, -11 * f.scale);
-      ctx.stroke();
-    }
-
-    // arms — up when panicked/grabbed, swinging while running, else at rest
-    ctx.strokeStyle = f.color;
-    ctx.lineWidth = 3 * f.scale;
-    ctx.beginPath();
-    if (f.panic > 0 || f.grabbed) {
-      ctx.moveTo(-6 * f.scale, 0); ctx.lineTo(-11 * f.scale, -12 * f.scale);
-      ctx.moveTo(6 * f.scale, 0);  ctx.lineTo(11 * f.scale, -12 * f.scale);
-    } else if (f.moving) {
-      const swing = Math.sin(f.walkPhase || 0) * 4 * f.scale;
-      ctx.moveTo(-6 * f.scale, 1); ctx.lineTo(-9 * f.scale, 8 * f.scale + swing);
-      ctx.moveTo(6 * f.scale, 1);  ctx.lineTo(9 * f.scale, 8 * f.scale - swing);
-    } else {
-      ctx.moveTo(-6 * f.scale, 1); ctx.lineTo(-8 * f.scale, 9 * f.scale);
-      ctx.moveTo(6 * f.scale, 1);  ctx.lineTo(8 * f.scale, 9 * f.scale);
-    }
-    ctx.stroke();
-
+    SpriteKit.draw(ctx, 'fan', 0, 0, {
+      variant: f.type,
+      color: f.color,
+      S: f.scale,
+      phase: f.walkPhase || 0,
+      t: Date.now() / 1000,
+      moving: f.moving,
+      grabbed: f.grabbed,
+      panic: f.panic > 0,
+      // Hair colour was picked off the fan's x so a crowd is not uniform.
+      hair: ['#1e1b4b', '#4c1d95', '#831843', '#0f172a'][Math.floor(f.x) % 4]
+    });
     ctx.restore();
   });
 
-  // Monsters — five distinct silhouettes with animated limbs
+
+  // Monsters — artwork from wave3/sprite-kit.js. Every silhouette and every
+  // animation input is the one this game already had; only the rendering
+  // changed. The coloured bloom stays, because it is how a monster reads
+  // against a dark floor at speed.
   monsters.forEach(m => {
     ctx.save();
     ctx.translate(m.x + m.w/2, m.y + m.h/2);
     const S = m.size;
-    const stride = Math.sin(m.walkPhase || 0) * 5 * S;
 
-    ctx.fillStyle = m.color;
     ctx.shadowColor = m.color;
     ctx.shadowBlur = 12;
 
-    if (m.type === 'specter' || m.type === 'archon') {
-      // hooded wraith — floats (no legs), hem ripples
-      ctx.globalAlpha = 0.8;
-      ctx.beginPath();
-      ctx.arc(0, -4 * S, 11 * S, Math.PI, 0);
-      const hem = 10 * S;
-      ctx.lineTo(11 * S, hem);
-      for (let i = 0; i < 3; i++) {
-        const sx = 11 * S - (i + 0.5) * (22 * S / 3);
-        ctx.quadraticCurveTo(sx + 3.5 * S, hem + 5 * S + Math.sin((m.walkPhase || 0) + i) * 2.5, sx - 3.5 * S, hem);
-      }
-      ctx.closePath();
-      ctx.fill();
-      // hood shadow
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = 'rgba(8,10,20,0.7)';
-      ctx.beginPath();
-      ctx.arc(0, -5 * S, 6.5 * S, 0, Math.PI * 2);
-      ctx.fill();
-      if (m.type === 'archon') {
-        ctx.strokeStyle = '#f9a8d4';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(0, -2 * S, 17 * S, 0, Math.PI * 2); ctx.stroke();
-      }
-    } else if (m.type === 'brute') {
-      // hulking golem — short legs, massive swinging fists
-      ctx.strokeStyle = m.color;
-      ctx.lineWidth = 5 * S;
-      ctx.lineCap = 'round';
-      ctx.beginPath(); // legs
-      ctx.moveTo(-6 * S, 12 * S); ctx.lineTo(-6 * S + stride * 0.6, 19 * S);
-      ctx.moveTo(6 * S, 12 * S);  ctx.lineTo(6 * S - stride * 0.6, 19 * S);
-      ctx.stroke();
-      ctx.fillRect(-13 * S, -12 * S, 26 * S, 26 * S); // slab body
-      // crack across the chest
-      ctx.strokeStyle = 'rgba(15,10,26,0.6)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(-8 * S, -2 * S); ctx.lineTo(-2 * S, 3 * S); ctx.lineTo(4 * S, 0);
-      ctx.stroke();
-      // giant fists, counter-swinging
+    const wraith = m.type === 'specter' || m.type === 'archon';
+    const drew = SpriteKit.draw(ctx, wraith ? 'wraith' : m.type, 0, 0, {
+      variant: m.type,
+      color: m.color,
+      S,
+      stride: Math.sin(m.walkPhase || 0) * 5 * S,
+      phase: m.walkPhase || 0
+    });
+    ctx.shadowBlur = 0;
+
+    if (!drew) {
+      // Unknown type: a marker beats an invisible enemy that can still kill you.
       ctx.fillStyle = m.color;
-      ctx.beginPath();
-      ctx.arc(-17 * S, 2 * S + stride, 6 * S, 0, Math.PI * 2);
-      ctx.arc(17 * S, 2 * S - stride, 6 * S, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (m.type === 'hunter') {
-      // lean sprinting hound — forward lunge, running legs, ears
-      ctx.strokeStyle = m.color;
-      ctx.lineWidth = 3 * S;
-      ctx.lineCap = 'round';
-      ctx.beginPath(); // sprinting legs
-      ctx.moveTo(-3 * S, 8 * S); ctx.lineTo(-4 * S + stride, 17 * S);
-      ctx.moveTo(4 * S, 8 * S);  ctx.lineTo(5 * S - stride, 17 * S);
-      ctx.stroke();
-      ctx.beginPath(); // lunging wedge body
-      ctx.moveTo(0, -13 * S);
-      ctx.lineTo(11 * S, 10 * S);
-      ctx.lineTo(-11 * S, 10 * S);
-      ctx.closePath();
-      ctx.fill();
-      // ears
-      ctx.beginPath();
-      ctx.moveTo(-5 * S, -10 * S); ctx.lineTo(-8 * S, -18 * S); ctx.lineTo(-1 * S, -12 * S);
-      ctx.moveTo(5 * S, -10 * S);  ctx.lineTo(8 * S, -18 * S);  ctx.lineTo(1 * S, -12 * S);
-      ctx.fill();
-    } else if (m.type === 'horror') {
-      // pulsing blob with wriggling tentacles
-      const pulse = 1 + Math.sin((m.walkPhase || 0) * 0.7) * 0.08;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 12 * S * pulse, 12 * S / pulse, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = m.color;
-      ctx.lineWidth = 2.5 * S;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      for (let i = 0; i < 4; i++) {
-        const bx = (i - 1.5) * 6 * S;
-        const wig = Math.sin((m.walkPhase || 0) + i * 1.4) * 4 * S;
-        ctx.moveTo(bx, 9 * S);
-        ctx.quadraticCurveTo(bx + wig, 15 * S, bx - wig, 20 * S);
-      }
-      ctx.stroke();
-    } else {
-      // grunt — horned imp with stubby limbs
-      ctx.strokeStyle = m.color;
-      ctx.lineWidth = 3 * S;
-      ctx.lineCap = 'round';
-      ctx.beginPath(); // waddling legs + swinging arms
-      ctx.moveTo(-4 * S, 12 * S); ctx.lineTo(-5 * S + stride, 18 * S);
-      ctx.moveTo(4 * S, 12 * S);  ctx.lineTo(5 * S - stride, 18 * S);
-      ctx.moveTo(-10 * S, 0);     ctx.lineTo(-13 * S, 6 * S - stride);
-      ctx.moveTo(10 * S, 0);      ctx.lineTo(13 * S, 6 * S + stride);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(0, 2, 11 * S, 13 * S, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // horns
-      ctx.beginPath();
-      ctx.moveTo(-7 * S, -9 * S); ctx.lineTo(-10 * S, -17 * S); ctx.lineTo(-3 * S, -11 * S);
-      ctx.moveTo(7 * S, -9 * S);  ctx.lineTo(10 * S, -17 * S);  ctx.lineTo(3 * S, -11 * S);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(0, 0, 12 * S, 0, Math.PI * 2); ctx.fill();
     }
 
-    // eyes (specter gets glowing hollow eyes inside the hood instead)
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1;
-    if (m.type === 'specter' || m.type === 'archon') {
-      ctx.fillStyle = m.type === 'archon' ? '#fdf2f8' : '#67e8f9';
-      ctx.fillRect(-4 * S, -7 * S, 3 * S, 3 * S);
-      ctx.fillRect(1.5 * S, -7 * S, 3 * S, 3 * S);
-    } else if (m.type === 'horror') {
-      // three mismatched eyes
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(-7 * S, -5 * S, 4 * S, 4 * S);
-      ctx.fillRect(2 * S, -6 * S, 4 * S, 4 * S);
-      ctx.fillRect(-2 * S, -1 * S, 3 * S, 3 * S);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(-6 * S, -4 * S, 2 * S, 2 * S);
-      ctx.fillRect(3 * S, -5 * S, 2 * S, 2 * S);
-      ctx.fillRect(-1.5 * S, 0, 1.5 * S, 1.5 * S);
-    } else {
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(-6 * S, -6 * S, 4 * S, 4 * S);
-      ctx.fillRect(2 * S, -6 * S, 4 * S, 4 * S);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(-5 * S, -5 * S, 2 * S, 2 * S);
-      ctx.fillRect(3 * S, -5 * S, 2 * S, 2 * S);
-    }
 
     // HP bar
     if (m.maxHp > 1) {

@@ -911,101 +911,32 @@ function draw() {
     ctx.save();
     ctx.translate(c.x + 15, c.y + 17);
 
-    // --- Legs (all except the floating ghost): simple running stride ---
-    if (c.type !== 'ghost') {
-      const stride = Math.sin(c.walkPhase) * 5;
-      ctx.strokeStyle = c.type === 'frank' ? '#166534' : '#1e1b4b';
-      ctx.lineWidth = 4;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-5, 14); ctx.lineTo(-5 + stride, 26);
-      ctx.moveTo(5, 14);  ctx.lineTo(5 - stride, 26);
-      ctx.stroke();
+    /* --- Body: shared artwork from wave3/sprite-kit.js ---
+       Frankenstein, the ghost and the witch are the SAME figures House of the
+       Hooded draws — one manor, one cast, one look. They used to be stacked
+       fillRects here and layered polygons there. The vampire and werewolf were
+       authored to match.
+
+       The kit draws whole figures including legs, so the stride lines that used
+       to live here are gone; `stomp` drives Frankenstein's mismatched boots off
+       the same walkPhase that drove them. Arms stay below, because they carry
+       gameplay — a stolen dish held overhead, and the throw wind-up.
+
+       0.6 fits the kit's ~75px figure into this game's 30x34 actor box; the +5
+       drops the hips so the head sits inside the box rather than above it. */
+    const drewBody = window.SpriteKit && SpriteKit.draw(ctx, c.type, 0, 5, {
+      t: c.walkPhase * 0.5,
+      scale: 0.6,
+      prop: false,                                   // no broom; she is on foot here
+      stomp: Math.sin(c.walkPhase) * 0.5 + 0.5
+    });
+
+    if (!drewBody) {
+      // Unknown monster type: a plain marker beats an invisible enemy.
+      ctx.fillStyle = c.color;
+      ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill();
     }
 
-    if (c.type === 'ghost') {
-      // Floating ghost
-      ctx.globalAlpha = 0.85;
-      ctx.fillStyle = c.color;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 14, 18, 0, 0, Math.PI*2);
-      ctx.fill();
-      // wavy bottom
-      ctx.beginPath();
-      ctx.moveTo(-14, 8);
-      ctx.quadraticCurveTo(-7, 18, 0, 10);
-      ctx.quadraticCurveTo(7, 18, 14, 8);
-      ctx.fill();
-      ctx.fillStyle = '#0f0a1a';
-      ctx.beginPath(); ctx.arc(-5, -4, 3, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(5, -4, 3, 0, Math.PI*2); ctx.fill();
-    } else if (c.type === 'vampire') {
-      // Vampire - cape + fangs
-      ctx.fillStyle = '#1e1b4b';
-      ctx.beginPath();
-      ctx.moveTo(-16, -5); ctx.lineTo(0, 20); ctx.lineTo(16, -5);
-      ctx.fill(); // cape
-      ctx.fillStyle = c.color;
-      ctx.fillRect(-10, -6, 20, 24);
-      ctx.fillStyle = '#fce7f3';
-      ctx.beginPath(); ctx.arc(0, -12, 9, 0, Math.PI*2); ctx.fill();
-      // fangs
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.moveTo(-4, -6); ctx.lineTo(-2, 0); ctx.lineTo(0, -6); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(2, 0); ctx.lineTo(4, -6); ctx.fill();
-      // red eyes
-      ctx.fillStyle = '#ef4444';
-      ctx.fillRect(-5, -14, 3, 3); ctx.fillRect(2, -14, 3, 3);
-    } else if (c.type === 'werewolf') {
-      // Werewolf - hunched, ears
-      ctx.fillStyle = c.color;
-      ctx.fillRect(-13, -4, 26, 26);
-      // head
-      ctx.beginPath(); ctx.ellipse(0, -12, 11, 10, 0, 0, Math.PI*2); ctx.fill();
-      // ears
-      ctx.beginPath(); ctx.moveTo(-9, -18); ctx.lineTo(-5, -28); ctx.lineTo(-1, -18); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(9, -18); ctx.lineTo(5, -28); ctx.lineTo(1, -18); ctx.fill();
-      // glowing eyes
-      ctx.fillStyle = '#fbbf24';
-      ctx.fillRect(-5, -14, 4, 3); ctx.fillRect(2, -14, 4, 3);
-      // snout
-      ctx.fillStyle = '#57534e';
-      ctx.fillRect(-3, -8, 6, 5);
-    } else if (c.type === 'frank') {
-      // Frankenstein - blocky, bolts
-      ctx.fillStyle = c.color;
-      ctx.fillRect(-13, -6, 26, 28);
-      ctx.fillStyle = '#86efac';
-      ctx.fillRect(-11, -18, 22, 14); // head
-      // flat head top
-      ctx.fillStyle = '#166534';
-      ctx.fillRect(-12, -20, 24, 4);
-      // bolts
-      ctx.fillStyle = '#a1a1aa';
-      ctx.fillRect(-17, -10, 5, 6);
-      ctx.fillRect(12, -10, 5, 6);
-      // scars / eyes
-      ctx.fillStyle = '#0f0a1a';
-      ctx.fillRect(-6, -12, 4, 4); ctx.fillRect(3, -12, 4, 4);
-      ctx.strokeStyle = '#14532d';
-      ctx.beginPath(); ctx.moveTo(-4, -4); ctx.lineTo(5, -2); ctx.stroke();
-    } else if (c.type === 'witch') {
-      // Witch - pointed hat
-      ctx.fillStyle = c.color;
-      ctx.fillRect(-11, -4, 22, 26);
-      // hat
-      ctx.fillStyle = '#4c1d95';
-      ctx.beginPath();
-      ctx.moveTo(0, -32); ctx.lineTo(-14, -10); ctx.lineTo(14, -10);
-      ctx.fill();
-      ctx.fillRect(-16, -12, 32, 5); // brim
-      // face
-      ctx.fillStyle = '#e9d5ff';
-      ctx.beginPath(); ctx.arc(0, -6, 8, 0, Math.PI*2); ctx.fill();
-      // green eyes
-      ctx.fillStyle = '#4ade80';
-      ctx.fillRect(-5, -8, 3, 3); ctx.fillRect(2, -8, 3, 3);
-    }
 
     // --- Arms: swing while walking, snap forward on a throw ---
     {
@@ -1016,16 +947,18 @@ function draw() {
       ctx.lineWidth = 4;
       ctx.lineCap = 'round';
       if (c.carryDish) {
-        // both arms overhead holding the stolen dish
+        // Both arms overhead holding the stolen dish. Raised from -22/-24 to
+        // clear the sprite-kit heads, which are taller than the fillRect blocks
+        // these offsets were measured against — the witch's hat reaches -35.
         ctx.beginPath();
-        ctx.moveTo(-8, 0); ctx.lineTo(-4, -22);
-        ctx.moveTo(8, 0);  ctx.lineTo(4, -22);
+        ctx.moveTo(-8, 0); ctx.lineTo(-5, -34);
+        ctx.moveTo(8, 0);  ctx.lineTo(5, -34);
         ctx.stroke();
         // the dish!
         ctx.fillStyle = '#e9d5ff';
-        ctx.beginPath(); ctx.ellipse(0, -24, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0, -37, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
         ctx.save();
-        ctx.translate(0, -28);
+        ctx.translate(0, -41);
         drawFoodShape('cake', 6);
         ctx.restore();
       } else if (c.throwAnim > 0) {

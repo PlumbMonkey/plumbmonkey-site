@@ -130,7 +130,8 @@ const ArcadeControls = (function () {
     // Auto-fire holds the primary action down. The Quest browser generally
     // gives you ONE laser cursor, so without this you cannot press a movement
     // button and the fire button at the same time in any of the shooters.
-    if (autoFire && opts.buttons[0]) desired.add(opts.buttons[0].code);
+    const repeatAction = opts.buttons.find(b => b.code === opts.autoFireCode) || opts.buttons[0];
+    if (autoFire && repeatAction) desired.add(repeatAction.code);
     ownedKeys.forEach(c => {
       if (!desired.has(c)) keys[c] = physicalKeys.has(c);
     });
@@ -331,7 +332,9 @@ const ArcadeControls = (function () {
       b.className = 'ac-btn ac-act';
       b.textContent = cfg.label;
       if (cfg.accent) b.style.borderColor = cfg.accent;
-      bindHold(b, cfg.code);
+      // A tap-only action can otherwise start and end between polling frames.
+      if (cfg.onTap) b.addEventListener('click', e => { e.preventDefault(); cfg.onTap(); });
+      else bindHold(b, cfg.code);
       acts.appendChild(b);
     });
     host.appendChild(acts);
@@ -379,7 +382,8 @@ const ArcadeControls = (function () {
       af.className = 'ac-chip';
       af.id = 'ac-autofire';
       af.textContent = '⟳';
-      af.title = 'Auto-fire — holds ' + opts.buttons[0].label +
+      const repeatAction = opts.buttons.find(b => b.code === opts.autoFireCode) || opts.buttons[0];
+      af.title = 'Auto-fire — holds ' + repeatAction.label +
         ' down so you can move at the same time with a single VR pointer';
       af.addEventListener('click', () => {
         autoFire = !autoFire;
