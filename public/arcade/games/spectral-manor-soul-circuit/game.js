@@ -376,17 +376,68 @@ function buildMaze() {
 /* How many hunters are loose. All four used to be out from level one, coming at
    you from all four corners at once with nowhere to run. The maze needs room to
    get harder, so it starts with two and gains one per level. */
+/* Extra corners for the fifth and sixth hunter, so difficulty can keep climbing
+   past the four named monsters. Beyond four the roster cycles the same types
+   from different corners rather than stopping. */
+const EXTRA_HOMES = [
+  { c: 20, r: 1 },
+  { c: 20, r: 20 }
+];
+
+/* 3 at level one, 4 from level two, then one more every second level up to six.
+
+   The first version of this ramped far too slowly — 2, 2, 3, 3, 4 — which left
+   the maze feeling deserted at exactly the point the player had just learned to
+   corner. Three is enough to be hunted on the first board and four is the
+   classic quartet by the second. */
 function monsterCountFor(lvl) {
-  return Math.min(monsterDefs.length, 2 + Math.floor((lvl - 1) / 2));
+  return Math.min(6, 3 + Math.floor(lvl / 2));
+}
+
+/* The nearest open cell to (r, c), searched in rings outward.
+
+   The four home corners were written for the original hedge maze and hard-coded
+   into monsterDefs. The graveyard and the ethereal plane are different layouts,
+   and in both of them the Vampire's corner (r1, c38) is solid — so it spawned
+   INSIDE A WALL and sat there for the whole level, stuck, while its scatter
+   target pointed at the same unreachable cell.
+
+   Resolving the home against the actual maze fixes it for every board,
+   including any added later. */
+function nearestOpenCell(r, c) {
+  if (maze[r] && maze[r][c] !== undefined && maze[r][c] !== 1) return { r, c };
+  for (let ring = 1; ring < Math.max(ROWS, COLS); ring++) {
+    for (let dr = -ring; dr <= ring; dr++) {
+      for (let dc = -ring; dc <= ring; dc++) {
+        // only the ring's edge, not its filled interior
+        if (Math.abs(dr) !== ring && Math.abs(dc) !== ring) continue;
+        const nr = r + dr, nc = c + dc;
+        if (nr > 0 && nr < ROWS - 1 && nc > 0 && nc < COLS - 1 && maze[nr][nc] !== 1) {
+          return { r: nr, c: nc };
+        }
+      }
+    }
+  }
+  return { r: 9, c: 20 };   // the artery, which every maze keeps open
 }
 
 function spawnMonsters() {
-  monsters = monsterDefs.slice(0, monsterCountFor(level)).map(d => ({
-    ...d,
-    x: d.home.c * CELL + CELL/2,
-    y: d.home.r * CELL + CELL/2,
-    dir: {x:0, y:0}
-  }));
+  const count = monsterCountFor(level);
+  monsters = [];
+  for (let i = 0; i < count; i++) {
+    const def = monsterDefs[i % monsterDefs.length];
+    const wanted = i < monsterDefs.length
+      ? def.home
+      : EXTRA_HOMES[(i - monsterDefs.length) % EXTRA_HOMES.length];
+    const home = nearestOpenCell(wanted.r, wanted.c);
+    monsters.push({
+      ...def,
+      home,                                   // scatter aims here, so it must be reachable
+      x: home.c * CELL + CELL / 2,
+      y: home.r * CELL + CELL / 2,
+      dir: { x: 0, y: 0 }
+    });
+  }
   aiPhase = 0;
   aiPhaseTimer = SCATTER_FRAMES;
 }
@@ -620,6 +671,12 @@ function update() {
     aiPhaseTimer = aiPhase === 0 ? SCATTER_FRAMES : CHASE_FRAMES;
   }
 
+  /* Angle for the scatter orbit below. Driven off the phase clock rather than
+     Date.now() so it stays in step with the scatter/chase rhythm and remains
+     deterministic for the headless checks. `m.speed` offsets each monster so
+     four of them do not orbit in formation. */
+  const orbit = aiPhaseTimer * 0.03;
+
   // Monsters AI — frozen monsters stand still
   monsters.forEach(m => {
     if (freezeTime > 0) return;
@@ -634,8 +691,19 @@ function update() {
            scattering, the player while hunting. The magic field inverts it —
            it runs from wherever it was headed. */
         const scattering = aiPhase === 0 && magicField === 0;
+        /* Scatter ORBITS the home corner rather than sitting on it.
+
+           Monsters spawn on their home cell, so a plain "head home" goal gave
+           them nothing to do for the whole seven-second scatter — four hunters
+           standing perfectly still at the start of every level, which reads
+           exactly like the stuck-in-a-wall bug rather than like a breather.
+           Circling the corner is what the arcade original does, and it keeps
+           them legible as alive-but-not-yet-coming-for-you. */
         const goal = scattering
-          ? { x: m.home.c * CELL + CELL / 2, y: m.home.r * CELL + CELL / 2 }
+          ? {
+              x: m.home.c * CELL + CELL / 2 + Math.cos(orbit + m.speed) * CELL * 2.2,
+              y: m.home.r * CELL + CELL / 2 + Math.sin(orbit + m.speed) * CELL * 2.2
+            }
           : player;
         const flee = magicField > 0;
         options.sort((a, b) => {
