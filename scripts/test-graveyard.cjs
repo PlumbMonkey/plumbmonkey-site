@@ -61,6 +61,18 @@ for(let level=1;level<=3;level++){
 }
 assert.notDeepEqual(createState(1).blocks,createState(2).blocks);
 assert.notDeepEqual(createState(2).blocks,createState(3).blocks);
+// Full routes remain traversable. Invulnerability isolates geometry/progression
+// from combat balance; guardian health still falls only through real projectiles.
+for(let level=1;level<=3;level++){
+  const s=quiet(level);s.p.inv=999;let completed=false;
+  for(let i=0;i<12000&&!completed;i++){
+    const p=s.p;
+    const obstacle=s.blocks.find(b=>b.x>=p.x+p.w-1&&b.x-(p.x+p.w)<50&&b.y<p.y+p.h);
+    completed=step(s,1/60,{move:p.x<2700||s.boss.hp===0?1:0,jump:!!(p.on&&obstacle),fire:true})
+      .some(e=>e.type===(level<3?'next':'win'));
+  }
+  assert.ok(completed,`Chapter ${level} must be traversable and its guardian defeatable`);
+}
 console.log('Graveyard Shift: collision, jumps, combat, pickups, checkpoints, health and all three guardians passed.');
 
 

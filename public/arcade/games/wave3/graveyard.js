@@ -256,7 +256,18 @@
     }
     function backdrop(){
       api.bg();
-      if(s.level===1){api.mansion(.16);}
+      if(s.level===1){
+        // One moon, with a quiet parallax manor behind the playable scenery.
+        const drift=(s.camera-160)*.12;
+        rect(425-drift,300,330,300,"#171525");
+        c.fillStyle="#171525";c.beginPath();c.moveTo(400-drift,305);c.lineTo(590-drift,195);c.lineTo(780-drift,305);c.fill();
+        for(const x of [420,710]){
+          rect(x-drift,260,70,340,"#1c182b");
+          c.fillStyle="#1c182b";c.beginPath();c.moveTo(x-15-drift,265);c.lineTo(x+35-drift,130);c.lineTo(x+85-drift,265);c.fill();
+          for(let y=290;y<570;y+=85)rect(x+25-drift,y,20,34,"#453148");
+        }
+        for(let x=520;x<690;x+=65)for(let y=335;y<590;y+=90)rect(x-drift,y,22,38,"#392b40");
+      }
       else{
         rect(-160,0,1280,600,s.level===2?"#15151f":"#171023");
         for(let i=-1;i<9;i++){
