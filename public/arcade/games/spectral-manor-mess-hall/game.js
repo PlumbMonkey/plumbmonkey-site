@@ -84,7 +84,7 @@ const sfx = {
 
 // ---------- State ----------
 let score = 0, lives = 3, level = 1, ammo = 12;
-let gameRunning = false, gameOver = false;
+let gameRunning = false, gameOver = false, paused = false;
 let keys = {};
 let mouse = { x: W/2, y: H/2, down: false };
 
@@ -147,6 +147,7 @@ const buffet = { x: 405, y: 225, w: 150, h: 60, dishes: 6, maxDishes: 6, flash: 
 // ---------- Input ----------
 window.addEventListener('keydown', e => {
   initAudio();
+  if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat && gameRunning) { paused = !paused; mouse.down = false; Object.keys(keys).forEach(k => keys[k] = false); }
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
   if (e.code === 'Enter' && !e.repeat && !gameRunning) startGame();
@@ -158,8 +159,10 @@ canvas.addEventListener('mousemove', e => {
   mouse.x = (e.clientX - r.left) * (W / r.width);
   mouse.y = (e.clientY - r.top) * (H / r.height);
 });
-canvas.addEventListener('mousedown', () => { mouse.down = true; initAudio(); });
-canvas.addEventListener('mouseup', () => mouse.down = false);
+canvas.addEventListener('mousedown', () => { if (paused) { paused=false; return; } mouse.down = true; initAudio(); });
+canvas.addEventListener('touchstart', () => { if(paused) paused=false; }, {passive:true});
+window.addEventListener('mouseup', () => mouse.down = false);
+window.addEventListener('blur', () => { Object.keys(keys).forEach(k => keys[k] = false); mouse.down = false; if (gameRunning) paused = true; });
 
 document.getElementById('startOverlay').addEventListener('click', () => {
   initAudio();
@@ -184,7 +187,7 @@ function startGame() {
   player.x = 80; player.y = H/2;          // start clear of tables
   player.invuln = 0; player.throwCooldown = 0;
   player.throwAnim = 0; player.pendingThrow = null;
-  gameRunning = true; gameOver = false;
+  gameRunning = true; gameOver = false; paused = false;
   document.getElementById('startOverlay').classList.add('hidden');
   spawnTables();
   spawnLevel();
@@ -258,7 +261,7 @@ function spawnLevel() {
     { type: 'witch',     color: '#7c3aed', speed: 1.3, hp: 2, label: 'Witch' }
   ];
 
-  const count = 4 + level * 2;
+  const count = Math.min(20, 4 + level * 2);
   // Keep new monsters clear of the hero's start/current spot so none spawns
   // right on them (the hero starts at the left edge, x=80, where the old
   // x>=100 spawn band could land a chef almost on top of them).
@@ -271,11 +274,12 @@ function spawnLevel() {
       cx = 100 + Math.random() * (W - 200);
       cy = 70 + Math.random() * (H - 160);
     } while (Math.hypot((cx + 15) - pcx, (cy + 17) - pcy) < SAFE_SPAWN && tries++ < 40);
+    ({x: cx, y: cy} = clearSpot(cx, cy, 30, 34, SAFE_SPAWN));
     chefs.push({
       x: cx,
       y: cy,
       w: 30, h: 34,
-      speed: m.speed + level * 0.12,
+      speed: m.speed + Math.min(level, 12) * 0.12,
       hp: m.hp + Math.floor(level / 4),
       maxHp: m.hp + Math.floor(level / 4),
       angle: 0,
@@ -310,7 +314,21 @@ const FOOD_TYPES = [
 ];
 function randomFood() { return FOOD_TYPES[Math.floor(Math.random() * FOOD_TYPES.length)]; }
 
+// Keep the whole pickup and a walking margin clear of furniture.
+function clearSpot(x, y, w, h, safeDistance = 0) {
+  const clear = (x, y) => x >= 16 && y >= 46 && x + w <= W - 16 && y + h <= H - 16 &&
+    Math.hypot(x + w/2 - player.x - player.w/2, y + h/2 - player.y - player.h/2) >= safeDistance &&
+    !tables.some(t => x < t.x+t.w+18 && x+w > t.x-18 && y < t.y+t.h+18 && y+h > t.y-18);
+  if (clear(x,y)) return {x,y};
+  let best = null, distance = Infinity;
+  for (let cy=48; cy<H-h-16; cy+=24) for (let cx=16; cx<W-w-16; cx+=24) {
+    const d = Math.hypot(cx-x,cy-y);
+    if (clear(cx,cy) && d<distance) { best={x:cx,y:cy}; distance=d; }
+  }
+  return best || {x:16,y:48};
+}
 function spawnPickup(x, y) {
+  ({x,y} = clearSpot(x,y,16,16));
   const t = randomFood();
   pickups.push({
     x, y, w: 16, h: 16,
@@ -356,7 +374,7 @@ function throwFood() {
 
 // ---------- Update ----------
 function update() {
-  if (!gameRunning) return;
+  if (!gameRunning || paused) return;
   if (hitPause > 0) { hitPause--; return; }   // impact freeze-frame
   if (shakeTime > 0) shakeTime--;
   if (bannerTime > 0) bannerTime--;
@@ -433,6 +451,7 @@ function update() {
 
   // Foods (projectiles)
   foods.forEach(f => {
+    const oldX = f.x, oldY = f.y;
     f.x += f.vx;
     f.y += f.vy;
     f.rot = (f.rot || 0) + (f.rotSpeed || 0);   // tumble in flight
@@ -440,7 +459,12 @@ function update() {
     // bounce off tables lightly
     for (const t of tables) {
       if (f.x > t.x && f.x < t.x + t.w && f.y > t.y && f.y < t.y + t.h) {
-        f.vx *= -0.6; f.vy *= -0.6;
+        if (f.bounced) { f.life = 0; spawnSplat(f.x,f.y,f.color); break; }
+        f.bounced = true;
+        if (oldX <= t.x || oldX >= t.x+t.w) { f.x = oldX; f.vx *= -0.7; }
+        else if (oldY <= t.y || oldY >= t.y+t.h) { f.y = oldY; f.vy *= -0.7; }
+        else { f.life = 0; }
+        break;
       }
     }
   });
@@ -487,11 +511,11 @@ function update() {
       c.angle = Math.atan2(fdy, fdx);
       // escaped off-screen — dish is gone for good
       if (c.x < -50 || c.x > W + 50 || c.y < -50 || c.y > H + 50) {
-        chefs.splice(ci, 1);
+        c.escaped = true;
         sfx.hurt();
         triggerShake(5, 10);
         updateHUD();
-        if (buffet.dishes <= 0) endGame('THE BUFFET IS LOST', 'The monsters took every last dish.');
+        if (buffet.dishes <= 0 && !chefs.some(other => other.carryDish && !other.escaped)) endGame('THE BUFFET IS LOST', 'The monsters took every last dish.');
       }
       return; // thieves don't fight while escaping
     }
@@ -511,6 +535,7 @@ function update() {
         buffet.dishes--;
         buffet.flash = 30;
         c.carryDish = true;
+        c.pendingThrow = null; c.throwAnim = 0;
         sfx.pickup();
         updateHUD();
       }
@@ -553,26 +578,28 @@ function update() {
         food: randomFood()
       };
       c.throwAnim = 24;
-      c.throwTimer = 55 + Math.random() * 70 - level * 2;
+      c.throwTimer = Math.max(40, 55 + Math.random() * 70 - level * 2);
     }
   });
 
+  chefs = chefs.filter(c => !c.escaped);
+
   // Monsters can hit each other with food
   foods.forEach((f, fi) => {
-    if (!f.fromChef || !f.owner) return;
+    if (f.spent || !f.fromChef || !f.owner) return;
     chefs.forEach((c, ci) => {
-      if (c === f.owner) return;
+      if (f.spent || c.defeated || c === f.owner) return;
       if (f.x > c.x && f.x < c.x + c.w && f.y > c.y && f.y < c.y + c.h) {
         c.hp--;
         spawnSplat(f.x, f.y, f.color);
         createParticles(c.x + 15, c.y + 15, c.color, 6);
-        foods.splice(fi, 1);
+        f.spent = true;
         if (c.hp <= 0) {
           score += 60; // bonus for monster-on-monster kills
           if (c.carryDish) { buffet.dishes++; buffet.flash = 20; } // dish saved!
           createParticles(c.x + 15, c.y + 15, c.color, 14);
           spawnPickup(c.x, c.y);
-          chefs.splice(ci, 1);
+          c.defeated = true;
           updateHUD();
         }
       }
@@ -581,13 +608,14 @@ function update() {
 
   // Food vs Chefs
   foods.forEach((f, fi) => {
-    if (f.fromChef) return;
+    if (f.spent || f.fromChef) return;
     chefs.forEach((c, ci) => {
+      if (f.spent || c.defeated) return;
       if (f.x > c.x && f.x < c.x + c.w && f.y > c.y && f.y < c.y + c.h) {
         c.hp--;
         spawnSplat(f.x, f.y, f.color);
         createParticles(c.x + 15, c.y + 15, c.color, 8);
-        foods.splice(fi, 1);
+        f.spent = true;
         sfx.hit();
         if (c.hp <= 0) {
           combo++;
@@ -604,7 +632,7 @@ function update() {
           createParticles(c.x + 15, c.y + 15, c.color, 18);
           // drop food
           spawnPickup(c.x, c.y);
-          chefs.splice(ci, 1);
+          c.defeated = true;
           updateHUD();
         }
       }
@@ -614,11 +642,11 @@ function update() {
   // Chef food vs Player
   if (player.invuln <= 0) {
     foods.forEach((f, fi) => {
-      if (!f.fromChef) return;
+      if (f.spent || !f.fromChef || player.invuln > 0 || !gameRunning) return;
       if (f.x > player.x && f.x < player.x + player.w &&
           f.y > player.y && f.y < player.y + player.h) {
         spawnSplat(f.x, f.y, f.color);
-        foods.splice(fi, 1);
+        f.spent = true;
         lives--;
         player.invuln = 60;
         combo = 0; comboTimer = 0;
@@ -635,6 +663,7 @@ function update() {
   // Player vs Chefs (body)
   if (player.invuln <= 0) {
     chefs.forEach(c => {
+      if (c.defeated || player.invuln > 0 || !gameRunning) return;
       if (player.x < c.x + c.w && player.x + player.w > c.x &&
           player.y < c.y + c.h && player.y + player.h > c.y) {
         lives--;
@@ -663,10 +692,15 @@ function update() {
       score += p.points;
       sfx.pickup();
       createParticles(p.x + 8, p.y + 8, p.color, 6);
-      pickups.splice(pi, 1);
+      p.collected = true;
       updateHUD();
     }
   });
+
+  foods = foods.filter(f => !f.spent);
+  chefs = chefs.filter(c => !c.defeated);
+  pickups = pickups.filter(p => !p.collected);
+  if (ammo === 0 && pickups.length === 0 && gameRunning) spawnPickup(player.x + 48, player.y);
 
   // Level clear — breather: banner shows for a beat before the next level spawns
   if (chefs.length === 0 && gameRunning && waveDelay === 0) {
@@ -676,6 +710,7 @@ function update() {
     bannerText = 'LEVEL ' + level;
     bannerTime = 90;
     waveDelay = 75;
+    foods = []; player.pendingThrow = null; player.invuln = 90;
     updateHUD();
   }
 
@@ -911,6 +946,41 @@ function draw() {
     ctx.save();
     ctx.translate(c.x + 15, c.y + 17);
 
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(0,24,17,5,0,0,Math.PI*2);ctx.fill();
+    if (c.carryDish || c.stealTimer < 90) {
+      ctx.strokeStyle = c.carryDish ? '#fbbf24' : '#f0abfc';ctx.lineWidth=2;
+      ctx.beginPath();ctx.ellipse(0,24,20,7,0,0,Math.PI*2);ctx.stroke();
+      ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillStyle=ctx.strokeStyle;
+      ctx.fillText(c.carryDish?'THIEF!':'RAID',0,-43);
+    }
+    if(c.pendingThrow && !c.carryDish) {
+      ctx.save();ctx.rotate(c.pendingThrow.angle);ctx.strokeStyle='#ff8b86';ctx.lineWidth=2;
+      ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(20,0);ctx.lineTo(80,0);ctx.stroke();ctx.restore();
+    }
+    /* Face the way you are going.
+
+       Every monster used to stare straight out of the screen no matter which
+       way it was walking, which is most of why the room read as a diorama
+       rather than a chase. c.angle already points at whatever this monster is
+       chasing, so it is the honest source for facing.
+
+       The mirror wraps the LEGS and BODY only and is closed before the arms.
+       The arms below are positioned with cos/sin of c.angle in world space —
+       mirroring those as well would swing a thrown pie in the opposite
+       direction to the one it actually travels. */
+    const face = Math.cos(c.angle) < 0 ? -1 : 1;
+    ctx.save();
+    ctx.scale(face, 1);
+    /* Each monster's eyes sit ~2px right of centre (see the branches below).
+       These figures are otherwise built from centred rects and arcs, so
+       mirroring them was measurably a no-op — 12 pixels out of 3600 changed
+       between facing left and facing right. The off-centre gaze is the whole
+       reason the flip is visible. */
+    // A small walking lean, dropped while carrying a dish: both arms are
+    // overhead then, and leaning reads as toppling over rather than hurrying.
+    if (!c.carryDish) ctx.rotate(Math.sin(c.walkPhase) * 0.05);
+
     // --- Legs (all except the floating ghost): simple running stride ---
     if (c.type !== 'ghost') {
       const stride = Math.sin(c.walkPhase) * 5;
@@ -923,89 +993,9 @@ function draw() {
       ctx.stroke();
     }
 
-    if (c.type === 'ghost') {
-      // Floating ghost
-      ctx.globalAlpha = 0.85;
-      ctx.fillStyle = c.color;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 14, 18, 0, 0, Math.PI*2);
-      ctx.fill();
-      // wavy bottom
-      ctx.beginPath();
-      ctx.moveTo(-14, 8);
-      ctx.quadraticCurveTo(-7, 18, 0, 10);
-      ctx.quadraticCurveTo(7, 18, 14, 8);
-      ctx.fill();
-      ctx.fillStyle = '#0f0a1a';
-      ctx.beginPath(); ctx.arc(-5, -4, 3, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(5, -4, 3, 0, Math.PI*2); ctx.fill();
-    } else if (c.type === 'vampire') {
-      // Vampire - cape + fangs
-      ctx.fillStyle = '#1e1b4b';
-      ctx.beginPath();
-      ctx.moveTo(-16, -5); ctx.lineTo(0, 20); ctx.lineTo(16, -5);
-      ctx.fill(); // cape
-      ctx.fillStyle = c.color;
-      ctx.fillRect(-10, -6, 20, 24);
-      ctx.fillStyle = '#fce7f3';
-      ctx.beginPath(); ctx.arc(0, -12, 9, 0, Math.PI*2); ctx.fill();
-      // fangs
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.moveTo(-4, -6); ctx.lineTo(-2, 0); ctx.lineTo(0, -6); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(2, 0); ctx.lineTo(4, -6); ctx.fill();
-      // red eyes
-      ctx.fillStyle = '#ef4444';
-      ctx.fillRect(-5, -14, 3, 3); ctx.fillRect(2, -14, 3, 3);
-    } else if (c.type === 'werewolf') {
-      // Werewolf - hunched, ears
-      ctx.fillStyle = c.color;
-      ctx.fillRect(-13, -4, 26, 26);
-      // head
-      ctx.beginPath(); ctx.ellipse(0, -12, 11, 10, 0, 0, Math.PI*2); ctx.fill();
-      // ears
-      ctx.beginPath(); ctx.moveTo(-9, -18); ctx.lineTo(-5, -28); ctx.lineTo(-1, -18); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(9, -18); ctx.lineTo(5, -28); ctx.lineTo(1, -18); ctx.fill();
-      // glowing eyes
-      ctx.fillStyle = '#fbbf24';
-      ctx.fillRect(-5, -14, 4, 3); ctx.fillRect(2, -14, 4, 3);
-      // snout
-      ctx.fillStyle = '#57534e';
-      ctx.fillRect(-3, -8, 6, 5);
-    } else if (c.type === 'frank') {
-      // Frankenstein - blocky, bolts
-      ctx.fillStyle = c.color;
-      ctx.fillRect(-13, -6, 26, 28);
-      ctx.fillStyle = '#86efac';
-      ctx.fillRect(-11, -18, 22, 14); // head
-      // flat head top
-      ctx.fillStyle = '#166534';
-      ctx.fillRect(-12, -20, 24, 4);
-      // bolts
-      ctx.fillStyle = '#a1a1aa';
-      ctx.fillRect(-17, -10, 5, 6);
-      ctx.fillRect(12, -10, 5, 6);
-      // scars / eyes
-      ctx.fillStyle = '#0f0a1a';
-      ctx.fillRect(-6, -12, 4, 4); ctx.fillRect(3, -12, 4, 4);
-      ctx.strokeStyle = '#14532d';
-      ctx.beginPath(); ctx.moveTo(-4, -4); ctx.lineTo(5, -2); ctx.stroke();
-    } else if (c.type === 'witch') {
-      // Witch - pointed hat
-      ctx.fillStyle = c.color;
-      ctx.fillRect(-11, -4, 22, 26);
-      // hat
-      ctx.fillStyle = '#4c1d95';
-      ctx.beginPath();
-      ctx.moveTo(0, -32); ctx.lineTo(-14, -10); ctx.lineTo(14, -10);
-      ctx.fill();
-      ctx.fillRect(-16, -12, 32, 5); // brim
-      // face
-      ctx.fillStyle = '#e9d5ff';
-      ctx.beginPath(); ctx.arc(0, -6, 8, 0, Math.PI*2); ctx.fill();
-      // green eyes
-      ctx.fillStyle = '#4ade80';
-      ctx.fillRect(-5, -8, 3, 3); ctx.fillRect(2, -8, 3, 3);
-    }
+    drawChefBody(c);
+
+    ctx.restore();   // end the mirrored body; arms below are world-space
 
     // --- Arms: swing while walking, snap forward on a throw ---
     {
@@ -1106,6 +1096,11 @@ function draw() {
   ctx.shadowBlur = 8;
   ctx.fillRect(-6, -12, 12, 3);
   ctx.shadowBlur = 0;
+  // Cyan apron and brass clasp distinguish the buffet defender in a crowd.
+  ctx.fillStyle = '#67e8f9'; ctx.fillRect(-7,1,14,14);
+  ctx.strokeStyle = '#164e63'; ctx.lineWidth=2; ctx.strokeRect(-7,1,14,14);
+  ctx.fillStyle = '#164e63'; ctx.fillRect(-4,7,8,4);
+  ctx.fillStyle = '#f5ce83'; ctx.fillRect(-3,-1,6,4);
   // off arm — counter-swings while running
   ctx.strokeStyle = '#c084fc';
   ctx.lineWidth = 5;
@@ -1141,7 +1136,8 @@ function draw() {
     ctx.translate(f.x, f.y);
     ctx.rotate(f.rot || 0);
     ctx.shadowColor = f.fromChef ? '#f87171' : f.color;
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = 5;
+    if(f.fromChef) {ctx.strokeStyle='#ff9b8f';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,f.r+5,0,Math.PI*2);ctx.stroke();}
     drawFoodShape(f.type, f.r + 2);
     ctx.restore();
   });
@@ -1197,6 +1193,11 @@ function draw() {
   }
 
   TouchPad.draw(ctx);
+  if (paused) {
+    ctx.fillStyle='rgba(10,6,18,.8)';ctx.fillRect(0,0,W,H);
+    ctx.textAlign='center';ctx.fillStyle='#e9d5ff';ctx.font='bold 36px sans-serif';ctx.fillText('KITCHEN BREAK',W/2,H/2-12);
+    ctx.font='18px sans-serif';ctx.fillText('Press P / Esc or tap to resume',W/2,H/2+25);
+  }
 }
 
 function updateHUD() {
@@ -1210,9 +1211,54 @@ function updateHUD() {
   document.getElementById('best').textContent = best;
 }
 
+// Outlined silhouettes with cafeteria uniforms; gaze follows the mirrored body.
+function drawChefBody(c) {
+  ctx.strokeStyle = '#100d23'; ctx.lineWidth = 2;
+  function oval(x,y,rx,ry,color) { ctx.fillStyle=color; ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+  function poly(points,color) { ctx.fillStyle=color; ctx.beginPath(); points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y)); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  if (c.type==='ghost') {
+    poly([[-14,12],[-14,-7],[-9,-17],[4,-19],[13,-10],[15,17],[7,12],[1,19],[-5,12],[-12,18]],'#bfe9e9');
+    oval(-2,-5,3,5,'#18213b'); oval(8,-5,3,5,'#18213b');
+    oval(4,5,2,3,'#46768a');
+  } else {
+    if(c.type==='vampire') poly([[-19,-10],[-11,23],[0,17],[16,23],[20,-10],[0,-2]],'#601d4a');
+    oval(0,6,c.type==='werewolf'?15:12,15,c.type==='frank'?'#374844':c.color);
+    poly([[-7,1],[7,1],[9,18],[-9,18]],c.type==='witch'?'#d6b879':'#e9dfc9');
+    ctx.fillStyle='#9b8879';ctx.fillRect(-4,8,8,5);
+    if(c.type==='frank') {
+      ctx.fillStyle='#16242d';ctx.fillRect(-17,-13,34,5);
+      ctx.fillStyle='#88c985';ctx.fillRect(-11,-22,23,23);ctx.strokeRect(-11,-22,23,23);
+      ctx.fillStyle='#1c2830';ctx.fillRect(-11,-23,23,5);
+      ctx.beginPath();ctx.moveTo(-7,-15);ctx.lineTo(2,-12);ctx.stroke();
+    } else {
+      oval(0,-10,c.type==='werewolf'?13:10,11,c.type==='werewolf'?'#a58b77':'#e5d4dd');
+      if(c.type==='werewolf') {
+        poly([[-12,-15],[-12,-29],[-3,-19]],'#8b7064');poly([[5,-19],[13,-28],[13,-12]],'#8b7064');
+        oval(9,-7,8,6,'#d7bd99');oval(14,-10,3,2,'#201a27');
+      }
+      if(c.type==='vampire') {
+        poly([[-11,-12],[-9,-23],[8,-23],[11,-12],[2,-18],[-2,-14]],'#231d35');
+        poly([[0,-3],[3,-3],[2,1]],'#fff4da');poly([[6,-3],[9,-3],[7,1]],'#fff4da');
+      }
+    }
+    ctx.fillStyle=c.type==='frank'?'#152b32':'#39182e';ctx.fillRect(-4,-13,3,3);ctx.fillRect(5,-13,3,3);
+    if(c.type==='witch') {
+      poly([[-13,-19],[15,-19],[6,-24],[0,-38],[-6,-28]],'#392b65');
+      ctx.fillStyle='#e9b75b';ctx.fillRect(-6,-24,12,3);
+    }
+  }
+  if(c.type==='ghost' || c.type==='frank') {
+    oval(-7,-26,6,6,'#fff0d7');oval(1,-29,7,7,'#fff0d7');oval(9,-25,6,6,'#fff0d7');
+    ctx.fillStyle='#d2c2ae';ctx.fillRect(-10,-24,21,5);ctx.strokeRect(-10,-24,21,5);
+  }
+}
+
 // ---------- Loop ----------
+let previousFrame = performance.now(), accumulator = 0;
 function loop() {
-  update();
+  const now = performance.now();
+  accumulator += Math.min(100, now - previousFrame); previousFrame = now;
+  while (accumulator >= 1000/60) { update(); accumulator -= 1000/60; }
   draw();
   ArcadeVR.schedule(loop);
 }

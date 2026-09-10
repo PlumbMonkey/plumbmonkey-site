@@ -15,7 +15,8 @@
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      overflow: hidden;
+      overflow-x: hidden;
+      padding: 12px;
       user-select: none;
     }
     h1 {
@@ -34,12 +35,16 @@
       box-shadow: 0 0 40px rgba(124, 58, 237, 0.45);
       background: #0f0a1a;
       max-width: 100%;
-      image-rendering: pixelated;
+      image-rendering: auto;
+      display: block;
+      width: 100%;
       cursor: crosshair;
     }
     .hud {
       display: flex;
       gap: 1.8rem;
+      flex-wrap: wrap;
+      justify-content: center;
       margin-top: 0.7rem;
       font-size: 1rem;
       font-weight: 600;
@@ -70,6 +75,15 @@
       margin-bottom: 0.8rem;
     }
     .start-overlay p { color: #d8b4fe; margin-bottom: 0.4rem; }
+    .start-overlay { text-align: center; padding: 12px; overflow-y: auto; }
+    .game-frame { position: relative; width: min(960px, 100%); }
+    @media (max-width: 600px) {
+      h1 { font-size: 1rem; text-align: center; }
+      .hud { gap: 8px 16px; font-size: .8rem; }
+      .start-overlay h2 { font-size: 1rem; margin-bottom: .3rem; }
+      .start-overlay p { font-size: .7rem; margin-bottom: .2rem; }
+      .controls { font-size: .7rem; }
+    }
     .hidden { display: none !important; }
     .touch-only { display: none; }
     .crt-overlay {
@@ -97,7 +111,7 @@
   <h1>SPECTRAL MANOR MESS HALL</h1>
   <div class="subtitle">Ghost Circuit · Manor Cafeteria Chaos</div>
 
-  <div style="position: relative;">
+  <div class="game-frame">
     <canvas id="gameCanvas" width="960" height="540"></canvas>
     <div class="crt-overlay"></div>
     <div id="startOverlay" class="start-overlay">
@@ -121,7 +135,7 @@
 
   <div class="controls">
     WASD or Arrows : Move &nbsp;&nbsp;•&nbsp;&nbsp; Mouse : Aim &nbsp;&nbsp;•&nbsp;&nbsp; Click or Space : Throw Food &nbsp;&nbsp;&bull;&nbsp;&nbsp; Enter : Start / Restart<br>
-    Defend the Grand Buffet — monsters steal dishes and run! Hit a thief to get the dish back • Lose all 6 dishes and the feast is over
+    P / Esc : Pause • Defeat a thief to recover its dish. Gold rings mark escaping thieves; pink rings warn of raids. Lose all 6 dishes and the feast is over.
   </div>
 
   <script src="../leaderboard.js"></script>

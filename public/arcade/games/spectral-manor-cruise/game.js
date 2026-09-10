@@ -134,6 +134,10 @@ let opponents = [];
 let race = 1;          // race series — later races add speed and weapons
 let cruiseScore = 0;   // cumulative run score (banked to the leaderboard on a loss)
 let fireballs = [];    // road hazards dropped by rivals ahead (race 2+)
+/* How long a ghost's haunting lasts, in frames. Raise it to make ghost contact
+   more punishing; the reversal is the skill test, so prefer changing this over
+   reintroducing steering jitter. */
+const SCRAMBLE_FRAMES = 55;
 let scramble = 0;      // frames of haunted steering after a ghost passes through you
 let batSwarm = 0;      // frames of Vampire bat swarm darkening the screen edges (race 4+)
 
@@ -291,11 +295,22 @@ function update() {
   const airborne = player.air > 0;
   const steer = 0.028 * (0.4 + speedRatio) * (airborne ? 0.18 : 1);
   if (scramble > 0) {
-    // a ghost passed through you — controls are haunted (reversed + jittery)
+    /* A ghost passed through you — the controls are haunted.
+
+       The REVERSAL stays: it is thematic, it is clearly signposted on screen,
+       and a good driver can work with it. The random lateral jitter is the part
+       that was unfair — it shoved the car sideways every frame with nothing the
+       player could do about it, on top of the reversal, often into the
+       graveyard shoulder. It is now a quarter of what it was and eases off as
+       the haunting expires, so the effect releases you rather than dropping you.
+
+       Duration went 75 -> 55 frames (~1.25s to ~0.9s). Long enough to cost you
+       a corner, short enough that it is a setback rather than a lost race. */
     scramble--;
+    const fade = scramble / SCRAMBLE_FRAMES;      // 1 at onset, 0 as it lifts
     if (keys['ArrowLeft'] || keys['KeyA']) player.x += steer;
     if (keys['ArrowRight'] || keys['KeyD']) player.x -= steer;
-    player.x += (Math.random() - 0.5) * 0.02;
+    player.x += (Math.random() - 0.5) * 0.005 * fade;
   } else {
     if (keys['ArrowLeft'] || keys['KeyA']) player.x -= steer;
     if (keys['ArrowRight'] || keys['KeyD']) player.x += steer;
@@ -413,7 +428,7 @@ function update() {
       if (o.ghost) {
         if (!o.phasing) {
           o.phasing = true;
-          scramble = 75; // ~1.25s of haunted controls
+          scramble = SCRAMBLE_FRAMES;
           shake = 5;
           sfx.pass();
           sfx.lose();
