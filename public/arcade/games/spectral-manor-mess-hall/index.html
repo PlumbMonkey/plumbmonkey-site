@@ -77,6 +77,19 @@
     .start-overlay p { color: #d8b4fe; margin-bottom: 0.4rem; }
     .start-overlay { text-align: center; padding: 12px; overflow-y: auto; }
     .game-frame { position: relative; width: min(960px, 100%); }
+    html:fullscreen body,
+    html:-webkit-full-screen body { padding: 0; }
+    html:fullscreen .game-frame,
+    html:-webkit-full-screen .game-frame {
+      width: min(100vw, calc(84vh * 16 / 9));
+      height: min(84vh, calc(100vw * 9 / 16));
+    }
+    html:fullscreen #gameCanvas,
+    html:-webkit-full-screen #gameCanvas {
+      width: 100%;
+      height: 100%;
+      max-width: none;
+    }
     @media (max-width: 600px) {
       h1 { font-size: 1rem; text-align: center; }
       .hud { gap: 8px 16px; font-size: .8rem; }
