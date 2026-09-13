@@ -2,14 +2,13 @@
 // SPECTRAL MANOR ARCADE — shared leaderboard + attract mode
 // Loaded by every game (before its game.js) and by the hub.
 // Scores go to the global top 10 kept by workers/plumbmonkey-api, reached
-// through /shared/track.js (injected below). localStorage keeps a copy of each
-// board so a game-over screen draws instantly, and so the arcade still works
-// when the API can't be reached.
+// through /shared/track.js (injected below). Every board is global only: a
+// player's own scores are never kept or shown, so everyone sees the same
+// boards. localStorage holds just the last-seen global board, so a game-over
+// screen can draw instantly before the live one arrives.
 // ============================================================
 (function () {
-  const PREFIX = 'spectralArcade.scores.';         // this browser's own scores (offline fallback)
   const GLOBAL_PREFIX = 'spectralArcade.global.';  // last-seen copy of the global board
-  const KEEP = 10;  // stored per game
   const SHOW = 10;  // shown per game — the public top 10
   const STALE_MS = 10000;
 
@@ -31,25 +30,14 @@
     { slug: 'spectral-manor-graveyard-shift',   title: 'Graveyard Shift' }
   ];
 
-  function keyFor(slug) { return PREFIX + slug; }
-
-  function get(slug) {
-    const legacy = {
-      'spectral-manor-mess-hall': 'spectral-food-fight',
-      'spectral-manor-swarm': 'spectral-robotron'
-    };
-    try {
-      const current = JSON.parse(localStorage.getItem(keyFor(slug))) || [];
-      if (current.length || !legacy[slug]) return current;
-      const old = JSON.parse(localStorage.getItem(keyFor(legacy[slug]))) || [];
-      if (old.length) save(slug, old);
-      return old;
-    }
-    catch (e) { return []; }
-  }
-  function save(slug, arr) {
-    try { localStorage.setItem(keyFor(slug), JSON.stringify(arr)); } catch (e) {}
-  }
+  // Older builds kept each browser's own top 5 under 'spectralArcade.scores.'
+  // and showed them wherever a global board was empty. Nothing reads them now,
+  // so clear them out rather than leave a player's stale scores lying around.
+  try {
+    Object.keys(localStorage)
+      .filter(k => k.indexOf('spectralArcade.scores.') === 0)
+      .forEach(k => localStorage.removeItem(k));
+  } catch (e) {}
 
   // Derive this game's slug from the URL path (…/arcade/games/<slug>/…)
   function deriveSlug() {
@@ -133,9 +121,12 @@
       .then(() => newRun(slug));
   }
 
+  // The global board as last seen; empty until one has been fetched.
+  function get(slug) { return readGlobal(slug) || []; }
+
   function qualifies(slug, score) {
     if (!score || score <= 0) return false;
-    const a = readGlobal(slug) || get(slug);
+    const a = get(slug);
     if (a.length < SHOW) return true;
     return score > a[a.length - 1].s;
   }
@@ -143,16 +134,11 @@
   function add(slug, initials, score) {
     initials = (initials || 'AAA').slice(0, 3).toUpperCase();
     score = Math.round(score);
-    const a = get(slug);
-    a.push({ i: initials, s: score });
-    a.sort((x, y) => y.s - x.s);
-    if (a.length > KEEP) a.length = KEEP;
-    save(slug, a);
     if (!attract) submitGlobal(slug, initials, score);
-    return a;
+    return get(slug);
   }
 
-  function top(slug, n) { return (readGlobal(slug) || get(slug)).slice(0, n || SHOW); }
+  function top(slug, n) { return get(slug).slice(0, n || SHOW); }
 
   // This game's top 10 for a game-over overlay, as two columns of five so it
   // takes about the height the old top 3 did. The games insert this string

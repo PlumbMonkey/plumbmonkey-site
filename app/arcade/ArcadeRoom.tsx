@@ -26,16 +26,16 @@ const TOP = 10;
 type PMApi = { get(path: string): Promise<{ ok: boolean; games?: Record<string, Entry[]> }> };
 
 // Used until the global boards arrive, and instead of them if the API can't be
-// reached: the last global board this browser saw, else the scores set in this
-// browser (both written by public/arcade/games/leaderboard.js).
+// reached: the last global board this browser saw (written here and by
+// public/arcade/games/leaderboard.js). Global only, on purpose — a player's own
+// browser scores are never shown, so every visitor sees the same boards.
 function readCached(slug: string): Entry[] {
-  for (const key of ["spectralArcade.global." + slug, "spectralArcade.scores." + slug]) {
-    try {
-      const rows = JSON.parse(localStorage.getItem(key) || "null");
-      if (Array.isArray(rows) && rows.length) return rows;
-    } catch {}
+  try {
+    const rows = JSON.parse(localStorage.getItem("spectralArcade.global." + slug) || "null");
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
   }
-  return [];
 }
 
 export default function ArcadeRoom() {
