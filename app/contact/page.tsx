@@ -37,12 +37,6 @@ export default function ContactPage() {
       });
 
       if (response.ok) {
-        if (typeof window !== "undefined" && typeof (window as any).gtag !== "undefined") {
-          (window as any).gtag("event", "form_submit", {
-            event_category: "engagement",
-            event_label: "contact_form",
-          });
-        }
         setStatusMessage("Message sent. I'll come back to you within a day.");
         setIsError(false);
         form.reset();

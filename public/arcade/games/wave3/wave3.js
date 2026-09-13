@@ -149,9 +149,10 @@
     e.classList.add("show");
     setTimeout(()=>{e.classList.remove("show");setTimeout(()=>{toastBusy=false;pumpToast()},170)},900);
   }
-  function show(title,body,button="PLAY"){overlay.innerHTML=`<h2>${title}</h2><p>${body}</p><p class="small">High score: ${high.toLocaleString()}</p><button>${button}</button>`;overlay.classList.remove("hidden")}
+  /* board=true only for the end screen: the global top 10 from leaderboard.js, which redraws itself in place when the live board arrives. The start and pause screens share show() and stay as they were. */
+  function show(title,body,button="PLAY",board=false){const top=board&&window.Arcade&&Arcade.boardHTML?`<p class="small" style="margin-top:.7rem;letter-spacing:.08em">TOP 10</p>${Arcade.boardHTML(Arcade.slug)}`:"";overlay.innerHTML=`<h2>${title}</h2><p>${body}</p><p class="small">High score: ${high.toLocaleString()}</p>${top}<button>${button}</button>`;overlay.classList.remove("hidden")}
   function start(){audioStart();score=0;lives=3;level=1;beamBonusAwarded=false;musicClock=0;musicStep=0;running=true;paused=false;game.reset();overlay.classList.add("hidden");hud();last=performance.now()}
-  function end(win=false){running=false;hud();const finish=()=>show(win?"SABOTAGE STOPPED":"SIGNAL LOST",`${win?"Ghost Circuit is back online.":"Plumbmonkey wins this round."} Score: ${score.toLocaleString()}`,"PLAY AGAIN");if(window.Arcade&&Arcade.submitFlow)Arcade.submitFlow(score,finish);else finish()}
+  function end(win=false){running=false;hud();const finish=()=>show(win?"SABOTAGE STOPPED":"SIGNAL LOST",`${win?"Ghost Circuit is back online.":"Plumbmonkey wins this round."} Score: ${score.toLocaleString()}`,"PLAY AGAIN",true);if(window.Arcade&&Arcade.submitFlow)Arcade.submitFlow(score,finish);else finish()}
   function lose(){if(!running)return;lives--;beep(90,.3,"sawtooth",.07);if(lives<=0)end(false);else{game.respawn();hud()}}
   function next(){level++;addScore(500*level);beep(780,.15);game.next();hud();toast(`LEVEL ${level}`)}
   function togglePause(){if(!running)return;paused=!paused;if(paused)show("PAUSED","The sabotage is holding. Press P, Esc, or Resume.","RESUME");else overlay.classList.add("hidden")}

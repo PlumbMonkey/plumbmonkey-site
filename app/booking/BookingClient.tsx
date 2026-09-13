@@ -180,14 +180,6 @@ export default function BookingClient() {
                 href={pkg.stripeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => {
-                  if (typeof window !== "undefined" && typeof (window as any).gtag !== "undefined") {
-                    (window as any).gtag("event", "begin_checkout", {
-                      event_category: "ecommerce",
-                      event_label: pkg.slug,
-                    });
-                  }
-                }}
                 className={`block rounded-lg px-4 py-3 text-center font-semibold transition-colors ${accent.button}`}
               >
                 Pay {pkg.price} {pkg.suffix} — Book {pkg.name}

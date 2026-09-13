@@ -103,17 +103,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             scores (workers/plumbmonkey-api). Not deferred, so ArcadeRoom can
             read window.PMApi on its first render. */}
         <script src="/shared/track.js" />
-        <script async src="https://www.googletagmanager.com/gtag/js?id=G-512918665" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', 'G-512918665');
-            `,
-          }}
-        />
       </head>
       <body className="min-h-screen font-body antialiased">
         <NavBar />

@@ -51,10 +51,7 @@ export default function OrientationQuestionnaire({
   const [hasLoaded, setHasLoaded] = useState(false);
   const [q0Error, setQ0Error] = useState("");
   const [q1Error, setQ1Error] = useState("");
-  const [q1HasStarted, setQ1HasStarted] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [lastEditedAt, setLastEditedAt] = useState<number | null>(null);
 
   // Load the saved draft, then let ?service= from /services override the
   // project type. Read off window.location rather than useSearchParams because
@@ -89,29 +86,6 @@ export default function OrientationQuestionnaire({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Track orientation start on first Q1 interaction
-  useEffect(() => {
-    if (!q1HasStarted && formData.coreReason && typeof window !== "undefined") {
-      const now = Date.now();
-      setStartedAt(now);
-      setLastEditedAt(now);
-      if (typeof (window as any).gtag !== "undefined") {
-        (window as any).gtag("event", "orientation_start", {
-          event_category: "engagement",
-          event_label: "questionnaire",
-        });
-      }
-      setQ1HasStarted(true);
-    }
-  }, [formData.coreReason, q1HasStarted]);
-
-  // Track last edit time whenever formData changes
-  useEffect(() => {
-    if (hasLoaded && q1HasStarted) {
-      setLastEditedAt(Date.now());
-    }
-  }, [formData, hasLoaded, q1HasStarted]);
-
   // Autosave to localStorage on change (debounced)
   useEffect(() => {
     if (!hasLoaded) return;
@@ -120,43 +94,6 @@ export default function OrientationQuestionnaire({
     }, 500);
     return () => clearTimeout(timer);
   }, [formData, hasLoaded]);
-
-  // Track abandonment on unmount with refined logic
-  useEffect(() => {
-    return () => {
-      if (
-        typeof window !== "undefined" &&
-        !submitted &&
-        startedAt !== null &&
-        lastEditedAt !== null
-      ) {
-        const now = Date.now();
-        const timeSinceStart = now - startedAt;
-        const timeSinceLastEdit = now - lastEditedAt;
-        const hasContent = formData.coreReason.trim().length > 0;
-
-        // Fire abandon event only if: 
-        // - Not submitted
-        // - Been more than 15 seconds since they started
-        // - Been more than 5 seconds since last edit
-        // - They have some content in Q1
-        if (
-          timeSinceStart > 15000 &&
-          timeSinceLastEdit > 5000 &&
-          hasContent
-        ) {
-          if (typeof (window as any).gtag !== "undefined") {
-            (window as any).gtag("event", "orientation_abandon", {
-              event_category: "engagement",
-              event_label: "questionnaire",
-              time_on_form: Math.round(timeSinceStart / 1000),
-              time_since_edit: Math.round(timeSinceLastEdit / 1000),
-            });
-          }
-        }
-      }
-    };
-  }, [submitted, startedAt, lastEditedAt, formData.coreReason]);
 
   const handleChange = (field: keyof QuestionnaireInput, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));

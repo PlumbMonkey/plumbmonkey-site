@@ -54,14 +54,6 @@ export default function OrientationPage() {
         console.log("Response status:", response.status);
         console.log("Redirecting to /onboarding.html in 2 seconds");
 
-        // Track conversion in Google Analytics
-        if (typeof window !== "undefined" && typeof (window as any).gtag !== "undefined") {
-          (window as any).gtag("event", "orientation_submit", {
-            event_category: "engagement",
-            event_label: "questionnaire",
-          });
-        }
-
         setStatusMessage("You're done. I'll review this personally and follow up with next steps.");
         setIsError(false);
 
