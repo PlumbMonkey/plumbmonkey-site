@@ -99,6 +99,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             click interceptor has to be listening before anyone can click. */}
         <script src="/shared/rooms.js" />
         <script src="/shared/room-transition.js" />
+        {/* Private visit counts + the client for the arcade's global high
+            scores (workers/plumbmonkey-api). Not deferred, so ArcadeRoom can
+            read window.PMApi on its first render. */}
+        <script src="/shared/track.js" />
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-512918665" />
         <script
           dangerouslySetInnerHTML={{

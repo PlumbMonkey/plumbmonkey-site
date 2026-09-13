@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Entry = { i: string; s: number };
 type HofRow = Entry & { game: string };
@@ -20,33 +20,63 @@ const GAMES = [
   { slug: "spectral-manor-graveyard-shift",   title: "Graveyard Shift",  tag: "Haul the gear",        accent: "#fb7185", bg: "#0d0618" },
 ];
 
-const SHOW = 3;
+const SHOW = 3;  // rows on each cabinet; the rest of its top 10 opens underneath
+const TOP = 10;
 
-function readBoard(slug: string): Entry[] {
-  try {
-    return JSON.parse(localStorage.getItem("spectralArcade.scores." + slug) || "[]");
-  } catch {
-    return [];
+type PMApi = { get(path: string): Promise<{ ok: boolean; games?: Record<string, Entry[]> }> };
+
+// Used until the global boards arrive, and instead of them if the API can't be
+// reached: the last global board this browser saw, else the scores set in this
+// browser (both written by public/arcade/games/leaderboard.js).
+function readCached(slug: string): Entry[] {
+  for (const key of ["spectralArcade.global." + slug, "spectralArcade.scores." + slug]) {
+    try {
+      const rows = JSON.parse(localStorage.getItem(key) || "null");
+      if (Array.isArray(rows) && rows.length) return rows;
+    } catch {}
   }
+  return [];
 }
 
 export default function ArcadeRoom() {
   const [boards, setBoards] = useState<Record<string, Entry[]>>({});
   const [hof, setHof] = useState<HofRow[]>([]);
+  const [open, setOpen] = useState<string | null>(null); // cabinet showing its full top 10
   const [live, setLive] = useState(false); // desktop → live iframes
   const [vrCapable, setVrCapable] = useState(false);
+  const lastFetch = useRef(0);
+
+  function show(next: Record<string, Entry[]>) {
+    const all: HofRow[] = [];
+    GAMES.forEach((g) => (next[g.slug] || []).forEach((e) => all.push({ ...e, game: g.title })));
+    all.sort((x, y) => y.s - x.s);
+    setBoards(next);
+    setHof(all.slice(0, TOP));
+  }
 
   function refresh() {
-    const b: Record<string, Entry[]> = {};
-    const all: HofRow[] = [];
-    GAMES.forEach((g) => {
-      const rows = readBoard(g.slug);
-      b[g.slug] = rows;
-      rows.forEach((e) => all.push({ ...e, game: g.title }));
-    });
-    all.sort((x, y) => y.s - x.s);
-    setBoards(b);
-    setHof(all.slice(0, 9));
+    // focus and visibilitychange both fire on returning from a game
+    if (Date.now() - lastFetch.current < 10000) return;
+    lastFetch.current = Date.now();
+
+    const cached: Record<string, Entry[]> = {};
+    GAMES.forEach((g) => (cached[g.slug] = readCached(g.slug)));
+    show(cached);
+
+    const api = (window as Window & { PMApi?: PMApi }).PMApi;
+    api?.get("/scores")
+      .then((res) => {
+        if (!res.ok || !res.games) return;
+        const global: Record<string, Entry[]> = {};
+        GAMES.forEach((g) => {
+          global[g.slug] = (res.games![g.slug] || []).map((e) => ({ i: e.i, s: e.s }));
+          try {
+            localStorage.setItem("spectralArcade.global." + g.slug, JSON.stringify(global[g.slug]));
+          } catch {}
+        });
+        show(global);
+      })
+      .catch(() => {});
   }
 
   useEffect(() => {
@@ -122,15 +152,23 @@ export default function ArcadeRoom() {
                 </div>
               </div>
 
-              {/* per-cabinet top 3 */}
+              {/* per-cabinet top 3, and the rest of the global top 10 on request */}
               <div className="sm-cabboard">
-                {[0, 1, 2].map((i) => (
+                {Array.from({ length: open === g.slug ? TOP : SHOW }, (_, i) => (
                   <div className="sm-row" key={i}>
                     <span className="sm-rank">{i + 1}</span>
                     <span className="sm-who">{rows[i] ? rows[i].i : "---"}</span>
                     <span className="sm-score">{rows[i] ? rows[i].s.toLocaleString() : "—"}</span>
                   </div>
                 ))}
+                <button
+                  type="button"
+                  className="sm-more"
+                  aria-expanded={open === g.slug}
+                  onClick={() => setOpen(open === g.slug ? null : g.slug)}
+                >
+                  {open === g.slug ? "Show top 3" : "Show top 10"}
+                </button>
               </div>
             </div>
           );
@@ -140,7 +178,7 @@ export default function ArcadeRoom() {
       {/* combined Hall of Fame */}
       <section className="sm-hof">
         <h2>Hall of Fame</h2>
-        <p className="sm-hof-sub">Top 9 scores across the whole arcade</p>
+        <p className="sm-hof-sub">Top 10 scores from players everywhere, across the whole arcade</p>
         {hof.length === 0 ? (
           <div className="sm-hof-empty">No scores yet — set the first record!</div>
         ) : (
@@ -231,6 +269,10 @@ const CSS = `
 .sm-who { color: #f0abfc; letter-spacing: 1px; }
 .sm-score { margin-left: auto; color: #e0d4ff; }
 .sm-row:first-child .sm-who { color: #fbbf24; }
+.sm-more { display: block; width: 100%; margin-top: .3rem; padding: .2rem 0 0; cursor: pointer;
+  background: none; border: 0; border-top: 1px dashed #2b1c47; color: #8b7bb0;
+  font: inherit; font-size: .6rem; letter-spacing: 1px; text-transform: uppercase; }
+.sm-more:hover { color: var(--accent); }
 
 .sm-hof { margin-top: 3rem; text-align: center; border-top: 1px solid rgba(124,58,237,.3); padding-top: 2rem; }
 .sm-hof h2 { font-family: 'Cinzel', Georgia, serif; font-size: 1.8rem; color: #e9d5ff;

@@ -1,14 +1,21 @@
 // ============================================================
 // SPECTRAL MANOR ARCADE — shared leaderboard + attract mode
 // Loaded by every game (before its game.js) and by the hub.
-// Stores top scores per game in localStorage, no backend.
+// Scores go to the global top 10 kept by workers/plumbmonkey-api, reached
+// through /shared/track.js (injected below). localStorage keeps a copy of each
+// board so a game-over screen draws instantly, and so the arcade still works
+// when the API can't be reached.
 // ============================================================
 (function () {
-  const PREFIX = 'spectralArcade.scores.';
-  const KEEP = 5;   // stored per game
-  const SHOW = 3;   // shown per game
+  const PREFIX = 'spectralArcade.scores.';         // this browser's own scores (offline fallback)
+  const GLOBAL_PREFIX = 'spectralArcade.global.';  // last-seen copy of the global board
+  const KEEP = 10;  // stored per game
+  const SHOW = 10;  // shown per game — the public top 10
+  const STALE_MS = 10000;
 
-  // Canonical game list (slug + display title) — used by the hub Hall of Fame
+  // Canonical game list (slug + display title) — used by the hub Hall of Fame.
+  // Must match GAMES in workers/plumbmonkey-api/src/index.js and
+  // app/arcade/ArcadeRoom.tsx; `npm test` fails if they drift.
   const GAMES = [
     { slug: 'spectral-manor-revenger',          title: 'Revenger' },
     { slug: 'spectral-manor-mess-hall',         title: 'Mess Hall' },
@@ -52,33 +59,124 @@
 
   const attract = /[?&]attract\b/.test(location.search);
 
+  // ---- Global board (workers/plumbmonkey-api) ----
+  const slugs = new Set(GAMES.map(g => g.slug));
+  const globalTop = {};   // slug -> [{i, s}], as last seen
+  const fetchedAt = {};
+  let runToken = null;    // single-use; the Worker times a run from when it was issued
+
+  function readGlobal(slug) {
+    if (globalTop[slug]) return globalTop[slug];
+    try {
+      const cached = JSON.parse(localStorage.getItem(GLOBAL_PREFIX + slug));
+      if (Array.isArray(cached)) globalTop[slug] = cached;
+    } catch (e) {}
+    return globalTop[slug] || null;
+  }
+  function setGlobal(slug, rows) {
+    globalTop[slug] = rows.map(r => ({ i: r.i, s: r.s })).slice(0, SHOW);
+    fetchedAt[slug] = Date.now();
+    try { localStorage.setItem(GLOBAL_PREFIX + slug, JSON.stringify(globalTop[slug])); } catch (e) {}
+    refreshBoards(slug);
+  }
+
+  // /shared/track.js is the one API client. The games don't <script> it, so
+  // it is injected here on first use and everything waits on this promise.
+  let apiPromise = null;
+  function api() {
+    if (window.PMApi) return Promise.resolve(window.PMApi);
+    if (!apiPromise) {
+      apiPromise = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = '/shared/track.js';
+        s.onload = () => (window.PMApi ? resolve(window.PMApi) : reject(new Error('PMApi missing')));
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    return apiPromise;
+  }
+
+  function fetchTop(slug) {
+    if (!slugs.has(slug)) return Promise.resolve(null);
+    fetchedAt[slug] = Date.now();  // counts as fresh while in flight, so boards don't stampede
+    return api()
+      .then(a => a.get('/scores?game=' + encodeURIComponent(slug)))
+      .then(res => { if (res && res.ok) setGlobal(slug, res.top); return res; })
+      .catch(() => null);
+  }
+
+  function newRun(slug) {
+    if (!slugs.has(slug)) return;
+    api().then(a => a.post('/run', { game: slug }))
+      .then(res => { if (res && res.ok) runToken = res.run; })
+      .catch(() => {});
+  }
+
+  function submitGlobal(slug, initials, score) {
+    if (!slugs.has(slug)) return;
+    // Show the new entry straight away; the Worker's answer replaces it.
+    const board = (readGlobal(slug) || []).concat([{ i: initials, s: score }]);
+    board.sort((x, y) => y.s - x.s);
+    globalTop[slug] = board.slice(0, SHOW);
+    refreshBoards(slug);
+
+    const run = runToken;
+    runToken = null;
+    api()
+      .then(a => a.post('/scores', { game: slug, initials, score, run }))
+      .then(res => {
+        if (res && res.ok) setGlobal(slug, res.top);
+        else fetchTop(slug);  // refused: put the real board back
+      })
+      .catch(() => {})        // offline: this browser's copy stands
+      .then(() => newRun(slug));
+  }
+
   function qualifies(slug, score) {
     if (!score || score <= 0) return false;
-    const a = get(slug);
+    const a = readGlobal(slug) || get(slug);
     if (a.length < SHOW) return true;
     return score > a[a.length - 1].s;
   }
 
   function add(slug, initials, score) {
+    initials = (initials || 'AAA').slice(0, 3).toUpperCase();
+    score = Math.round(score);
     const a = get(slug);
-    a.push({ i: (initials || 'AAA').slice(0, 3).toUpperCase(), s: Math.round(score) });
+    a.push({ i: initials, s: score });
     a.sort((x, y) => y.s - x.s);
     if (a.length > KEEP) a.length = KEEP;
     save(slug, a);
+    if (!attract) submitGlobal(slug, initials, score);
     return a;
   }
 
-  function top(slug, n) { return get(slug).slice(0, n || SHOW); }
+  function top(slug, n) { return (readGlobal(slug) || get(slug)).slice(0, n || SHOW); }
 
-  // HTML table of this game's top 3 (for a game-over overlay)
+  // This game's top 10 for a game-over overlay, as two columns of five so it
+  // takes about the height the old top 3 did. The games insert this string
+  // once and never ask again, so it is drawn from the last-seen board and then
+  // redrawn in place (found by data-sm-lb) when the live board arrives.
   function boardHTML(slug) {
+    if (!attract && Date.now() - (fetchedAt[slug] || 0) > STALE_MS) fetchTop(slug);
+    return `<div class="sm-lb-wrap" data-sm-lb="${slug}">${boardInner(slug)}</div>`;
+  }
+  function boardInner(slug) {
     const t = top(slug, SHOW);
-    let rows = '';
-    for (let i = 0; i < SHOW; i++) {
-      const e = t[i];
-      rows += `<tr><td>${i + 1}</td><td>${e ? e.i : '---'}</td><td>${e ? e.s : '—'}</td></tr>`;
-    }
-    return `<table class="sm-lb"><thead><tr><th>#</th><th>WHO</th><th>SCORE</th></tr></thead><tbody>${rows}</tbody></table>`;
+    const column = (from, cls) => {
+      let rows = '';
+      for (let i = from; i < from + 5; i++) {
+        const e = t[i];
+        rows += `<tr><td>${i + 1}</td><td>${e ? e.i : '---'}</td><td>${e ? e.s.toLocaleString() : '—'}</td></tr>`;
+      }
+      return `<table class="sm-lb ${cls}"><thead><tr><th>#</th><th>WHO</th><th>SCORE</th></tr></thead><tbody>${rows}</tbody></table>`;
+    };
+    return column(0, 'sm-lb-a') + column(5, 'sm-lb-b');
+  }
+  function refreshBoards(slug) {
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll(`[data-sm-lb="${slug}"]`).forEach(el => { el.innerHTML = boardInner(slug); });
   }
 
   // Combined Hall of Fame — the N highest scores across all games
@@ -112,11 +210,13 @@
       .sm-submit{padding:.6rem 2.4rem;font-size:1rem;font-weight:bold;letter-spacing:2px;cursor:pointer;
         background:#7c3aed;color:#fff;border:none;border-radius:8px;box-shadow:0 0 24px rgba(124,58,237,.5)}
       .sm-submit:hover{background:#8b46f0}
-      .sm-lb{margin:.6rem auto;border-collapse:collapse;font-size:.95rem}
-      .sm-lb th,.sm-lb td{padding:.18rem .8rem}
-      .sm-lb th{color:#a78bfa;font-size:.72rem;letter-spacing:1px;font-weight:600}
+      .sm-lb-wrap{display:flex;gap:1.2rem;justify-content:center;align-items:flex-start;margin:.6rem auto}
+      .sm-lb{margin:0;border-collapse:collapse;font-size:.88rem}
+      .sm-lb th,.sm-lb td{padding:.12rem .6rem}
+      .sm-lb th{color:#a78bfa;font-size:.68rem;letter-spacing:1px;font-weight:600}
       .sm-lb td{color:#e9d5ff}
-      .sm-lb tbody tr:first-child td{color:#f0abfc}
+      .sm-lb td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+      .sm-lb-a tbody tr:first-child td{color:#f0abfc}
     `;
     const s = document.createElement('style');
     s.textContent = css;
@@ -131,7 +231,7 @@
     modal.className = 'sm-lb-modal';
     modal.innerHTML = `
       <h2>NEW HIGH SCORE!</h2>
-      <div class="sm-sub">Score ${Math.round(score)} — enter your initials</div>
+      <div class="sm-sub">Score ${Math.round(score).toLocaleString()} — you made the top 10! Enter your initials</div>
       <div class="sm-slots"></div>
       <div class="sm-hint">Type A–Z · ← → move · ↑ ↓ change · Enter to submit<br>Gamepad: stick/D-pad to pick · A to submit · B to clear</div>
       <button class="sm-submit">SUBMIT</button>
@@ -240,6 +340,9 @@
   // In attract mode it skips everything and just runs `done`.
   function submitFlow(score, done) {
     const slug = API.slug;
+    // Every game ends through here, so it doubles as the "games finished"
+    // count on the private dashboard.
+    if (!attract) api().then(a => a.track('finish', slug)).catch(() => {});
     // Initials entry is DOM-only and cannot be seen on the canvas presented
     // inside WebXR. Bank a headset score and continue to the game-over screen.
     if (typeof ArcadeVR !== 'undefined' && ArcadeVR.active) {
@@ -672,6 +775,14 @@
     get, add, top, qualifies, boardHTML, hallOfFame, promptInitials, submitFlow, injectStyle
   };
   window.Arcade = API;
+
+  // On a real game page, fetch the live board and a run token up front, so
+  // qualifies() at game over compares against the global top 10 and the run is
+  // timed from when the page opened.
+  if (!attract && typeof document !== 'undefined' && slugs.has(API.slug)) {
+    fetchTop(API.slug);
+    newRun(API.slug);
+  }
 
   // Make the .sm-lb board styling available on every game page (for game-over boards)
   if (typeof document !== 'undefined') {

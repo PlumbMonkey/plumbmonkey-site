@@ -1,0 +1,23 @@
+# Plumbmonkey API — see src/index.js for what each route does.
+#
+# The site itself is a static export on GitHub Pages and has no server, so this
+# Worker is the only backend. Everything here fits Cloudflare's free tier
+# (100k requests/day, D1: 5M rows read + 100k rows written per day).
+
+name = "plumbmonkey-api"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Origins allowed to POST scores and visit counts. Reading the public top 10 is
+# open to anyone. Local dev adds any localhost origin via DEV in .dev.vars.
+ALLOWED_ORIGINS = "https://plumbmonkey.online,https://www.plumbmonkey.online"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "plumbmonkey"
+database_id = "7b23da55-c8b6-45ed-94b3-10ba86462990"
+
+# Secrets — never in this file. Set once with:
+#   npx wrangler secret put ADMIN_PASSWORD   (the dashboard password)
+#   npx wrangler secret put TOKEN_SECRET     (any long random string)
