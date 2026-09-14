@@ -32,7 +32,7 @@ const dir = 'public/arcade/games/spectral-skyline/';
 ['stages.js', 'luno.js', 'bosses.js', 'render.js', 'game.js'].forEach(f => vm.runInContext(fs.readFileSync(dir + f, 'utf8'), sandbox, { filename: f }));
 const run = code => vm.runInContext(code, sandbox);
 const steps = n => run(`for (let i = 0; i < ${n}; i++) update();`);
-const calm = 'boss = null; storms = []; rings = []; witchBolts = []; hitPause = 0; waveDelay = 0; player.invuln = 0; player.dive = false; player.bumpCooldown = 0;';
+const calm = 'introTime = 0; boss = null; storms = []; rings = []; witchBolts = []; hitPause = 0; waveDelay = 0; player.invuln = 0; player.dive = false; player.bumpCooldown = 0;';
 const keeper = "witches.push(makeWitch(20, 60, 'broom'));";   // keeps the wave from clearing
 const ghostAt = (x, y) => `ghosts = [{x: ${x}, y: ${y}, w: 28, h: 32, vx: 0, vy: 0, phase: 0, vis: 1, state: 'visible', t: 999, hurt: 0}]`;
 

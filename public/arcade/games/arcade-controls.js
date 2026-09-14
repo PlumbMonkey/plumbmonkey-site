@@ -190,9 +190,8 @@ const ArcadeControls = (function () {
     // for the ones that ignore it, and it saves a bespoke profile.
     if (!prim && (pressed(pad, 0) || pressed(pad, 7))) padKeys.add('Space');
 
-    // Right stick AIMS ONLY (twin-stick games). It used to auto-fire as well;
-    // firing is the fire button's job now (A / RT / RB → the primary action):
-    // tap for one shot, hold for continuous fire.
+    // Right stick aims (twin-stick games). Deflecting it also auto-fires, to
+    // match how the on-screen twin-stick pads already behave.
     if (opts.aim) {
       const rx = pad.axes[2] || 0, ry = pad.axes[3] || 0;
       if (Math.hypot(rx, ry) > AIM_DEAD) {
@@ -229,6 +228,7 @@ const ArcadeControls = (function () {
     if (!opts.aim || !api.aimActive) return false;
     mouse.x = cx + Math.cos(api.aimAngle) * AIM_REACH;
     mouse.y = cy + Math.sin(api.aimAngle) * AIM_REACH;
+    mouse.down = true;
     return true;
   }
 

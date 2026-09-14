@@ -85,7 +85,7 @@ function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY), 10) 
 function saveBest() { try { localStorage.setItem(BEST_KEY, best); } catch (e) {} }
 let best = loadBest();
 let combo = 0, comboTimer = 0, hitPause = 0, shakeTime = 0, shakeMag = 0, waveDelay = 0;
-let bannerText = '', bannerSub = '', bannerTime = 0;
+let bannerText = '', bannerSub = '', bannerTime = 0, introTime = 0;
 let ending = 0, endTitle = '', endLine = '';
 let roomIdx = 0, pendingRoom = -1, roomFade = 0;
 function triggerShake(mag, time) { shakeMag = Math.max(shakeMag * (shakeTime > 0 ? 1 : 0), mag); shakeTime = Math.max(shakeTime, time); }
@@ -225,6 +225,7 @@ function announce() {
     bannerText = 'LEVEL ' + level; bannerSub = room.name.toLowerCase();
   }
   bannerTime = 130;
+  introTime = bannerTime;
 }
 
 function enterRoom(ri) {
@@ -438,6 +439,9 @@ function update() {
     spawnLevel();
     announce();
   }
+  // Round-start title: the action holds still until the banner has gone,
+  // so a new wave never starts fighting underneath the title.
+  if (introTime > 0) { introTime--; return; }
 
   if (ATTRACT_MODE) attractPilot();
   updatePlayer();

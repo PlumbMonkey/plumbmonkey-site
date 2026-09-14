@@ -70,14 +70,15 @@
 </head>
 <body>
   <h1>SPECTRAL MANOR SOUL CIRCUIT</h1>
-  <div class="subtitle">Ghost Circuit · Three Mazes · Magic Field</div>
+  <div class="subtitle">Ghost Circuit · Four Realms · Four Bosses</div>
 
   <div style="position:relative">
     <canvas id="gameCanvas" width="960" height="540"></canvas>
     <div id="startOverlay" class="start-overlay">
       <h2>SOUL CIRCUIT</h2>
-      <p>Collect crystals in the hedge maze.</p>
-      <p>Power crystals grant a magic field — touch enemies to force them to respawn.</p>
+      <p>Gather the crystals, then run for the golden gate.</p>
+      <p>Power crystals raise a magic field — the hunters cower, and you can catch them.</p>
+      <p>Hedge Maze · Graveyard · Ethereal Plane · Catacombs — a boss waits at the end of each realm.</p>
       <p style="margin-top:0.8rem; opacity:0.75; font-size:0.85rem">Click or ENTER to start</p>
     </div>
   </div>
@@ -91,17 +92,20 @@
   </div>
 
   <div class="controls">
-    WASD / Arrows : Move &nbsp;&nbsp;•&nbsp;&nbsp; Collect crystals &nbsp;&nbsp;•&nbsp;&nbsp; Large crystals = Magic Field &nbsp;&nbsp;&bull;&nbsp;&nbsp; Enter : Start / Restart<br>
-    Touch enemies while the field is active to force them to respawn
+    WASD / Arrows : Move &nbsp;&nbsp;•&nbsp;&nbsp; P / Esc : Pause &nbsp;&nbsp;•&nbsp;&nbsp; Enter : Start<br>
+    Catch cowering hunters for 200 · 400 · 800 · 1600 &nbsp;•&nbsp; The werewolf howls before it charges &nbsp;•&nbsp; Witches leave slowing hexes<br>
+    Bosses float over the walls — ram them only while your field is up; the power crystals regrow
   </div>
 
   <script src="../leaderboard.js"></script>
   <script src="../arcade-controls.js?v=2"></script>
   <script src="../arcade-audio.js?v=1"></script>
   <script src="../vr-mode.js?v=2"></script>
-  <!-- Shared monster artwork; see wave3/sprite-kit.js. -->
-  <script src="../wave3/sprite-kit.js?v=1"></script>
-  <script src="game.js?v=2"></script>
+  <script src="realms.js?v=3"></script>
+  <script src="cast.js?v=3"></script>
+  <script src="bosses.js?v=3"></script>
+  <script src="render.js?v=3"></script>
+  <script src="game.js?v=3"></script>
   <script>
     // Maze runner: direction only, no action button.
     ArcadeControls.init(keys, { accent: '#e879f9', move: 'full', buttons: [] });

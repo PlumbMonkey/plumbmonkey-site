@@ -87,7 +87,7 @@ function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY), 10) 
 function saveBest() { try { localStorage.setItem(BEST_KEY, best); } catch (e) {} }
 let best = loadBest();
 let combo = 0, comboTimer = 0, hitPause = 0, shakeTime = 0, shakeMag = 0, waveDelay = 0;
-let bannerText = '', bannerSub = '', bannerTime = 0, ending = 0, stageFade = 0, nextLife = EXTRA_LIFE_EVERY;
+let bannerText = '', bannerSub = '', bannerTime = 0, ending = 0, stageFade = 0, nextLife = EXTRA_LIFE_EVERY, introTime = 0;
 let stageIdx = 0, waveTimer = 0, bumpSoundCooldown = 0, stormTimer = 0;
 function triggerShake(mag, time) { shakeMag = Math.max(shakeTime > 0 ? shakeMag : 0, mag); shakeTime = Math.max(shakeTime, time); }
 function comboMult() { return Math.min(1 + Math.floor(combo / 5), 5); }
@@ -152,6 +152,7 @@ function announce() {
   else if ((wave - 1) % WAVES_PER_STAGE === 0) { bannerText = s.name; bannerSub = (cycleOfWave(wave) ? `Night ${cycleOfWave(wave) + 1} · ` : '') + s.sub; }
   else { bannerText = 'WAVE ' + wave; bannerSub = s.name.toLowerCase(); }
   bannerTime = 120;
+  introTime = bannerTime;
 }
 
 function makeWitch(x, y, mount, extra) {
@@ -281,6 +282,9 @@ function update() {
   if (player.bumpCooldown > 0) player.bumpCooldown--;
   if (comboTimer > 0 && --comboTimer === 0) combo = 0;
   if (waveDelay > 0 && --waveDelay === 0) { spawnWave(); announce(); }
+  // Round-start title: the action holds still until the banner has gone,
+  // so a new wave never starts fighting underneath the title.
+  if (introTime > 0) { introTime--; return; }
 
   if (Arcade.attract) attractPilot();
   movePlatforms();

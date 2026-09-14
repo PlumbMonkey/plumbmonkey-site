@@ -32,7 +32,7 @@ const dir = 'public/arcade/games/spectral-manor-swarm/';
 ['arena.js', 'fx.js', 'hero.js', 'bosses.js', 'render.js', 'game.js'].forEach(f => vm.runInContext(fs.readFileSync(dir + f, 'utf8'), sandbox, { filename: f }));
 const run = code => vm.runInContext(code, sandbox);
 const steps = n => run(`for (let i = 0; i < ${n}; i++) update();`);
-const quiet = 'monsters = []; enemyBolts = []; bosses = []; strikes = []; shockRings = []; graves = []; hitPause = 0; waveDelay = 0; player.invuln = 0; player.shieldT = 0; player.dashT = 0;';
+const quiet = 'introTime = 0; monsters = []; enemyBolts = []; bosses = []; strikes = []; shockRings = []; graves = []; hitPause = 0; waveDelay = 0; player.invuln = 0; player.shieldT = 0; player.dashT = 0;';
 const keeper = "spawnMonster('brute', 40, 480)";   // keeps the wave from clearing mid-test
 
 // --- start ---

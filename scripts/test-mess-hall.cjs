@@ -29,7 +29,7 @@ const dir = 'public/arcade/games/spectral-manor-mess-hall/';
 ['rooms.js', 'cast.js', 'boss.js', 'render.js', 'game.js'].forEach(f => vm.runInContext(fs.readFileSync(dir + f, 'utf8'), sandbox, { filename: f }));
 const run = code => vm.runInContext(code, sandbox);
 const steps = n => run(`for (let i = 0; i < ${n}; i++) update();`);
-const calm = "player.invuln = 0; foods = []; lobs = []; boss = null; hitPause = 0; waveDelay = 0; bannerTime = 0;";
+const calm = "introTime = 0; player.invuln = 0; foods = []; lobs = []; boss = null; hitPause = 0; waveDelay = 0; bannerTime = 0;";
 const dummy = (x, y, extra = '') => `Object.assign(spawnMonster('frank', ${x}, ${y}, {safe: 0}), {x: ${x}, y: ${y}, speed: 0, throwTimer: 999, stealTimer: 999, aggression: 0 ${extra}})`;
 
 // --- spawns ---

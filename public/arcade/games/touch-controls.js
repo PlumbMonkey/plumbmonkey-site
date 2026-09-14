@@ -32,6 +32,7 @@ const TouchPad = (function () {
   // Canvas-space geometry (canvas is 960x540, scaled to fit the screen)
   const RADIUS    = 92;   // full-tilt travel from the stick origin
   const DEAD      = 13;   // ignore micro-drift so a resting thumb doesn't creep
+  const ASSIST    = 0.20; // rad — snap aim to a target within ~11 degrees
   const AIM_REACH = 320;  // how far ahead the virtual "mouse" point is projected
 
   const api = {
@@ -154,6 +155,25 @@ const TouchPad = (function () {
     }
   }
 
+  // Nudge the aim onto a nearby target — on a 5-inch screen the difference
+  // between fun and hopeless. Touch-only, so it never touches mouse play.
+  function assist(cx, cy) {
+    if (!opts.targets) return api.aimAngle;
+    let list;
+    try { list = opts.targets(); } catch (err) { return api.aimAngle; }
+    if (!list || !list.length) return api.aimAngle;
+
+    let bestAng = api.aimAngle, bestDiff = ASSIST;
+    for (const t of list) {
+      const tx = t.x + (t.w || 0) / 2;
+      const ty = t.y + (t.h || 0) / 2;
+      const ang = Math.atan2(ty - cy, tx - cx);
+      let diff = Math.abs(((ang - api.aimAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+      if (diff < bestDiff) { bestDiff = diff; bestAng = ang; }
+    }
+    return bestAng;
+  }
+
   // Project a virtual cursor out along the aim direction and drop it into the
   // game's existing `mouse` object — every mouse-based line keeps working.
   // Only while the aim stick is (or was last) in charge. A touchscreen LAPTOP
@@ -162,10 +182,10 @@ const TouchPad = (function () {
   function sync(mouse, cx, cy) {
     if (hintTime > 0) hintTime--;
     if (!api.firing && !aimOwnsMouse) return;
-    // The aim stick AIMS ONLY: no auto-fire and no snapping onto targets.
-    // Firing is the FIRE/THROW button (tap for one shot, hold for continuous).
-    mouse.x = cx + Math.cos(api.aimAngle) * AIM_REACH;
-    mouse.y = cy + Math.sin(api.aimAngle) * AIM_REACH;
+    const ang = api.firing ? assist(cx, cy) : api.aimAngle;
+    mouse.x = cx + Math.cos(ang) * AIM_REACH;
+    mouse.y = cy + Math.sin(ang) * AIM_REACH;
+    mouse.down = api.firing;
   }
 
   function drawStick(ctx, s, color) {
@@ -202,7 +222,7 @@ const TouchPad = (function () {
       ctx.textAlign = 'center';
       ctx.font = 'bold 20px "Segoe UI", system-ui, sans-serif';
       ctx.fillText('DRAG TO MOVE', W * 0.25, H - 40);
-      ctx.fillText('DRAG TO AIM · FIRE BUTTON TO SHOOT', W * 0.75, H - 40);
+      ctx.fillText('DRAG TO AIM & FIRE', W * 0.75, H - 40);
       ctx.restore();
     }
   }

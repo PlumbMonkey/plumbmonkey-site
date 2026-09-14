@@ -588,17 +588,18 @@
 
     document.body.appendChild(bar);
 
-    // Aim games: drag anywhere on the play area to AIM via the game's existing
-    // mouse handlers. Aiming never fires — the FIRE/THROW button does (tap for
-    // one shot, hold for continuous). touch-action:none is essential — without
+    // Aim games: drag anywhere on the play area to aim (and auto-fire) via the
+    // game's existing mouse handlers. touch-action:none is essential — without
     // it mobile browsers steal the drag as a scroll and aim never registers.
     if (layout.aim) {
       const cv = document.getElementById('gameCanvas');
       if (cv) {
         cv.style.touchAction = 'none';
         const toMouse = (type, t) => cv.dispatchEvent(new MouseEvent(type, { clientX: t.clientX, clientY: t.clientY, bubbles: true }));
-        cv.addEventListener('touchstart', e => { e.preventDefault(); toMouse('mousemove', e.changedTouches[0]); }, { passive: false });
+        cv.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; toMouse('mousemove', t); toMouse('mousedown', t); }, { passive: false });
         cv.addEventListener('touchmove', e => { e.preventDefault(); toMouse('mousemove', e.changedTouches[0]); }, { passive: false });
+        cv.addEventListener('touchend', e => { e.preventDefault(); toMouse('mouseup', e.changedTouches[0]); }, { passive: false });
+        cv.addEventListener('touchcancel', e => { toMouse('mouseup', e.changedTouches[0]); }, { passive: false });
       }
     }
   }
@@ -725,8 +726,7 @@
     if (startNow !== prevStart) key('Enter', startNow ? 'keydown' : 'keyup');
     prevStart = startNow;
 
-    // Aim games: right stick steers a virtual cursor. It does not fire — RT is
-    // already the primary action (Space) above, like the A button.
+    // Aim games: right stick steers a virtual cursor; deflection (or RT) fires
     if (layout.aim) {
       const cv = document.getElementById('gameCanvas');
       if (cv) {
@@ -742,6 +742,11 @@
         const clientY = rect.top + (aimCursor.y / cv.height) * rect.height;
         cv.dispatchEvent(new MouseEvent('mousemove', { clientX, clientY, bubbles: true }));
         moveReticle(clientX, clientY);
+        const fireNow = mag > DZ || held(7);
+        if (fireNow !== prevAimFire) {
+          cv.dispatchEvent(new MouseEvent(fireNow ? 'mousedown' : 'mouseup', { clientX, clientY, bubbles: true }));
+          prevAimFire = fireNow;
+        }
       }
     }
   }

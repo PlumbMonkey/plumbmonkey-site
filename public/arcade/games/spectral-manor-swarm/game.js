@@ -100,7 +100,7 @@ function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY), 10) 
 function saveBest() { try { localStorage.setItem(BEST_KEY, best); } catch (e) {} }
 let best = loadBest();
 let combo = 0, comboTimer = 0, hitPause = 0, shakeTime = 0, shakeMag = 0, waveDelay = 0;
-let bannerText = '', bannerSub = '', bannerTime = 0, ending = 0, flash = 0, arenaFade = 0;
+let bannerText = '', bannerSub = '', bannerTime = 0, ending = 0, flash = 0, arenaFade = 0, introTime = 0;
 let arenaIdx = 0, dashHeld = false;
 function triggerShake(mag, time) { shakeMag = Math.max(shakeTime > 0 ? shakeMag : 0, mag); shakeTime = Math.max(shakeTime, time); }
 function comboMult() { return Math.min(1 + Math.floor(combo / 5), 5); }
@@ -217,6 +217,7 @@ function announceWave() {
   else if ((wave - 1) % WAVES_PER_ARENA === 0) { bannerText = arena.name; bannerSub = (cycleOfWave(wave) ? `Night ${cycleOfWave(wave) + 1} · ` : '') + arena.sub; }
   else { bannerText = 'WAVE ' + wave; bannerSub = arena.name.toLowerCase(); }
   bannerTime = 120;
+  introTime = bannerTime;
 }
 
 function makeFan() {
@@ -430,6 +431,9 @@ function update() {
   if (arenaFade > 0) arenaFade--;
   if (comboTimer > 0 && --comboTimer === 0) combo = 0;
   if (waveDelay > 0 && --waveDelay === 0) { spawnWave(); announceWave(); arenaFade = (wave - 1) % WAVES_PER_ARENA === 0 ? 40 : 0; }
+  // Round-start title: the action holds still until the banner has gone,
+  // so a new wave never starts fighting underneath the title.
+  if (introTime > 0) { introTime--; return; }
 
   if (ATTRACT_MODE) attractPilot();
   updatePlayer();
