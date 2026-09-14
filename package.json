@@ -5,7 +5,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node scripts/check-room-lists.mjs && node scripts/check-arcade-games.mjs && node scripts/test-natural-media-lab.mjs && node scripts/test-luminarium.mjs && node scripts/test-hooded.cjs && node scripts/test-graveyard.cjs && node scripts/test-mess-hall.cjs && node scripts/test-crystal-dimension.cjs && node scripts/test-swarm.cjs && node scripts/test-luno.cjs && node scripts/test-soul-circuit.cjs && node scripts/test-cruise.cjs && node scripts/test-infestation.cjs",
+    "test": "node scripts/check-room-lists.mjs && node scripts/check-arcade-games.mjs && node scripts/test-natural-media-lab.mjs && node scripts/test-luminarium.mjs && node scripts/test-hooded.cjs && node scripts/test-graveyard.cjs && node scripts/test-mess-hall.cjs && node scripts/test-crystal-dimension.cjs && node scripts/test-swarm.cjs && node scripts/test-luno.cjs && node scripts/test-soul-circuit.cjs && node scripts/test-cruise.cjs && node scripts/test-infestation.cjs && node scripts/test-beam.cjs",
     "test:release": "node scripts/validate-natural-media-release.mjs"
   },
   "dependencies": {
