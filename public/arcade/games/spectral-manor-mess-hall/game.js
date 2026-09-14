@@ -326,10 +326,11 @@ function beginPlayerThrow() {
   player.throwAnim = player.throwDur;
   player.pendingThrow = true;
 }
-// The food leaves the hand at the bottom of the windmill, beside the hip.
+// The food leaves the hand at the top of the overhand pitch, in front of and
+// above the shoulder.
+function heroReleasePoint() { const sh = heroShoulder(); return releasePoint(sh.x, sh.y, player.angle, 17); }
 function releasePlayerThrow() {
-  const sh = heroShoulder();
-  const hx = sh.x, hy = sh.y + 17;
+  const { x: hx, y: hy } = heroReleasePoint();
   const a = Math.atan2(mouse.y - hy, mouse.x - hx);
   const big = player.power === 'bigpie';
   const spreads = player.power === 'triple' ? [-0.2, 0, 0.2] : [0];
@@ -348,13 +349,14 @@ function throwFood() { beginPlayerThrow(); }   // kept for older callers
 
 function monsterShoulder(c) {
   const face = Math.cos(c.angle) < 0 ? -1 : 1;
-  return { x: c.x + c.w / 2 + face * 9, y: c.y + c.h + 2 - 40 };
+  // ghosts hover ~6px higher than walkers, so their arms do too
+  return { x: c.x + c.w / 2 + face * 9, y: c.y + c.h + 2 - 40 - (c.type === 'ghost' ? 6 : 0) };
 }
 function releaseMonsterThrow(c) {
   const p = c.pendingThrow;
   c.pendingThrow = null;
   const sh = monsterShoulder(c);
-  const hx = sh.x, hy = sh.y + 16;
+  const { x: hx, y: hy } = releasePoint(sh.x, sh.y, c.angle, 16);
   if (p.potion) {
     lobs.push({ kind: 'potion', x0: hx, y0: hy, tx: p.tx, ty: p.ty, t: 0, dur: 50, arc: 70, radius: 34 });
   } else {

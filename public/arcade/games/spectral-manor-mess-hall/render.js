@@ -120,7 +120,7 @@ function drawMonsterMarkers(c) {
   }
   // TELL: a short dashed line from the throwing hand along the throw
   if (c.pendingThrow && !c.pendingThrow.potion && !c.carryDish) {
-    const sh = monsterShoulder(c), hx = sh.x, hy = sh.y + 16;
+    const sh = monsterShoulder(c), { x: hx, y: hy } = releasePoint(sh.x, sh.y, c.pendingThrow.angle, 16);
     ctx.save();
     ctx.strokeStyle = 'rgba(255,139,134,0.8)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
     ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.cos(c.pendingThrow.angle) * 70, hy + Math.sin(c.pendingThrow.angle) * 70); ctx.stroke();
@@ -209,10 +209,10 @@ function draw() {
 
   // aim guide from the hero's throwing hand
   if (gameRunning && ammo > 0 && !ending && !ATTRACT_MODE) {
-    const sh = heroShoulder();
+    const rp = heroReleasePoint();
     ctx.save();
     ctx.strokeStyle = 'rgba(192,132,252,0.3)'; ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
-    ctx.beginPath(); ctx.moveTo(sh.x, sh.y + 17); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rp.x, rp.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
     ctx.setLineDash([]);
     ctx.strokeStyle = 'rgba(240,171,252,0.8)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 7, 0, Math.PI * 2); ctx.stroke();

@@ -68,9 +68,12 @@ steps(12);
 assert.equal(run('foods.filter(f => !f.fromChef).length'), 0, 'no food during the wind-up');
 steps(1);
 assert.equal(run('foods.filter(f => !f.fromChef).length'), 1, 'food released at the bottom of the windmill');
-assert.equal(run('Math.round(foods[0].y) === Math.round(heroShoulder().y + 17)'), true, 'released beside the hip');
+assert.ok(run('foods[0].y < heroShoulder().y'), 'overhand: released above the shoulder');
 run('keys.Space = false;');
-assert.ok(Math.abs(run('windmillAngle(WINDMILL_RELEASE)') - Math.PI * 2) < 1e-9, 'a full circle by release');
+// overhand: the hand goes BEHIND the body first, then over the top
+assert.ok(run('windmillHand(0, 0, 0, windmillAngle(0.34), 17).x') < 0, 'wind-up cocks the arm back');
+assert.ok(run('windmillHand(0, 0, 0, windmillAngle(0.55), 17).y') < -8, 'arm comes over the top');
+assert.ok(run('windmillHand(0, 0, 0, windmillAngle(WINDMILL_RELEASE), 17).x') > 8, 'release is in front');
 
 // --- every character and pose draws ---
 run(`['vampire','werewolf','frank','ghost','witch'].forEach(type => {

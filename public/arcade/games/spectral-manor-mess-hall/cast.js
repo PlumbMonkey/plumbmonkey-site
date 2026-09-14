@@ -9,14 +9,56 @@
 // the throwing arm is world-space so the circle always turns toward the aim.
 // ============================================================
 
-// ---------- windmill rig ----------
+// ---------- overhand pitch rig ----------
+// (Names kept from the first version, which was an underhand softball
+// windmill.) The arm turns BACKWARD through the circle: it cocks back behind
+// the body, whips up over the top, releases in front of and above the
+// shoulder, then follows through down across the front.
 const WINDMILL_RELEASE = 0.72;         // fraction of the animation at which food leaves the hand
+const DEG = Math.PI / 180;
+const COCK_ANGLE = -110 * DEG;         // arm drawn back behind the body
+const RELEASE_ANGLE = -235 * DEG;      // hand forward and high: the release point
+const FOLLOW_ANGLE = -325 * DEG;       // follow-through, down in front
 
-// Arm angle (radians) from "straight down": accelerates through one full turn
-// to the release, then follows through up and forward.
+// Arm angle (radians) measured from "straight down"; negative = swinging back
+// first, so the hand passes behind, then overhead, then forward.
 function windmillAngle(p) {
-  if (p <= WINDMILL_RELEASE) return Math.PI * 2 * Math.pow(p / WINDMILL_RELEASE, 1.7);
-  return Math.PI * 2 + (Math.PI * 0.55) * ((p - WINDMILL_RELEASE) / (1 - WINDMILL_RELEASE));
+  if (p <= 0.34) {                     // wind-up: ease the arm back
+    const k = p / 0.34;
+    return COCK_ANGLE * (1 - (1 - k) * (1 - k));
+  }
+  if (p <= WINDMILL_RELEASE) {         // the whip: accelerate over the top
+    const k = (p - 0.34) / (WINDMILL_RELEASE - 0.34);
+    return COCK_ANGLE + (RELEASE_ANGLE - COCK_ANGLE) * Math.pow(k, 1.6);
+  }
+  const k = (p - WINDMILL_RELEASE) / (1 - WINDMILL_RELEASE);
+  return RELEASE_ANGLE + (FOLLOW_ANGLE - RELEASE_ANGLE) * (1 - (1 - k) * (1 - k));
+}
+// Where the food leaves the hand.
+function releasePoint(sx, sy, aim, L) { return windmillHand(sx, sy, aim, RELEASE_ANGLE, L); }
+// While the arm is cocked back the hand is behind the body, so the arm is
+// drawn BEHIND the torso; once it comes over the top it is drawn in front.
+// Aiming up the screen (away from the viewer) flips which side is behind.
+function armIsBehind(aim, p) {
+  const back = Math.sin(windmillAngle(p)) < -0.25;
+  return Math.sin(aim) < -0.35 ? !back : back;
+}
+// A ghost's arm is a flap of its sheet, not a limb: it leaves the side of
+// the sheet and reaches forward with a drooping, swaying tip.
+function ghostArm(x, y, dir, t) {
+  const sway = Math.sin(t * 0.08) * 3;
+  // wide where it leaves the sheet, tapering to a limp tip that droops
+  ctx.beginPath();
+  ctx.moveTo(x - dir * 3, y - 7);
+  ctx.quadraticCurveTo(x + dir * 9, y - 9 + sway * 0.4, x + dir * 17, y - 2 + sway);
+  ctx.quadraticCurveTo(x + dir * 19, y + 4 + sway, x + dir * 15, y + 5 + sway);
+  ctx.quadraticCurveTo(x + dir * 8, y + 1 + sway * 0.4, x - dir * 3, y + 7);
+  ctx.closePath();
+  ctx.fillStyle = '#d5f0ef'; ctx.fill();
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.lineJoin = 'round'; ctx.stroke();
+  // a fold line so it reads as cloth
+  ctx.strokeStyle = 'rgba(94,140,150,0.6)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(x + dir * 2, y + 1); ctx.quadraticCurveTo(x + dir * 9, y - 1 + sway * 0.4, x + dir * 14, y + 2 + sway); ctx.stroke();
 }
 // Hand position for a straight arm of length L at windmill angle phi.
 // Forward is the aim direction, foreshortened vertically for the 3/4 view.
@@ -96,7 +138,8 @@ function drawHero(p, t) {
   const aimUp = Math.sin(p.angle) < -0.35;
   const shoulder = { x: fx + face * 8, y: fy - 40 - bob };
 
-  if (aimUp && tp > 0) drawThrowArm(shoulder.x, shoulder.y, p.angle, tp, 17, HERO.limb, '#cfe6ff', p.nextFood);
+  const armBehind = tp > 0 && armIsBehind(p.angle, tp);
+  if (armBehind) drawThrowArm(shoulder.x, shoulder.y, p.angle, tp, 17, HERO.limb, '#cfe6ff', p.nextFood);
 
   ctx.save();
   ctx.translate(fx, fy);
@@ -129,7 +172,7 @@ function drawHero(p, t) {
   ctx.beginPath(); ctx.arc(-11, hy - 17, 2.6, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
   ctx.restore();
 
-  if (tp > 0 && !aimUp) drawThrowArm(shoulder.x, shoulder.y, p.angle, tp, 17, HERO.limb, '#cfe6ff', p.nextFood);
+  if (tp > 0 && !armBehind) drawThrowArm(shoulder.x, shoulder.y, p.angle, tp, 17, HERO.limb, '#cfe6ff', p.nextFood);
   else if (tp === 0) {
     // ready pose: food cradled at the hip on the throwing side
     const hx = fx + face * 12, hyy = fy - 26 - bob;
@@ -164,7 +207,8 @@ function drawMonster(c, t) {
 
   const shoulder = { x: fx + face * 9, y: fy - 40 - bob + (c.type === 'frank' ? -4 : 0) };
   const aimUp = Math.sin(c.angle) < -0.35;
-  if (tp > 0 && aimUp && !c.carryDish) drawThrowArm(shoulder.x, shoulder.y, c.angle, tp, 16, L.sleeve, L.hand, c.pendingThrow && c.pendingThrow.food.name);
+  const armBehind = tp > 0 && !c.carryDish && armIsBehind(c.angle, tp);
+  if (armBehind) drawThrowArm(shoulder.x, shoulder.y, c.angle, tp, 16, L.sleeve, L.hand, c.pendingThrow && c.pendingThrow.food.name);
 
   ctx.save();
   ctx.translate(fx, fy);
@@ -180,7 +224,9 @@ function drawMonster(c, t) {
     inkOval(fx, fy - 64 - bob, 12, 4.5, '#e9d5ff', 1.5);
     ctx.save(); ctx.translate(fx, fy - 70 - bob); drawFoodShape('cake', 6); ctx.restore();
   } else if (tp > 0) {
-    if (!aimUp) drawThrowArm(shoulder.x, shoulder.y, c.angle, tp, 16, L.sleeve, L.hand, c.pendingThrow && c.pendingThrow.food.name);
+    if (!armBehind) drawThrowArm(shoulder.x, shoulder.y, c.angle, tp, 16, L.sleeve, L.hand, c.pendingThrow && c.pendingThrow.food.name);
+  } else if (floating) {
+    ghostArm(shoulder.x + face * 3, shoulder.y + 4, face, t + c.walkPhase * 10);
   } else {
     const swing = sw * 7;
     limb([[shoulder.x, shoulder.y], [shoulder.x + face * 2 + swing * 0.4, shoulder.y + 8], [shoulder.x + face * 3 + swing, shoulder.y + 15]], L.sleeve, 5);
@@ -261,7 +307,9 @@ const BODY = {
     ctx.save(); ctx.beginPath(); ctx.rect(-15, -60, 9, 60); ctx.clip();
     inkPoly([[-13, -6], [-14, -36], [-10, -52], [0, -58], [10, -53], [14, -38], [14, -6]], '#a7d3d6', 0);
     ctx.restore();
-    limb([[-10, -34], [-17, -30], [-19, -24 + Math.sin(t * 0.1) * 3]], '#bfe3e4', 5);
+    // far-side sleeve: a short sheet flap drooping off the back edge
+    const s = Math.sin(t * 0.08 + 1) * 2;
+    inkPoly([[-11, -42], [-19, -39 + s], [-22, -32 + s], [-18, -31 + s], [-12, -33]], '#bfe3e4', 1.8);
     inkOval(0, -42, 3.4, 5, '#18213b', 0); inkOval(8, -42, 3.4, 5, '#18213b', 0);  // hollow eyes
     inkOval(4, -31, 2.8, 3.6 + Math.sin(t * 0.1) * 0.8, '#18213b', 0);           // moaning mouth
     litEyes([[0.5, -41], [8.5, -41]], '#67e8f9', 6, 1.6);
@@ -296,7 +344,8 @@ function drawHeadChef(b, t) {
   const aimUp = Math.sin(b.aim) < -0.35;
   if (flash) ctx.globalAlpha = 0.6;
 
-  if (tp > 0 && aimUp) drawThrowArm(shoulder.x, shoulder.y, b.aim, tp, 30, '#f5f5f4', '#e7e5e4', null);
+  const armBehind = tp > 0 && armIsBehind(b.aim, tp);
+  if (armBehind) drawThrowArm(shoulder.x, shoulder.y, b.aim, tp, 30, '#f5f5f4', '#e7e5e4', null);
 
   ctx.save();
   ctx.translate(fx, fy - hover);
@@ -342,7 +391,7 @@ function drawHeadChef(b, t) {
   inkPoly([[-10, -72], [-13, -84], [-6, -92], [0, -86], [6, -93], [13, -84], [10, -72]], '#fafaf9', 1.8);
   ctx.restore();
 
-  if (tp > 0 && !aimUp) drawThrowArm(shoulder.x, shoulder.y, b.aim, tp, 30, '#f5f5f4', '#e7e5e4', null);
+  if (tp > 0 && !armBehind) drawThrowArm(shoulder.x, shoulder.y, b.aim, tp, 30, '#f5f5f4', '#e7e5e4', null);
   else if (tp === 0) limb([[shoulder.x, shoulder.y], [shoulder.x + face * 8, shoulder.y + 14], [shoulder.x + face * 6, shoulder.y + 28]], '#f5f5f4', 7);
   if (tp > 0 && tp < WINDMILL_RELEASE) {   // the giant pie rides the windmill
     const h = windmillHand(shoulder.x, shoulder.y, b.aim, windmillAngle(tp), 30);
