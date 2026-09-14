@@ -81,7 +81,10 @@ const TouchPad = (function () {
     canvas.addEventListener('touchmove', onMove, { passive: false });
     canvas.addEventListener('touchend', onEnd, { passive: false });
     canvas.addEventListener('touchcancel', onEnd, { passive: false });
+    // a real mouse moving hands aim back to the mouse
+    canvas.addEventListener('mousemove', e => { if (!e.sourceCapabilities || !e.sourceCapabilities.firesTouchEvents) aimOwnsMouse = false; });
   }
+  let aimOwnsMouse = false;   // set once the aim stick is touched; cleared by real mouse movement
 
   function onStart(e) {
     e.preventDefault();
@@ -96,6 +99,7 @@ const TouchPad = (function () {
       if (stick.id !== null) stick = (stick === move) ? aim : move;
       if (stick.id !== null) continue;
       stick.id = t.identifier;
+      if (stick === aim) aimOwnsMouse = true;
       stick.ox = p.x; stick.oy = p.y;
       stick.x = p.x;  stick.y = p.y;
     }
@@ -172,8 +176,12 @@ const TouchPad = (function () {
 
   // Project a virtual cursor out along the aim direction and drop it into the
   // game's existing `mouse` object — every mouse-based line keeps working.
+  // Only while the aim stick is (or was last) in charge. A touchscreen LAPTOP
+  // reports touch support too, and overwriting `mouse` every frame there made
+  // its real mouse unable to aim or fire at all (found 2026-09-13 in Swarm).
   function sync(mouse, cx, cy) {
     if (hintTime > 0) hintTime--;
+    if (!api.firing && !aimOwnsMouse) return;
     const ang = api.firing ? assist(cx, cy) : api.aimAngle;
     mouse.x = cx + Math.cos(ang) * AIM_REACH;
     mouse.y = cy + Math.sin(ang) * AIM_REACH;

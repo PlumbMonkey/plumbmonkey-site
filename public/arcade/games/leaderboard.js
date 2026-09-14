@@ -451,7 +451,7 @@
   const CONTROL_LAYOUTS = {
     'spectral-manor-revenger':          { pad: 'dpad', actions: [['FIRE', 'Space']] },
     'spectral-manor-mess-hall':         { pad: 'dpad', actions: [['THROW', 'Space']], aim: true },
-    'spectral-manor-swarm':             { pad: 'dpad', actions: [['FIRE', 'Space']], aim: true },
+    'spectral-manor-swarm':             { pad: 'dpad', actions: [['FIRE', 'Space'], ['DASH', 'ShiftLeft']], aim: true },
     'spectral-skyline':                 { pad: 'lr',   actions: [['FLAP', 'Space']] },
     'spectral-manor-soul-circuit':      { pad: 'dpad', actions: [] },
     'spectral-manor-crystal-dimension': { pad: 'lr',   actions: [['THRUST', 'ArrowUp'], ['FIRE', 'Space'], ['NOVA', 'KeyX']] },
