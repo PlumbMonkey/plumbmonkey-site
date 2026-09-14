@@ -105,7 +105,7 @@
     }else if(id==="graveyardShift"){
       // E minor, and it follows the chapters: sparse crypt, pulsing basement,
       // then the concert stage picks up the tempo and switches to power chords
-      const rock=level>=3,mid=level===2;
+      const rock=level>=6,mid=level>=4&&!rock;
       musicClock+=rock?0.17:mid?0.21:0.27;
       const step=s%16,low=[82.41,82.41,61.74,61.74,73.42,73.42,55,55],lead=[329.63,392,493.88,392,329.63,293.66,246.94,293.66];
       if(step%2===0)musicVoice(low[(step/2)%8],rock?0.2:0.42,"sawtooth",rock?0.022:0.016,rock?300:200);
@@ -154,7 +154,7 @@
   function start(){audioStart();score=0;lives=3;level=1;beamBonusAwarded=false;musicClock=0;musicStep=0;running=true;paused=false;game.reset();overlay.classList.add("hidden");hud();last=performance.now()}
   function end(win=false){running=false;hud();const finish=()=>show(win?"SABOTAGE STOPPED":"SIGNAL LOST",`${win?"Ghost Circuit is back online.":"Plumbmonkey wins this round."} Score: ${score.toLocaleString()}`,"PLAY AGAIN",true);if(window.Arcade&&Arcade.submitFlow)Arcade.submitFlow(score,finish);else finish()}
   function lose(){if(!running)return;lives--;beep(90,.3,"sawtooth",.07);if(lives<=0)end(false);else{game.respawn();hud()}}
-  function next(){level++;addScore(500*level);beep(780,.15);game.next();hud();if(id!=="beamMeUpLive")toast(`LEVEL ${level}`)}
+  function next(){level++;addScore(500*level);beep(780,.15);game.next();hud();if(id!=="beamMeUpLive"&&id!=="graveyardShift")toast(`LEVEL ${level}`)}
   function togglePause(){if(!running)return;paused=!paused;if(paused)show("PAUSED","The sabotage is holding. Press P, Esc, or Resume.","RESUME");else overlay.classList.add("hidden")}
   overlay.addEventListener("click",()=>paused?(paused=false,overlay.classList.add("hidden")):!running&&start());
   /* -PAD..W+PAD, not 0..W: the view is wider than the world (see VIEW_W), and a
@@ -1018,8 +1018,8 @@
         bg,house:()=>drawHouseSilhouette(.25),score:addScore,burst,beep,sweep,chord,lose,next});
     },
     graveyardShift(){
-      return window.GraveyardGame.create({ctx,level:()=>level,down,tap,reduced,
-        bg,mansion:mansionBackdrop,score:addScore,burst,beep,sweep,chord,toast,lose,next,end});
+      return window.GraveyardGame.create({ctx,W,H,PAD,VIEW_W,level:()=>level,lives:()=>lives,addLife:()=>{lives++;hud()},
+        down,tap,reduced,attract:attractMode,bg,score:addScore,burst,beep,sweep,chord,toast,lose,next,end});
     }
   };
   const game=games[id]();game.reset();hud();show($("h1").textContent,$("#intro").textContent,"START");

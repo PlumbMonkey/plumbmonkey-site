@@ -29,19 +29,26 @@
     <p class="kicker">Spectral Manor Arcade</p>
     <h1>GHOST CIRCUIT: GRAVEYARD SHIFT</h1>
     <div class="frame">
-      <canvas id="gameCanvas" aria-label="Graveyard Shift. Move left and right, jump obstacles, collect the sonic guitar and defeat three guardians."></canvas>
+      <canvas id="gameCanvas" aria-label="Graveyard Shift. A platformer: run, jump, blast ghost blocks with music notes and climb the manor to the Music Room."></canvas>
       <div id="toast" class="toast" role="status"></div>
       <div id="startOverlay" class="overlay"></div>
     </div>
-    <div class="topbar">SCORE <b id="score">0</b> LIVES <b id="lives">3</b> CHAPTER <b id="level">1</b> BEST <b id="high">0</b></div>
-    <p class="controls">A/D or ←/→: Move · W/↑/Space: Jump · Hold X/Ctrl: Sonic<br>P/Esc: Pause · Enter: Start · Equipment cases earn bonus points</p>
-    <p id="intro" hidden>Grab the guitar before your first fight. Jump over solid obstacles and hold Sonic to fire in the direction you face. Each life has three health points; flags save your position. Guardians warn before attacking—dodge, then fire while exposed. Recover bonus equipment across three chapters.</p>
+    <div class="topbar">SCORE <b id="score">0</b> LIVES <b id="lives">3</b> LEVEL <b id="level">1</b> BEST <b id="high">0</b></div>
+    <p class="controls">A/D or ←/→: Move · W/↑/Space: Jump (hold for height) · X/Ctrl: Sonic note · S/↓: Enter graves &amp; paintings<br>P/Esc: Pause · Enter: Start · 100 soul notes = extra life</p>
+    <p id="intro" hidden>Climb from the cemetery gate to the Music Room at the top of the manor. Ghost blocks are solid until a music note or a head-bump blasts them to vapour, and they slowly re-form. Music boxes hold the Amp (take an extra hit), the Guitar (fire notes) and Encore. Graves and paintings lead elsewhere: press Down. Plumbmonkey waits upstairs. Stun him, take the legendary guitar and play it on the beat.</p>
   </main>
-  <script src="../leaderboard.js"></script>
-  <script src="../arcade-controls.js?v=4"></script>
+  <script src="../leaderboard.js?v=4"></script>
+  <script src="../arcade-controls.js?v=5"></script>
   <script src="../arcade-audio.js?v=1"></script>
-  <script src="../wave3/graveyard.js?v=1"></script>
-  <script src="../wave3/wave3.js?v=4"></script>
-  <script>ArcadeControls.init(window.wave3Keys, { accent: '#fb7185', move: 'horizontal', autoFireCode: 'KeyX', buttons: [{ code: 'Space', label: 'JUMP', onTap: () => window.wave3Tap('Space') }, { code: 'KeyX', label: 'SONIC' }] });</script>
+  <script src="../wave3/sprite-kit.js?v=2"></script>
+  <script src="../kit/hero-kit.js?v=1"></script>
+  <script src="../wave3/graveyard-levels.js?v=1"></script>
+  <script src="../wave3/graveyard-world.js?v=1"></script>
+  <script src="../wave3/graveyard-foes.js?v=1"></script>
+  <script src="../wave3/graveyard.js?v=2"></script>
+  <script src="../wave3/graveyard-paint.js?v=1"></script>
+  <script src="../wave3/graveyard-art.js?v=1"></script>
+  <script src="../wave3/wave3.js?v=6"></script>
+  <script>ArcadeControls.init(window.wave3Keys, { accent: '#fb7185', move: 'horizontal', buttons: [{ code: 'Space', label: 'JUMP' }, { code: 'KeyX', label: 'SONIC', onTap: () => window.wave3Tap('KeyX') }, { code: 'ArrowDown', label: 'ENTER' }] });</script>
 </body>
 </html>
