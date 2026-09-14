@@ -144,7 +144,7 @@ function resetRacers() {
     // rivals gain pace each race but cap below a clean driver's average. Tuned
     // with the bots in scripts/test-cruise.cjs: clean wins all four tracks,
     // full-throttle-and-hope loses them.
-    speed: Math.min(d.speed + (race - 1) * 100, 11400),
+    speed: Math.min((d.speed + (race - 1) * 100) * track.theme.pace, 11400),
     totalZ: (i + 1) * SEG_LEN * 3,
     lane: d.x, laneTimer: 120 + i * 50, contactCd: 0,
     wobble: Math.random() * Math.PI * 2,
@@ -464,7 +464,9 @@ function updateRivals(frozen) {
 
     // RACE 2+: rivals AHEAD drop ghost-fire behind them — always from a car you can see
     if (race >= 2 && --o.fireTimer <= 0) {
-      if (rel > SEG_LEN * 2 && rel < SEG_LEN * 60) fireballs.push({ totalZ: o.totalZ - SEG_LEN * 1.5, x: o.x, life: 900 });
+      // only when you're far enough back to see it land and change lanes: at top
+      // speed you cover ~60 segments a second, so 30 segments is half a second
+      if (rel > SEG_LEN * 30 && rel < SEG_LEN * 90) fireballs.push({ totalZ: o.totalZ - SEG_LEN * 1.5, x: o.x, life: 900 });
       o.fireTimer = 320 + Math.random() * 320;
     }
   });

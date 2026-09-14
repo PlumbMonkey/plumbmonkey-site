@@ -57,34 +57,37 @@ const easeInOut = (a, b, p) => a + (b - a) * (-Math.cos(p * Math.PI) / 2 + 0.5);
 
 /* ---------------------------------------------------------------------------
    THEMES
+   `pace` scales the rival pack per track: the Canyon's jumps (no steering in the
+   air), crests and tight bends make it the hardest drive, so its pack runs 3%
+   slower — measured with the bots in scripts/test-cruise.cjs.
    --------------------------------------------------------------------------- */
 const TRACKS = [
   {
     key: 'highway', name: 'MIDNIGHT HIGHWAY', sub: 'Three laps past the manor graveyard',
     sky: ['#07030f', '#1a0d33', '#3b1a5c'], fog: '#241238', fogDensity: 2.2,
     grass: ['#120a1f', '#0e0818'], road: ['#2a2040', '#241b38'], rumble: ['#a855f7', '#3b2660'],
-    lane: '#e9d5ff', edge: '#c4b5fd', weather: 'mist', moon: '#f5f0ff', glow: '#c084fc', tone: 1,
+    lane: '#e9d5ff', edge: '#c4b5fd', weather: 'mist', moon: '#f5f0ff', glow: '#c084fc', tone: 1, pace: 1,
     seed: 101
   },
   {
     key: 'woods', name: 'HOLLOW WOODS', sub: 'Rolling hills, fog banks — and fallen logs',
     sky: ['#020a0c', '#0b2a2e', '#2d5a55'], fog: '#1d3b3a', fogDensity: 3.4,
     grass: ['#0a1a12', '#08150e'], road: ['#29302e', '#232a28'], rumble: ['#e5e7eb', '#7f1d1d'],
-    lane: '#f1f5f9', edge: '#e2e8f0', weather: 'leaves', moon: '#ecfdf5', glow: '#5eead4', tone: 0.89,
+    lane: '#f1f5f9', edge: '#e2e8f0', weather: 'leaves', moon: '#ecfdf5', glow: '#5eead4', tone: 0.89, pace: 0.985,
     seed: 202
   },
   {
     key: 'canyon', name: 'BONEYARD CANYON', sub: 'Crests you cannot see over — and rivers of lava',
     sky: ['#1a0303', '#5c1208', '#c2410c'], fog: '#4a1a0e', fogDensity: 1.8,
     grass: ['#3a1a0e', '#32160c'], road: ['#3b2a24', '#35251f'], rumble: ['#fbbf24', '#7c2d12'],
-    lane: '#fde68a', edge: '#fed7aa', weather: 'embers', moon: '#fecaca', glow: '#fb923c', tone: 1.12,
+    lane: '#fde68a', edge: '#fed7aa', weather: 'embers', moon: '#fecaca', glow: '#fb923c', tone: 1.12, pace: 0.97,
     seed: 303
   },
   {
     key: 'city', name: 'NEON NECROPOLIS', sub: 'Rain-slick streets, tunnels and puddles',
     sky: ['#05030d', '#1e0b2e', '#4a1646'], fog: '#2a1030', fogDensity: 2.6,
     grass: ['#111018', '#0d0c13'], road: ['#22202c', '#1d1b26'], rumble: ['#22d3ee', '#be185d'],
-    lane: '#f0abfc', edge: '#67e8f9', weather: 'rain', moon: '#fbcfe8', glow: '#f472b6', tone: 0.84,
+    lane: '#f0abfc', edge: '#67e8f9', weather: 'rain', moon: '#fbcfe8', glow: '#f472b6', tone: 0.84, pace: 1,
     seed: 404
   }
 ];
@@ -200,7 +203,9 @@ function buildTrack(index) {
       continue;
     }
     if (i % 3 === 0 && rng() < 0.75) put(i, pick(SETS.near), (rng() < 0.5 ? -1 : 1) * (1.25 + rng() * 0.35));
-    if (i % 5 === 0 && rng() < 0.8) put(i, pick(SETS.far), (rng() < 0.5 ? -1 : 1) * (1.75 + rng() * 1.6));
+    // far scenery stands out by its own width, so a big cliff never reaches back
+    // over the shoulder and grazing the road edge doesn't count as hitting it
+    if (i % 5 === 0 && rng() < 0.8) { const nm = pick(SETS.far); put(i, nm, (rng() < 0.5 ? -1 : 1) * (1.75 + SPRITE_DEFS[nm].collide + rng() * 1.6)); }
     if (theme.key === 'highway' && i % 2 === 0) { put(i, 'fence', -1.2); put(i, 'fence', 1.2); }
     if (theme.key === 'canyon' && i % 70 === 30) put(i, 'boneArch', 0);
   }
