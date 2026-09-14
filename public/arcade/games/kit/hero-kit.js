@@ -129,6 +129,34 @@
         r.arms = [[2.9, 3.05], [1.3, 2.35]];
         r.guitar = { x: 4, dy: -10, a: 0.55 };
         break;
+      case "climb": {              // ladder: alternating reach, the knee comes up with the opposite hand
+        const k1 = Math.max(0, s), k2 = Math.max(0, -s);
+        r.arms = [[2.55 + k2 * 0.5, 2.9 + k2 * 0.2], [2.55 + k1 * 0.5, 2.9 + k1 * 0.2]];
+        r.legs = [[0.2 + k1 * 0.85, 0.1 - k1 * 0.5], [0.2 + k2 * 0.85, 0.1 - k2 * 0.5]];
+        break;
+      }
+      case "hang":                 // one hand on a cable, swinging a little
+        r.arms = [[3.05, 3.12], [0.35 + s * 0.2, 0.7]];
+        r.legs = [[0.18 + s * 0.12, 0.05], [-0.12 - s * 0.12, -0.22]];
+        r.lean = s * 0.07;
+        break;
+      case "hang2":                // both hands: the fast climb
+        r.arms = [[2.9 + s * 0.12, 3.1], [3.05 - s * 0.12, 3.15]];
+        r.legs = [[0.55 + s * 0.2, -0.25], [0.3 - s * 0.2, -0.5]];
+        break;
+      case "smash": {              // mic-stand hammer, overhead to the deck
+        const u = 1.15 + (1 + Math.cos(ph)) * 0.95;
+        r.arms = [[u, u + 0.12], [u - 0.15, u]];
+        r.legs = [[0.32, 0.22], [-0.36, -0.26]];
+        r.drop = 2 + (1 - Math.cos(ph)) * 1.2;
+        r.lean = 0.12 * Math.sin(ph);
+        break;
+      }
+      case "carry":                // holding something overhead while walking
+        runLegs();
+        r.arms = [[2.85, 3.05], [2.75, 2.95]];
+        r.lean = 0.02;
+        break;
       case "hurt":
         r.legs = [[0.3, 0.5], [-0.2, 0.1]];
         r.lean = -0.35;
@@ -226,6 +254,15 @@
     stroke(c, [[4.6, hy + 3.6], [6.6, hy + 3.4]], SP.skinShade, 1);
 
     const hand = drawArm(r.arms[0], false);
+    if (o.hammer) {                // a mic stand held along the forearm, head outward
+      const f = r.arms[0][1], dx = Math.sin(f), dy = Math.cos(f);
+      const tip = [hand[0] + dx * 24, hand[1] + dy * 24], butt = [hand[0] - dx * 8, hand[1] - dy * 8];
+      limb(c, [butt, tip], 2.6, "#9aa3b2");
+      c.shadowColor = "#d9ff63"; c.shadowBlur = 10;
+      ell(c, tip[0] + dx * 4, tip[1] + dy * 4, 5, 5, "#e2e8f0", INK, 1.6);
+      c.shadowBlur = 0;
+      stroke(c, [[tip[0] + dx * 2 - dy * 3, tip[1] + dy * 2 + dx * 3], [tip[0] + dx * 2 + dy * 3, tip[1] + dy * 2 - dx * 3]], "#475569", 1);
+    }
     if (pose === "shoot" || pose === "runShoot" || pose === "airShoot") {
       c.shadowColor = "#a9f5e3"; c.shadowBlur = 8;
       ell(c, hand[0] + 2, hand[1], 2.4, 2.4, "#dffcf5", null);

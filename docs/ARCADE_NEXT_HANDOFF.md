@@ -29,7 +29,7 @@ and a design brief for each of the three games left: **Graveyard Shift**, **Amp 
 | Beam Me Up: Live! | Rebuilt 2026-09-14: 4 venues × (2 waves, challenge stage, boss), capture/rescue | `wave3/beam-data.js`, `beam.js`, `beam-art.js` |
 | House of the Hooded | Untouched this round (a future idea: new board shapes and multi-hit tiles) | `wave3/hooded.js` |
 | Graveyard Shift | Rebuilt 2026-09-14: Mario-style, 2 worlds × 3 levels, ghost blocks, portals, Gatekeeper + Plumbmonkey guitar finale | `wave3/graveyard-levels.js`, `graveyard-world.js`, `graveyard-foes.js`, `graveyard.js`, `graveyard-paint.js`, `graveyard-art.js` + `kit/hero-kit.js` |
-| **Amp Rampage** | **NEXT**: rebuild as Donkey Kong / DK Jr / BurgerTime | inline in `wave3/wave3.js` |
+| Amp Rampage | Rebuilt 2026-09-14: Load-in (DK), Cable Jungle (DK Jr.), Stage Build (BurgerTime), Rivets + collapse, looping harder | `wave3/amp-data.js`, `amp-world.js`, `amp-stages.js`, `amp.js`, `amp-art.js` |
 | **Revenger** | **NEXT**: rebuild as Defender, plus a runner level | `spectral-manor-revenger/game.js` (2,056 lines, one file) |
 
 ---
@@ -258,6 +258,20 @@ Put the two reference images in `docs/arcade-art/` (`spaceman-ref.jpg`, `plumbmo
 ---
 
 ## 5. Amp Rampage: Donkey Kong × DK Jr × BurgerTime, haunted
+
+> **BUILT 2026-09-14** (uncommitted). Out of `wave3.js` (which dropped from 1,029 to 212 lines, taking the dead witch/bat/alien/ship/hooded helpers with it).
+> - **Files** (cabinet load order): `amp-data.js` (four stage layouts + `stageInfo(n)` → type and loop), `amp-world.js` (girders/ladders/cables, walk/jump/climb/fall and cable grips, the ladder-graph `costField`), `amp-stages.js` (gear, fire ghosts, hammers, snap-jacks, bats, cymbals, key/cage, BurgerTime parts + monsters + Feedback, rivets), `amp.js` (state, phases, bonus clock, respawn carry, look-ahead autopilot), `amp-art.js` (render + host glue; `AmpGame.current.jump(n)` for visual checks). Hero Kit gained `climb`, `hang`, `hang2`, `smash`, `carry` and a `hammer` option.
+> - **Rules:**
+>   - The Spaceman only; Plumbmonkey throws and commands from the top.
+>   - Mic-stand hammers are grabbed by JUMPING into them, so they are never a pickup on the only walkable path.
+>   - Falls over 74px kill.
+>   - The DK bonus counter is also the clock.
+>   - Stage Build and rivets keep their progress through a death.
+>   - Every part that lands in a tray refills one Feedback (cap 9).
+>   - A pulled rivet's gap opens only once you step clear.
+>   - Barrels collide at 12px radius, drawn at 14, so a straight-up jump over oncoming gear clears it.
+> - **Tests:** `scripts/test-amp.cjs` (in `npm test`) covers the acceptance list, and the bot clears two full loops (8 stages, 3 deaths) in about 6 s.
+> - **Not yet:** no broken-ladder climbing, the Cable Jungle has one layout, and the stage-type art is not yet varied per loop. The original brief follows for reference.
 
 ### Today
 The whole game is inline in `wave3/wave3.js`:
