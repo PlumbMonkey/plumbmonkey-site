@@ -91,7 +91,8 @@
     <div id="startOverlay" class="start-overlay">
       <h2>SPECTRAL MANOR: LUNO'S FLIGHT</h2>
       <p>Ride Luno across the haunted manor skyline.</p>
-      <p>Flap to stay aloft. Swoop witches from above before they mount their rides.</p>
+      <p>Flap to stay aloft. Swoop witches and ghosts from above before they strike.</p>
+      <p>Manor Rooftops · Bell Tower · Storm Clouds · Blood Moon — a boss waits at the end of each sky.</p>
       <p style="margin-top:0.85rem; opacity:0.75; font-size:0.84rem">Click or ENTER to start</p>
     </div>
   </div>
@@ -105,9 +106,9 @@
   </div>
 
   <div class="controls">
-    ← → or A D : Fly / run left, right &nbsp;&nbsp;•&nbsp;&nbsp; Space / W / ↑ : Flap (fly up) &nbsp;&nbsp;•&nbsp;&nbsp; Enter : Start / Restart<br>
-    Every wave: witches walk to parked rides before launching • Wave 3: steal charged rides first<br>
-    Wave 4: watch for hex charge rings • Dawdle too long and THE SHRIEKER comes for you
+    ← → or A D : Fly / run &nbsp;&nbsp;•&nbsp;&nbsp; Space / W / ↑ : Flap &nbsp;&nbsp;•&nbsp;&nbsp; ↓ / S : Spirit Dive (smash whatever you land on) &nbsp;&nbsp;•&nbsp;&nbsp; Enter : Start<br>
+    Hit witches and ghosts from ABOVE • Faded ghosts can't hurt you (or be hit) • Steal glowing rides from wave 3<br>
+    The Shrieker's dive line shows before it strikes • The Gargoyle is stone until it glows • Strike the Moon Wyrm's head
   </div>
 
   <script src="../leaderboard.js"></script>
@@ -116,13 +117,17 @@
   <script src="../vr-mode.js?v=2"></script>
   <!-- Shared creature artwork; see wave3/sprite-kit.js. -->
   <script src="../wave3/sprite-kit.js?v=1"></script>
-  <script src="game.js?v=2"></script>
+  <script src="stages.js?v=3"></script>
+  <script src="luno.js?v=3"></script>
+  <script src="bosses.js?v=3"></script>
+  <script src="render.js?v=3"></script>
+  <script src="game.js?v=3"></script>
   <script>
-    // Steer left/right, hold/tap A to flap. No vertical axis.
+    // Steer left/right, hold/tap A to flap, B to dive. No vertical axis.
     ArcadeControls.init(keys, {
       accent: '#fbbf24',
       move: 'horizontal',
-      buttons: [{ code: 'Space', label: 'FLAP' }]
+      buttons: [{ code: 'Space', label: 'FLAP' }, { code: 'ArrowDown', label: 'DIVE' }]
     });
   </script>
 </body>

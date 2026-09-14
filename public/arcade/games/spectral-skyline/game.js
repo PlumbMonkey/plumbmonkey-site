@@ -1,584 +1,507 @@
 // ============================================================
-// SPECTRAL MANOR: LUNO'S FLIGHT
-// Ghost Circuit aerial battle game
-// Ride Luno the owl-griffin across the haunted manor skyline
-// Bump witches from above → they become crystals
-// Ghosts + aliens on floating platforms
+// SPECTRAL MANOR: LUNO'S FLIGHT — rules
+// Ride Luno the owl-griffin. Joust witches and ghosts from ABOVE.
+//
+// Files (load order, after ../wave3/sprite-kit.js): stages.js · luno.js ·
+//   bosses.js · render.js · game.js
+// Four stages × four waves; the fourth wave of each is a boss. Rules run at a
+// fixed 60 Hz (loop()) so high-refresh screens play at the intended speed.
 // ============================================================
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+let ctx = canvas.getContext('2d');   // let: stages.js swaps it briefly to paint its sky cache
 const W = canvas.width;
 const H = canvas.height;
 
-// ---------- Audio (richer synthesized SFX) ----------
+// ---------- Audio ----------
 let audioCtx = null;
 function initAudio() {
   if (!audioCtx) audioCtx = ArcadeAudio.context();
   ArcadeAudio.resume();
 }
-function playTone(freq, dur, type='square', vol=0.06, slide=0) {
+function playTone(freq, dur, type = 'square', vol = 0.06, slide = 0) {
   if (!audioCtx) return;
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
   o.type = type;
   o.frequency.setValueAtTime(freq, audioCtx.currentTime);
-  if (slide) o.frequency.linearRampToValueAtTime(freq+slide, audioCtx.currentTime+dur);
+  if (slide) o.frequency.linearRampToValueAtTime(Math.max(20, freq + slide), audioCtx.currentTime + dur);
   g.gain.setValueAtTime(vol, audioCtx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
   o.connect(g); g.connect(ArcadeAudio.output('sfx'));
-  o.start(); o.stop(audioCtx.currentTime+dur);
+  o.start(); o.stop(audioCtx.currentTime + dur);
 }
-function playNoise(dur, vol=0.05, freq=900) {
+function playNoise(dur, vol = 0.05, freq = 900) {
   if (!audioCtx) return;
-  const bufferSize = audioCtx.sampleRate * dur;
-  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const size = Math.floor(audioCtx.sampleRate * dur);
+  const buffer = audioCtx.createBuffer(1, size, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
   const src = audioCtx.createBufferSource();
   src.buffer = buffer;
   const filter = audioCtx.createBiquadFilter();
-  filter.type = 'bandpass';
-  filter.frequency.value = freq;
+  filter.type = 'bandpass'; filter.frequency.value = freq;
   const g = audioCtx.createGain();
   g.gain.setValueAtTime(vol, audioCtx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
   src.connect(filter); filter.connect(g); g.connect(ArcadeAudio.output('sfx'));
   src.start();
 }
+const later = (fn, ms) => setTimeout(fn, ms);
 const sfx = {
-  flap: () => {
-    playNoise(0.16, 0.055, 850);
-    playTone(210, 0.11, 'triangle', 0.045, -90);
-  },
-  perfectFlap: () => {
-    playNoise(0.2, 0.07, 1200);
-    playTone(330, 0.12, 'triangle', 0.06, 220);
-  },
-  crystal: () => {
-    playTone(784, 0.07, 'sine', 0.06);
-    setTimeout(() => playTone(988, 0.08, 'sine', 0.06), 55);
-    setTimeout(() => playTone(1318, 0.14, 'triangle', 0.07), 110);
-    playNoise(0.06, 0.03, 2000);
-  },
-  hit: () => {
-    playNoise(0.12, 0.06, 400);
-    playTone(140, 0.12, 'sawtooth', 0.06, -90);
-  },
-  hurt: () => {
-    playTone(180, 0.1, 'sawtooth', 0.07, -100);
-    playTone(90, 0.18, 'square', 0.05, -40);
-    playNoise(0.15, 0.05, 300);
-  },
-  wave: () => {
-    playTone(440, 0.08, 'square', 0.05);
-    setTimeout(() => playTone(554, 0.08, 'square', 0.05), 70);
-    setTimeout(() => playTone(659, 0.08, 'square', 0.05), 140);
-    setTimeout(() => playTone(880, 0.15, 'triangle', 0.06), 210);
-  },
-  land: () => {
-    playNoise(0.06, 0.03, 200);
-    playTone(90, 0.08, 'triangle', 0.03);
-  },
-  mount: (type) => {
-    if (type === 'crow') {
-      playNoise(0.12, 0.035, 1500);
-      playTone(520, 0.1, 'sawtooth', 0.035, -170);
-    } else if (type === 'skimmer') {
-      playTone(620, 0.16, 'sine', 0.045, 420);
-      playTone(310, 0.18, 'triangle', 0.035, 140);
-    } else {
-      playNoise(0.1, 0.035, 480);
-      playTone(280, 0.08, 'triangle', 0.03, 90);
-    }
-  },
-  bump: () => {
-    playNoise(0.05, 0.025, 320);
-    playTone(120, 0.06, 'triangle', 0.025, -25);
-  },
+  flap: () => { playNoise(0.16, 0.055, 850); playTone(210, 0.11, 'triangle', 0.045, -90); },
+  perfectFlap: () => { playNoise(0.2, 0.07, 1200); playTone(330, 0.12, 'triangle', 0.06, 220); },
+  dive: () => { playNoise(0.3, 0.06, 2200); playTone(700, 0.25, 'sawtooth', 0.03, -500); },
+  stomp: () => { playNoise(0.2, 0.08, 250); playTone(80, 0.2, 'sine', 0.08, -30); },
+  crystal: () => { playTone(784, 0.07, 'sine', 0.06); later(() => playTone(988, 0.08, 'sine', 0.06), 55); later(() => playTone(1318, 0.14, 'triangle', 0.07), 110); playNoise(0.06, 0.03, 2000); },
+  ghostPop: () => { playNoise(0.25, 0.06, 1600); playTone(900, 0.25, 'sine', 0.05, -600); },
+  hurt: () => { playTone(180, 0.1, 'sawtooth', 0.07, -100); playTone(90, 0.18, 'square', 0.05, -40); playNoise(0.15, 0.05, 300); },
+  wave: () => [440, 554, 659, 880].forEach((f, i) => later(() => playTone(f, 0.1, i === 3 ? 'triangle' : 'square', 0.05), i * 70)),
+  land: () => { playNoise(0.06, 0.03, 200); playTone(90, 0.08, 'triangle', 0.03); },
+  mount: type => type === 'crow' ? (playNoise(0.12, 0.035, 1500), playTone(520, 0.1, 'sawtooth', 0.035, -170))
+    : type === 'skimmer' ? (playTone(620, 0.16, 'sine', 0.045, 420), playTone(310, 0.18, 'triangle', 0.035, 140))
+      : (playNoise(0.1, 0.035, 480), playTone(280, 0.08, 'triangle', 0.03, 90)),
+  bump: () => { playNoise(0.05, 0.025, 320); playTone(120, 0.06, 'triangle', 0.025, -25); },
   hexCharge: () => playTone(360, 0.16, 'sine', 0.025, 260),
-  hexFire: () => {
-    playTone(720, 0.09, 'sawtooth', 0.04, -430);
-    playNoise(0.06, 0.025, 1800);
-  },
-  shrieker: () => {
-    playTone(980, 0.34, 'sawtooth', 0.05, -520);
-    setTimeout(() => playTone(760, 0.28, 'sawtooth', 0.045, -360), 180);
-  },
-  gameOver: () => {
-    playTone(330, 0.2, 'sawtooth', 0.06, -40);
-    setTimeout(() => playTone(220, 0.25, 'sawtooth', 0.06, -60), 180);
-    setTimeout(() => playTone(140, 0.35, 'sawtooth', 0.05, -40), 380);
-  },
-  pickup: () => {
-    playTone(1046, 0.06, 'sine', 0.05);
-    setTimeout(() => playTone(1318, 0.1, 'sine', 0.05), 50);
-  }
+  hexFire: () => { playTone(720, 0.09, 'sawtooth', 0.04, -430); playNoise(0.06, 0.025, 1800); },
+  shrieker: () => { playTone(980, 0.34, 'sawtooth', 0.05, -520); later(() => playTone(760, 0.28, 'sawtooth', 0.045, -360), 180); },
+  crash: () => { playNoise(0.5, 0.1, 200); playTone(60, 0.4, 'sine', 0.1, -20); },
+  stone: () => { playNoise(0.15, 0.07, 700); playTone(150, 0.12, 'square', 0.04, -60); },
+  roar: () => { playNoise(0.6, 0.08, 400); playTone(110, 0.5, 'sawtooth', 0.06, 60); },
+  bell: () => { playTone(330, 1.4, 'sine', 0.08); playTone(495, 1.1, 'sine', 0.04); playTone(660, 0.8, 'triangle', 0.02); },
+  thunder: () => { playNoise(0.9, 0.12, 250); playTone(45, 0.7, 'sine', 0.1, -10); },
+  extraLife: () => [659, 784, 988, 1319].forEach((f, i) => later(() => playTone(f, 0.12, 'triangle', 0.06), i * 90)),
+  gameOver: () => { playTone(330, 0.2, 'sawtooth', 0.06, -40); later(() => playTone(220, 0.25, 'sawtooth', 0.06, -60), 180); later(() => playTone(140, 0.35, 'sawtooth', 0.05, -40), 380); },
+  pickup: () => { playTone(1046, 0.06, 'sine', 0.05); later(() => playTone(1318, 0.1, 'sine', 0.05), 50); }
 };
 
 // ---------- State ----------
-let score = 0, lives = 3, wave = 1, crystals = 0;
+const ENDING_FRAMES = 150, BOSS_AFTER = 2700, EXTRA_LIFE_EVERY = 20000;
+/* Half-height of the "neither of you won that" band. Inside it a joust
+   bounces both parties apart instead of killing Luno. */
+const LEVEL_JOUST = 7;
+let score = 0, lives = 3, wave = 1, crystals = 0, tick = 0;
 let gameRunning = false, gameOver = false;
 let keys = {};
-
-// ---------- Juice: high score, combo, shake, hit-pause, banner ----------
 const BEST_KEY = 'spectralArcade.luno.best';
 function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch (e) { return 0; } }
 function saveBest() { try { localStorage.setItem(BEST_KEY, best); } catch (e) {} }
 let best = loadBest();
-let combo = 0, comboTimer = 0;      // kill streak; decays after 150 frames
-let hitPause = 0;                   // frames to freeze the action on impact
-let shakeTime = 0, shakeMag = 0;    // screen shake
-let waveDelay = 0;                  // breather frames before next wave spawns
-let bannerText = '', bannerTime = 0;
-function triggerShake(mag, time) { shakeMag = mag; shakeTime = time; }
+let combo = 0, comboTimer = 0, hitPause = 0, shakeTime = 0, shakeMag = 0, waveDelay = 0;
+let bannerText = '', bannerSub = '', bannerTime = 0, ending = 0, stageFade = 0, nextLife = EXTRA_LIFE_EVERY;
+let stageIdx = 0, waveTimer = 0, bumpSoundCooldown = 0, stormTimer = 0;
+function triggerShake(mag, time) { shakeMag = Math.max(shakeTime > 0 ? shakeMag : 0, mag); shakeTime = Math.max(shakeTime, time); }
 function comboMult() { return Math.min(1 + Math.floor(combo / 5), 5); }
+function bannerFlash(text, sub = '') { bannerText = text; bannerSub = sub; bannerTime = 70; }
 
-// ---------- Player (riding Luno) ----------
 const player = {
-  x: 120, y: H/2,
-  w: 48, h: 36,
-  vx: 0, vy: 0,
-  speed: 0.45,      // horizontal accel
-  maxSpeed: 5.2,
-  flapPower: -7.8,
-  gravity: 0.28,
-  facing: 1,        // 1 right, -1 left
-  invuln: 0,
-  bumpCooldown: 0,  // frames before another joust bounce can register
-
-  flapAnim: 0,
-  flapStrength: 0,
-  flightPhase: 0,
-  landSquash: 0
+  x: 120, y: H / 2, w: 48, h: 36, vx: 0, vy: 0,
+  speed: 0.45, maxSpeed: 5.2, flapPower: -7.8, gravity: 0.28, facing: 1,
+  invuln: 0, bumpCooldown: 0, flapAnim: 0, flapStrength: 0, flightPhase: 0, landSquash: 0,
+  grounded: false, walkPhase: 0, dive: false, diveCd: 0
 };
 
-// ---------- World ----------
-let platforms = [];   // floating ledges + alien platforms
-let witches = [];
-let ghosts = [];
-let crystalPickups = [];
-let particles = [];
-let groundScroll = 0;
-let nests = [];       // crystals sitting on platforms that walking witches race to mount
-let witchBolts = [];  // hex bolts (witches shoot from wave 4)
-let boss = null;      // THE SHRIEKER — shows up if you dawdle
-let waveTimer = 0;    // frames spent in the current wave
-let bumpSoundCooldown = 0;
-const BOSS_AFTER = 2700; // ~45 seconds
+let platforms = [], witches = [], ghosts = [], crystalPickups = [], particles = [], nests = [], witchBolts = [];
+let rings = [], storms = [], bell = null, boss = null;
 
-/* Half-height of the "neither of you won that" band, in pixels. Inside it a
-   joust bounces both parties apart instead of killing Luno. Widen it to make
-   the sky more forgiving; drop it to 0 to restore the old sudden-death rule. */
-const LEVEL_JOUST = 7;
-
-function hurtLuno(color) {
-  lives--;
-  player.invuln = 70;
-  player.vy = -6;
-  combo = 0; comboTimer = 0;
-  hitPause = 5;
-  triggerShake(9, 18);
-  sfx.hurt();
-  createParticles(player.x + 20, player.y + 15, color || '#f472b6', 12);
-  updateHUD();
-  if (lives <= 0) {
-    gameOver = true;
-    gameRunning = false;
-    sfx.gameOver();
-    const newBest = score > best;
-    if (newBest) { best = score; saveBest(); }
-    const finalScore = score;
-    Arcade.submitFlow(finalScore, () => {
-      document.getElementById('startOverlay').classList.remove('hidden');
-      document.getElementById('startOverlay').innerHTML = `
-        <h2>FALLEN FROM THE SKY</h2>
-        <p>Crystals: ${crystals} &nbsp;|&nbsp; Score: ${finalScore}</p>
-        <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-        <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP RIDERS</p>
-        ${Arcade.boardHTML(Arcade.slug)}
-        <p style="margin-top:0.8rem; opacity:0.8">Click or ENTER to soar again</p>
-      `;
-    });
-    updateHUD();
+function addScore(n) {
+  score += n;
+  while (score >= nextLife) {
+    nextLife += EXTRA_LIFE_EVERY;
+    lives++;
+    sfx.extraLife();
+    bannerFlash('EXTRA LIFE');
   }
+  updateHUD();
 }
 
 // ---------- Input ----------
 window.addEventListener('keydown', e => {
   initAudio();
   keys[e.code] = true;
-  if (e.code === 'Space') e.preventDefault();
+  if (['Space', 'ArrowDown', 'ArrowUp'].includes(e.code)) e.preventDefault();
   if (e.code === 'Enter' && !e.repeat && !gameRunning) startGame();
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
+document.getElementById('startOverlay').addEventListener('click', () => { initAudio(); if (!gameRunning) startGame(); });
 
-document.getElementById('startOverlay').addEventListener('click', () => {
-  initAudio();
-  if (!gameRunning) startGame();
-});
-
-// ---------- Core ----------
+// ---------- Flow ----------
 function startGame() {
-  score = 0; lives = 3; wave = 1; crystals = 0;
-  witches = []; ghosts = []; crystalPickups = []; particles = [];
-  nests = []; witchBolts = []; boss = null; waveTimer = 0;
-  player.grounded = false; player.walkPhase = 0;
-  player.flapAnim = 0; player.flapStrength = 0; player.flightPhase = 0; player.landSquash = 0;
-  bumpSoundCooldown = 0;
-  combo = 0; comboTimer = 0; hitPause = 0; shakeTime = 0; waveDelay = 0;
-  bannerText = 'WAVE 1'; bannerTime = 90;
-  player.x = 120; player.y = H/2;
-  player.vx = 0; player.vy = 0;
-  player.facing = 1; player.invuln = 0;
+  score = 0; lives = 3; wave = 1; crystals = 0; tick = 0; nextLife = EXTRA_LIFE_EVERY;
+  witches = []; ghosts = []; crystalPickups = []; particles = []; nests = []; witchBolts = []; boss = null;
+  combo = 0; comboTimer = 0; hitPause = 0; shakeTime = 0; waveDelay = 0; ending = 0; bumpSoundCooldown = 0;
+  Object.assign(player, { x: 120, y: H / 2, vx: 0, vy: 0, facing: 1, invuln: 0, grounded: false, walkPhase: 0, flapAnim: 0, flapStrength: 0, flightPhase: 0, landSquash: 0, dive: false, diveCd: 0 });
   gameRunning = true; gameOver = false;
   document.getElementById('startOverlay').classList.add('hidden');
-  buildSkyline();
+  enterStage(0);
   spawnWave();
+  announce();
   updateHUD();
 }
 
-function buildSkyline() {
-  // Floating platforms across the haunted skyline
-  platforms = [
-    // ground-ish ledges
-    { x: 0,   y: H - 50, w: 180, h: 20, type: 'stone' },
-    { x: 780, y: H - 50, w: 180, h: 20, type: 'stone' },
-    // mid platforms
-    { x: 220, y: 380, w: 130, h: 16, type: 'stone' },
-    { x: 610, y: 380, w: 130, h: 16, type: 'stone' },
-    { x: 400, y: 280, w: 160, h: 16, type: 'stone' },
-    // high platforms
-    { x: 80,  y: 180, w: 110, h: 14, type: 'stone' },
-    { x: 770, y: 180, w: 110, h: 14, type: 'stone' },
-    { x: 380, y: 120, w: 200, h: 14, type: 'stone' },
-    // alien floating platforms (move later)
-    { x: 300, y: 320, w: 90, h: 12, type: 'alien', vx: 1.1, range: 80, originX: 300 },
-    { x: 560, y: 220, w: 90, h: 12, type: 'alien', vx: -1.0, range: 70, originX: 560 }
-  ];
+function enterStage(si) {
+  stageIdx = si;
+  platforms = STAGES[si].layout();
+  bell = STAGES[si].hazard === 'bell' ? { x: 480, y: 236, state: 'idle', t: 300 } : null;
+  storms = []; rings = []; stormTimer = 240;
+  stageFade = 40;
+}
+
+function announce() {
+  const s = STAGES[stageOf(wave)];
+  if (isBossWave(wave)) { bannerText = 'WARNING'; bannerSub = s.bossName + ' APPROACHES'; }
+  else if ((wave - 1) % WAVES_PER_STAGE === 0) { bannerText = s.name; bannerSub = (cycleOfWave(wave) ? `Night ${cycleOfWave(wave) + 1} · ` : '') + s.sub; }
+  else { bannerText = 'WAVE ' + wave; bannerSub = s.name.toLowerCase(); }
+  bannerTime = 120;
+}
+
+function makeWitch(x, y, mount, extra) {
+  return Object.assign({
+    x, y, w: 34, h: 30, vx: 0, vy: 0, flapTimer: 20 + Math.random() * 40, facing: 1, state: 'flying',
+    walkPhase: Math.random() * 6, nest: { taken: true }, mountTimer: 0, boltTimer: 200 + Math.random() * 300, boltCharge: 0,
+    mount, wingPhase: Math.random() * 6, bumpCooldown: 0,
+    color: mount === 'skimmer' ? '#0f766e' : mount === 'crow' ? '#9f1239' : '#7c3aed',
+    accent: mount === 'skimmer' ? '#67e8f9' : mount === 'crow' ? '#fb7185' : '#4ade80'
+  }, extra || {});
+}
+function spawnFlyingWitch(x, y, mount) {
+  const w = makeWitch(x, y, mount);
+  w.vx = (Math.random() < 0.5 ? -1 : 1) * (1.8 + wave * 0.12);
+  w.vy = -4;
+  witches.push(w);
+  createParticles(x, y, '#a5f3fc', 10);
+}
+function fireBolt(x, y, a, speed, color) {
+  witchBolts.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: 150, color: color || '#4ade80' });
+}
+function addStorm(x) {
+  storms.push({ x: Math.max(30, Math.min(W - 30, x)), state: 'warn', t: STORM_WARN, seed: Math.random() * 1000 });
 }
 
 function spawnWave() {
-  witches = [];
-  ghosts = [];
-  nests = [];
-  witchBolts = [];
-  boss = null;
-  waveTimer = 0;
-
-  // Every wave opens on the platforms: witches walk to parked rides, mount,
-  // then launch. Later waves add crows and armored crystal skimmers.
-  const wCount = 3 + wave * 2;
-  const launchPlatforms = platforms.filter(p => p.type === 'stone' && p.w >= 100);
+  const si = stageOf(wave), cyc = cycleOfWave(wave);
+  if (si !== stageIdx || platforms.length === 0) enterStage(si);
+  witches = []; ghosts = []; nests = []; witchBolts = []; boss = null; waveTimer = 0; storms = [];
+  const bossWave = isBossWave(wave);
+  const wCount = bossWave ? 2 + cyc : 3 + (wave % WAVES_PER_STAGE || WAVES_PER_STAGE) * 2 + si + cyc * 2;
+  const launch = platforms.filter(p => !p.vx && p.w >= 100);
   for (let i = 0; i < wCount; i++) {
-    const p = launchPlatforms[i % launchPlatforms.length];
-    const lane = Math.floor(i / launchPlatforms.length);
+    const p = launch[i % launch.length];
+    const lane = Math.floor(i / launch.length);
     const rideX = p.x + 20 + ((i * 37 + lane * 19) % Math.max(30, p.w - 45));
-    const mount = wave >= 5 && i % 5 === 0
-      ? 'skimmer'
-      : (wave >= 2 && i % 3 === 0 ? 'crow' : 'broom');
-    const nest = {
-      x: rideX,
-      y: p.y - 18,
-      w: 18, h: 18,
-      taken: false,
-      stealable: wave >= 3,
-      plat: p,
-      mount
-    };
+    const mount = wave >= 5 && i % 5 === 0 ? 'skimmer' : wave >= 2 && i % 3 === 0 ? 'crow' : 'broom';
+    const nest = { x: rideX, y: p.y - 18, w: 18, h: 18, taken: false, stealable: wave >= 3, plat: p, mount };
     nests.push(nest);
     const startsLeft = i % 2 === 0;
-    witches.push({
-      x: startsLeft ? p.x + 3 : p.x + p.w - 37,
-      y: p.y - 30,
-      w: 34, h: 30,
-      vx: 0,
-      vy: 0,
-      flapTimer: 20 + Math.random() * 40,
-      facing: startsLeft ? 1 : -1,
-      state: 'walking',
-      walkPhase: Math.random() * Math.PI * 2,
-      nest,
-      mountTimer: 0,
-      boltTimer: 200 + Math.random() * 300,
-      boltCharge: 0,
-      mount,
-      wingPhase: Math.random() * Math.PI * 2,
-      bumpCooldown: 0,
-      color: mount === 'skimmer' ? '#0f766e' : (mount === 'crow' ? '#9f1239' : '#7c3aed'),
-      accent: mount === 'skimmer' ? '#67e8f9' : (mount === 'crow' ? '#fb7185' : '#4ade80')
-    });
+    witches.push(makeWitch(startsLeft ? p.x + 3 : p.x + p.w - 37, p.y - 30, mount, { state: 'walking', facing: startsLeft ? 1 : -1, nest }));
   }
-
-  // Ghosts (hazards that float around)
-  const gCount = 2 + Math.floor(wave / 2);
+  const gCount = Math.min(5, 2 + Math.floor(wave / 3));   // 7 at once crowded the sky
   for (let i = 0; i < gCount; i++) {
-    ghosts.push({
-      x: 80 + Math.random() * (W - 160),
-      y: 60 + Math.random() * 300,
-      w: 28, h: 32,
-      phase: Math.random() * Math.PI * 2,
-      speed: 0.8 + Math.random() * 0.6
-    });
+    ghosts.push({ x: 80 + Math.random() * (W - 160), y: 60 + Math.random() * 300, w: 28, h: 32, vx: (Math.random() - 0.5) * 1.5, vy: 0, phase: Math.random() * 6, vis: 0, state: 'returning', t: 40 + i * 25, hurt: 0 });
   }
+  if (bossWave) boss = createBoss(STAGES[si].boss, cyc);
+}
+
+function startEnding() {
+  if (ending || !gameRunning) return;
+  ending = ENDING_FRAMES;
+  sfx.gameOver();
+  Object.keys(keys).forEach(k => keys[k] = false);
+}
+function endGame() {
+  gameOver = true; gameRunning = false;
+  const newBest = score > best;
+  if (newBest) { best = score; saveBest(); }
+  const finalScore = score;
+  updateHUD();
+  Arcade.submitFlow(finalScore, () => {
+    document.getElementById('startOverlay').classList.remove('hidden');
+    document.getElementById('startOverlay').innerHTML = `
+      <h2>FALLEN FROM THE SKY</h2>
+      <p>Crystals: ${crystals} &nbsp;|&nbsp; Wave ${wave} · ${STAGES[stageIdx].name.toLowerCase()} &nbsp;|&nbsp; Score: ${finalScore}</p>
+      <p style="margin-top:0.3rem">Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
+      <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP RIDERS</p>
+      ${Arcade.boardHTML(Arcade.slug)}
+      <p style="margin-top:0.8rem; opacity:0.8">Click or ENTER to soar again</p>
+    `;
+  });
+}
+
+function hurtLuno(color) {
+  if (player.invuln > 0 || ending || !gameRunning) return false;
+  lives--;
+  player.invuln = 70;
+  player.vy = -6;
+  player.dive = false;
+  combo = 0; comboTimer = 0;
+  hitPause = 5;
+  triggerShake(9, 18);
+  sfx.hurt();
+  createParticles(player.x + 20, player.y + 15, color || '#f472b6', 12);
+  createFeathers(player.x + 20, player.y + 15, 8);
+  updateHUD();
+  if (lives <= 0) startEnding();
+  return true;
+}
+function bounceLuno(vy) { player.vy = vy; player.dive = false; }
+
+/* Joust resolution against any rect: 'above' | 'level' | 'below', or null if
+   not touching. A near-level collision is a DRAW (see LEVEL_JOUST). A spirit
+   dive counts as above whenever Luno's middle is higher than the target's. */
+function joust(r) {
+  if (!(player.x < r.x + r.w && player.x + player.w > r.x && player.y < r.y + r.h && player.y + player.h > r.y)) return null;
+  if (player.dive && player.y + player.h * 0.5 < r.y + r.h * 0.5) return 'above';
+  const adv = (r.y + r.h * 0.4) - (player.y + player.h * 0.4);
+  if (adv > LEVEL_JOUST) return 'above';
+  if (adv >= -LEVEL_JOUST) return 'level';
+  return 'below';
+}
+
+function createParticles(x, y, color, n) {
+  for (let i = 0; i < n; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 7, vy: (Math.random() - 0.5) * 7 - 1, life: 18 + Math.random() * 16, color, size: 2 + Math.random() * 3 });
+}
+function createFeathers(x, y, n, color) {
+  for (let i = 0; i < n; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 2, life: 40 + Math.random() * 30, color: color || (i % 2 ? '#d6d3d1' : '#a8a29e'), feather: true, rot: Math.random() * 6, spin: (Math.random() - 0.5) * 0.2, size: 2 });
 }
 
 // ---------- Update ----------
 function update() {
+  tick++;
   if (!gameRunning) return;
-  if (hitPause > 0) { hitPause--; return; }   // impact freeze-frame
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.life--;
+    if (p.feather) { p.vx *= 0.95; p.vy = Math.min(1.2, p.vy + 0.05); p.rot += p.spin; p.x += Math.sin(p.life * 0.2) * 0.4; }
+  });
+  particles = particles.filter(p => p.life > 0);
+  if (ending > 0) { if (--ending === 0) endGame(); return; }
+  if (hitPause > 0) { hitPause--; return; }
   if (shakeTime > 0) shakeTime--;
   if (bannerTime > 0) bannerTime--;
+  if (stageFade > 0) stageFade--;
   if (bumpSoundCooldown > 0) bumpSoundCooldown--;
   if (player.bumpCooldown > 0) player.bumpCooldown--;
-  if (comboTimer > 0) { comboTimer--; if (comboTimer === 0) combo = 0; }
-  if (waveDelay > 0) {
-    waveDelay--;
-    if (waveDelay === 0) spawnWave();
-  }
+  if (comboTimer > 0 && --comboTimer === 0) combo = 0;
+  if (waveDelay > 0 && --waveDelay === 0) { spawnWave(); announce(); }
 
-  // Attract-mode autopilot (hub preview): drift toward the nearest witch and
-  // flap to stay aloft so Luno is visibly flying, not sitting on the ground
-  if (Arcade.attract) {
-    keys = {};
-    let tgt = witches[0];
-    if (tgt) keys[tgt.x > player.x ? 'ArrowRight' : 'ArrowLeft'] = true;
-    if (player.y > H / 2 || (tgt && player.y > tgt.y + 6)) {
-      if ((player.flapAnim || 0) <= 0 && Math.random() < 0.5) keys['Space'] = true;
+  if (Arcade.attract) attractPilot();
+  movePlatforms();
+  updatePlayer();
+  updateHazards();
+  updateWitches();
+  updateBolts();
+  updateNests();
+  updateBossFlow();
+  updateGhosts();
+  collideWitches();
+  collideGhosts();
+  updatePickups();
+
+  witches = witches.filter(w => !w.dead);
+  ghosts = ghosts.filter(g => !g.dead);
+
+  if (witches.length === 0 && !boss && gameRunning && waveDelay === 0 && !ending) {
+    wave++;
+    sfx.wave();
+    bannerFlash(isBossWave(wave - 1) ? 'SKY CLEARED' : 'WAVE CLEAR', `${crystals} crystals`);
+    waveDelay = (wave - 1) % WAVES_PER_STAGE === 0 ? 120 : 80;
+    updateHUD();
+  }
+}
+
+function movePlatforms() {
+  platforms.forEach(p => {
+    const ox = p.x, oy = p.y;
+    if (p.vx) { p.x += p.vx; if (Math.abs(p.x - p.baseX) > p.range) p.vx *= -1; }
+    if (p.bob) p.y = p.baseY + Math.sin(tick * 0.02 + p.bobPhase) * p.bob;
+    p.dx = p.x - ox; p.dy = p.y - oy;
+    if (p.fade) {
+      const f = p.fade;
+      if (--f.t <= 0) {
+        if (f.phase === 'solid') { f.phase = 'warn'; f.t = CLOUD_WARN; }
+        else if (f.phase === 'warn') { f.phase = 'gone'; f.t = CLOUD_GONE; createParticles(p.x + p.w / 2, p.y + 6, '#e5e7eb', 10); }
+        else { f.phase = 'solid'; f.t = CLOUD_SOLID; }
+      }
     }
-  }
+  });
+}
 
-  // --- Player (Luno) ---
-  // Horizontal
-  if (keys['ArrowLeft'] || keys['KeyA']) {
-    player.vx -= player.speed;
-    player.facing = -1;
-  }
-  if (keys['ArrowRight'] || keys['KeyD']) {
-    player.vx += player.speed;
-    player.facing = 1;
-  }
-  // Friction
+function updatePlayer() {
+  if (keys.ArrowLeft || keys.KeyA) { player.vx -= player.speed; player.facing = -1; }
+  if (keys.ArrowRight || keys.KeyD) { player.vx += player.speed; player.facing = 1; }
   player.vx *= 0.92;
   player.vx = Math.max(-player.maxSpeed, Math.min(player.maxSpeed, player.vx));
 
-  // Flap
-  if (keys['Space'] || keys['KeyW'] || keys['ArrowUp']) {
-    if (player.flapAnim <= 0) {
-      const perfect = player.vy > 5.5;
-      player.vy = player.flapPower - (perfect ? 1.35 : 0);
-      player.flapAnim = 24;
-      player.flapStrength = perfect ? 1 : 0;
-      if (perfect) {
-        score += 15;
-        createParticles(player.x + 8, player.y + 20, '#fde68a', 8);
-        sfx.perfectFlap();
-      } else {
-        sfx.flap();
-      }
-    }
+  if ((keys.Space || keys.KeyW || keys.ArrowUp) && player.flapAnim <= 0) {
+    const perfect = player.vy > 5.5;
+    player.vy = player.flapPower - (perfect ? 1.35 : 0);
+    player.flapAnim = 24;
+    player.flapStrength = perfect ? 1 : 0;
+    player.dive = false;
+    createFeathers(player.x + player.w / 2 - player.facing * 14, player.y + player.h / 2 + 6, perfect ? 4 : 2);
+    if (perfect) { addScore(15); createParticles(player.x + 8, player.y + 20, '#fde68a', 8); sfx.perfectFlap(); }
+    else sfx.flap();
   }
-  if (player.flapAnim > 0) player.flapAnim--;
-  else player.flapStrength = 0;
+  if (player.flapAnim > 0) player.flapAnim--; else player.flapStrength = 0;
+
+  // SPIRIT DIVE: fold the wings and drop like a stone — anything you land on from above is destroyed
+  if (player.diveCd > 0) player.diveCd--;
+  if ((keys.ArrowDown || keys.KeyS) && !player.grounded && !player.dive && player.diveCd <= 0) {
+    player.dive = true; player.diveCd = 50;
+    player.vy = Math.max(player.vy, 9);
+    sfx.dive();
+  }
   player.flightPhase += 0.12 + Math.abs(player.vx) * 0.015;
   if (player.landSquash > 0) player.landSquash--;
 
-  // Gravity
-  player.vy += player.gravity;
-  player.vy = Math.min(player.vy, 11);
+  if (player.dive) { player.vy = Math.min(14, player.vy + 0.7); player.vx *= 0.9; if (tick % 2 === 0) particles.push({ x: player.x + player.w / 2, y: player.y, vx: 0, vy: -1, life: 14, color: '#c4b5fd', size: 2 }); }
+  else player.vy = Math.min(11, player.vy + player.gravity);
 
-  // Apply movement
   player.x += player.vx;
   player.y += player.vy;
-
-  // Screen wrapping
   if (player.x < -player.w) player.x = W;
   if (player.x > W) player.x = -player.w;
 
-  // Floor / ceiling
+  const wasDiving = player.dive;
   player.grounded = false;
-  if (player.y > H - 70) {
-    player.y = H - 70;
-    player.vy = Math.min(0, player.vy);
-    player.grounded = true;
-  }
-  if (player.y < 20) {
-    player.y = 20;
-    player.vy = Math.max(0, player.vy);
-  }
+  let landedOn = null;
+  if (player.y > H - 70) { player.y = H - 70; player.vy = Math.min(0, player.vy); player.grounded = true; landedOn = 'floor'; }
+  if (player.y < 20) { player.y = 20; player.vy = Math.max(0, player.vy); }
 
-  // Platform collision — platforms are SOLID: land on top, bonk from
-  // below, and get pushed out at the sides (no more flying through)
   platforms.forEach(p => {
+    if (!isSolid(p)) return;
     const overlapX = player.x + player.w > p.x + 4 && player.x < p.x + p.w - 4;
-
-    // land on top
-    if (player.vy >= 0 && overlapX &&
-        player.y + player.h > p.y && player.y + player.h < p.y + p.h + 14 &&
-        player.y + player.h - player.vy <= p.y + 4) {
+    if (player.vy >= 0 && overlapX && player.y + player.h > p.y - 2 && player.y + player.h < p.y + p.h + 16 &&
+        player.y + player.h - player.vy - (p.dy || 0) <= p.y + 5) {
       if (player.vy > 1.5) {
         sfx.land();
         player.landSquash = Math.min(8, Math.round(player.vy));
-        createParticles(player.x + player.w/2, p.y, '#a8a29e', 5);
+        createParticles(player.x + player.w / 2, p.y, '#a8a29e', 5);
       }
       player.y = p.y - player.h;
       player.vy = 0;
       player.grounded = true;
-      // moving alien platforms carry you
-      if (p.type === 'alien') player.x += p.vx;
+      player.x += p.dx || 0;
+      landedOn = p;
       return;
     }
-
-    // bonk head on the underside
-    if (player.vy < 0 && overlapX &&
-        player.y < p.y + p.h && player.y > p.y &&
-        player.y - player.vy >= p.y + p.h - 4) {
-      player.y = p.y + p.h;
-      player.vy = 1;
-      sfx.land();
-      return;
+    if (player.vy < 0 && overlapX && player.y < p.y + p.h && player.y > p.y && player.y - player.vy >= p.y + p.h - 4) {
+      player.y = p.y + p.h; player.vy = 1; sfx.land(); return;
     }
-
-    // side push-out (flying into the end of a ledge)
-    if (player.y + player.h > p.y + 4 && player.y < p.y + p.h - 2 &&
-        player.x + player.w > p.x && player.x < p.x + p.w) {
-      if (player.x + player.w / 2 < p.x + p.w / 2) {
-        player.x = p.x - player.w;
-      } else {
-        player.x = p.x + p.w;
-      }
+    if (player.y + player.h > p.y + 4 && player.y < p.y + p.h - 2 && player.x + player.w > p.x && player.x < p.x + p.w) {
+      player.x = player.x + player.w / 2 < p.x + p.w / 2 ? p.x - player.w : p.x + p.w;
       player.vx *= -0.3;
     }
   });
 
-  // Walk cycle when running along a surface
-  if (player.grounded && Math.abs(player.vx) > 0.4) {
-    player.walkPhase += Math.abs(player.vx) * 0.09;
-  }
-
-  if (player.invuln > 0) player.invuln--;
-
-  // --- Alien platforms move ---
-  platforms.forEach(p => {
-    if (p.type === 'alien') {
-      p.x += p.vx;
-      if (Math.abs(p.x - p.originX) > p.range) p.vx *= -1;
+  if (player.grounded) {
+    if (wasDiving) {
+      // STOMP: a dive landing knocks out walking witches nearby
+      player.dive = false;
+      triggerShake(6, 10); sfx.stomp();
+      rings.push({ x: player.x + player.w / 2, y: player.y + player.h, r: 6, max: 70, speed: 5, life: 16, maxLife: 16, color: '#c4b5fd' });
+      witches.forEach(w => { if (w.state === 'walking' && Math.abs(w.x + w.w / 2 - (player.x + player.w / 2)) < 75 && Math.abs(w.y + w.h - (player.y + player.h)) < 20) defeatWitch(w); });
     }
-  });
+    if (Math.abs(player.vx) > 0.4) player.walkPhase += Math.abs(player.vx) * 0.09;
+  }
+  if (player.invuln > 0) player.invuln--;
+}
 
-  // --- Witches AI and on-foot crystal racers ---
+function updateHazards() {
+  if (bell) {
+    if (--bell.t <= 0) {
+      if (bell.state === 'idle') { bell.state = 'warn'; bell.t = BELL_WARN; sfx.hexCharge(); }
+      else {
+        rings.push({ x: bell.x, y: bell.y + 10, r: 10, max: BELL_RING_MAX, speed: 5.5, life: 55, maxLife: 55, color: '#fbbf24', shove: true });
+        triggerShake(6, 14); sfx.bell();
+        bell.state = 'idle'; bell.t = 420 + Math.random() * 200;
+      }
+    }
+  }
+  rings.forEach(r => {
+    r.r = Math.min(r.max, r.r + r.speed); r.life--;
+    if (!r.shove) return;
+    const cx = player.x + player.w / 2, cy = player.y + player.h / 2;
+    const d = Math.hypot(cx - r.x, cy - r.y) || 1;
+    if (Math.abs(d - r.r) < 20) { player.vx += (cx - r.x) / d * 1.4; player.vy += (cy - r.y) / d * 1.1; player.dive = false; }
+    witches.forEach(w => { const wd = Math.hypot(w.x - r.x, w.y - r.y) || 1; if (w.state === 'flying' && Math.abs(wd - r.r) < 20) { w.vx += (w.x - r.x) / wd * 0.8; w.vy += (w.y - r.y) / wd * 0.6; } });
+  });
+  rings = rings.filter(r => r.life > 0);
+
+  if (STAGES[stageIdx].hazard === 'storm' && !waveDelay && --stormTimer <= 0) {
+    addStorm(player.x + player.w / 2 + player.vx * 20);
+    stormTimer = Math.max(130, 240 - wave * 4) + Math.random() * 80;
+  }
+  storms.forEach(s => {
+    if (--s.t > 0) return;
+    if (s.state === 'warn') {
+      s.state = 'bolt'; s.t = STORM_BOLT;
+      triggerShake(8, 12); sfx.thunder();
+      const inCol = (x, w) => Math.abs(x + w / 2 - s.x) < STORM_WIDTH / 2 + w * 0.3;
+      if (inCol(player.x, player.w)) hurtLuno('#a5f3fc');
+      witches.forEach(w => { if (w.state === 'flying' && inCol(w.x, w.w)) defeatWitch(w, true); });
+    } else s.done = true;
+  });
+  storms = storms.filter(s => !s.done);
+}
+
+function updateWitches() {
   witches.forEach(w => {
-    // ----- Walking witches: stroll along their platform to the crystal -----
     if (w.state === 'walking') {
       const p = w.nest.plat;
-      w.y = p.y - w.h + (p.type === 'alien' ? p.vx * 0 : 0);
+      if (!isSolid(p)) { w.nest.taken = true; w.state = 'flying'; w.vy = -3; w.vx = (Math.random() < 0.5 ? -1 : 1) * 1.8; sfx.mount(w.mount); return; }
+      w.y = p.y - w.h;
+      w.x += p.dx || 0;
       if (w.nest.taken) {
-        // crystal stolen — she remembers her broom and takes off (angry)
-        w.mountTimer++;
-        if (w.mountTimer === 1) {
-          w.mount = 'broom';
-          w.color = '#7c3aed';
-          w.accent = '#4ade80';
-        }
-        if (w.mountTimer > 120) {
-          w.state = 'flying';
-          w.vx = (Math.random() < 0.5 ? -1 : 1) * (1.6 + wave * 0.15);
-          w.vy = -4;
-          sfx.mount('broom');
-        }
+        if (++w.mountTimer === 1) { w.mount = 'broom'; w.color = '#7c3aed'; w.accent = '#4ade80'; }
+        if (w.mountTimer > 120) { w.state = 'flying'; w.vx = (Math.random() < 0.5 ? -1 : 1) * (1.6 + wave * 0.15); w.vy = -4; sfx.mount('broom'); }
       } else if (w.mountTimer > 0) {
-        // mounting the crystal — brief channel, then airborne and faster
-        w.mountTimer--;
-        if (w.mountTimer === 0) {
-          w.nest.taken = true;
-          w.state = 'flying';
-          const baseSpeed = w.mount === 'crow' ? 2.35 : (w.mount === 'skimmer' ? 1.45 : 1.9);
-          w.vx = (w.facing || 1) * (baseSpeed + wave * 0.16);
+        if (--w.mountTimer === 0) {
+          w.nest.taken = true; w.state = 'flying';
+          const base = w.mount === 'crow' ? 2.35 : w.mount === 'skimmer' ? 1.45 : 1.9;
+          w.vx = (w.facing || 1) * (base + Math.min(wave, 16) * 0.12);
           w.vy = -5;
           sfx.mount(w.mount);
-          createParticles(w.x + w.w/2, w.y + w.h/2, '#e879f9', 10);
+          createParticles(w.x + w.w / 2, w.y + w.h / 2, '#e879f9', 10);
         }
-        return;
       } else {
-        // walk toward the crystal
-        const dir = w.nest.x > w.x + w.w/2 ? 1 : -1;
+        const dir = w.nest.x > w.x + w.w / 2 ? 1 : -1;
         w.x += dir * (0.72 + Math.min(wave, 8) * 0.055);
         w.facing = dir;
         w.walkPhase += 0.18;
-        // reached it — start mounting
-        if (Math.abs((w.x + w.w/2) - (w.nest.x + 8)) < 10) {
-          w.mountTimer = 50;
-        }
+        if (Math.abs(w.x + w.w / 2 - (w.nest.x + 8)) < 10) w.mountTimer = 50;
       }
       return;
     }
-
-    if (w.state !== 'flying') return;
-
-    // simple flap
-    w.flapTimer--;
-    if (w.flapTimer <= 0) {
-      w.vy = -5.5 - Math.random() * 2;
-      w.flapTimer = 25 + Math.random() * 35;
-    }
-    w.vy += 0.22;
-    w.vy = Math.min(w.vy, 7);
-    w.x += w.vx;
-    w.y += w.vy;
+    if (--w.flapTimer <= 0) { w.vy = -5.5 - Math.random() * 2; w.flapTimer = 25 + Math.random() * 35; }
+    w.vy = Math.min(7, w.vy + 0.22);
+    w.x += w.vx; w.y += w.vy;
     w.facing = w.vx > 0 ? 1 : -1;
-
-    // wrap
     if (w.x < -40) w.x = W + 10;
     if (w.x > W + 40) w.x = -10;
     if (w.y > H - 80) { w.y = H - 80; w.vy = -4; }
     if (w.y < 30) w.vy = Math.abs(w.vy) * 0.5;
-
-    // bounce on platform tops, bonk on undersides (solid both ways)
     platforms.forEach(p => {
+      if (!isSolid(p)) return;
       const overlapX = w.x + w.w > p.x && w.x < p.x + p.w;
-      if (w.vy >= 0 && overlapX &&
-          w.y + w.h > p.y && w.y + w.h < p.y + 18) {
-        w.y = p.y - w.h;
-        w.vy = -3;
-      } else if (w.vy < 0 && overlapX &&
-                 w.y < p.y + p.h && w.y > p.y) {
-        w.y = p.y + p.h;
-        w.vy = 1;
-      }
+      if (w.vy >= 0 && overlapX && w.y + w.h > p.y && w.y + w.h < p.y + 18) { w.y = p.y - w.h; w.vy = -3; }
+      else if (w.vy < 0 && overlapX && w.y < p.y + p.h && w.y > p.y) { w.y = p.y + p.h; w.vy = 1; }
     });
-
-    // From wave 4: witches hurl hex bolts at Luno
     if (wave >= 4) {
-      const pdx = (player.x + player.w/2) - (w.x + w.w/2);
-      const pdy = (player.y + player.h/2) - (w.y + w.h/2);
-      const pd = Math.hypot(pdx, pdy);
+      const pdx = player.x + player.w / 2 - (w.x + w.w / 2), pdy = player.y + player.h / 2 - (w.y + w.h / 2);
       if (w.boltCharge > 0) {
-        w.boltCharge--;
-        if (w.boltCharge === 0) {
-          const shots = w.mount === 'skimmer' ? [-0.1, 0.1] : [0];
+        if (--w.boltCharge === 0) {
           const base = Math.atan2(pdy, pdx);
-          shots.forEach(offset => witchBolts.push({
-            x: w.x + w.w/2, y: w.y + w.h/2,
-            vx: Math.cos(base + offset) * 3.6,
-            vy: Math.sin(base + offset) * 3.6,
-            life: 130,
-            color: w.accent
-          }));
+          (w.mount === 'skimmer' ? [-0.1, 0.1] : [0]).forEach(o => fireBolt(w.x + w.w / 2, w.y + w.h / 2, base + o, 3.6, w.accent));
           sfx.hexFire();
-          w.boltTimer = Math.max(120, 280 + Math.random() * 220 - wave * 10);
+          w.boltTimer = Math.max(120, 280 + Math.random() * 220 - wave * 8);
         }
-      } else {
-        w.boltTimer--;
-        if (w.boltTimer <= 0 && pd < 420) {
-          w.boltCharge = w.mount === 'skimmer' ? 48 : 36;
-          sfx.hexCharge();
-        }
+      } else if (--w.boltTimer <= 0 && Math.hypot(pdx, pdy) < 420) {
+        w.boltCharge = w.mount === 'skimmer' ? 48 : 36;
+        sfx.hexCharge();
       }
     }
   });
 
-  // Airborne enemies are solid to one another, but their collisions are
-  // harmless: they only wobble and separate enough to avoid visual stacking.
+  // flying witches are solid to each other, harmlessly
   for (let i = 0; i < witches.length; i++) {
     const a = witches[i];
     if (a.state !== 'flying') continue;
@@ -586,823 +509,176 @@ function update() {
     for (let j = i + 1; j < witches.length; j++) {
       const b = witches[j];
       if (b.state !== 'flying') continue;
-      const ax = a.x + a.w/2, ay = a.y + a.h/2;
-      const bx = b.x + b.w/2, by = b.y + b.h/2;
-      const dx = bx - ax, dy = by - ay;
-      const dist = Math.hypot(dx, dy) || 1;
-      const minDist = (a.w + b.w) * 0.42;
+      const dx = b.x - a.x, dy = b.y - a.y, dist = Math.hypot(dx, dy) || 1, minDist = (a.w + b.w) * 0.42;
       if (dist >= minDist) continue;
-      const push = (minDist - dist) * 0.09;
-      const nx = dx / dist, ny = dy / dist;
-      const aWeight = a.mount === 'skimmer' ? 0.45 : 1;
-      const bWeight = b.mount === 'skimmer' ? 0.45 : 1;
-      a.x -= nx * push * bWeight; a.y -= ny * push * bWeight;
-      b.x += nx * push * aWeight; b.y += ny * push * aWeight;
-      a.vx -= nx * 0.18 * bWeight; b.vx += nx * 0.18 * aWeight;
-      a.vy -= ny * 0.12; b.vy += ny * 0.12;
+      const push = (minDist - dist) * 0.09, nx = dx / dist, ny = dy / dist;
+      const aw = a.mount === 'skimmer' ? 0.45 : 1, bw = b.mount === 'skimmer' ? 0.45 : 1;
+      a.x -= nx * push * bw; a.y -= ny * push * bw; b.x += nx * push * aw; b.y += ny * push * aw;
+      a.vx -= nx * 0.18 * bw; b.vx += nx * 0.18 * aw; a.vy -= ny * 0.12; b.vy += ny * 0.12;
       a.bumpCooldown = b.bumpCooldown = 16;
-      if (bumpSoundCooldown <= 0) {
-        sfx.bump();
-        bumpSoundCooldown = 12;
-      }
+      if (bumpSoundCooldown <= 0) { sfx.bump(); bumpSoundCooldown = 12; }
     }
   }
+}
 
-  // --- Witch hex bolts ---
+function updateBolts() {
   witchBolts.forEach(b => { b.x += b.vx; b.y += b.vy; b.life--; });
   witchBolts = witchBolts.filter(b => b.life > 0 && b.x > -20 && b.x < W + 20 && b.y > -20 && b.y < H + 20);
-  if (player.invuln <= 0) {
-    witchBolts.forEach((b, bi) => {
-      if (b.x > player.x && b.x < player.x + player.w &&
-          b.y > player.y && b.y < player.y + player.h) {
-        witchBolts.splice(bi, 1);
-        hurtLuno('#4ade80');
-      }
-    });
-  }
+  if (player.invuln > 0) return;
+  const hit = witchBolts.find(b => b.x > player.x && b.x < player.x + player.w && b.y > player.y && b.y < player.y + player.h);
+  if (hit) { hit.life = 0; hurtLuno(hit.color); }
+}
 
-  // --- Crystal nests: Luno can swoop the crystal before the witch mounts ---
+function updateNests() {
   nests.forEach(n => {
     if (n.taken) return;
-    // ride along if the platform moves
-    if (n.plat.type === 'alien') n.x += n.plat.vx;
-    if (n.stealable &&
-        player.x < n.x + n.w && player.x + player.w > n.x &&
-        player.y < n.y + n.h && player.y + player.h > n.y) {
+    n.x += n.plat.dx || 0; n.y = n.plat.y - 18;
+    if (n.stealable && player.x < n.x + n.w && player.x + player.w > n.x && player.y < n.y + n.h && player.y + player.h > n.y) {
       n.taken = true;
       crystals++;
-      score += 150;
+      addScore(150);
       sfx.pickup();
       createParticles(n.x + 8, n.y + 8, '#e879f9', 10);
-      updateHUD();
     }
   });
+}
 
-  // --- THE SHRIEKER: dawdle too long and the boss buzzard arrives ---
+function updateBossFlow() {
   waveTimer++;
-  if (!boss && waveTimer > BOSS_AFTER && witches.length > 0) {
-    boss = {
-      x: -60, y: 100,
-      w: 64, h: 48,
-      vx: 2.5, vy: 0,
-      hp: 4 + Math.floor(wave / 3),
-      maxHp: 4 + Math.floor(wave / 3),
-      flapTimer: 10,
-      facing: 1,
-      hitFlash: 0
-    };
-    bannerText = 'THE SHRIEKER COMES';
-    bannerTime = 110;
+  // dawdle in a normal wave and the Shrieker comes hunting
+  if (!boss && !isBossWave(wave) && waveTimer > BOSS_AFTER && witches.length > 0) {
+    boss = createBoss('shrieker', cycleOfWave(wave));
+    boss.hp = boss.maxHp = 4 + Math.floor(wave / 3);
+    boss.name = 'THE SHRIEKER — HUNTING';
+    bannerFlash('THE SHRIEKER COMES', 'You lingered too long');
     sfx.shrieker();
     triggerShake(6, 20);
   }
-  if (boss) {
-    // relentless pursuit — flaps toward Luno
-    boss.flapTimer--;
-    if (boss.flapTimer <= 0) {
-      boss.vy = boss.y > player.y ? -6.5 : -3;
-      boss.flapTimer = 16 + Math.random() * 14;
-    }
-    boss.vy += 0.24;
-    boss.vy = Math.min(boss.vy, 7);
-    boss.vx += (player.x > boss.x ? 0.12 : -0.12);
-    boss.vx = Math.max(-3.6, Math.min(3.6, boss.vx));
-    boss.x += boss.vx;
-    boss.y += boss.vy;
-    boss.facing = boss.vx > 0 ? 1 : -1;
-    if (boss.y > H - 90) { boss.y = H - 90; boss.vy = -5; }
-    if (boss.y < 26) boss.vy = 1;
-    if (boss.x < -80) boss.x = W + 20;
-    if (boss.x > W + 80) boss.x = -20;
-    if (boss.hitFlash > 0) boss.hitFlash--;
-
-    witches.forEach(w => {
-      if (w.state !== 'flying') return;
-      const dx = (w.x + w.w/2) - (boss.x + boss.w/2);
-      const dy = (w.y + w.h/2) - (boss.y + boss.h/2);
-      const dist = Math.hypot(dx, dy) || 1;
-      if (dist > 46) return;
-      const nx = dx / dist, ny = dy / dist;
-      w.x += nx * 3; w.y += ny * 2;
-      w.vx += nx * 0.35; w.vy += ny * 0.2;
-      boss.vx -= nx * 0.08;
-    });
-
-    // Height advantage applies to the boss too, but it takes several hits
-    if (player.invuln <= 0 &&
-        player.x < boss.x + boss.w && player.x + player.w > boss.x &&
-        player.y < boss.y + boss.h && player.y + player.h > boss.y) {
-      const playerMid = player.y + player.h * 0.4;
-      const bossMid = boss.y + boss.h * 0.4;
-      if (playerMid < bossMid - 6) {
-        boss.hp--;
-        boss.hitFlash = 12;
-        player.vy = -7; // bounce off its back
-        hitPause = 3;
-        triggerShake(6, 12);
-        sfx.crystal();
-        createParticles(boss.x + boss.w/2, boss.y, '#f59e0b', 16);
-        if (boss.hp <= 0) {
-          score += 1000 * comboMult();
-          crystals += 3;
-          sfx.wave();
-          triggerShake(12, 25);
-          createParticles(boss.x + boss.w/2, boss.y + boss.h/2, '#f59e0b', 30);
-          for (let i = 0; i < 3; i++) {
-            crystalPickups.push({
-              x: boss.x + i * 20, y: boss.y,
-              w: 18, h: 18, life: 400, vy: -2 - i
-            });
-          }
-          boss = null;
-        }
-        updateHUD();
-      } else {
-        hurtLuno('#f59e0b');
-      }
-    }
-  }
-
-  // --- Ghosts float ---
-  ghosts.forEach(g => {
-    g.phase += 0.03;
-    g.x += Math.sin(g.phase) * g.speed;
-    g.y += Math.cos(g.phase * 0.7) * g.speed * 0.6;
-    if (g.x < 20) g.x = 20;
-    if (g.x > W - 40) g.x = W - 40;
-    if (g.y < 40) g.y = 40;
-    if (g.y > H - 100) g.y = H - 100;
-  });
-
-  // --- Player vs Witches: higher combatant wins ---
-  // Applies to walking witches too — swoop them before they mount!
-  witches.forEach((w, wi) => {
-    if (player.invuln > 0) return;
-
-    if (player.x < w.x + w.w && player.x + player.w > w.x &&
-        player.y < w.y + w.h && player.y + player.h > w.y) {
-
-      // Who is higher? (center Y)
-      const playerMid = player.y + player.h * 0.4;
-      const witchMid  = w.y + w.h * 0.4;
-      const advantage = witchMid - playerMid;   // positive means Luno is above
-
-      /* A near-level collision is a DRAW, not a death.
-
-         The rule used to be "Luno wins if clearly higher, otherwise the witch
-         kills him" — so a dead-even joust, the most common kind, always went to
-         the witch. That is the same unfairness the Soul Circuit corners had: the
-         game punishing you for a near miss rather than a mistake. Joust bounces
-         on a tie, and so does this now: you only lose the exchange when she is
-         properly above you. The bump machinery is the one witches already use on
-         each other. */
-      if (advantage <= LEVEL_JOUST && advantage >= -LEVEL_JOUST && player.bumpCooldown <= 0) {
-        const away = player.x < w.x ? -1 : 1;
-        player.vx = away * 4.2;
-        player.vy -= 1.6;
-        w.vx = -away * 3.4;
-        player.bumpCooldown = 14;
-        triggerShake(2, 5);
-        if (bumpSoundCooldown <= 0) { sfx.bump(); bumpSoundCooldown = 12; }
-        return;
-      }
-
-      if (advantage > LEVEL_JOUST) {
-        // Player wins — witch becomes crystal
-        w.state = 'crystal';
-        combo++;
-        comboTimer = 150;
-        score += (200 + wave * 25) * comboMult();
-        hitPause = 2;
-        triggerShake(3, 8);
-        crystals++;
-        sfx.crystal();
-        createParticles(w.x + w.w/2, w.y + w.h/2, '#e879f9', 14);
-        // spawn crystal pickup
-        crystalPickups.push({
-          x: w.x + 8, y: w.y + 8,
-          w: 18, h: 18,
-          life: 300,
-          vy: -1.5
-        });
-        witches.splice(wi, 1);
-        updateHUD();
-      } else {
-        // Witch hits player
-        player.vx = (player.x < w.x ? -1 : 1) * 4;
-        hurtLuno();
-      }
-    }
-  });
-
-  // Ghosts hurt on touch
-  if (player.invuln <= 0) {
-    ghosts.forEach(g => {
-      if (player.x < g.x + g.w && player.x + player.w > g.x &&
-          player.y < g.y + g.h && player.y + player.h > g.y) {
-        hurtLuno('#a78bfa');
-      }
-    });
-  }
-
-  // Crystal pickups
-  crystalPickups.forEach((c, ci) => {
-    c.vy += 0.12;
-    c.y += c.vy;
-    c.life--;
-    // land on platforms / floor
-    if (c.y > H - 70) { c.y = H - 70; c.vy = 0; }
-    platforms.forEach(p => {
-      if (c.y + c.h > p.y && c.y < p.y + 8 &&
-          c.x + c.w > p.x && c.x < p.x + p.w) {
-        c.y = p.y - c.h;
-        c.vy = 0;
-      }
-    });
-    // collect
-    if (player.x < c.x + c.w && player.x + player.w > c.x &&
-        player.y < c.y + c.h && player.y + player.h > c.y) {
-      score += 100;
-      sfx.pickup();
-      createParticles(c.x + 9, c.y + 9, '#e879f9', 8);
-      crystalPickups.splice(ci, 1);
-      updateHUD();
-    }
-  });
-  crystalPickups = crystalPickups.filter(c => c.life > 0);
-
-  // Wave clear — breather: banner shows for a beat before the next wave spawns
-  // (the Shrieker must be driven off too)
-  if (witches.length === 0 && !boss && gameRunning && waveDelay === 0) {
-    wave++;
+  if (!boss) return;
+  updateBoss(boss);
+  bossCollide(boss);
+  if (boss.hp <= 0) {
+    const cyc = cycleOfWave(wave);
+    addScore(isBossWave(wave) ? 3000 * (1 + cyc) : 1000 * comboMult());
+    crystals += 3;
+    for (let i = 0; i < 5; i++) crystalPickups.push({ x: boss.x + i * 14, y: boss.y, w: 18, h: 18, life: 500, vy: -2 - i * 0.6 });
+    createParticles(boss.x + boss.w / 2, boss.y + boss.h / 2, '#f59e0b', 40);
+    createFeathers(boss.x + boss.w / 2, boss.y + boss.h / 2, 14, '#44403c');
+    triggerShake(14, 28);
+    hitPause = 10;
     sfx.wave();
-    bannerText = 'WAVE ' + wave;
-    bannerTime = 90;
-    waveDelay = 75;
+    if (isBossWave(wave)) bannerFlash('BOSS DEFEATED', boss.name);
+    boss = null;
     updateHUD();
   }
-
-  // Particles
-  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
-  particles = particles.filter(p => p.life > 0);
-
-  groundScroll = (groundScroll + 0.4) % 100;
 }
 
-function createParticles(x, y, color, n) {
-  for (let i = 0; i < n; i++) {
-    particles.push({
-      x, y,
-      vx: (Math.random()-0.5)*7,
-      vy: (Math.random()-0.5)*7 - 1,
-      life: 18 + Math.random()*16,
-      color,
-      size: 2 + Math.random()*3
-    });
-  }
-}
-
-// ---------- Draw ----------
-function draw() {
-  // Screen shake — offset the whole world while shaking
-  ctx.save();
-  if (shakeTime > 0) {
-    ctx.translate((Math.random() - 0.5) * shakeMag, (Math.random() - 0.5) * shakeMag);
-  }
-
-  // Sky gradient (oversized so shake never reveals the canvas edge)
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#0a0618');
-  sky.addColorStop(0.6, '#150a28');
-  sky.addColorStop(1, '#1a0f30');
-  ctx.fillStyle = sky;
-  ctx.fillRect(-12, -12, W + 24, H + 24);
-
-  // Stars
-  ctx.fillStyle = '#e0d4ff';
-  for (let i = 0; i < 50; i++) {
-    const sx = (i * 73 + groundScroll * 0.3) % W;
-    const sy = (i * 47) % (H - 80);
-    ctx.globalAlpha = 0.3 + (i % 3) * 0.2;
-    ctx.fillRect(sx, sy, 1.5, 1.5);
-  }
-  ctx.globalAlpha = 1;
-
-  // Moon
-  ctx.beginPath();
-  ctx.arc(W - 90, 70, 32, 0, Math.PI*2);
-  ctx.fillStyle = '#e9d5ff';
-  ctx.shadowColor = '#c084fc';
-  ctx.shadowBlur = 25;
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // Distant manor silhouette
-  ctx.fillStyle = '#0d0818';
-  ctx.fillRect(W - 260, H - 160, 90, 110);
-  ctx.fillRect(W - 200, H - 200, 50, 150);
-  ctx.beginPath();
-  ctx.moveTo(W - 270, H - 160);
-  ctx.lineTo(W - 215, H - 220);
-  ctx.lineTo(W - 160, H - 160);
-  ctx.fill();
-  // windows
-  ctx.fillStyle = '#c084fc';
-  ctx.globalAlpha = 0.6 + Math.sin(Date.now()*0.003)*0.2;
-  ctx.fillRect(W - 245, H - 140, 12, 14);
-  ctx.fillRect(W - 220, H - 140, 12, 14);
-  ctx.fillRect(W - 185, H - 180, 12, 14);
-  ctx.globalAlpha = 1;
-
-  // Platforms
-  platforms.forEach(p => {
-    if (p.type === 'alien') {
-      // glowing alien platform
-      ctx.fillStyle = '#134e4a';
-      ctx.shadowColor = '#22d3ee';
-      ctx.shadowBlur = 12;
-      ctx.fillRect(p.x, p.y, p.w, p.h);
-      ctx.fillStyle = '#22d3ee';
-      ctx.fillRect(p.x + 4, p.y + 3, p.w - 8, 4);
-      // little alien lights
-      ctx.fillStyle = '#67e8f9';
-      ctx.beginPath();
-      ctx.arc(p.x + 15, p.y - 4, 3, 0, Math.PI*2);
-      ctx.arc(p.x + p.w - 15, p.y - 4, 3, 0, Math.PI*2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    } else {
-      // stone ledge
-      ctx.fillStyle = '#1e1b4b';
-      ctx.fillRect(p.x, p.y, p.w, p.h);
-      ctx.fillStyle = '#4c1d95';
-      ctx.fillRect(p.x, p.y, p.w, 4);
-    }
-  });
-
-  // Ground
-  ctx.fillStyle = '#12091f';
-  ctx.fillRect(0, H - 48, W, 48);
-  ctx.strokeStyle = '#7c3aed';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, H - 48);
-  ctx.lineTo(W, H - 48);
-  ctx.stroke();
-
-  // Crystal pickups
-  crystalPickups.forEach(c => {
-    ctx.save();
-    ctx.translate(c.x + 9, c.y + 9);
-    ctx.rotate(Date.now() * 0.004);
-    ctx.shadowColor = '#e879f9';
-    ctx.shadowBlur = 14;
-    ctx.fillStyle = '#e879f9';
-    ctx.beginPath();
-    ctx.moveTo(0, -10);
-    ctx.lineTo(8, 0);
-    ctx.lineTo(0, 10);
-    ctx.lineTo(-8, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#f5d0fe';
-    ctx.beginPath();
-    ctx.moveTo(0, -5);
-    ctx.lineTo(4, 0);
-    ctx.lineTo(0, 5);
-    ctx.lineTo(-4, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-    ctx.shadowBlur = 0;
-  });
-
-  // Ghosts
+function updateGhosts() {
   ghosts.forEach(g => {
-    ctx.save();
-    ctx.translate(g.x + 14, g.y + 16);
-    ctx.globalAlpha = 0.75 + Math.sin(g.phase) * 0.15;
-    ctx.shadowColor = '#a78bfa';
-    ctx.shadowBlur = 15;
-    // Shared artwork — the same ghost the rest of the manor uses.
-    if (!(window.SpriteKit && SpriteKit.drawMini(ctx, 'ghost', 0, 0, { t: g.phase / 5 }))) {
-      ctx.fillStyle = '#c4b5fd';
-      ctx.beginPath(); ctx.ellipse(0, 0, 14, 18, 0, 0, Math.PI * 2); ctx.fill();
+    if (g.hurt > 0) g.hurt--;
+    if (--g.t <= 0) {
+      const next = { visible: ['fading', 40], fading: ['phased', 120], phased: ['returning', 40], returning: ['visible', 240 + Math.random() * 120] }[g.state];
+      g.state = next[0]; g.t = next[1];
     }
-    ctx.restore();
-    ctx.globalAlpha = 1;
-    ctx.shadowBlur = 0;
+    g.vis = g.state === 'visible' ? 1 : g.state === 'phased' ? 0 : g.state === 'fading' ? g.t / 40 : 1 - g.t / 40;
+    g.phase += 0.03;
+    const dx = player.x + player.w / 2 - (g.x + g.w / 2), dy = player.y + player.h / 2 - (g.y + g.h / 2), d = Math.hypot(dx, dy) || 1;
+    if (g.state === 'visible' && d < 260) { g.vx += dx / d * 0.025; g.vy += dy / d * 0.02; }
+    else { g.vx += Math.sin(g.phase) * 0.02; g.vy += Math.cos(g.phase * 0.7) * 0.02; }
+    const sp = Math.hypot(g.vx, g.vy), cap = 1.2 + Math.min(wave, 16) * 0.04;
+    if (sp > cap) { g.vx = g.vx / sp * cap; g.vy = g.vy / sp * cap; }
+    g.x += g.vx; g.y += g.vy;
+    if (g.x < 20 || g.x > W - 48) g.vx *= -1;
+    if (g.y < 40 || g.y > H - 110) g.vy *= -1;
+    g.x = Math.max(20, Math.min(W - 48, g.x)); g.y = Math.max(40, Math.min(H - 110, g.y));
   });
+}
 
-  // Crystal nests on the platforms (mount points for walking witches)
-  nests.forEach(n => {
-    if (n.taken) return;
-    ctx.save();
-    ctx.translate(n.x + 8, n.y + 8);
-    const pulse = 1 + Math.sin(Date.now() * 0.005) * 0.12;
-    if (n.mount === 'crow') {
-      ctx.fillStyle = '#0f0a1a';
-      ctx.beginPath(); ctx.ellipse(0, 1, 10, 5, 0, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(8, -2, 4, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#f59e0b';
-      ctx.beginPath(); ctx.moveTo(11, -3); ctx.lineTo(17, -1); ctx.lineTo(11, 1); ctx.fill();
-    } else if (n.mount === 'skimmer') {
-      ctx.shadowColor = '#67e8f9'; ctx.shadowBlur = 14;
-      ctx.strokeStyle = '#67e8f9'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(0, 2, 13, 5, 0, 0, Math.PI*2); ctx.stroke();
-      ctx.fillStyle = '#0f766e'; ctx.fillRect(-9, -1, 18, 5);
+function defeatWitch(w, byHazard) {
+  if (w.dead) return;
+  w.dead = true;
+  if (!byHazard) { combo++; comboTimer = 150; hitPause = 2; }
+  addScore((200 + wave * 25) * (byHazard ? 1 : comboMult()));
+  crystals++;
+  triggerShake(3, 8);
+  sfx.crystal();
+  createParticles(w.x + w.w / 2, w.y + w.h / 2, '#e879f9', 14);
+  crystalPickups.push({ x: w.x + 8, y: w.y + 8, w: 18, h: 18, life: 300, vy: -1.5 });
+}
+
+function collideWitches() {
+  if (player.invuln > 0) return;
+  for (const w of witches) {
+    if (w.dead) continue;
+    const j = joust(w);
+    if (!j) continue;
+    if (j === 'above') { defeatWitch(w); if (player.dive) { player.dive = false; player.vy = -6; } }
+    else if (j === 'level') {
+      if (player.bumpCooldown > 0) continue;
+      const away = player.x < w.x ? -1 : 1;
+      player.vx = away * 4.2; player.vy -= 1.6; w.vx = -away * 3.4;
+      player.bumpCooldown = 14;
+      triggerShake(2, 5);
+      if (bumpSoundCooldown <= 0) { sfx.bump(); bumpSoundCooldown = 12; }
     } else {
-      ctx.strokeStyle = '#a8a29e'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(13, -3); ctx.lineTo(-12, 4); ctx.stroke();
-      ctx.strokeStyle = '#d6d3d1';
-      ctx.beginPath();
-      ctx.moveTo(-10, 1); ctx.lineTo(-17, -4);
-      ctx.moveTo(-10, 4); ctx.lineTo(-18, 5);
-      ctx.moveTo(-10, 7); ctx.lineTo(-16, 11);
-      ctx.stroke();
+      player.vx = (player.x < w.x ? -1 : 1) * 4;
+      hurtLuno();
+      return;
     }
-    if (n.stealable) {
-      ctx.scale(pulse, pulse);
-      ctx.shadowColor = '#e879f9'; ctx.shadowBlur = 14;
-      ctx.fillStyle = '#f5d0fe';
-      ctx.beginPath();
-      ctx.moveTo(0, -7); ctx.lineTo(3, -3); ctx.lineTo(0, 1); ctx.lineTo(-3, -3);
-      ctx.closePath(); ctx.fill();
+  }
+}
+
+// Ghosts are destroyable now: joust them from above (or dive through them).
+// While faded out they are harmless AND untouchable.
+function collideGhosts() {
+  for (const g of ghosts) {
+    if (g.dead || g.vis < 0.6) continue;
+    const j = joust(g);
+    if (!j) continue;
+    if (j === 'above') {
+      g.dead = true;
+      combo++; comboTimer = 150;
+      addScore(250 * comboMult());
+      sfx.ghostPop();
+      createParticles(g.x + g.w / 2, g.y + g.h / 2, '#c7d2fe', 20);
+      createParticles(g.x + g.w / 2, g.y + g.h / 2, '#a78bfa', 10);
+      crystalPickups.push({ x: g.x + 6, y: g.y + 6, w: 18, h: 18, life: 360, vy: 0, soul: true });
+      if (player.dive) player.dive = false;
+      player.vy = -6.5;
+      hitPause = 2;
+    } else if (player.invuln <= 0) {
+      if (j === 'level' && player.bumpCooldown <= 0) {
+        player.vx = (player.x < g.x ? -1 : 1) * 4; player.vy -= 1.5; g.vx *= -1; player.bumpCooldown = 14; sfx.bump();
+      } else if (j === 'below') hurtLuno('#a78bfa');
     }
-    ctx.restore();
-    ctx.shadowBlur = 0;
+  }
+}
+
+function updatePickups() {
+  crystalPickups.forEach(c => {
+    c.life--;
+    if (c.soul) { c.y += Math.sin(tick * 0.08 + c.x) * 0.4 - 0.15; }
+    else {
+      c.vy += 0.12; c.y += c.vy;
+      if (c.y > H - 70) { c.y = H - 70; c.vy = 0; }
+      platforms.forEach(p => { if (isSolid(p) && c.y + c.h > p.y && c.y < p.y + 8 && c.x + c.w > p.x && c.x < p.x + p.w) { c.y = p.y - c.h; c.vy = 0; } });
+    }
+    if (player.x < c.x + c.w && player.x + player.w > c.x && player.y < c.y + c.h && player.y + player.h > c.y) {
+      c.taken = true;
+      addScore(c.soul ? 150 : 100);
+      sfx.pickup();
+      createParticles(c.x + 9, c.y + 9, c.soul ? '#a5f3fc' : '#e879f9', 8);
+    }
   });
+  crystalPickups = crystalPickups.filter(c => c.life > 0 && !c.taken);
+}
 
-  // Witch hex bolts
-  witchBolts.forEach(b => {
-    ctx.save();
-    ctx.translate(b.x, b.y);
-    ctx.rotate(Date.now() * 0.01);
-    ctx.fillStyle = b.color || '#4ade80';
-    ctx.shadowColor = b.color || '#4ade80';
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      if (i === 0) ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5);
-      else ctx.lineTo(Math.cos(a) * 5, Math.sin(a) * 5);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  });
-  ctx.shadowBlur = 0;
-
-  // Witches
-  witches.forEach(w => {
-    ctx.save();
-    ctx.translate(w.x + w.w/2, w.y + w.h/2);
-    ctx.scale(w.facing, 1);
-
-    if (w.state === 'walking') {
-      // on foot — walking legs, no broom yet
-      const stride = Math.sin(w.walkPhase) * 5;
-      ctx.strokeStyle = '#4c1d95';
-      ctx.lineWidth = 3.5;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-3, 12); ctx.lineTo(-3 + stride, 15 + Math.abs(stride) * 0.3);
-      ctx.moveTo(3, 12);  ctx.lineTo(3 - stride, 15 + Math.abs(stride) * 0.3);
-      ctx.stroke();
-      // reaching arms while mounting
-      if (w.mountTimer > 0 && !w.nest.taken) {
-        ctx.strokeStyle = '#7c3aed';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(4, 0); ctx.lineTo(12, -4);
-        ctx.stroke();
-      }
-    } else if (w.mount === 'skimmer') {
-      const hover = Math.sin(w.wingPhase += 0.16) * 2;
-      ctx.shadowColor = '#67e8f9';
-      ctx.shadowBlur = 14;
-      ctx.strokeStyle = '#67e8f9';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.ellipse(0, 10 + hover, 23, 7, 0, 0, Math.PI*2); ctx.stroke();
-      ctx.fillStyle = '#0f766e';
-      ctx.beginPath(); ctx.ellipse(0, 8 + hover, 18, 5, 0, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#cffafe';
-      ctx.fillRect(-4, 9 + hover, 8, 3);
-      ctx.shadowBlur = 0;
-    } else if (w.mount === 'crow') {
-      // riding a crow — handle wing flap
-      w.wingPhase += 0.35;
-      const flap = Math.sin(w.wingPhase) * 8;
-      ctx.fillStyle = '#0f0a1a';
-      ctx.shadowColor = '#1e1b4b';
-      ctx.shadowBlur = 6;
-      // body
-      ctx.beginPath();
-      ctx.ellipse(0, 8, 14, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // head + beak facing forward (+x = travel direction)
-      ctx.beginPath();
-      ctx.arc(13, 4, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#f59e0b';
-      ctx.beginPath();
-      ctx.moveTo(17, 3); ctx.lineTo(24, 5); ctx.lineTo(17, 7);
-      ctx.closePath(); ctx.fill();
-      // tail trailing behind (-x)
-      ctx.fillStyle = '#0f0a1a';
-      ctx.beginPath();
-      ctx.moveTo(-12, 8); ctx.lineTo(-24, 4); ctx.lineTo(-22, 12);
-      ctx.closePath(); ctx.fill();
-      // flapping wings
-      ctx.beginPath();
-      ctx.moveTo(-2, 4);
-      ctx.quadraticCurveTo(-10, 4 - flap, -16, 10 - flap * 0.5);
-      ctx.quadraticCurveTo(-8, 8, 2, 8);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(4, 4);
-      ctx.quadraticCurveTo(-4, 4 - flap, -10, 10 - flap * 0.5);
-      ctx.quadraticCurveTo(0, 8, 6, 8);
-      ctx.fill();
-      // red eye
-      ctx.fillStyle = '#ef4444';
-      ctx.beginPath(); ctx.arc(14, 3, 1.4, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
-    } else {
-      // broom — handle points forward (+x = travel), bristles trail behind (-x)
-      ctx.strokeStyle = '#78716c';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(18, 4);
-      ctx.lineTo(-16, 6);
-      ctx.stroke();
-      // bristles fanned out at the back
-      ctx.strokeStyle = '#a8a29e';
-      ctx.beginPath();
-      ctx.moveTo(-14, 2); ctx.lineTo(-22, -4);
-      ctx.moveTo(-14, 6); ctx.lineTo(-24, 6);
-      ctx.moveTo(-14, 10); ctx.lineTo(-22, 14);
-      ctx.stroke();
-    }
-
-    /* The rider — shared artwork from wave3/sprite-kit.js. She was a
-       fillRect body, a flat triangle hat and two 3px squares for eyes, which
-       made the thing you actually aim at the flattest object on screen while
-       her crow had a beak, a tail and a flap cycle. The class colours are
-       unchanged: cloak from w.color, eyes from w.accent, hat by mount.
-
-       Walking witches keep their legs (drawn above) and so are drawn a little
-       higher, seated riders sit on whatever is under them. */
-    const hatColour = w.mount === 'crow' ? '#4a0418'
-                    : (w.mount === 'skimmer' ? '#134e4a' : '#4c1d95');
-    if (!(window.SpriteKit && SpriteKit.drawMini(ctx, 'witchRider', 0, w.state === 'walking' ? -2 : 0, {
-      color: w.color || '#7c3aed',
-      hat: hatColour,
-      accent: w.accent || '#4ade80'
-    }))) {
-      ctx.fillStyle = w.color || '#7c3aed';
-      ctx.fillRect(-8, -6, 16, 20);
-    }
-
-    if (w.boltCharge > 0) {
-      const maxCharge = w.mount === 'skimmer' ? 48 : 36;
-      const charge = 1 - w.boltCharge / maxCharge;
-      ctx.strokeStyle = w.accent || '#4ade80';
-      ctx.lineWidth = 2.5;
-      ctx.globalAlpha = 0.4 + charge * 0.6;
-      ctx.beginPath();
-      ctx.arc(0, 0, 12 + charge * 10, 0, Math.PI*2);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
-
-    ctx.restore();
-  });
-
-  // THE SHRIEKER (boss buzzard)
-  if (boss) {
-    ctx.save();
-    ctx.translate(boss.x + boss.w/2, boss.y + boss.h/2);
-    ctx.scale(boss.facing, 1);
-    const flash = boss.hitFlash > 0 && Math.floor(boss.hitFlash / 3) % 2 === 0;
-    ctx.fillStyle = flash ? '#fef3c7' : '#292524';
-    ctx.shadowColor = '#f59e0b';
-    ctx.shadowBlur = 18;
-    // hulking body
-    ctx.beginPath();
-    ctx.ellipse(0, 4, 24, 17, 0, 0, Math.PI*2);
-    ctx.fill();
-    // vulture neck + head
-    ctx.beginPath();
-    ctx.ellipse(20, -12, 9, 8, 0.4, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = flash ? '#fde68a' : '#7f1d1d';
-    ctx.beginPath();
-    ctx.ellipse(20, -12, 6, 5, 0.4, 0, Math.PI*2);
-    ctx.fill();
-    // hooked beak
-    ctx.fillStyle = '#f59e0b';
-    ctx.beginPath();
-    ctx.moveTo(27, -13); ctx.lineTo(36, -9); ctx.lineTo(26, -7);
-    ctx.closePath();
-    ctx.fill();
-    // burning eye
-    ctx.fillStyle = '#fbbf24';
-    ctx.beginPath(); ctx.arc(22, -13, 2.5, 0, Math.PI*2); ctx.fill();
-    // ragged wings (flap)
-    const bw = boss.vy < 0 ? -30 : -12;
-    ctx.fillStyle = flash ? '#fef3c7' : '#1c1917';
-    ctx.beginPath();
-    ctx.moveTo(-10, -2);
-    ctx.quadraticCurveTo(-40, bw, -46, 10);
-    ctx.lineTo(-34, 6); ctx.lineTo(-38, 16); ctx.lineTo(-26, 10); ctx.lineTo(-28, 20);
-    ctx.quadraticCurveTo(-18, 12, -8, 8);
-    ctx.closePath();
-    ctx.fill();
-    // talons
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(-2, 18); ctx.lineTo(-2, 25); ctx.moveTo(6, 18); ctx.lineTo(8, 25);
-    ctx.stroke();
-    ctx.restore();
-    ctx.shadowBlur = 0;
-    // HP pips above the boss
-    for (let i = 0; i < boss.maxHp; i++) {
-      ctx.fillStyle = i < boss.hp ? '#f59e0b' : 'rgba(245,158,11,0.2)';
-      ctx.fillRect(boss.x + i * 12, boss.y - 14, 9, 5);
-    }
-  }
-
-  // Player riding Luno (owl-griffin)
-  ctx.save();
-  ctx.translate(player.x + player.w/2, player.y + player.h/2);
-  if (player.invuln > 0 && Math.floor(player.invuln/3)%2===0) ctx.globalAlpha = 0.4;
-  ctx.scale(player.facing, 1);
-  const squash = player.landSquash > 0 ? 1 - player.landSquash * 0.018 : 1;
-  ctx.scale(1 / squash, squash);
-  ctx.rotate(Math.max(-0.18, Math.min(0.18, player.vy * 0.018)));
-
-  // Luno body (owl-griffin silhouette)
-  ctx.fillStyle = '#a8a29e';
-  ctx.shadowColor = '#c084fc';
-  ctx.shadowBlur = 12;
-  // legs — running stride when grounded, tucked in flight
-  const running = player.grounded && Math.abs(player.vx) > 0.4;
-  ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 3.5;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  if (running) {
-    const stride = Math.sin(player.walkPhase) * 7;
-    ctx.moveTo(-4, 12); ctx.lineTo(-4 + stride, 19);
-    ctx.moveTo(6, 12);  ctx.lineTo(6 - stride, 19);
-  } else if (player.grounded) {
-    // standing
-    ctx.moveTo(-4, 12); ctx.lineTo(-4, 19);
-    ctx.moveTo(6, 12);  ctx.lineTo(6, 19);
-  } else {
-    // tucked while flying
-    ctx.moveTo(-2, 12); ctx.lineTo(2, 15);
-    ctx.moveTo(7, 12);  ctx.lineTo(10, 14);
-  }
-  ctx.stroke();
-  // body
-  ctx.beginPath();
-  ctx.ellipse(0, 4, 16, 12, 0, 0, Math.PI*2);
-  ctx.fill();
-  // Griffin haunch and streaming feathered tail.
-  ctx.fillStyle = '#78716c';
-  ctx.beginPath(); ctx.ellipse(-10, 7, 11, 9, -0.15, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle = '#a8a29e'; ctx.lineWidth = 4;
-  const tailWave = Math.sin(player.flightPhase) * 3;
-  ctx.beginPath();
-  ctx.moveTo(-15, 7);
-  ctx.quadraticCurveTo(-27, 7 + tailWave, -34, 1 + tailWave);
-  ctx.stroke();
-  // head
-  ctx.beginPath();
-  ctx.ellipse(12, -6, 11, 10, 0, 0, Math.PI*2);
-  ctx.fill();
-  // Pale owl facial disk and brow give Luno a readable expression.
-  ctx.fillStyle = '#e7e5e4';
-  ctx.beginPath(); ctx.ellipse(14, -7, 8, 7, 0, 0, Math.PI*2); ctx.fill();
-  // ear tufts
-  ctx.beginPath();
-  ctx.moveTo(8, -14); ctx.lineTo(6, -22); ctx.lineTo(12, -14);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(16, -14); ctx.lineTo(18, -22); ctx.lineTo(14, -14);
-  ctx.fill();
-  // wing — flaps in the air, folds neatly against the body on the ground
-  const flapProgress = player.flapAnim > 0 ? (24 - player.flapAnim) / 24 : -1;
-  let wingLift = -6 + Math.sin(player.flightPhase) * 2;
-  if (flapProgress >= 0) {
-    if (flapProgress < 0.22) wingLift = -8 - (flapProgress / 0.22) * 17;
-    else if (flapProgress < 0.58) wingLift = -25 + ((flapProgress - 0.22) / 0.36) * 37;
-    else wingLift = 12 - ((flapProgress - 0.58) / 0.42) * 18;
-  }
-  ctx.fillStyle = '#78716c';
-  ctx.beginPath();
-  if (player.grounded) {
-    ctx.ellipse(-6, 4, 11, 8, -0.2, 0, Math.PI * 2);
-  } else {
-    ctx.moveTo(-8, 0);
-    ctx.quadraticCurveTo(-30, wingLift, -25, 12);
-    ctx.quadraticCurveTo(-14, 8, -6, 6);
-  }
-  ctx.fill();
-  // Primary feathers articulate through the upstroke, downstroke and glide.
-  if (!player.grounded) {
-    ctx.strokeStyle = player.flapStrength ? '#fde68a' : '#a8a29e';
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    for (let i = 0; i < 4; i++) {
-      const rootX = -11 - i * 3;
-      ctx.beginPath();
-      ctx.moveTo(rootX, 3);
-      ctx.lineTo(rootX - 10 - i * 2, wingLift * 0.72 + 7 + i * 2);
-      ctx.stroke();
-    }
-  }
-  // Feathered chest marking.
-  ctx.fillStyle = '#d6d3d1';
-  ctx.beginPath();
-  ctx.moveTo(5, 1); ctx.lineTo(13, 4); ctx.lineTo(6, 11); ctx.lineTo(0, 5);
-  ctx.closePath(); ctx.fill();
-  // eye
-  ctx.fillStyle = '#fbbf24';
-  ctx.beginPath();
-  ctx.arc(15, -7, 3.5, 0, Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle = '#0f0a1a';
-  ctx.beginPath();
-  ctx.arc(16, -7, 1.5, 0, Math.PI*2);
-  ctx.fill();
-  // beak
-  ctx.fillStyle = '#f59e0b';
-  ctx.beginPath();
-  ctx.moveTo(22, -4);
-  ctx.lineTo(28, -2);
-  ctx.lineTo(22, 1);
-  ctx.fill();
-  // Rider, saddle and reins respond to Luno's flight angle.
-  ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(-7, -7); ctx.quadraticCurveTo(9, -17, 18, -7); ctx.stroke();
-  ctx.fillStyle = '#4c1d95';
-  ctx.beginPath(); ctx.ellipse(-3, -9, 10, 4, 0, 0, Math.PI*2); ctx.fill();
-  ctx.save();
-  ctx.rotate(Math.max(-0.16, Math.min(0.16, player.vy * 0.025)));
-  ctx.fillStyle = '#c084fc';
-  ctx.fillRect(-4, -19, 10, 13);
-  // Rider cloak.
-  ctx.fillStyle = '#6d28d9';
-  ctx.beginPath(); ctx.moveTo(-4, -16); ctx.lineTo(-13, -7); ctx.lineTo(2, -7); ctx.closePath(); ctx.fill();
-  ctx.beginPath();
-  ctx.arc(1, -22, 5, 0, Math.PI*2);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.restore();
-  ctx.globalAlpha = 1;
-  ctx.shadowBlur = 0;
-
-  // Particles
-  particles.forEach(p => {
-    ctx.globalAlpha = p.life / 25;
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
-    ctx.fill();
-  });
-  ctx.globalAlpha = 1;
-
-  ctx.restore(); // end screen shake — overlays below stay steady
-
-  // Wave banner
-  if (bannerTime > 0) {
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, bannerTime / 18);
-    ctx.fillStyle = '#c084fc';
-    ctx.shadowColor = '#c084fc';
-    ctx.shadowBlur = 26;
-    ctx.font = 'bold 52px "Segoe UI", system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(bannerText, W/2, H/2 - 14);
-    ctx.restore();
-  }
-
-  // Combo multiplier indicator
-  if (gameRunning && comboMult() > 1) {
-    ctx.save();
-    ctx.fillStyle = '#f0abfc';
-    ctx.shadowColor = '#f0abfc';
-    ctx.shadowBlur = 12;
-    ctx.font = 'bold 20px "Segoe UI", system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('COMBO ×' + comboMult(), W/2, 44);
-    ctx.restore();
-  }
+// Hub cabinet preview: chase the nearest witch and stay aloft.
+function attractPilot() {
+  keys = {};
+  const tgt = boss || witches.find(w => !w.dead) || ghosts[0];
+  if (tgt) keys[tgt.x > player.x ? 'ArrowRight' : 'ArrowLeft'] = true;
+  if (player.y > H / 2 || (tgt && player.y > tgt.y - 10)) { if (player.flapAnim <= 0 && Math.random() < 0.5) keys.Space = true; }
 }
 
 function updateHUD() {
@@ -1414,11 +690,17 @@ function updateHUD() {
 }
 
 // ---------- Loop ----------
+let previousFrame = performance.now(), accumulator = 0;
 function loop() {
-  update();
+  const now = performance.now();
+  accumulator += Math.min(100, now - previousFrame); previousFrame = now;
+  let steps = 0;
+  while (accumulator >= 1000 / 60 && steps++ < 6) { update(); accumulator -= 1000 / 60; }
+  if (steps >= 6) accumulator = 0;
   draw();
   ArcadeVR.schedule(loop);
 }
+enterStage(0);
 updateHUD();
 loop();
-console.log('Spectral Manor: Luno\'s Flight ready — Ride Luno, shatter the witches');
+console.log('Spectral Manor: Luno\'s Flight ready — four skies, four bosses');
