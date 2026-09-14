@@ -317,10 +317,8 @@ function pushOutOfTables() {
 }
 
 // ---------- Throwing ----------
-function heroShoulder() {
-  const face = Math.cos(player.angle) < 0 ? -1 : 1;
-  return { x: player.x + player.w / 2 + face * 8, y: player.y + player.h + 2 - 40 };
-}
+// the same shoulder the Hero Kit draws, so the food leaves the hand you see
+function heroShoulder() { return heroShoulderPoint(player, 0); }
 function beginPlayerThrow() {
   if (player.throwAnim > 0 || player.throwCooldown > 0 || ammo <= 0) return;
   player.throwDur = player.power === 'hotsauce' ? 11 : HERO_THROW;

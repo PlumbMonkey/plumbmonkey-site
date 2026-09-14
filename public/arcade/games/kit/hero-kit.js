@@ -152,6 +152,10 @@
         r.lean = 0.12 * Math.sin(ph);
         break;
       }
+      case "pitch":                // a pitcher's stride; the throwing arm belongs to the game
+        r.legs = [[0.58, 0.22], [-0.42, -0.36]];
+        r.drop = 2;
+        break;
       case "carry":                // holding something overhead while walking
         runLegs();
         r.arms = [[2.85, 3.05], [2.75, 2.95]];
@@ -178,6 +182,7 @@
   function spaceman(c, x, feetY, o = {}) {
     const pose = o.pose || "idle", ph = o.phase || 0, face = o.face < 0 ? -1 : 1, sc = o.scale || 1;
     const r = spacemanRig(pose, ph);
+    const arms = o.arms || "both";       // "back" leaves the front arm to the caller, "none" leaves both
     c.save();
     c.translate(x, feetY);
     if (o.alpha !== undefined) c.globalAlpha *= o.alpha;
@@ -185,7 +190,7 @@
     if (pose === "death") { c.translate(0, -32); c.rotate(ph); c.translate(0, 32); }
     c.lineJoin = "round"; c.lineCap = "round";
     const hipY = -30 + r.drop;
-    c.translate(0, hipY); c.rotate(r.lean); c.translate(0, -hipY);
+    c.translate(0, hipY); c.rotate(r.lean + (o.tilt || 0)); c.translate(0, -hipY);
     const shoulder = [0.5, hipY - 18];
 
     const drawLeg = ([t, sh], back) => {
@@ -221,7 +226,7 @@
     }
     if (o.guitar && !r.guitar) guitar(c, -6, hipY - 10, 0.55, 0.62);
 
-    drawArm(r.arms[1], true);
+    if (arms !== "none") drawArm(r.arms[1], true);
     drawLeg(r.legs[1], true);
     // torso: one-piece suit, shaded on the back side
     poly(c, [[-6.5, hipY - 20], [7, hipY - 20], [7.5, hipY + 1], [-6.5, hipY + 1]], SP.suit, INK, 2);
@@ -253,6 +258,7 @@
     c.shadowBlur = 0;
     stroke(c, [[4.6, hy + 3.6], [6.6, hy + 3.4]], SP.skinShade, 1);
 
+    if (arms !== "both") { c.restore(); return null; }
     const hand = drawArm(r.arms[0], false);
     if (o.hammer) {                // a mic stand held along the forearm, head outward
       const f = r.arms[0][1], dx = Math.sin(f), dy = Math.cos(f);
@@ -434,7 +440,32 @@
     else c.drawImage(cv, x - cv.ox, feetY - cv.oy);
   }
 
-  const api = { spaceman, plumbmonkey, guitar, frames, blit, SPACEMAN: SP, PLUMBMONKEY: PM, INK };
+  /* For games that animate the Spaceman's arms themselves (Mess Hall's overhand
+     pitch, Swarm's aimed rifle): draw him with { arms: "back" } or
+     { arms: "none" }, ask where the shoulder is for the same options, and draw
+     the arm with HeroKit.arm so it matches the suit. */
+  function shoulder(o = {}, back = false) {
+    const r = spacemanRig(o.pose || "idle", o.phase || 0), face = o.face < 0 ? -1 : 1, sc = o.scale || 1;
+    const hipY = -30 + r.drop, lean = r.lean + (o.tilt || 0);
+    const dx = 0.5 + (back ? -2 : 1.5), dy = -16.5;      // shoulder relative to the hip, before the lean
+    const lx = dx * Math.cos(lean) - dy * Math.sin(lean), ly = dx * Math.sin(lean) + dy * Math.cos(lean) + hipY;
+    return { x: lx * face * sc * r.sx, y: ly * sc * r.sy };
+  }
+  // pts: [shoulder, elbow, hand] in world space
+  function arm(c, pts, o = {}) {
+    const sc = o.scale || 1, back = !!o.back, [s, e, h] = pts;
+    c.save();
+    c.lineJoin = "round"; c.lineCap = "round";
+    stroke(c, pts, INK, 8 * sc);
+    stroke(c, pts, back ? SP.shade : SP.suit, 5 * sc);
+    const k0 = [lerp(e[0], h[0], 0.72), lerp(e[1], h[1], 0.72)], k1 = [lerp(e[0], h[0], 0.88), lerp(e[1], h[1], 0.88)];
+    stroke(c, [k0, k1], SP.navy, 5 * sc);
+    ell(c, h[0], h[1], 2.8 * sc, 2.8 * sc, back ? SP.skinShade : SP.skin, INK, 1.2 * sc);
+    c.restore();
+    void s;
+  }
+
+  const api = { spaceman, plumbmonkey, guitar, frames, blit, shoulder, arm, SPACEMAN: SP, PLUMBMONKEY: PM, INK };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.HeroKit = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

@@ -25,6 +25,7 @@ const sandbox = {
   ArcadeAudio: { context: () => null, resume: noop }
 };
 vm.createContext(sandbox);
+vm.runInContext(fs.readFileSync('public/arcade/games/kit/hero-kit.js', 'utf8'), sandbox, { filename: 'hero-kit.js' });
 const dir = 'public/arcade/games/spectral-manor-mess-hall/';
 ['rooms.js', 'cast.js', 'boss.js', 'render.js', 'game.js'].forEach(f => vm.runInContext(fs.readFileSync(dir + f, 'utf8'), sandbox, { filename: f }));
 const run = code => vm.runInContext(code, sandbox);

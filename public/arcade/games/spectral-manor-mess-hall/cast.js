@@ -87,7 +87,7 @@ function drawShadow(x, y, rx, a = 0.38) {
 
 // The throwing arm, with the motion arc that sells the circle.
 // who: {throwAnim, throwDur, angle, pendingThrow|heldFood}
-function drawThrowArm(sx, sy, aim, p, L, sleeve, hand, food) {
+function drawThrowArm(sx, sy, aim, p, L, sleeve, hand, food, cuff) {
   const phi = windmillAngle(p);
   if (p > 0.08 && p < WINDMILL_RELEASE + 0.12) {
     ctx.lineCap = 'round';
@@ -102,6 +102,13 @@ function drawThrowArm(sx, sy, aim, p, L, sleeve, hand, food) {
   const elbow = windmillHand(sx, sy, aim, phi, L * 0.5);
   const h = windmillHand(sx, sy, aim, phi, L);
   limb([[sx, sy], [elbow.x, elbow.y], [h.x, h.y]], sleeve, 5);
+  if (cuff) {                          // the Spaceman's navy suit cuff, just above the hand
+    ctx.strokeStyle = cuff; ctx.lineWidth = 5; ctx.lineCap = 'butt';
+    ctx.beginPath();
+    ctx.moveTo(elbow.x + (h.x - elbow.x) * 0.7, elbow.y + (h.y - elbow.y) * 0.7);
+    ctx.lineTo(elbow.x + (h.x - elbow.x) * 0.88, elbow.y + (h.y - elbow.y) * 0.88);
+    ctx.stroke(); ctx.lineCap = 'round';
+  }
   if (food && p < WINDMILL_RELEASE) {
     ctx.save(); ctx.translate(h.x, h.y); ctx.rotate(phi); drawFoodShape(food, 5.5); ctx.restore();
   }
@@ -123,62 +130,48 @@ function legs(stride, lift, color, boot, w = 5, hipY = -20, spread = 5) {
 }
 
 // ---------- hero ----------
-const HERO = { suit: '#e6ecf7', trim: '#7c3aed', limb: '#6d28d9', visor: '#16305c', lamp: '#67e8f9', boot: '#3b2b52' };
+// The arcade's Spaceman, from the shared Hero Kit (../kit/hero-kit.js): long
+// dark hair, gold aviators, white flight suit and the cosmic-print vest — the
+// same figure as Graveyard Shift. The kit draws his body and off arm. The
+// throwing arm stays in this file because the overhand pitch is this game's own
+// rig; it is drawn in the suit's colours from the shoulder the kit reports for
+// the same pose, and game.js releases the food from that same shoulder.
+function heroKitOpts(p, t) {
+  const tp = throwProgress(p), moving = p.vx || p.vy;
+  return {
+    pose: tp > 0 ? 'pitch' : moving ? 'run' : 'idle',
+    phase: tp === 0 && moving ? p.walkPhase : (t || 0) * 0.05,
+    face: Math.cos(p.angle) < 0 ? -1 : 1,
+    tilt: tp > 0 ? Math.sin(tp * Math.PI) * 0.12 : 0,
+    arms: 'back'
+  };
+}
+function heroFeetPoint(p) { return { x: p.x + p.w / 2, y: p.y + p.h + 2 }; }
+function heroShoulderPoint(p, t) {
+  const f = heroFeetPoint(p), s = HeroKit.shoulder(heroKitOpts(p, t));
+  return { x: f.x + s.x, y: f.y + s.y };
+}
 
 function drawHero(p, t) {
-  const fx = p.x + p.w / 2, fy = p.y + p.h + 2;
+  const { x: fx, y: fy } = heroFeetPoint(p);
   drawShadow(fx, fy, 15);
-  const face = Math.cos(p.angle) < 0 ? -1 : 1;
-  const tp = throwProgress(p);
-  const moving = p.vx || p.vy;
-  const sw = moving ? Math.sin(p.walkPhase) : 0;
-  const bob = moving ? Math.abs(sw) * 2 : Math.sin(t * 0.05) * 0.8;
-  // a pitcher's stride: the front leg steps out through the release
-  const step = tp > 0 ? Math.sin(Math.min(1, tp / WINDMILL_RELEASE) * Math.PI * 0.5) * 9 : 0;
-  const aimUp = Math.sin(p.angle) < -0.35;
-  const shoulder = { x: fx + face * 8, y: fy - 40 - bob };
-
+  const K = HeroKit.SPACEMAN, o = heroKitOpts(p, t), face = o.face, tp = throwProgress(p);
+  // an active power rings his feet (it used to light the old helmet's antenna)
+  if (p.power) {
+    ctx.save(); ctx.shadowColor = POWER_COLORS[p.power]; ctx.shadowBlur = 12;
+    ctx.strokeStyle = POWER_COLORS[p.power]; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.ellipse(fx, fy, 20, 6.5, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  }
+  const shoulder = heroShoulderPoint(p, t);
   const armBehind = tp > 0 && armIsBehind(p.angle, tp);
-  if (armBehind) drawThrowArm(shoulder.x, shoulder.y, p.angle, tp, 17, HERO.limb, '#cfe6ff', p.nextFood);
-
-  ctx.save();
-  ctx.translate(fx, fy);
-  ctx.scale(face, 1);
-  ctx.translate(0, -bob);
-  if (tp > 0) ctx.rotate(Math.sin(tp * Math.PI) * 0.12);
-  // off arm (back)
-  limb([[-8, -40], [-12 + sw * 4, -33], [-12 - sw * 8, -26]], shade(HERO.limb, -0.3), 5);
-  legs(sw * 13 + step, sw * 6, HERO.limb, HERO.boot);
-  // torso with lit and shaded halves
-  const TORSO = [[-9, -44], [9, -44], [11, -28], [8, -20], [-8, -20], [-11, -28]];
-  inkPoly(TORSO, HERO.suit);
-  ctx.save(); ctx.beginPath(); ctx.rect(-12, -46, 6, 30); ctx.clip(); inkPoly(TORSO, shade(HERO.suit, -0.3), 0); ctx.restore();
-  ctx.fillStyle = HERO.trim; ctx.fillRect(-8, -38, 16, 3.5);
-  ctx.fillStyle = shade(HERO.trim, -0.3); ctx.fillRect(-8, -25, 16, 3);
-  ctx.shadowColor = HERO.lamp; ctx.shadowBlur = 8; ctx.fillStyle = HERO.lamp;
-  ctx.beginPath(); ctx.arc(3.5, -31, 2.4, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
-  // helmet, visor, antenna lamp
-  const hy = -54;
-  ctx.fillStyle = '#25203a'; ctx.fillRect(-6, -46, 12, 4);
-  inkOval(0, hy, 11.5, 11, '#eef3fa');
-  inkOval(-4, hy - 4, 4.5, 3, '#ffffff', 0);
-  inkOval(2, hy + 0.5, 8.2, 7, HERO.visor, 2);
-  litEyes([[1, hy], [6, hy]], HERO.lamp, 9, 3);
-  ctx.globalAlpha = 0.5; ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.ellipse(-2, hy - 3, 2.4, 1.4, -0.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
-  ctx.shadowColor = HERO.lamp; ctx.shadowBlur = 10; ctx.strokeStyle = HERO.lamp; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(-7, hy - 8); ctx.lineTo(-11, hy - 16); ctx.stroke();
-  ctx.fillStyle = p.power ? POWER_COLORS[p.power] : HERO.lamp;
-  ctx.beginPath(); ctx.arc(-11, hy - 17, 2.6, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
-  ctx.restore();
-
-  if (tp > 0 && !armBehind) drawThrowArm(shoulder.x, shoulder.y, p.angle, tp, 17, HERO.limb, '#cfe6ff', p.nextFood);
+  if (armBehind) drawThrowArm(shoulder.x, shoulder.y, p.angle, tp, 17, K.suit, K.skin, p.nextFood, K.navy);
+  HeroKit.spaceman(ctx, fx, fy, o);
+  if (tp > 0 && !armBehind) drawThrowArm(shoulder.x, shoulder.y, p.angle, tp, 17, K.suit, K.skin, p.nextFood, K.navy);
   else if (tp === 0) {
     // ready pose: food cradled at the hip on the throwing side
-    const hx = fx + face * 12, hyy = fy - 26 - bob;
-    limb([[shoulder.x, shoulder.y], [fx + face * 13, fy - 33 - bob], [hx, hyy]], HERO.limb, 5);
-    if (p.nextFood && ammo > 0) { ctx.save(); ctx.translate(hx, hyy - 2); drawFoodShape(p.nextFood, 5.5); ctx.restore(); }
-    inkOval(hx, hyy, 3.2, 3.2, '#cfe6ff', 1.5);
+    const hx = fx + face * 12, hy = shoulder.y + 15;
+    HeroKit.arm(ctx, [[shoulder.x, shoulder.y], [fx + face * 12, shoulder.y + 8], [hx, hy]]);
+    if (p.nextFood && ammo > 0) { ctx.save(); ctx.translate(hx, hy - 3); drawFoodShape(p.nextFood, 5.5); ctx.restore(); }
   }
 }
 

@@ -414,7 +414,7 @@ Drop sources: kill streaks, rescues, and a special carrier enemy.
 1. **Art path:** procedural Hero Kit (A), his lo-fi sprite sheets (B), or hybrid? If B, the spec is in §3.
 2. **Graveyard finale:** is the Music Room level 2-3 now, with future worlds inserted before it later?
 3. **Revenger runner failure:** lose a life and stay in the Rift until the sector ends, or something harsher?
-4. **Migration:** should the other games' Spaceman (Mess Hall, Swarm, Beam pilot) move to the Hero Kit later?
+4. **Migration:** should the other games' Spaceman (Mess Hall, Swarm, Beam pilot) move to the Hero Kit later? **Mess Hall and Swarm done 2026-09-14:** they load `kit/hero-kit.js` and draw the body with `HeroKit.spaceman(ctx, x, feet, { arms: "back" | "none" })`. Their own arm rigs (the overhand pitch, the aimed rifle) come from `HeroKit.shoulder(opts, back)` and are drawn with `HeroKit.arm`. Mess Hall's `heroShoulder()` and Swarm's `heroMuzzle()` use the same shoulder, so food and shots leave the hand you see. The Beam pilot is still the old art.
 5. **Build order:** suggested **Hero Kit → Revenger → Amp Rampage → Graveyard Shift** (the kit first because all three depend on it).
 
 ---

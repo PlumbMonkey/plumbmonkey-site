@@ -28,6 +28,7 @@ const sandbox = {
 sandbox.window = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync('public/arcade/games/wave3/sprite-kit.js', 'utf8'), sandbox, { filename: 'sprite-kit.js' });
+vm.runInContext(fs.readFileSync('public/arcade/games/kit/hero-kit.js', 'utf8'), sandbox, { filename: 'hero-kit.js' });
 const dir = 'public/arcade/games/spectral-manor-swarm/';
 ['arena.js', 'fx.js', 'hero.js', 'bosses.js', 'render.js', 'game.js'].forEach(f => vm.runInContext(fs.readFileSync(dir + f, 'utf8'), sandbox, { filename: f }));
 const run = code => vm.runInContext(code, sandbox);
