@@ -1,35 +1,39 @@
 // ============================================================
-// SPECTRAL MANOR MESS HALL
-// Defend the haunted manor cafeteria from spectral chefs
-// Throw food at spectral chefs in the haunted manor cafeteria
+// SPECTRAL MANOR MESS HALL — rules
+// Defend the Grand Buffet through four rooms of the manor.
+//
+// Files (load order): rooms.js (layouts, room art, hazards art)
+//   cast.js (hero, monsters, Head Chef, windmill rig) · boss.js (Head Chef rules)
+//   render.js (draw pass, food shapes, overlays) · game.js (this)
+// Levels: 3 per room. Level 3 of each room is a set piece — a Buffet Rush in
+// the Mess Hall and Cold Pantry, the Head Chef in the Kitchen and Banquet Hall.
+// After the Banquet Hall the manor loops with tougher monsters.
 // ============================================================
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+let ctx = canvas.getContext('2d');       // let: rooms.js briefly swaps it to paint its cache
 const W = canvas.width;
 const H = canvas.height;
 const ATTRACT_MODE = /[?&]attract\b/.test(location.search);
 if (ATTRACT_MODE) document.body.classList.add('attract');
 
-// ---------- Sound (simple Web Audio) ----------
+// ---------- Sound ----------
 let audioCtx = null;
 function initAudio() {
   if (!audioCtx) audioCtx = ArcadeAudio.context();
   ArcadeAudio.resume();
 }
-function playTone(freq, dur, type='square', vol=0.07, slide=0) {
+function playTone(freq, dur, type = 'square', vol = 0.07, slide = 0) {
   if (!audioCtx) return;
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
   o.type = type;
   o.frequency.setValueAtTime(freq, audioCtx.currentTime);
-  if (slide) o.frequency.linearRampToValueAtTime(freq+slide, audioCtx.currentTime+dur);
+  if (slide) o.frequency.linearRampToValueAtTime(Math.max(20, freq + slide), audioCtx.currentTime + dur);
   g.gain.setValueAtTime(vol, audioCtx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
   o.connect(g); g.connect(ArcadeAudio.output('sfx'));
-  o.start(); o.stop(audioCtx.currentTime+dur);
+  o.start(); o.stop(audioCtx.currentTime + dur);
 }
-// Filtered noise burst — whooshes, splats and thuds are all shaped noise
 function playNoise(dur, vol, filterType, f0, f1) {
   if (!audioCtx) return;
   const t = audioCtx.currentTime;
@@ -49,149 +53,141 @@ function playNoise(dur, vol, filterType, f0, f1) {
   n.connect(flt); flt.connect(g); g.connect(ArcadeAudio.output('sfx'));
   n.start(t);
 }
-
+const later = (fn, ms) => setTimeout(fn, ms);
 const sfx = {
-  // Food leaves the hand: rising air whoosh + a little grunt of effort
-  throw: () => {
-    playNoise(0.14, 0.07, 'bandpass', 500, 2600);
-    playTone(220, 0.06, 'triangle', 0.04, 120);
-  },
-  // SPLAT — wet noise smack + two quick descending "blorp" blips
-  hit: () => {
-    playNoise(0.16, 0.12, 'lowpass', 1600, 250);
-    playTone(340, 0.08, 'sine', 0.08, -180);
-    setTimeout(() => playTone(210, 0.09, 'sine', 0.06, -120), 45);
-  },
-  // Restock: classic two-note coin blip
-  pickup: () => {
-    playTone(760, 0.05, 'square', 0.05);
-    setTimeout(() => playTone(1140, 0.09, 'square', 0.05), 45);
-  },
-  // Player splattered: heavyweight splat + low thud
-  hurt: () => {
-    playNoise(0.3, 0.13, 'lowpass', 2200, 180);
-    playTone(300, 0.12, 'sine', 0.1, -200);
-    playTone(85, 0.28, 'sine', 0.11, -40);
-  },
-  // Level clear: fanfare + celebratory sweep
-  level: () => {
-    playNoise(0.22, 0.04, 'bandpass', 400, 3000);
-    playTone(440, 0.08, 'square', 0.07);
-    setTimeout(() => playTone(554, 0.08, 'square', 0.07), 70);
-    setTimeout(() => playTone(659, 0.12, 'square', 0.08), 140);
-  }
+  throw: () => { playNoise(0.16, 0.07, 'bandpass', 400, 2800); playTone(200, 0.07, 'triangle', 0.04, 160); },
+  whoosh: () => playNoise(0.3, 0.08, 'bandpass', 300, 3000),
+  hit: () => { playNoise(0.16, 0.12, 'lowpass', 1600, 250); playTone(340, 0.08, 'sine', 0.08, -180); later(() => playTone(210, 0.09, 'sine', 0.06, -120), 45); },
+  splash: () => { playNoise(0.35, 0.12, 'lowpass', 1200, 150); playTone(160, 0.2, 'sine', 0.07, -90); },
+  pickup: () => { playTone(760, 0.05, 'square', 0.05); later(() => playTone(1140, 0.09, 'square', 0.05), 45); },
+  power: () => [523, 659, 784, 1047].forEach((f, i) => later(() => playTone(f, 0.08, 'square', 0.05), i * 55)),
+  hurt: () => { playNoise(0.3, 0.13, 'lowpass', 2200, 180); playTone(300, 0.12, 'sine', 0.1, -200); playTone(85, 0.28, 'sine', 0.11, -40); },
+  level: () => { playNoise(0.22, 0.04, 'bandpass', 400, 3000); playTone(440, 0.08, 'square', 0.07); later(() => playTone(554, 0.08, 'square', 0.07), 70); later(() => playTone(659, 0.12, 'square', 0.08), 140); },
+  bell: () => [0, 260].forEach(ms => later(() => { playTone(1320, 0.5, 'sine', 0.07); playTone(1980, 0.3, 'sine', 0.03); }, ms)),
+  slam: () => { playNoise(0.5, 0.15, 'lowpass', 900, 80); playTone(70, 0.4, 'sine', 0.13, -30); },
+  sizzle: () => playNoise(0.6, 0.04, 'highpass', 3000, 6000),
+  crash: () => { playNoise(0.7, 0.14, 'highpass', 1500, 5000); playTone(90, 0.3, 'sine', 0.1, -40); },
+  creak: () => playTone(140, 0.5, 'sawtooth', 0.03, -40),
+  growl: () => { playTone(90, 0.3, 'sawtooth', 0.06, 40); playNoise(0.25, 0.05, 'lowpass', 600, 200); },
+  blink: () => playTone(1200, 0.12, 'triangle', 0.04, -900),
+  bossDown: () => { playNoise(0.8, 0.15, 'lowpass', 2000, 100); [392, 523, 659, 784, 1047].forEach((f, i) => later(() => playTone(f, 0.14, 'square', 0.06), 300 + i * 100)); }
 };
 
 // ---------- State ----------
-let score = 0, lives = 3, level = 1, ammo = 12;
+const HERO_THROW = 18, MONSTER_THROW = 30, ENDING_FRAMES = 150;
+let score = 0, lives = 3, level = 1, ammo = 12, tick = 0;
 let gameRunning = false, gameOver = false, paused = false;
 let keys = {};
-let mouse = { x: W/2, y: H/2, down: false };
+let mouse = { x: W / 2, y: H / 2, down: false };
 
-// ---------- Juice: high score, combo, shake, hit-pause, banner ----------
 const BEST_KEY = 'spectralArcade.messhall.best';
 function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch (e) { return 0; } }
 function saveBest() { try { localStorage.setItem(BEST_KEY, best); } catch (e) {} }
 let best = loadBest();
-let combo = 0, comboTimer = 0;      // kill streak; decays after 150 frames
-let hitPause = 0;                   // frames to freeze the action on impact
-let shakeTime = 0, shakeMag = 0;    // screen shake
-let waveDelay = 0;                  // breather frames before next level spawns
-let bannerText = '', bannerTime = 0;
-function triggerShake(mag, time) { shakeMag = mag; shakeTime = time; }
+let combo = 0, comboTimer = 0, hitPause = 0, shakeTime = 0, shakeMag = 0, waveDelay = 0;
+let bannerText = '', bannerSub = '', bannerTime = 0;
+let ending = 0, endTitle = '', endLine = '';
+let roomIdx = 0, pendingRoom = -1, roomFade = 0;
+function triggerShake(mag, time) { shakeMag = Math.max(shakeMag * (shakeTime > 0 ? 1 : 0), mag); shakeTime = Math.max(shakeTime, time); }
 function comboMult() { return Math.min(1 + Math.floor(combo / 5), 5); }
+const roomOf = lv => Math.floor((lv - 1) / 3) % ROOMS.length;
+const stageOf = lv => (lv - 1) % 3;
+const cycleOf = lv => Math.floor((lv - 1) / (3 * ROOMS.length));
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-// ---------- Player ----------
 const player = {
-  x: W/2, y: H/2,
-  w: 28, h: 32,
-  speed: 4.2,
-  vx: 0, vy: 0,
-  angle: 0,
-  invuln: 0,
-  throwCooldown: 0,
-  walkPhase: 0,     // leg animation
-  throwAnim: 0,
-  pendingThrow: null
+  x: 60, y: H / 2, w: 28, h: 32, speed: 4.2, vx: 0, vy: 0, angle: 0,
+  invuln: 0, throwCooldown: 0, walkPhase: 0, throwAnim: 0, throwDur: HERO_THROW, pendingThrow: null,
+  nextFood: 'pie', power: null, powerTime: 0, powerShots: 0
 };
 
-// ---------- Entities ----------
-let foods = [];      // thrown projectiles
-let pickups = [];    // food on ground
-let chefs = [];      // enemies
-let particles = [];
-let tables = [];     // obstacles
-let splats = [];     // messy food splats left by hits
+let foods = [], pickups = [], chefs = [], particles = [], tables = [], splats = [];
+let lobs = [], puddles = [], chandeliers = [], boss = null;
 
-// A splat is a cluster of blobs that sticks briefly then fades
+const buffet = { x: 405, y: 235, w: 150, h: 60, dishes: 6, maxDishes: 6, flash: 0 };
+
+const FOOD_TYPES = [
+  { name: 'pie', color: '#fbbf24', points: 10 },
+  { name: 'tomato', color: '#ef4444', points: 15 },
+  { name: 'banana', color: '#facc15', points: 12 },
+  { name: 'chicken', color: '#fb923c', points: 20 },
+  { name: 'cake', color: '#f0abfc', points: 25 },
+  { name: 'burger', color: '#f59e0b', points: 18 }
+];
+const FOOD_BY_NAME = Object.fromEntries(FOOD_TYPES.map(f => [f.name, f]));
+function randomFood() { return FOOD_TYPES[Math.floor(Math.random() * FOOD_TYPES.length)]; }
+
+const MONSTERS = {
+  vampire: { color: '#9f1239', speed: 1.6, hp: 1 },
+  werewolf: { color: '#78716c', speed: 1.8, hp: 2 },
+  frank: { color: '#4ade80', speed: 0.9, hp: 3 },
+  ghost: { color: '#c4b5fd', speed: 1.4, hp: 1 },
+  witch: { color: '#7c3aed', speed: 1.3, hp: 2 }
+};
+const ROOM_ROSTER = [
+  ['vampire', 'ghost', 'frank'],
+  ['vampire', 'ghost', 'frank', 'werewolf'],
+  ['ghost', 'frank', 'werewolf', 'witch', 'vampire'],
+  ['vampire', 'werewolf', 'frank', 'ghost', 'witch']
+];
+
+function splatSpot(x, y, color) { spawnSplat(x, y, color); }
 function spawnSplat(x, y, color) {
   const blobs = [];
   const n = 4 + Math.floor(Math.random() * 4);
   for (let i = 0; i < n; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const dist = Math.random() * 12;
-    blobs.push({
-      dx: Math.cos(a) * dist,
-      dy: Math.sin(a) * dist,
-      r: 2 + Math.random() * 5
-    });
+    const a = Math.random() * Math.PI * 2, dist = Math.random() * 12;
+    blobs.push({ dx: Math.cos(a) * dist, dy: Math.sin(a) * dist, r: 2 + Math.random() * 5 });
   }
-  splats.push({ x, y, color, blobs, life: 90, maxLife: 90 });
+  splats.push({ x, y, color, blobs, life: 240, maxLife: 240 });
+  if (splats.length > 60) splats.shift();
 }
-
-// ---------- The Grand Buffet (the objective) ----------
-// Monsters periodically try to steal a dish and escape off-screen.
-// Kill the thief to drop the dish back. All 6 dishes gone = game over.
-const buffet = { x: 405, y: 225, w: 150, h: 60, dishes: 6, maxDishes: 6, flash: 0 };
 
 // ---------- Input ----------
 window.addEventListener('keydown', e => {
   initAudio();
-  if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat && gameRunning) { paused = !paused; mouse.down = false; Object.keys(keys).forEach(k => keys[k] = false); }
+  if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat && gameRunning && !ending) { paused = !paused; mouse.down = false; Object.keys(keys).forEach(k => keys[k] = false); }
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
   if (e.code === 'Enter' && !e.repeat && !gameRunning) startGame();
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
-
 canvas.addEventListener('mousemove', e => {
   const r = canvas.getBoundingClientRect();
   mouse.x = (e.clientX - r.left) * (W / r.width);
   mouse.y = (e.clientY - r.top) * (H / r.height);
 });
-canvas.addEventListener('mousedown', () => { if (paused) { paused=false; return; } mouse.down = true; initAudio(); });
-canvas.addEventListener('touchstart', () => { if(paused) paused=false; }, {passive:true});
+canvas.addEventListener('mousedown', () => { if (paused) { paused = false; return; } mouse.down = true; initAudio(); });
+canvas.addEventListener('touchstart', () => { if (paused) paused = false; }, { passive: true });
 window.addEventListener('mouseup', () => mouse.down = false);
-window.addEventListener('blur', () => { Object.keys(keys).forEach(k => keys[k] = false); mouse.down = false; if (gameRunning) paused = true; });
-
-document.getElementById('startOverlay').addEventListener('click', () => {
-  initAudio();
-  if (!gameRunning) startGame();
-});
-
-// Twin-stick touch: left thumb moves, right thumb aims and throws.
+window.addEventListener('blur', () => { Object.keys(keys).forEach(k => keys[k] = false); mouse.down = false; if (gameRunning && !ATTRACT_MODE) paused = true; });
+document.getElementById('startOverlay').addEventListener('click', () => { initAudio(); if (!gameRunning) startGame(); });
 TouchPad.init(canvas, {
-  accent: '#c084fc',
-  aimAccent: '#f0abfc',
+  accent: '#c084fc', aimAccent: '#f0abfc',
   targets: () => chefs,
   onStart: () => { initAudio(); if (!gameRunning) startGame(); }
 });
 
-// ---------- Core ----------
+// ---------- Flow ----------
 function startGame() {
-  score = 0; lives = 3; level = 1; ammo = 12;
-  buffet.dishes = buffet.maxDishes; buffet.flash = 0;
-  foods = []; pickups = []; chefs = []; particles = []; splats = [];
-  combo = 0; comboTimer = 0; hitPause = 0; shakeTime = 0; waveDelay = 0;
-  bannerText = 'LEVEL 1'; bannerTime = 90;
-  player.x = 80; player.y = H/2;          // start clear of tables
-  player.invuln = 0; player.throwCooldown = 0;
-  player.throwAnim = 0; player.pendingThrow = null;
+  score = 0; lives = 3; level = 1; ammo = 12; tick = 0;
+  foods = []; pickups = []; chefs = []; particles = []; splats = []; lobs = []; puddles = []; boss = null;
+  combo = 0; comboTimer = 0; hitPause = 0; shakeTime = 0; waveDelay = 0; ending = 0; pendingRoom = -1;
+  Object.assign(player, { invuln: 0, throwCooldown: 0, throwAnim: 0, throwDur: HERO_THROW, pendingThrow: null, vx: 0, vy: 0, power: null, powerTime: 0, powerShots: 0, nextFood: randomFood().name });
   gameRunning = true; gameOver = false; paused = false;
   document.getElementById('startOverlay').classList.add('hidden');
-  spawnTables();
+  enterRoom(0);
   spawnLevel();
+  announce();
   updateHUD();
+}
+
+function startEnding(title, line) {
+  if (ending || !gameRunning) return;
+  ending = ENDING_FRAMES; endTitle = title; endLine = line;
+  mouse.down = false;
+  Object.keys(keys).forEach(k => keys[k] = false);
 }
 
 function endGame(title, line) {
@@ -199,19 +195,16 @@ function endGame(title, line) {
   gameRunning = false;
   const newBest = score > best;
   if (newBest) { best = score; saveBest(); }
-  const finalScore = score;
-  if (ATTRACT_MODE) {
-    setTimeout(startGame, 700);
-    return;
-  }
+  const finalScore = score, reached = ROOMS[roomIdx].name;
+  if (ATTRACT_MODE) { setTimeout(startGame, 700); return; }
   Arcade.submitFlow(finalScore, () => {
     document.getElementById('startOverlay').classList.remove('hidden');
     document.getElementById('startOverlay').innerHTML = `
       <h2>${title}</h2>
       <p>${line}</p>
-      <p style="margin-top:0.3rem">Final Score: ${finalScore}</p>
+      <p style="margin-top:0.3rem">Final Score: ${finalScore} · Level ${level} · ${reached.toLowerCase()}</p>
       <p>Best: ${best}${newBest ? ' &nbsp;<span style="color:#f0abfc; font-weight:bold">NEW BEST!</span>' : ''}</p>
-      <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP CHEFS</p>
+      <p style="margin-top:0.8rem; color:#a78bfa; font-size:0.8rem; letter-spacing:1px">TOP DEFENDERS</p>
       ${Arcade.boardHTML(Arcade.slug)}
       <p style="margin-top:0.8rem; opacity:0.8">Click or ENTER to fight again</p>
     `;
@@ -219,319 +212,400 @@ function endGame(title, line) {
   updateHUD();
 }
 
-function spawnTables() {
-  tables = [
-    { x: 180, y: 140, w: 110, h: 50 },
-    { x: 670, y: 140, w: 110, h: 50 },
-    { x: 180, y: 340, w: 110, h: 50 },
-    { x: 670, y: 340, w: 110, h: 50 },
-    { x: buffet.x, y: buffet.y, w: buffet.w, h: buffet.h } // the Grand Buffet (center)
-  ];
+function announce() {
+  const room = ROOMS[roomIdx], stage = stageOf(level), cyc = cycleOf(level);
+  if (stage === 2 && room.finale === 'boss') {
+    bannerText = 'THE HEAD CHEF';
+    bannerSub = roomIdx === 1 ? 'He wants his kitchen back' : 'Round two — in his own banquet hall';
+  } else if (stage === 2) {
+    bannerText = 'BUFFET RUSH'; bannerSub = 'Thieves everywhere — hold the table!';
+  } else if (stage === 0) {
+    bannerText = room.name; bannerSub = (cyc ? `Night ${cyc + 1} · ` : '') + room.sub;
+  } else {
+    bannerText = 'LEVEL ' + level; bannerSub = room.name.toLowerCase();
+  }
+  bannerTime = 130;
 }
 
-// If a hit knocks the hero INTO a table (or the central buffet), eject them
-// along the axis of least penetration. Same reason as Swarm: the per-axis
-// slide-collision can't climb out of a table from the inside, so without this
-// a knockback near the buffet could trap them. No-op when already clear.
+function enterRoom(ri) {
+  roomIdx = ri;
+  const room = ROOMS[ri];
+  buffet.x = room.buffet.x; buffet.y = room.buffet.y;
+  buffet.dishes = buffet.maxDishes; buffet.flash = 0;   // every room lays out a fresh buffet
+  tables = room.obstacles.map((o, i) => Object.assign({}, o, o.kind === 'stove' ? { flare: { phase: 'idle', t: 150 + i * 110 } } : {}));
+  tables.push({ kind: 'buffet', x: buffet.x, y: buffet.y, w: buffet.w, h: buffet.h });
+  chandeliers = (room.chandeliers || []).map((c, i) => ({ x: c.x, y: c.y, state: 'hung', t: 260 + i * 170, tx: c.x, ty: c.y }));
+  splats = []; puddles = []; lobs = []; foods = [];
+  player.x = 50; player.y = H / 2 - 16; player.vx = player.vy = 0;
+  pushOutOfTables();
+  roomFade = 40;
+}
+
+function spawnTables() { enterRoom(roomIdx); }   // kept for older callers
+
+function clearSpot(x, y, w, h, safeDistance = 0) {
+  const clear = (x, y) => x >= 16 && y >= WALL_H + 6 && x + w <= W - 16 && y + h <= H - 20 &&
+    Math.hypot(x + w / 2 - player.x - player.w / 2, y + h / 2 - player.y - player.h / 2) >= safeDistance &&
+    !tables.some(t => x < t.x + t.w + 18 && x + w > t.x - 18 && y < t.y + t.h + 18 && y + h > t.y - 18);
+  if (clear(x, y)) return { x, y };
+  let best = null, distance = Infinity;
+  for (let cy = WALL_H + 8; cy < H - h - 20; cy += 24) for (let cx = 16; cx < W - w - 16; cx += 24) {
+    const d = Math.hypot(cx - x, cy - y);
+    if (clear(cx, cy) && d < distance) { best = { x: cx, y: cy }; distance = d; }
+  }
+  return best || { x: 16, y: WALL_H + 8 };
+}
+
+function spawnMonster(type, x, y, opts = {}) {
+  const m = MONSTERS[type], cyc = cycleOf(level);
+  const s = clearSpot(x, y, 30, 34, opts.safe === undefined ? 150 : opts.safe);
+  const hp = m.hp + Math.floor(level / 5) + cyc;
+  const c = {
+    x: s.x, y: s.y, w: 30, h: 34, type, color: m.color,
+    speed: m.speed + Math.min(level, 12) * 0.07 + cyc * 0.2, hp, maxHp: hp, angle: 0,
+    throwTimer: 60 + Math.random() * 90, target: null, aggression: 0.3 + Math.random() * 0.35,
+    stealTimer: opts.rush ? 60 + Math.random() * 240 : 300 + Math.random() * 600,
+    carryDish: false, walkPhase: Math.random() * 6, throwAnim: 0, throwDur: MONSTER_THROW, pendingThrow: null,
+    hurtT: 0, blinkT: 0, pounce: null, pounceCd: 120, burnCd: 0, detour: 0, detourDir: 1
+  };
+  chefs.push(c);
+  return c;
+}
+
+function spawnLevel() {
+  chefs = []; pickups = [];
+  const room = ROOMS[roomIdx], stage = stageOf(level), cyc = cycleOf(level);
+  const finale = stage === 2 ? room.finale : null;
+  const roster = ROOM_ROSTER[roomIdx];
+  let count = Math.min(18, 4 + stage * 2 + roomIdx * 2 + cyc * 3);
+  if (finale === 'boss') count = 2 + cyc;
+  if (finale === 'rush') count += 2;
+  for (let i = 0; i < count; i++) {
+    const type = roster[Math.floor(Math.random() * roster.length)];
+    spawnMonster(type, 100 + Math.random() * (W - 200), WALL_H + 20 + Math.random() * (H - WALL_H - 110), { rush: finale === 'rush' });
+  }
+  if (finale === 'boss') boss = createHeadChef(roomIdx === 1 ? 1 : 2);
+  for (let i = 0; i < 10 + stage * 2; i++) spawnPickup(100 + Math.random() * (W - 200), WALL_H + 30 + Math.random() * (H - WALL_H - 110));
+  spawnPowerPickup(W / 2 + rnd(-300, 300), rnd(WALL_H + 40, H - 60));
+}
+
+function spawnPickup(x, y) {
+  ({ x, y } = clearSpot(x, y, 16, 16));
+  const t = randomFood();
+  pickups.push({ x, y, w: 16, h: 16, type: t.name, color: t.color, points: t.points, bob: Math.random() * Math.PI * 2 });
+}
+function spawnPowerPickup(x, y) {
+  ({ x, y } = clearSpot(x, y, 18, 18));
+  const power = ['hotsauce', 'triple', 'bigpie'][Math.floor(Math.random() * 3)];
+  pickups.push({ x, y, w: 18, h: 18, power, points: 50, bob: 0, life: 900 });
+}
+
+// Push the hero out of any furniture they ended up inside.
 function pushOutOfTables() {
   for (const t of tables) {
-    if (!(player.x < t.x + t.w && player.x + player.w > t.x &&
-          player.y < t.y + t.h && player.y + player.h > t.y)) continue;
+    if (!(player.x < t.x + t.w && player.x + player.w > t.x && player.y < t.y + t.h && player.y + player.h > t.y)) continue;
     const pcx = player.x + player.w / 2, pcy = player.y + player.h / 2;
     const tcx = t.x + t.w / 2, tcy = t.y + t.h / 2;
     const ox = (player.w / 2 + t.w / 2) - Math.abs(pcx - tcx);
     const oy = (player.h / 2 + t.h / 2) - Math.abs(pcy - tcy);
     if (ox < oy) player.x += pcx < tcx ? -ox : ox;
-    else         player.y += pcy < tcy ? -oy : oy;
+    else player.y += pcy < tcy ? -oy : oy;
   }
-  player.x = Math.max(10, Math.min(W - player.w - 10, player.x));
-  player.y = Math.max(40, Math.min(H - player.h - 10, player.y));
+  player.x = clamp(player.x, 10, W - player.w - 10);
+  player.y = clamp(player.y, WALL_H - 8, H - player.h - 18);
 }
 
-function spawnLevel() {
-  chefs = [];
-  pickups = [];
-
-  // Monster roster for the haunted cafeteria
-  const monsterTypes = [
-    { type: 'vampire',   color: '#9f1239', speed: 1.6, hp: 1, label: 'Vamp' },
-    { type: 'werewolf',  color: '#78716c', speed: 2.1, hp: 2, label: 'Wolf' },
-    { type: 'frank',     color: '#4ade80', speed: 0.9, hp: 3, label: 'Frank' },
-    { type: 'ghost',     color: '#c4b5fd', speed: 1.4, hp: 1, label: 'Ghost' },
-    { type: 'witch',     color: '#7c3aed', speed: 1.3, hp: 2, label: 'Witch' }
-  ];
-
-  const count = Math.min(20, 4 + level * 2);
-  // Keep new monsters clear of the hero's start/current spot so none spawns
-  // right on them (the hero starts at the left edge, x=80, where the old
-  // x>=100 spawn band could land a chef almost on top of them).
-  const SAFE_SPAWN = 150;
-  const pcx = player.x + player.w / 2, pcy = player.y + player.h / 2;
-  for (let i = 0; i < count; i++) {
-    const m = monsterTypes[Math.floor(Math.random() * monsterTypes.length)];
-    let cx, cy, tries = 0;
-    do {
-      cx = 100 + Math.random() * (W - 200);
-      cy = 70 + Math.random() * (H - 160);
-    } while (Math.hypot((cx + 15) - pcx, (cy + 17) - pcy) < SAFE_SPAWN && tries++ < 40);
-    ({x: cx, y: cy} = clearSpot(cx, cy, 30, 34, SAFE_SPAWN));
-    chefs.push({
-      x: cx,
-      y: cy,
-      w: 30, h: 34,
-      speed: m.speed + Math.min(level, 12) * 0.12,
-      hp: m.hp + Math.floor(level / 4),
-      maxHp: m.hp + Math.floor(level / 4),
-      angle: 0,
-      throwTimer: 40 + Math.random() * 80,
-      type: m.type,
-      color: m.color,
-      label: m.label,
-      target: null,          // who they are currently chasing (player or another monster)
-      aggression: 0.35 + Math.random() * 0.4,  // chance they prefer fighting other monsters
-      stealTimer: 240 + Math.random() * 600,   // frames until this monster tries the buffet
-      carryDish: false,                        // currently escaping with a dish
-      walkPhase: Math.random() * Math.PI * 2,  // leg animation
-      throwAnim: 0,
-      pendingThrow: null
-    });
-  }
-
-  // Ground food pickups
-  for (let i = 0; i < 12 + level * 2; i++) {
-    spawnPickup(100 + Math.random() * (W-200), 80 + Math.random() * (H-160));
-  }
+// ---------- Throwing ----------
+function heroShoulder() {
+  const face = Math.cos(player.angle) < 0 ? -1 : 1;
+  return { x: player.x + player.w / 2 + face * 8, y: player.y + player.h + 2 - 40 };
 }
-
-// Shared food roster — pickups and projectiles all use these
-const FOOD_TYPES = [
-  { name: 'pie',     color: '#fbbf24', points: 10 },
-  { name: 'tomato',  color: '#ef4444', points: 15 },
-  { name: 'banana',  color: '#facc15', points: 12 },
-  { name: 'chicken', color: '#fb923c', points: 20 },
-  { name: 'cake',    color: '#f0abfc', points: 25 },
-  { name: 'burger',  color: '#f59e0b', points: 18 }
-];
-function randomFood() { return FOOD_TYPES[Math.floor(Math.random() * FOOD_TYPES.length)]; }
-
-// Keep the whole pickup and a walking margin clear of furniture.
-function clearSpot(x, y, w, h, safeDistance = 0) {
-  const clear = (x, y) => x >= 16 && y >= 46 && x + w <= W - 16 && y + h <= H - 16 &&
-    Math.hypot(x + w/2 - player.x - player.w/2, y + h/2 - player.y - player.h/2) >= safeDistance &&
-    !tables.some(t => x < t.x+t.w+18 && x+w > t.x-18 && y < t.y+t.h+18 && y+h > t.y-18);
-  if (clear(x,y)) return {x,y};
-  let best = null, distance = Infinity;
-  for (let cy=48; cy<H-h-16; cy+=24) for (let cx=16; cx<W-w-16; cx+=24) {
-    const d = Math.hypot(cx-x,cy-y);
-    if (clear(cx,cy) && d<distance) { best={x:cx,y:cy}; distance=d; }
-  }
-  return best || {x:16,y:48};
-}
-function spawnPickup(x, y) {
-  ({x,y} = clearSpot(x,y,16,16));
-  const t = randomFood();
-  pickups.push({
-    x, y, w: 16, h: 16,
-    type: t.name,
-    color: t.color,
-    points: t.points,
-    bob: Math.random() * Math.PI * 2
-  });
-}
-
 function beginPlayerThrow() {
-  if (player.throwCooldown > 0 || player.pendingThrow || ammo <= 0) return;
+  if (player.throwAnim > 0 || player.throwCooldown > 0 || ammo <= 0) return;
+  player.throwDur = player.power === 'hotsauce' ? 11 : HERO_THROW;
+  player.throwAnim = player.throwDur;
   player.pendingThrow = true;
-  player.throwCooldown = 20;
-  player.throwAnim = 20;
 }
-
-function throwFood() {
-  if (player.throwCooldown > 0 || ammo <= 0) return;
-  ammo--;
-  const dx = mouse.x - (player.x + player.w/2);
-  const dy = mouse.y - (player.y + player.h/2);
-  const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-  const speed = 9;
-  const t = randomFood();
-  foods.push({
-    x: player.x + player.w/2,
-    y: player.y + player.h/2,
-    vx: (dx / dist) * speed,
-    vy: (dy / dist) * speed,
-    r: 7,
-    life: 90,
-    type: t.name,
-    color: t.color,
-    rot: Math.random() * Math.PI * 2,
-    rotSpeed: (Math.random() - 0.5) * 0.5
+// The food leaves the hand at the bottom of the windmill, beside the hip.
+function releasePlayerThrow() {
+  const sh = heroShoulder();
+  const hx = sh.x, hy = sh.y + 17;
+  const a = Math.atan2(mouse.y - hy, mouse.x - hx);
+  const big = player.power === 'bigpie';
+  const spreads = player.power === 'triple' ? [-0.2, 0, 0.2] : [0];
+  spreads.forEach(o => {
+    const t = big ? FOOD_BY_NAME.pie : FOOD_BY_NAME[player.nextFood] || randomFood();
+    foods.push({ x: hx, y: hy, vx: Math.cos(a + o) * 9.5, vy: Math.sin(a + o) * 9.5, r: big ? 11 : 7, life: 90, type: t.name, color: t.color, rot: 0, rotSpeed: (Math.random() - 0.5) * 0.5, big });
   });
-  player.throwCooldown = 12;
-  player.throwAnim = 16; // full wind-up → snap
+  ammo--;
+  if (big && --player.powerShots <= 0) player.power = null;
+  player.nextFood = randomFood().name;
+  player.throwCooldown = player.power === 'hotsauce' ? 0 : 5;
   sfx.throw();
   updateHUD();
+}
+function throwFood() { beginPlayerThrow(); }   // kept for older callers
+
+function monsterShoulder(c) {
+  const face = Math.cos(c.angle) < 0 ? -1 : 1;
+  return { x: c.x + c.w / 2 + face * 9, y: c.y + c.h + 2 - 40 };
+}
+function releaseMonsterThrow(c) {
+  const p = c.pendingThrow;
+  c.pendingThrow = null;
+  const sh = monsterShoulder(c);
+  const hx = sh.x, hy = sh.y + 16;
+  if (p.potion) {
+    lobs.push({ kind: 'potion', x0: hx, y0: hy, tx: p.tx, ty: p.ty, t: 0, dur: 50, arc: 70, radius: 34 });
+  } else {
+    const big = c.type === 'frank';
+    foods.push({ x: hx, y: hy, vx: Math.cos(p.angle) * (big ? 4.4 : p.speed), vy: Math.sin(p.angle) * (big ? 4.4 : p.speed), r: big ? 9 : 6, life: 95, type: p.food.name, color: c.color, rot: 0, rotSpeed: (Math.random() - 0.5) * 0.5, fromChef: true, owner: c, big });
+  }
+  sfx.throw();
+}
+
+// ---------- Damage ----------
+function hurtPlayer(line) {
+  if (player.invuln > 0 || ending || !gameRunning) return false;
+  lives--;
+  player.invuln = 70;
+  combo = 0; comboTimer = 0;
+  hitPause = 5;
+  triggerShake(9, 18);
+  sfx.hurt();
+  createParticles(player.x + 14, player.y + 10, '#f472b6', 14);
+  updateHUD();
+  if (lives <= 0) startEnding('KITCHEN CLOSED', line);
+  return true;
+}
+function knockPlayer(fromX, fromY, amount) {
+  const d = Math.hypot(player.x - fromX, player.y - fromY) || 1;
+  player.x = clamp(player.x + (player.x - fromX) / d * amount, 10, W - player.w - 10);
+  player.y = clamp(player.y + (player.y - fromY) / d * amount, WALL_H - 8, H - player.h - 18);
+  player.vx = player.vy = 0;
+}
+
+function damageMonster(c, n, source, fx, fy) {
+  if (c.defeated) return;
+  c.hp -= n;
+  c.hurtT = 10;
+  spawnSplat(fx !== undefined ? fx : c.x + 15, fy !== undefined ? fy : c.y + 15, c.color);
+  createParticles(c.x + 15, c.y + 10, c.color, 8);
+  if (c.hp <= 0) {
+    c.defeated = true;
+    if (source === 'hero') {
+      combo++; comboTimer = 150;
+      score += (100 + level * 20) * comboMult();
+      hitPause = 2;
+    } else score += 60;
+    if (c.carryDish) { buffet.dishes++; buffet.flash = 20; score += 150; sfx.level(); }
+    triggerShake(3, 8);
+    createParticles(c.x + 15, c.y + 15, c.color, 18);
+    spawnPickup(c.x, c.y);
+    if (Math.random() < 0.07) spawnPowerPickup(c.x + 20, c.y);
+    updateHUD();
+  } else if (c.type === 'vampire' && Math.random() < 0.7) {
+    // vanish in a puff of bats and reappear a stride to the side
+    createParticles(c.x + 15, c.y, '#4c1d95', 12);
+    const a = Math.random() * Math.PI * 2;
+    const s = clearSpot(c.x + Math.cos(a) * 80, c.y + Math.sin(a) * 60, 30, 34, 60);
+    c.x = s.x; c.y = s.y; c.blinkT = 12;
+    sfx.blink();
+  }
 }
 
 // ---------- Update ----------
 function update() {
+  tick++;
   if (!gameRunning || paused) return;
-  if (hitPause > 0) { hitPause--; return; }   // impact freeze-frame
+  if (ending > 0) {
+    ending--;
+    particles.forEach(p => { p.x += p.vx * 0.4; p.y += p.vy * 0.4; p.life--; });
+    particles = particles.filter(p => p.life > 0);
+    if (ending === 0) endGame(endTitle, endLine);
+    return;
+  }
+  if (hitPause > 0) { hitPause--; return; }
   if (shakeTime > 0) shakeTime--;
   if (bannerTime > 0) bannerTime--;
-  if (comboTimer > 0) { comboTimer--; if (comboTimer === 0) combo = 0; }
-  if (waveDelay > 0) {
-    waveDelay--;
-    if (waveDelay === 0) spawnLevel();
+  if (roomFade > 0) roomFade--;
+  if (comboTimer > 0 && --comboTimer === 0) combo = 0;
+  if (buffet.flash > 0) buffet.flash--;
+  if (waveDelay > 0 && --waveDelay === 0) {
+    if (pendingRoom >= 0) { enterRoom(pendingRoom); pendingRoom = -1; }
+    spawnLevel();
+    announce();
   }
 
-  // Player movement
-  player.vx = 0; player.vy = 0;
-  if (keys['ArrowLeft'] || keys['KeyA']) player.vx = -player.speed;
-  if (keys['ArrowRight'] || keys['KeyD']) player.vx = player.speed;
-  if (keys['ArrowUp'] || keys['KeyW']) player.vy = -player.speed;
-  if (keys['ArrowDown'] || keys['KeyS']) player.vy = player.speed;
+  if (ATTRACT_MODE) attractPilot();
+  updatePlayer();
+  updateFoods();
+  updateMonsters();
+  if (boss) updateBossFight();
+  updateHazards();
+  updateLobs();
+  collide();
 
-  // Normalize diagonal
-  if (player.vx && player.vy) {
-    player.vx *= 0.707;
-    player.vy *= 0.707;
+  foods = foods.filter(f => !f.spent && f.life > 0);
+  chefs = chefs.filter(c => !c.defeated && !c.escaped);
+  pickups = pickups.filter(p => !p.collected && (p.life === undefined || --p.life > 0));
+  if (ammo === 0 && !pickups.some(p => !p.power) && gameRunning) spawnPickup(player.x + 48, player.y);
+
+  if (chefs.length === 0 && !boss && gameRunning && waveDelay === 0 && !ending) levelClear();
+
+  pushOutOfTables();
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vx *= 0.96; p.vy *= 0.96; p.life--; });
+  particles = particles.filter(p => p.life > 0);
+  splats.forEach(s => s.life--);
+  splats = splats.filter(s => s.life > 0);
+  puddles.forEach(p => p.life--);
+  puddles = puddles.filter(p => p.life > 0);
+}
+
+function levelClear() {
+  const clearedStage = stageOf(level);
+  score += 200 * level + buffet.dishes * 50;
+  level++;
+  sfx.level();
+  ammo = Math.min(30, ammo + 6);
+  foods = []; lobs = []; player.pendingThrow = null; player.throwAnim = 0; player.invuln = 90;
+  const nextRoom = roomOf(level);
+  if (clearedStage === 2) {
+    pendingRoom = nextRoom;
+    bannerText = 'ROOM CLEAR';
+    bannerSub = `Next: ${ROOMS[nextRoom].name.toLowerCase()}`;
+    waveDelay = 130;
+  } else {
+    bannerText = 'LEVEL CLEAR';
+    bannerSub = `+${buffet.dishes * 50} for ${buffet.dishes} dishes saved`;
+    waveDelay = 90;
   }
+  bannerTime = 80;
+  updateHUD();
+}
 
-  // Touch stick overrides the keys — analog, already magnitude-clamped to 1
-  TouchPad.sync(mouse, player.x + player.w/2, player.y + player.h/2);
-  if (TouchPad.moveActive) {
-    player.vx = TouchPad.mx * player.speed;
-    player.vy = TouchPad.my * player.speed;
-  }
-  // Gamepad right stick wins over both when it's deflected (no-op otherwise)
-  ArcadeControls.applyAim(mouse, player.x + player.w/2, player.y + player.h/2);
+function updatePlayer() {
+  let ix = 0, iy = 0;
+  if (keys.ArrowLeft || keys.KeyA) ix = -1;
+  if (keys.ArrowRight || keys.KeyD) ix = 1;
+  if (keys.ArrowUp || keys.KeyW) iy = -1;
+  if (keys.ArrowDown || keys.KeyS) iy = 1;
+  if (ix && iy) { ix *= 0.707; iy *= 0.707; }
+  const cx = player.x + player.w / 2, cy = player.y + player.h / 2, feet = player.y + player.h;
+  TouchPad.sync(mouse, cx, cy);
+  if (TouchPad.moveActive) { ix = TouchPad.mx; iy = TouchPad.my; }
+  ArcadeControls.applyAim(mouse, cx, cy);
 
-  let nx = player.x + player.vx;
-  let ny = player.y + player.vy;
+  let sp = player.speed;
+  if (puddles.some(pd => Math.hypot(cx - pd.x, (feet - pd.y) / 0.45) < pd.r)) sp *= 0.55;
+  const onIce = (ROOMS[roomIdx].ice || []).some(p => cx > p.x && cx < p.x + p.w && feet > p.y && feet < p.y + p.h);
+  if (onIce) { player.vx += (ix * sp - player.vx) * 0.035; player.vy += (iy * sp - player.vy) * 0.035; }
+  else { player.vx = ix * sp; player.vy = iy * sp; }
 
-  // Bounds
-  nx = Math.max(10, Math.min(W - player.w - 10, nx));
-  ny = Math.max(40, Math.min(H - player.h - 10, ny));
-
-  // Table collision with sliding (try X and Y separately)
+  const nx = clamp(player.x + player.vx, 10, W - player.w - 10);
+  const ny = clamp(player.y + player.vy, WALL_H - 8, H - player.h - 18);
   let canX = true, canY = true;
   for (const t of tables) {
-    if (nx < t.x + t.w && nx + player.w > t.x &&
-        player.y < t.y + t.h && player.y + player.h > t.y) {
-      canX = false;
-    }
-    if (player.x < t.x + t.w && player.x + player.w > t.x &&
-        ny < t.y + t.h && ny + player.h > t.y) {
-      canY = false;
-    }
+    if (nx < t.x + t.w && nx + player.w > t.x && player.y < t.y + t.h && player.y + player.h > t.y) canX = false;
+    if (player.x < t.x + t.w && player.x + player.w > t.x && ny < t.y + t.h && ny + player.h > t.y) canY = false;
   }
-  if (canX) player.x = nx;
-  if (canY) player.y = ny;
+  if (canX) player.x = nx; else player.vx = 0;
+  if (canY) player.y = ny; else player.vy = 0;
+  if (Math.abs(player.vx) + Math.abs(player.vy) > 0.4) player.walkPhase += 0.28;
+  player.angle = Math.atan2(mouse.y - cy, mouse.x - cx);
 
-  // Leg + arm animation state
-  if (player.vx || player.vy) player.walkPhase += 0.28;
+  if (mouse.down || keys.Space) beginPlayerThrow();
   if (player.throwAnim > 0) {
     player.throwAnim--;
-    if (player.throwAnim === 8 && player.pendingThrow) {
-      player.pendingThrow = null;
-      player.throwCooldown = 0;
-      throwFood();
-      player.throwAnim = 8;
-    }
-  }
-  if (buffet.flash > 0) buffet.flash--;
-
-  // Aim angle
-  player.angle = Math.atan2(mouse.y - (player.y + player.h/2), mouse.x - (player.x + player.w/2));
-
-  // Throw
-  if ((mouse.down || keys['Space']) && player.throwCooldown <= 0) beginPlayerThrow();
-  if (player.throwCooldown > 0) player.throwCooldown--;
+    if (player.pendingThrow && 1 - player.throwAnim / player.throwDur >= WINDMILL_RELEASE) { player.pendingThrow = null; releasePlayerThrow(); }
+  } else if (player.throwCooldown > 0) player.throwCooldown--;
   if (player.invuln > 0) player.invuln--;
+  if (player.power && player.power !== 'bigpie' && --player.powerTime <= 0) player.power = null;
+}
 
-  // Foods (projectiles)
+function updateFoods() {
   foods.forEach(f => {
     const oldX = f.x, oldY = f.y;
-    f.x += f.vx;
-    f.y += f.vy;
-    f.rot = (f.rot || 0) + (f.rotSpeed || 0);   // tumble in flight
+    f.x += f.vx; f.y += f.vy;
+    f.rot = (f.rot || 0) + (f.rotSpeed || 0);
     f.life--;
-    // bounce off tables lightly
     for (const t of tables) {
       if (f.x > t.x && f.x < t.x + t.w && f.y > t.y && f.y < t.y + t.h) {
-        if (f.bounced) { f.life = 0; spawnSplat(f.x,f.y,f.color); break; }
+        if (f.bounced) { f.life = 0; spawnSplat(f.x, f.y, f.color); break; }
         f.bounced = true;
-        if (oldX <= t.x || oldX >= t.x+t.w) { f.x = oldX; f.vx *= -0.7; }
-        else if (oldY <= t.y || oldY >= t.y+t.h) { f.y = oldY; f.vy *= -0.7; }
-        else { f.life = 0; }
+        if (oldX <= t.x || oldX >= t.x + t.w) { f.x = oldX; f.vx *= -0.7; }
+        else if (oldY <= t.y || oldY >= t.y + t.h) { f.y = oldY; f.vy *= -0.7; }
+        else f.life = 0;
         break;
       }
     }
+    if (f.x < -20 || f.x > W + 20 || f.y < -20 || f.y > H + 20) f.life = 0;
   });
-  foods = foods.filter(f => f.life > 0 && f.x > -20 && f.x < W+20 && f.y > -20 && f.y < H+20);
+}
 
-  // Monster AI — they fight the player, each other, AND raid the buffet
+function moveMonster(c, dx, dy) {
+  if (c.type === 'ghost') { c.x += dx; c.y += dy; return true; }
+  // collide with the lower half of the body, so monsters can stand close behind furniture
+  const hit = (x, y) => tables.some(t => x < t.x + t.w && x + c.w > t.x && y + c.h * 0.5 < t.y + t.h && y + c.h > t.y);
+  let ok = true;
+  if (!hit(c.x + dx, c.y)) c.x += dx; else ok = false;
+  if (!hit(c.x, c.y + dy)) c.y += dy; else ok = false;
+  return ok;
+}
+
+function updateMonsters() {
+  const px = player.x + player.w / 2, py = player.y + player.h / 2;
   chefs.forEach((c, ci) => {
     c.walkPhase += c.speed * 0.18;
+    if (c.hurtT > 0) c.hurtT--;
+    if (c.blinkT > 0) c.blinkT--;
+    if (c.burnCd > 0) c.burnCd--;
+    if (c.pounceCd > 0) c.pounceCd--;
     if (c.throwAnim > 0) {
       c.throwAnim--;
-      if (c.throwAnim === 8 && c.pendingThrow) {
-        const p = c.pendingThrow;
-        foods.push({
-          x: c.x + 15, y: c.y + 15,
-          vx: Math.cos(p.angle) * p.speed,
-          vy: Math.sin(p.angle) * p.speed,
-          r: 6, life: 85,
-          type: p.food.name,
-          color: c.color,
-          rot: Math.random() * Math.PI * 2,
-          rotSpeed: (Math.random() - 0.5) * 0.5,
-          fromChef: true,
-          owner: c
-        });
-        c.pendingThrow = null;
-      }
+      if (c.pendingThrow && 1 - c.throwAnim / c.throwDur >= WINDMILL_RELEASE) releaseMonsterThrow(c);
     }
 
-    // ----- Escaping with a stolen dish: sprint to the nearest edge -----
-    if (c.carryDish) {
-      const exits = [
-        { x: -60, y: c.y }, { x: W + 60, y: c.y },
-        { x: c.x, y: -60 }, { x: c.x, y: H + 60 }
-      ];
+    if (c.carryDish) {                       // sprint for the nearest edge
+      const exits = [{ x: -60, y: c.y }, { x: W + 60, y: c.y }, { x: c.x, y: -60 }, { x: c.x, y: H + 60 }];
       let exit = exits[0], ed = 1e9;
-      exits.forEach(e2 => {
-        const d = Math.hypot(e2.x - c.x, e2.y - c.y);
-        if (d < ed) { ed = d; exit = e2; }
-      });
-      const fdx = exit.x - c.x, fdy = exit.y - c.y;
-      const fd = Math.hypot(fdx, fdy) || 1;
-      c.x += (fdx / fd) * c.speed * 1.35; // adrenaline
-      c.y += (fdy / fd) * c.speed * 1.35;
+      exits.forEach(e2 => { const d = Math.hypot(e2.x - c.x, e2.y - c.y); if (d < ed) { ed = d; exit = e2; } });
+      const fdx = exit.x - c.x, fdy = exit.y - c.y, fd = Math.hypot(fdx, fdy) || 1;
+      c.x += fdx / fd * c.speed * 1.35;
+      c.y += fdy / fd * c.speed * 1.35;
       c.angle = Math.atan2(fdy, fdx);
-      // escaped off-screen — dish is gone for good
       if (c.x < -50 || c.x > W + 50 || c.y < -50 || c.y > H + 50) {
         c.escaped = true;
         sfx.hurt();
         triggerShake(5, 10);
         updateHUD();
-        if (buffet.dishes <= 0 && !chefs.some(other => other.carryDish && !other.escaped)) endGame('THE BUFFET IS LOST', 'The monsters took every last dish.');
+        if (buffet.dishes <= 0 && !chefs.some(o => o.carryDish && !o.escaped)) startEnding('THE BUFFET IS LOST', 'The monsters took every last dish.');
       }
-      return; // thieves don't fight while escaping
+      return;
     }
 
-    // ----- Deciding to raid the buffet -----
+    // werewolf: crouch (the tell), then a straight-line pounce
+    if (c.pounce) {
+      c.pounce.t--;
+      if (c.pounce.phase === 'crouch') {
+        c.angle = c.pounce.angle;
+        if (c.pounce.t <= 0) { c.pounce.phase = 'dash'; c.pounce.t = 16; sfx.growl(); }
+      } else {
+        moveMonster(c, Math.cos(c.pounce.angle) * 7.5, Math.sin(c.pounce.angle) * 7.5);
+        if (c.pounce.t <= 0) { c.pounce = null; c.pounceCd = 220; }
+      }
+      c.x = clamp(c.x, 10, W - 40); c.y = clamp(c.y, WALL_H - 10, H - 52);
+      return;
+    }
+
     c.stealTimer--;
     const raiding = c.stealTimer <= 0 && buffet.dishes > 0;
-
-    // Decide target: buffet raid > monster brawl > player
-    let targetX = player.x, targetY = player.y;
-
+    let targetX = px - 15, targetY = py - 17, huntingPlayer = true;
     if (raiding) {
-      targetX = buffet.x + buffet.w / 2;
-      targetY = buffet.y + buffet.h + 14; // approach the front of the table
-      // grab a dish when close enough
-      if (Math.hypot(targetX - c.x - 15, targetY - c.y - 15) < 30) {
+      huntingPlayer = false;
+      targetX = buffet.x + buffet.w / 2 - 15;
+      targetY = buffet.y + buffet.h + 4;
+      if (Math.hypot(targetX - c.x, targetY - c.y) < 30) {
         buffet.dishes--;
         buffet.flash = 30;
         c.carryDish = true;
@@ -540,663 +614,210 @@ function update() {
         updateHUD();
       }
     } else if (Math.random() < c.aggression || c.target) {
-      // Prefer fighting another monster
-      let best = null, bestDist = 9999;
-      chefs.forEach((other, oi) => {
-        if (oi === ci) return;
-        const dx = other.x - c.x, dy = other.y - c.y;
-        const d = Math.sqrt(dx*dx + dy*dy);
-        if (d < bestDist) { bestDist = d; best = other; }
-      });
-      if (best && bestDist < 350) {
-        targetX = best.x; targetY = best.y;
-        c.target = best;
-      } else {
-        c.target = null;
-      }
+      let bestO = null, bestD = 9999;
+      chefs.forEach((o, oi) => { if (oi === ci) return; const d = Math.hypot(o.x - c.x, o.y - c.y); if (d < bestD) { bestD = d; bestO = o; } });
+      if (bestO && bestD < 350) { targetX = bestO.x; targetY = bestO.y; c.target = bestO; huntingPlayer = false; }
+      else c.target = null;
     }
 
-    const dx = targetX - c.x;
-    const dy = targetY - c.y;
-    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+    const dx = targetX - c.x, dy = targetY - c.y, dist = Math.hypot(dx, dy) || 1;
+    if (c.type === 'werewolf' && huntingPlayer && c.pounceCd <= 0 && dist < 200 && dist > 50) {
+      c.pounce = { phase: 'crouch', t: 34, angle: Math.atan2(dy, dx) };
+      return;
+    }
 
-    // Move toward target
-    c.x += (dx / dist) * c.speed;
-    c.y += (dy / dist) * c.speed;
+    let ang = Math.atan2(dy, dx);
+    if (c.detour > 0) { c.detour--; ang += c.detourDir * 1.2; }
+    const slow = c.throwAnim > 0 ? 0.3 : 1;
+    if (!moveMonster(c, Math.cos(ang) * c.speed * slow, Math.sin(ang) * c.speed * slow) && c.detour <= 0) {
+      c.detour = 40; c.detourDir = Math.random() < 0.5 ? -1 : 1;
+    }
     c.angle = Math.atan2(dy, dx);
+    c.x = clamp(c.x, 10, W - 40);
+    c.y = clamp(c.y, WALL_H - 10, H - 52);
 
-    // Bounds
-    c.x = Math.max(20, Math.min(W - 50, c.x));
-    c.y = Math.max(50, Math.min(H - 50, c.y));
-
-    // Throw food at current target (not while raiding)
     if (!c.pendingThrow) c.throwTimer--;
-    if (c.throwTimer <= 0 && dist < 340 && !raiding && !c.pendingThrow) {
-      c.pendingThrow = {
-        angle: Math.atan2(dy, dx),
-        speed: 5.2 + Math.random(),
-        food: randomFood()
-      };
-      c.throwAnim = 24;
-      c.throwTimer = Math.max(40, 55 + Math.random() * 70 - level * 2);
+    if (c.throwTimer <= 0 && dist < 340 && !raiding && !c.pendingThrow && c.throwAnim === 0) {
+      if (c.type === 'witch' && huntingPlayer && Math.random() < 0.6) {
+        c.pendingThrow = { potion: true, tx: px + player.vx * 20, ty: player.y + player.h + player.vy * 20, food: { name: 'pie' } };
+      } else {
+        c.pendingThrow = { angle: Math.atan2(dy, dx), speed: 5.2 + Math.random(), food: randomFood() };
+      }
+      c.throwDur = c.throwAnim = stageOf(level) === 2 ? 26 : MONSTER_THROW;
+      c.throwTimer = Math.max(45, 70 + Math.random() * 70 - level * 2);
     }
   });
+}
 
-  chefs = chefs.filter(c => !c.escaped);
-
-  // Monsters can hit each other with food
-  foods.forEach((f, fi) => {
-    if (f.spent || !f.fromChef || !f.owner) return;
-    chefs.forEach((c, ci) => {
-      if (f.spent || c.defeated || c === f.owner) return;
-      if (f.x > c.x && f.x < c.x + c.w && f.y > c.y && f.y < c.y + c.h) {
-        c.hp--;
-        spawnSplat(f.x, f.y, f.color);
-        createParticles(c.x + 15, c.y + 15, c.color, 6);
-        f.spent = true;
-        if (c.hp <= 0) {
-          score += 60; // bonus for monster-on-monster kills
-          if (c.carryDish) { buffet.dishes++; buffet.flash = 20; } // dish saved!
-          createParticles(c.x + 15, c.y + 15, c.color, 14);
-          spawnPickup(c.x, c.y);
-          c.defeated = true;
-          updateHUD();
-        }
-      }
-    });
-  });
-
-  // Food vs Chefs
-  foods.forEach((f, fi) => {
-    if (f.spent || f.fromChef) return;
-    chefs.forEach((c, ci) => {
-      if (f.spent || c.defeated) return;
-      if (f.x > c.x && f.x < c.x + c.w && f.y > c.y && f.y < c.y + c.h) {
-        c.hp--;
-        spawnSplat(f.x, f.y, f.color);
-        createParticles(c.x + 15, c.y + 15, c.color, 8);
-        f.spent = true;
-        sfx.hit();
-        if (c.hp <= 0) {
-          combo++;
-          comboTimer = 150;
-          score += (100 + level * 20) * comboMult();
-          if (c.carryDish) {
-            buffet.dishes++;           // dish rescued!
-            buffet.flash = 20;
-            score += 150;
-            sfx.level();
-          }
-          hitPause = 2;
-          triggerShake(3, 8);
-          createParticles(c.x + 15, c.y + 15, c.color, 18);
-          // drop food
-          spawnPickup(c.x, c.y);
-          c.defeated = true;
-          updateHUD();
-        }
-      }
-    });
-  });
-
-  // Chef food vs Player
-  if (player.invuln <= 0) {
-    foods.forEach((f, fi) => {
-      if (f.spent || !f.fromChef || player.invuln > 0 || !gameRunning) return;
-      if (f.x > player.x && f.x < player.x + player.w &&
-          f.y > player.y && f.y < player.y + player.h) {
-        spawnSplat(f.x, f.y, f.color);
-        f.spent = true;
-        lives--;
-        player.invuln = 60;
-        combo = 0; comboTimer = 0;
-        hitPause = 5;
-        triggerShake(9, 18);
-        sfx.hurt();
-        createParticles(player.x + 14, player.y + 16, '#f472b6', 12);
-        updateHUD();
-        if (lives <= 0) endGame('KITCHEN CLOSED', 'The monsters ran you out of the mess hall.');
-      }
-    });
-  }
-
-  // Player vs Chefs (body)
-  if (player.invuln <= 0) {
-    chefs.forEach(c => {
-      if (c.defeated || player.invuln > 0 || !gameRunning) return;
-      if (player.x < c.x + c.w && player.x + player.w > c.x &&
-          player.y < c.y + c.h && player.y + player.h > c.y) {
-        lives--;
-        player.invuln = 70;
-        combo = 0; comboTimer = 0;
-        hitPause = 5;
-        triggerShake(9, 18);
-        sfx.hurt();
-        createParticles(player.x + 14, player.y + 16, '#f472b6', 14);
-        // knockback — clamped to the arena; pushOutOfTables() at the end of
-        // the frame ejects the hero if this shoves them into a table.
-        player.x = Math.max(10, Math.min(W - player.w - 10, player.x + (player.x - c.x) * 0.4));
-        player.y = Math.max(40, Math.min(H - player.h - 10, player.y + (player.y - c.y) * 0.4));
-        updateHUD();
-        if (lives <= 0) endGame('KITCHEN CLOSED', 'A monster caught you in the chaos.');
-      }
-    });
-  }
-
-  // Pickups
-  pickups.forEach((p, pi) => {
-    p.bob += 0.07;
-    if (player.x < p.x + p.w && player.x + player.w > p.x &&
-        player.y < p.y + p.h && player.y + player.h > p.y) {
-      ammo = Math.min(30, ammo + 3);
-      score += p.points;
-      sfx.pickup();
-      createParticles(p.x + 8, p.y + 8, p.color, 6);
-      p.collected = true;
-      updateHUD();
-    }
-  });
-
-  foods = foods.filter(f => !f.spent);
-  chefs = chefs.filter(c => !c.defeated);
-  pickups = pickups.filter(p => !p.collected);
-  if (ammo === 0 && pickups.length === 0 && gameRunning) spawnPickup(player.x + 48, player.y);
-
-  // Level clear — breather: banner shows for a beat before the next level spawns
-  if (chefs.length === 0 && gameRunning && waveDelay === 0) {
-    level++;
-    sfx.level();
-    ammo = Math.min(30, ammo + 6);
-    bannerText = 'LEVEL ' + level;
-    bannerTime = 90;
-    waveDelay = 75;
-    foods = []; player.pendingThrow = null; player.invuln = 90;
+function updateBossFight() {
+  updateHeadChef(boss);
+  if (headChefTouches(boss) && hurtPlayer('Run down by the Head Chef.')) knockPlayer(boss.x, boss.y - 30, 60);
+  if (boss.hp <= 0) {
+    score += 4000 * boss.round * (1 + cycleOf(level));
+    for (let i = 0; i < 10; i++) spawnSplat(boss.x + rnd(-60, 60), boss.y + rnd(-30, 20), ['#fbbf24', '#f0abfc', '#ef4444', '#fef3c7'][i % 4]);
+    createParticles(boss.x, boss.y - 60, '#fafaf9', 40);
+    createParticles(boss.x, boss.y - 60, '#fbbf24', 30);
+    triggerShake(16, 30);
+    sfx.bossDown();
+    spawnPowerPickup(boss.x, boss.y);
+    bannerText = 'CHEF DEFEATED'; bannerSub = boss.round === 1 ? 'The kitchen is yours — for now' : 'The banquet is saved!'; bannerTime = 140;
+    boss = null;
     updateHUD();
   }
+}
 
-  // Safety net: never let the hero stay trapped inside a table/the buffet.
-  pushOutOfTables();
+function inStoveFlames(o, x, y, w, h) {
+  return x < o.x + o.w + STOVE_REACH && x + w > o.x - STOVE_REACH && y < o.y + o.h + STOVE_REACH && y + h > o.y - STOVE_REACH;
+}
 
-  // Particles
-  particles.forEach(p => {
-    p.x += p.vx; p.y += p.vy; p.life--;
+function updateHazards() {
+  tables.forEach(o => {
+    if (!o.flare) return;
+    const f = o.flare;
+    f.t--;
+    if (f.phase === 'idle' && f.t <= 0) { f.phase = 'warn'; f.t = STOVE_WARN; sfx.sizzle(); }
+    else if (f.phase === 'warn' && f.t <= 0) { f.phase = 'fire'; f.t = STOVE_FIRE; sfx.whoosh(); }
+    else if (f.phase === 'fire') {
+      if (inStoveFlames(o, player.x, player.y, player.w, player.h) && hurtPlayer('Scorched by a stove.')) knockPlayer(o.x + o.w / 2, o.y + o.h / 2, 40);
+      chefs.forEach(c => { if (c.type !== 'ghost' && c.burnCd <= 0 && inStoveFlames(o, c.x, c.y, c.w, c.h)) { c.burnCd = 40; damageMonster(c, 1, 'hazard'); } });
+      if (f.t <= 0) { f.phase = 'idle'; f.t = STOVE_IDLE + Math.random() * 90; }
+    }
   });
-  particles = particles.filter(p => p.life > 0);
 
-  // Splats fade
-  splats.forEach(s => s.life--);
-  splats = splats.filter(s => s.life > 0);
+  let busy = chandeliers.some(c => c.state === 'warn' || c.state === 'fall');
+  chandeliers.forEach(c => {
+    c.t--;
+    if (c.state === 'hung' && c.t <= 0) {
+      if (busy || waveDelay > 0) { c.t = 30; return; }
+      busy = true;
+      c.state = 'warn'; c.t = CHAND_WARN;
+      c.tx = clamp(player.x + player.w / 2 + player.vx * 25, 60, W - 60);
+      c.ty = clamp(player.y + player.h + player.vy * 25, WALL_H + 50, H - 40);
+      sfx.creak();
+    } else if (c.state === 'warn' && c.t <= 0) { c.state = 'fall'; c.t = CHAND_FALL; }
+    else if (c.state === 'fall' && c.t <= 0) {
+      const inBlast = (x, y) => Math.hypot(x - c.tx, (y - c.ty) / 0.6) < CHAND_RADIUS;
+      if (inBlast(player.x + player.w / 2, player.y + player.h)) hurtPlayer('Flattened by a chandelier.');
+      chefs.forEach(m => { if (inBlast(m.x + m.w / 2, m.y + m.h)) damageMonster(m, 2, 'hazard'); });
+      createParticles(c.tx, c.ty - 10, '#fbbf24', 20);
+      createParticles(c.tx, c.ty - 10, '#fef3c7', 14);
+      triggerShake(12, 18);
+      sfx.crash();
+      c.state = 'broken'; c.t = CHAND_BROKEN;
+    } else if (c.state === 'broken' && c.t <= 0) { c.state = 'hung'; c.t = 240 + Math.random() * 200; }
+  });
+}
+
+function updateLobs() {
+  lobs.forEach(l => {
+    if (++l.t < l.dur) return;
+    l.done = true;
+    const d = Math.hypot(player.x + player.w / 2 - l.tx, (player.y + player.h - l.ty) / 0.6);
+    if (d < l.radius) hurtPlayer(l.kind === 'pie' ? 'Pied by the Head Chef.' : 'Caught in a witch\'s brew.');
+    if (l.kind === 'potion') {
+      puddles.push({ x: l.tx, y: l.ty, r: 38, life: 320, color: 'rgba(74,222,128,0.5)' });
+      createParticles(l.tx, l.ty, '#4ade80', 14);
+    } else {
+      for (let i = 0; i < 4; i++) spawnSplat(l.tx + rnd(-26, 26), l.ty + rnd(-12, 12), i % 2 ? '#fbbf24' : '#fef3c7');
+      createParticles(l.tx, l.ty, '#fbbf24', 20);
+      triggerShake(6, 10);
+    }
+    sfx.splash();
+  });
+  lobs = lobs.filter(l => !l.done);
+}
+
+// Characters are tall and drawn above their feet: food counts as a hit
+// anywhere on the body, not just the foot-level movement box.
+const bodyHit = (e, x, y, up) => x > e.x && x < e.x + e.w && y > e.y - up && y < e.y + e.h;
+
+function collide() {
+  // the hero's food
+  foods.forEach(f => {
+    if (f.spent || f.fromChef) return;
+    if (boss && headChefHit(boss, f)) {
+      f.spent = true; spawnSplat(f.x, f.y, f.color); sfx.hit(); score += 25;
+      createParticles(f.x, f.y, f.color, 10);
+      updateHUD();
+      return;
+    }
+    const c = chefs.find(o => !o.defeated && bodyHit(o, f.x, f.y, 26));
+    if (!c) return;
+    f.spent = true;
+    sfx.hit();
+    damageMonster(c, f.big ? 3 : 1, 'hero', f.x, f.y);
+    if (f.big) {
+      chefs.forEach(o => { if (o !== c && Math.hypot(o.x + 15 - f.x, o.y + 17 - f.y) < 60) damageMonster(o, 1, 'hero'); });
+      createParticles(f.x, f.y, '#f0abfc', 20);
+      triggerShake(5, 8);
+    }
+  });
+
+  // monsters catching each other in the crossfire
+  foods.forEach(f => {
+    if (f.spent || !f.fromChef || !f.owner) return;
+    const c = chefs.find(o => !o.defeated && o !== f.owner && bodyHit(o, f.x, f.y, 26));
+    if (c) { f.spent = true; damageMonster(c, 1, 'monster', f.x, f.y); }
+  });
+
+  // hostile food vs the hero — one splat per food, one life per hit
+  if (player.invuln <= 0) {
+    const f = foods.find(o => !o.spent && o.fromChef && bodyHit(player, o.x, o.y, 16));
+    if (f) { f.spent = true; spawnSplat(f.x, f.y, f.color); hurtPlayer('Splattered by flying food.'); }
+  }
+
+  // monster bodies
+  if (player.invuln <= 0) {
+    const c = chefs.find(o => !o.defeated && player.x < o.x + o.w && player.x + player.w > o.x && player.y < o.y + o.h && player.y + player.h > o.y);
+    if (c && hurtPlayer(c.type === 'werewolf' ? 'The werewolf pounced.' : 'A monster caught you in the chaos.')) knockPlayer(c.x, c.y, c.type === 'frank' ? 55 : 32);
+  }
+
+  // pickups
+  pickups.forEach(p => {
+    p.bob += 0.07;
+    if (!(player.x < p.x + p.w && player.x + player.w > p.x && player.y < p.y + p.h && player.y + player.h > p.y)) return;
+    p.collected = true;
+    score += p.points;
+    if (p.power) {
+      player.power = p.power;
+      player.powerTime = 480;
+      player.powerShots = p.power === 'bigpie' ? 5 : 0;
+      ammo = Math.min(30, ammo + 5);
+      bannerText = p.power === 'hotsauce' ? 'HOT SAUCE!' : p.power === 'triple' ? 'TRIPLE THROW!' : 'BIG PIES!';
+      bannerSub = p.power === 'hotsauce' ? 'Lightning-fast windmills' : p.power === 'triple' ? 'Three at once' : 'Five giant splash pies';
+      bannerTime = 60;
+      sfx.power();
+    } else {
+      ammo = Math.min(30, ammo + 3);
+      sfx.pickup();
+    }
+    createParticles(p.x + 8, p.y + 8, p.color || POWER_COLORS[p.power], 6);
+    updateHUD();
+  });
 }
 
 function createParticles(x, y, color, count) {
   for (let i = 0; i < count; i++) {
-    particles.push({
-      x, y,
-      vx: (Math.random()-0.5)*7,
-      vy: (Math.random()-0.5)*7,
-      life: 18 + Math.random()*15,
-      color,
-      size: 2 + Math.random()*3
-    });
+    particles.push({ x, y, vx: (Math.random() - 0.5) * 7, vy: (Math.random() - 0.5) * 7, life: 18 + Math.random() * 15, color, size: 2 + Math.random() * 3 });
   }
 }
 
-// ---------- Food shapes (shared by pickups & projectiles) ----------
-// Draws the given food centred on the origin at scale s (roughly a radius).
-// Caller is responsible for ctx.save()/translate/rotate/restore.
-function drawFoodShape(type, s) {
-  switch (type) {
-    case 'pie':
-      // tin
-      ctx.fillStyle = '#b45309';
-      ctx.beginPath(); ctx.ellipse(0, s * 0.3, s, s * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-      // filling
-      ctx.fillStyle = '#fbbf24';
-      ctx.beginPath(); ctx.ellipse(0, 0, s * 0.85, s * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-      // cream dollop
-      ctx.fillStyle = '#fef3c7';
-      ctx.beginPath(); ctx.ellipse(0, -s * 0.2, s * 0.4, s * 0.25, 0, 0, Math.PI * 2); ctx.fill();
-      break;
-    case 'tomato':
-      ctx.fillStyle = '#ef4444';
-      ctx.beginPath(); ctx.arc(0, 0, s, 0, Math.PI * 2); ctx.fill();
-      // shine
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.beginPath(); ctx.arc(-s * 0.35, -s * 0.35, s * 0.28, 0, Math.PI * 2); ctx.fill();
-      // leafy stem
-      ctx.fillStyle = '#16a34a';
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2 + 0.4;
-        ctx.beginPath();
-        ctx.ellipse(Math.cos(a) * s * 0.22, -s * 0.75, s * 0.28, s * 0.11, a, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      break;
-    case 'banana':
-      ctx.strokeStyle = '#facc15';
-      ctx.lineWidth = s * 0.55;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.arc(0, -s * 0.25, s * 0.85, Math.PI * 0.15, Math.PI * 0.85);
-      ctx.stroke();
-      ctx.lineCap = 'butt';
-      // brown tips
-      ctx.fillStyle = '#854d0e';
-      ctx.beginPath();
-      ctx.arc(Math.cos(Math.PI * 0.15) * s * 0.85, -s * 0.25 + Math.sin(Math.PI * 0.15) * s * 0.85, s * 0.15, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(Math.cos(Math.PI * 0.85) * s * 0.85, -s * 0.25 + Math.sin(Math.PI * 0.85) * s * 0.85, s * 0.15, 0, Math.PI * 2);
-      ctx.fill();
-      break;
-    case 'chicken':
-      // drumstick meat
-      ctx.fillStyle = '#c2703d';
-      ctx.beginPath(); ctx.ellipse(-s * 0.25, -s * 0.15, s * 0.72, s * 0.55, -0.5, 0, Math.PI * 2); ctx.fill();
-      // roast highlight
-      ctx.fillStyle = 'rgba(255,255,255,0.22)';
-      ctx.beginPath(); ctx.ellipse(-s * 0.42, -s * 0.32, s * 0.26, s * 0.15, -0.5, 0, Math.PI * 2); ctx.fill();
-      // bone
-      ctx.strokeStyle = '#fef3c7';
-      ctx.lineWidth = s * 0.2;
-      ctx.beginPath(); ctx.moveTo(s * 0.2, s * 0.2); ctx.lineTo(s * 0.6, s * 0.55); ctx.stroke();
-      ctx.fillStyle = '#fef3c7';
-      ctx.beginPath(); ctx.arc(s * 0.75, s * 0.45, s * 0.17, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(s * 0.6, s * 0.72, s * 0.17, 0, Math.PI * 2); ctx.fill();
-      break;
-    case 'cake':
-      // slice with layers + cherry
-      ctx.fillStyle = '#f9a8d4';
-      ctx.beginPath();
-      ctx.moveTo(-s * 0.9, s * 0.6);
-      ctx.lineTo(s * 0.9, s * 0.6);
-      ctx.lineTo(0, -s * 0.65);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#fdf2f8';
-      ctx.fillRect(-s * 0.55, s * 0.05, s * 1.1, s * 0.17);
-      ctx.fillStyle = '#dc2626';
-      ctx.beginPath(); ctx.arc(0, -s * 0.78, s * 0.2, 0, Math.PI * 2); ctx.fill();
-      break;
-    case 'burger':
-    default:
-      // bottom bun
-      ctx.fillStyle = '#d97706';
-      ctx.beginPath(); ctx.ellipse(0, s * 0.42, s * 0.85, s * 0.28, 0, 0, Math.PI * 2); ctx.fill();
-      // patty
-      ctx.fillStyle = '#7c2d12';
-      ctx.fillRect(-s * 0.8, s * 0.02, s * 1.6, s * 0.26);
-      // lettuce
-      ctx.fillStyle = '#4ade80';
-      ctx.fillRect(-s * 0.85, -s * 0.12, s * 1.7, s * 0.15);
-      // top bun dome
-      ctx.fillStyle = '#f59e0b';
-      ctx.beginPath(); ctx.ellipse(0, -s * 0.1, s * 0.85, s * 0.55, 0, Math.PI, 0); ctx.fill();
-      // sesame seeds
-      ctx.fillStyle = '#fef3c7';
-      ctx.fillRect(-s * 0.32, -s * 0.4, s * 0.12, s * 0.07);
-      ctx.fillRect(s * 0.14, -s * 0.32, s * 0.12, s * 0.07);
-      break;
-  }
-}
-
-// ---------- Draw ----------
-function draw() {
-  // Screen shake — offset the whole world while shaking
-  ctx.save();
-  if (shakeTime > 0) {
-    ctx.translate((Math.random() - 0.5) * shakeMag, (Math.random() - 0.5) * shakeMag);
-  }
-
-  // Background - manor cafeteria (oversized so shake never reveals the edge)
-  ctx.fillStyle = '#12091f';
-  ctx.fillRect(-12, -12, W + 24, H + 24);
-
-  // Food splats on the floor (drawn low so entities layer on top)
-  splats.forEach(s => {
-    ctx.save();
-    ctx.globalAlpha = Math.min(0.8, s.life / s.maxLife);
-    ctx.fillStyle = s.color;
-    s.blobs.forEach(b => {
-      ctx.beginPath();
-      ctx.ellipse(s.x + b.dx, s.y + b.dy, b.r, b.r * 0.7, 0, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.restore();
-  });
-
-  // Floor tiles
-  ctx.strokeStyle = 'rgba(124, 58, 237, 0.12)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x < W; x += 40) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-  }
-  for (let y = 0; y < H; y += 40) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-  }
-
-  // Walls / trim
-  ctx.fillStyle = '#1e1b4b';
-  ctx.fillRect(0, 0, W, 28);
-  ctx.fillRect(0, H-18, W, 18);
-  ctx.fillStyle = '#7c3aed';
-  ctx.fillRect(0, 26, W, 3);
-  ctx.fillRect(0, H-20, W, 3);
-
-  // Tables (last one is the Grand Buffet)
-  tables.forEach((t, ti) => {
-    const isBuffet = ti === tables.length - 1;
-    // table top
-    ctx.fillStyle = isBuffet ? '#3b0764' : '#2e1065';
-    ctx.fillRect(t.x, t.y, t.w, t.h);
-    // edge
-    ctx.fillStyle = isBuffet ? '#7c3aed' : '#5b21b6';
-    ctx.fillRect(t.x, t.y + t.h - 6, t.w, 6);
-    // legs
-    ctx.fillStyle = '#1e1b4b';
-    ctx.fillRect(t.x + 8, t.y + t.h, 8, 12);
-    ctx.fillRect(t.x + t.w - 16, t.y + t.h, 8, 12);
-
-    if (isBuffet) {
-      // tablecloth trim
-      ctx.strokeStyle = buffet.flash > 0 && Math.floor(buffet.flash / 4) % 2 === 0
-        ? '#f87171' : '#c084fc';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(t.x + 2, t.y + 2, t.w - 4, t.h - 4);
-      // remaining dishes laid out on top
-      for (let d = 0; d < buffet.maxDishes; d++) {
-        const dx = t.x + 16 + d * ((t.w - 32) / (buffet.maxDishes - 1));
-        const dy = t.y + t.h / 2 - 4;
-        if (d < buffet.dishes) {
-          // plate + food
-          ctx.fillStyle = '#e9d5ff';
-          ctx.beginPath(); ctx.ellipse(dx, dy + 4, 8, 4, 0, 0, Math.PI * 2); ctx.fill();
-          ctx.save();
-          ctx.translate(dx, dy);
-          drawFoodShape(FOOD_TYPES[d % FOOD_TYPES.length].name, 6);
-          ctx.restore();
-        } else {
-          // empty plate outline — a stolen dish
-          ctx.strokeStyle = 'rgba(233,213,255,0.25)';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.ellipse(dx, dy + 4, 8, 4, 0, 0, Math.PI * 2); ctx.stroke();
-        }
-      }
-      // banner label
-      ctx.fillStyle = '#c084fc';
-      ctx.font = 'bold 10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('GRAND BUFFET', t.x + t.w / 2, t.y - 6);
-    }
-  });
-
-  // Pickups (food on ground)
-  pickups.forEach(p => {
-    const by = Math.sin(p.bob) * 3;
-    ctx.save();
-    ctx.translate(p.x + 8, p.y + 8 + by);
-    ctx.shadowColor = p.color;
-    ctx.shadowBlur = 10;
-    drawFoodShape(p.type, 8);
-    ctx.restore();
-  });
-  ctx.shadowBlur = 0;
-
-  // Monsters (vampire, werewolf, frank, ghost, witch)
-  chefs.forEach(c => {
-    ctx.save();
-    ctx.translate(c.x + 15, c.y + 17);
-
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath(); ctx.ellipse(0,24,17,5,0,0,Math.PI*2);ctx.fill();
-    if (c.carryDish || c.stealTimer < 90) {
-      ctx.strokeStyle = c.carryDish ? '#fbbf24' : '#f0abfc';ctx.lineWidth=2;
-      ctx.beginPath();ctx.ellipse(0,24,20,7,0,0,Math.PI*2);ctx.stroke();
-      ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillStyle=ctx.strokeStyle;
-      ctx.fillText(c.carryDish?'THIEF!':'RAID',0,-43);
-    }
-    if(c.pendingThrow && !c.carryDish) {
-      ctx.save();ctx.rotate(c.pendingThrow.angle);ctx.strokeStyle='#ff8b86';ctx.lineWidth=2;
-      ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(20,0);ctx.lineTo(80,0);ctx.stroke();ctx.restore();
-    }
-    /* Face the way you are going.
-
-       Every monster used to stare straight out of the screen no matter which
-       way it was walking, which is most of why the room read as a diorama
-       rather than a chase. c.angle already points at whatever this monster is
-       chasing, so it is the honest source for facing.
-
-       The mirror wraps the LEGS and BODY only and is closed before the arms.
-       The arms below are positioned with cos/sin of c.angle in world space —
-       mirroring those as well would swing a thrown pie in the opposite
-       direction to the one it actually travels. */
-    const face = Math.cos(c.angle) < 0 ? -1 : 1;
-    ctx.save();
-    ctx.scale(face, 1);
-    /* Each monster's eyes sit ~2px right of centre (see the branches below).
-       These figures are otherwise built from centred rects and arcs, so
-       mirroring them was measurably a no-op — 12 pixels out of 3600 changed
-       between facing left and facing right. The off-centre gaze is the whole
-       reason the flip is visible. */
-    // A small walking lean, dropped while carrying a dish: both arms are
-    // overhead then, and leaning reads as toppling over rather than hurrying.
-    if (!c.carryDish) ctx.rotate(Math.sin(c.walkPhase) * 0.05);
-
-    // --- Legs (all except the floating ghost): simple running stride ---
-    if (c.type !== 'ghost') {
-      const stride = Math.sin(c.walkPhase) * 5;
-      ctx.strokeStyle = c.type === 'frank' ? '#166534' : '#1e1b4b';
-      ctx.lineWidth = 4;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-5, 14); ctx.lineTo(-5 + stride, 26);
-      ctx.moveTo(5, 14);  ctx.lineTo(5 - stride, 26);
-      ctx.stroke();
-    }
-
-    drawChefBody(c);
-
-    ctx.restore();   // end the mirrored body; arms below are world-space
-
-    // --- Arms: swing while walking, snap forward on a throw ---
-    {
-      const armColor = c.type === 'frank' ? '#4ade80'
-                     : c.type === 'ghost' ? 'rgba(196,181,253,0.8)'
-                     : c.color;
-      ctx.strokeStyle = armColor;
-      ctx.lineWidth = 4;
-      ctx.lineCap = 'round';
-      if (c.carryDish) {
-        // both arms overhead holding the stolen dish
-        ctx.beginPath();
-        ctx.moveTo(-8, 0); ctx.lineTo(-4, -22);
-        ctx.moveTo(8, 0);  ctx.lineTo(4, -22);
-        ctx.stroke();
-        // the dish!
-        ctx.fillStyle = '#e9d5ff';
-        ctx.beginPath(); ctx.ellipse(0, -24, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.save();
-        ctx.translate(0, -28);
-        drawFoodShape('cake', 6);
-        ctx.restore();
-      } else if (c.throwAnim > 0) {
-        // throwing arm extended toward target; off arm back
-        const ext = c.throwAnim > 8
-          ? 10 - ((c.throwAnim - 8) / 16) * 24
-          : 30 - (8 - c.throwAnim) * 1.5;
-        ctx.beginPath();
-        ctx.moveTo(0, 2);
-        ctx.lineTo(Math.cos(c.angle) * ext, 2 + Math.sin(c.angle) * ext);
-        ctx.moveTo(0, 2);
-        ctx.lineTo(-Math.cos(c.angle) * 9, 2 - Math.sin(c.angle) * 9);
-        ctx.stroke();
-      } else {
-        // walking swing
-        const swing = Math.sin(c.walkPhase) * 4;
-        ctx.beginPath();
-        ctx.moveTo(-9, 0); ctx.lineTo(-11, 10 + swing);
-        ctx.moveTo(9, 0);  ctx.lineTo(11, 10 - swing);
-        ctx.stroke();
-      }
-    }
-
-    // HP bar for tougher monsters
-    if (c.maxHp > 1) {
-      ctx.fillStyle = '#333';
-      ctx.fillRect(-12, 28, 24, 4);
-      ctx.fillStyle = '#ef4444';
-      ctx.fillRect(-12, 28, 24 * (c.hp / c.maxHp), 4);
-    }
-
-    ctx.restore();
-  });
-
-  // Player
-  ctx.save();
-  ctx.translate(player.x + player.w/2, player.y + player.h/2);
-  if (player.invuln > 0 && Math.floor(player.invuln / 4) % 2 === 0) {
-    ctx.globalAlpha = 0.4;
-  }
-  const moving = player.vx !== 0 || player.vy !== 0;
-  const pStride = moving ? Math.sin(player.walkPhase) * 6 : 0;
-  const throwLean = player.throwAnim > 0 ? Math.sin((20 - player.throwAnim) / 20 * Math.PI) * 0.16 : 0;
-  ctx.rotate(throwLean * Math.sin(player.angle));
-  // legs — running stride when moving
-  ctx.strokeStyle = '#7c3aed';
-  ctx.lineWidth = 5;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-5, 12); ctx.lineTo(-5 + pStride, 24);
-  ctx.moveTo(5, 12);  ctx.lineTo(5 - pStride, 24);
-  ctx.stroke();
-  // body
-  ctx.fillStyle = '#c084fc';
-  ctx.beginPath();
-  ctx.ellipse(0, 4, 13, 15, 0, 0, Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle = '#312e81';
-  ctx.beginPath();
-  ctx.moveTo(-11, 8); ctx.lineTo(-15, 23); ctx.lineTo(-2, 15);
-  ctx.lineTo(2, 15); ctx.lineTo(15, 23); ctx.lineTo(11, 8);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#a78bfa';
-  ctx.fillRect(-16, -1, 7, 7);
-  ctx.fillRect(9, -1, 7, 7);
-  // head
-  ctx.fillStyle = '#e9d5ff';
-  ctx.beginPath();
-  ctx.arc(0, -10, 10, 0, Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle = '#171127';
-  ctx.beginPath();
-  ctx.moveTo(0, -28); ctx.lineTo(-10, -16); ctx.lineTo(10, -16);
-  ctx.closePath(); ctx.fill();
-  ctx.fillRect(-17, -18, 34, 4);
-  ctx.fillStyle = '#67e8f9';
-  ctx.shadowColor = '#67e8f9';
-  ctx.shadowBlur = 8;
-  ctx.fillRect(-6, -12, 12, 3);
-  ctx.shadowBlur = 0;
-  // Cyan apron and brass clasp distinguish the buffet defender in a crowd.
-  ctx.fillStyle = '#67e8f9'; ctx.fillRect(-7,1,14,14);
-  ctx.strokeStyle = '#164e63'; ctx.lineWidth=2; ctx.strokeRect(-7,1,14,14);
-  ctx.fillStyle = '#164e63'; ctx.fillRect(-4,7,8,4);
-  ctx.fillStyle = '#f5ce83'; ctx.fillRect(-3,-1,6,4);
-  // off arm — counter-swings while running
-  ctx.strokeStyle = '#c084fc';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(-Math.cos(player.angle) * 6, 2 - Math.sin(player.angle) * 6);
-  ctx.lineTo(-Math.cos(player.angle) * 14, 8 - Math.sin(player.angle) * 10 - pStride * 0.5);
-  ctx.stroke();
-  // throwing arm — winds back, then snaps forward past full reach
-  // throwAnim: 16..11 = wind-up (arm behind), 10..0 = forward snap
-  let armLen = 18;
-  if (player.throwAnim > 8) {
-    // pulling back — arm reaches behind the aim direction
-    armLen = 10 - ((player.throwAnim - 8) / 12) * 24;
-  } else if (player.throwAnim > 0) {
-    // snap forward, overshooting then settling
-    armLen = 31 - (8 - player.throwAnim) * 1.6;
-  }
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(Math.cos(player.angle)*armLen, Math.sin(player.angle)*armLen);
-  ctx.stroke();
-  // hand (holds the next food between throws)
-  ctx.fillStyle = '#f0abfc';
-  ctx.beginPath();
-  ctx.arc(Math.cos(player.angle)*(armLen+2), Math.sin(player.angle)*(armLen+2), 5, 0, Math.PI*2);
-  ctx.fill();
-  ctx.restore();
-  ctx.globalAlpha = 1;
-
-  // Thrown food — real food shapes, tumbling; hostile food glows red
-  foods.forEach(f => {
-    ctx.save();
-    ctx.translate(f.x, f.y);
-    ctx.rotate(f.rot || 0);
-    ctx.shadowColor = f.fromChef ? '#f87171' : f.color;
-    ctx.shadowBlur = 5;
-    if(f.fromChef) {ctx.strokeStyle='#ff9b8f';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,f.r+5,0,Math.PI*2);ctx.stroke();}
-    drawFoodShape(f.type, f.r + 2);
-    ctx.restore();
-  });
-  ctx.shadowBlur = 0;
-
-  // Particles
-  particles.forEach(p => {
-    ctx.globalAlpha = p.life / 25;
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
-    ctx.fill();
-  });
-  ctx.globalAlpha = 1;
-
-  // Aim line
-  if (gameRunning && ammo > 0) {
-    ctx.strokeStyle = 'rgba(192, 132, 252, 0.25)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 6]);
-    ctx.beginPath();
-    ctx.moveTo(player.x + player.w/2, player.y + player.h/2);
-    ctx.lineTo(mouse.x, mouse.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  ctx.restore(); // end screen shake — overlays below stay steady
-
-  // Level banner
-  if (bannerTime > 0) {
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, bannerTime / 18);
-    ctx.fillStyle = '#c084fc';
-    ctx.shadowColor = '#c084fc';
-    ctx.shadowBlur = 26;
-    ctx.font = 'bold 52px "Segoe UI", system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(bannerText, W/2, H/2 - 14);
-    ctx.restore();
-  }
-
-  // Combo multiplier indicator
-  if (gameRunning && comboMult() > 1) {
-    ctx.save();
-    ctx.fillStyle = '#f0abfc';
-    ctx.shadowColor = '#f0abfc';
-    ctx.shadowBlur = 12;
-    ctx.font = 'bold 20px "Segoe UI", system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('COMBO ×' + comboMult(), W/2, 48);
-    ctx.restore();
-  }
-
-  TouchPad.draw(ctx);
-  if (paused) {
-    ctx.fillStyle='rgba(10,6,18,.8)';ctx.fillRect(0,0,W,H);
-    ctx.textAlign='center';ctx.fillStyle='#e9d5ff';ctx.font='bold 36px sans-serif';ctx.fillText('KITCHEN BREAK',W/2,H/2-12);
-    ctx.font='18px sans-serif';ctx.fillText('Press P / Esc or tap to resume',W/2,H/2+25);
+// Cabinet preview: aim at the nearest monster, restock when low.
+function attractPilot() {
+  const px = player.x + player.w / 2, py = player.y + player.h / 2;
+  let target = null, bd = 1e9;
+  chefs.forEach(c => { const d = Math.hypot(c.x + 15 - px, c.y + 17 - py); if (d < bd) { bd = d; target = { x: c.x + 15, y: c.y + 5 }; } });
+  if (boss) target = { x: boss.x, y: boss.y - 60 };
+  if (target) { mouse.x = target.x; mouse.y = target.y; }
+  mouse.down = !!target && ammo > 0;
+  let goal = null;
+  if (ammo < 6) { let pd = 1e9; pickups.forEach(p => { const d = Math.hypot(p.x - px, p.y - py); if (d < pd) { pd = d; goal = p; } }); }
+  ['KeyA', 'KeyD', 'KeyW', 'KeyS'].forEach(k => keys[k] = false);
+  if (goal) {
+    if (goal.x < px - 6) keys.KeyA = true; else if (goal.x > px + 6) keys.KeyD = true;
+    if (goal.y < py - 6) keys.KeyW = true; else if (goal.y > py + 6) keys.KeyS = true;
+  } else if (target && bd < 150) {
+    if (target.x > px) keys.KeyA = true; else keys.KeyD = true;
   }
 }
 
@@ -1211,58 +832,17 @@ function updateHUD() {
   document.getElementById('best').textContent = best;
 }
 
-// Outlined silhouettes with cafeteria uniforms; gaze follows the mirrored body.
-function drawChefBody(c) {
-  ctx.strokeStyle = '#100d23'; ctx.lineWidth = 2;
-  function oval(x,y,rx,ry,color) { ctx.fillStyle=color; ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
-  function poly(points,color) { ctx.fillStyle=color; ctx.beginPath(); points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y)); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-  if (c.type==='ghost') {
-    poly([[-14,12],[-14,-7],[-9,-17],[4,-19],[13,-10],[15,17],[7,12],[1,19],[-5,12],[-12,18]],'#bfe9e9');
-    oval(-2,-5,3,5,'#18213b'); oval(8,-5,3,5,'#18213b');
-    oval(4,5,2,3,'#46768a');
-  } else {
-    if(c.type==='vampire') poly([[-19,-10],[-11,23],[0,17],[16,23],[20,-10],[0,-2]],'#601d4a');
-    oval(0,6,c.type==='werewolf'?15:12,15,c.type==='frank'?'#374844':c.color);
-    poly([[-7,1],[7,1],[9,18],[-9,18]],c.type==='witch'?'#d6b879':'#e9dfc9');
-    ctx.fillStyle='#9b8879';ctx.fillRect(-4,8,8,5);
-    if(c.type==='frank') {
-      ctx.fillStyle='#16242d';ctx.fillRect(-17,-13,34,5);
-      ctx.fillStyle='#88c985';ctx.fillRect(-11,-22,23,23);ctx.strokeRect(-11,-22,23,23);
-      ctx.fillStyle='#1c2830';ctx.fillRect(-11,-23,23,5);
-      ctx.beginPath();ctx.moveTo(-7,-15);ctx.lineTo(2,-12);ctx.stroke();
-    } else {
-      oval(0,-10,c.type==='werewolf'?13:10,11,c.type==='werewolf'?'#a58b77':'#e5d4dd');
-      if(c.type==='werewolf') {
-        poly([[-12,-15],[-12,-29],[-3,-19]],'#8b7064');poly([[5,-19],[13,-28],[13,-12]],'#8b7064');
-        oval(9,-7,8,6,'#d7bd99');oval(14,-10,3,2,'#201a27');
-      }
-      if(c.type==='vampire') {
-        poly([[-11,-12],[-9,-23],[8,-23],[11,-12],[2,-18],[-2,-14]],'#231d35');
-        poly([[0,-3],[3,-3],[2,1]],'#fff4da');poly([[6,-3],[9,-3],[7,1]],'#fff4da');
-      }
-    }
-    ctx.fillStyle=c.type==='frank'?'#152b32':'#39182e';ctx.fillRect(-4,-13,3,3);ctx.fillRect(5,-13,3,3);
-    if(c.type==='witch') {
-      poly([[-13,-19],[15,-19],[6,-24],[0,-38],[-6,-28]],'#392b65');
-      ctx.fillStyle='#e9b75b';ctx.fillRect(-6,-24,12,3);
-    }
-  }
-  if(c.type==='ghost' || c.type==='frank') {
-    oval(-7,-26,6,6,'#fff0d7');oval(1,-29,7,7,'#fff0d7');oval(9,-25,6,6,'#fff0d7');
-    ctx.fillStyle='#d2c2ae';ctx.fillRect(-10,-24,21,5);ctx.strokeRect(-10,-24,21,5);
-  }
-}
-
 // ---------- Loop ----------
+enterRoom(0);
 let previousFrame = performance.now(), accumulator = 0;
 function loop() {
   const now = performance.now();
   accumulator += Math.min(100, now - previousFrame); previousFrame = now;
-  while (accumulator >= 1000/60) { update(); accumulator -= 1000/60; }
+  while (accumulator >= 1000 / 60) { update(); accumulator -= 1000 / 60; }
   draw();
   ArcadeVR.schedule(loop);
 }
 updateHUD();
 if (ATTRACT_MODE) setTimeout(startGame, 0);
 loop();
-console.log('Spectral Manor Mess Hall ready — Ghost Circuit Cafeteria Chaos');
+console.log('Spectral Manor Mess Hall ready — four rooms and the Head Chef');

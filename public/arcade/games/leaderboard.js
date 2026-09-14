@@ -303,6 +303,11 @@
       // (Space would restart the game underneath the modal)
       e.stopImmediatePropagation();
       e.preventDefault();
+      // Keys still held from gameplay (WASD, arrows, Space, X...) keep firing
+      // auto-repeat keydowns, and many are letters — they filled in initials
+      // before the player noticed the game had ended. Only fresh presses
+      // count, and not in the first moment after the prompt appears.
+      if (e.repeat || Date.now() - openedAt < 450) return;
       const k = e.key;
       if (/^[a-zA-Z]$/.test(k)) {
         chars[cur] = k.toUpperCase();
@@ -318,6 +323,7 @@
       else if (k === 'ArrowDown') { cycle(cur, -1); }
       else if (k === 'Enter') { submit(); }
     }
+    const openedAt = Date.now();
     window.addEventListener('keydown', onKey, true);
     document.body.appendChild(modal);
   }

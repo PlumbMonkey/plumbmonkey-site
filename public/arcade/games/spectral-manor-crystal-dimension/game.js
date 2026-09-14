@@ -226,7 +226,7 @@ function startGame() {
   crystals = []; powerups = []; particles = []; shockwaves = []; popups = [];
   boss = null; novas = 1; novaCharge = 0; power = null; powerTime = 0;
   combo = 0; comboT = 0; nextLife = EXTRA_LIFE_EVERY;
-  deathFreeze = 0; shakeAmt = 0; respawnT = 0; paused = false;
+  deathFreeze = 0; shakeAmt = 0; respawnT = 0; paused = false; ending = 0;
   enterSector();
   resetShip();
   phase = 'intro'; phaseT = 150;
@@ -251,7 +251,7 @@ function advance() {
 }
 
 function checkClear() {
-  if (phase !== 'play') return;
+  if (phase !== 'play' || ending) return;
   if (rocks.length || saucers.length || wraiths.length || mines.length || seekers.length || boss) return;
   phase = 'clear';
   phaseT = 110;
@@ -423,8 +423,19 @@ function hitShip() {
   respawnT = 70; respawnWait = 0;
   power = null; powerTime = 0; combo = 0; comboT = 0;
   updateHUD();
-  if (lives <= 0) {
+  // The last ship: don't open the initials prompt on the frame it explodes.
+  // The player is still holding thrust/rotate/nova — W, A, D and X are also
+  // letters, so they typed straight into the prompt before anyone noticed the
+  // game had ended. Play a GAME OVER beat first; finishGame() runs after it.
+  if (lives <= 0) ending = ENDING_FRAMES;
+}
+
+const ENDING_FRAMES = 150;
+let ending = 0;
+function finishGame() {
+  {
     gameOver = true; gameRunning = false;
+    Object.keys(keys).forEach(k => { keys[k] = false; });
     const finalScore = score, reached = `${sectorIdx + 1}-${waveIdx + 1}`, sname = sector().name;
     const finish = () => {
       document.getElementById('startOverlay').classList.remove('hidden');
@@ -474,6 +485,7 @@ function update() {
   popups.forEach(p => { p.y -= 0.6; p.life--; });
   popups = popups.filter(p => p.life > 0);
   if (!gameRunning || paused) return;
+  if (ending > 0 && --ending === 0) { finishGame(); return; }
 
   if (deathFreeze > 0) {
     deathFreeze--;
@@ -513,6 +525,7 @@ function update() {
 
 function updateShip() {
   if (ship.dead) {
+    if (lives <= 0) return;
     if (respawnT > 0) { respawnT--; return; }
     const p = spawnPoint();
     const hazards = [...rocks, ...saucers, ...mines, ...seekers, ...wraiths];
@@ -763,7 +776,9 @@ function draw() {
   if (boss && !boss.entry) drawBossBar(boss);
   drawHudOverlay({ novas, novaCharge, power, powerTime, combo, label: `${s.name} · ${sectorIdx + 1}-${waveIdx + 1}${cycle ? ` · CYCLE ${cycle + 1}` : ''}` });
 
-  if (phase === 'intro') {
+  if (ending) {
+    drawBanner('GAME OVER', `Final score ${score.toLocaleString()}`, Math.min(1, (ENDING_FRAMES - ending) / 30));
+  } else if (phase === 'intro') {
     const fade = Math.min(1, phaseT / 25, (phaseTotal() - phaseT) / 20);
     if (isBossWave()) drawBanner('WARNING', s.boss.name + ' APPROACHES', fade * ((tick >> 5) % 2 ? 1 : 0.6));
     else if (waveIdx === 0) drawBanner((cycle ? `CYCLE ${cycle + 1} · ` : '') + `SECTOR ${sectorIdx + 1}: ${s.name}`, s.sub, fade);

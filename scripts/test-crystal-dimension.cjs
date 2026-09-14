@@ -145,7 +145,15 @@ assert.equal(run('ship.dead'), true);
 steps(100);
 assert.equal(run('ship.dead'), false);
 run('ship.invuln = 0; hitShip();');
+// the last death plays a GAME OVER beat before the initials prompt can open
+assert.equal(run('gameOver'), false);
+assert.equal(submitted, null);
+run('keys.KeyA = true;'); steps(60);
+assert.equal(run('ship.dead'), true, 'no respawn after the final ship');
+assert.equal(submitted, null);
+steps(100);
 assert.equal(run('gameOver'), true);
+assert.equal(run('keys.KeyA'), false, 'held keys are released before the prompt');
 assert.equal(submitted, run('score'));
 
 console.log('Crystal Dimension: waves, fixed step, single-hit shots, variants, nova, shield, bursts, 4 bosses, full cycle, respawn + game over passed.');
