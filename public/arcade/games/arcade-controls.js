@@ -224,11 +224,21 @@ const ArcadeControls = (function () {
   // `mouse` object — every existing mouse-based line keeps working untouched.
   // Returns true when the gamepad actually drove the aim this frame, so the
   // caller can fall back to its touch pad or the real mouse.
+  let stickFiring = false;   // the stick (not a real mouse button) is holding fire
   function applyAim(mouse, cx, cy) {
-    if (!opts.aim || !api.aimActive) return false;
+    if (!opts.aim) return false;
+    if (!api.aimActive) {
+      // Stick back at centre: stop firing. This used to return without
+      // releasing, so mouse.down stayed true and the gun kept shooting after
+      // the stick was let go (leaderboard.js's mouseup lands first, at its
+      // wider 0.4 deadzone, and this path re-pressed it on the way down).
+      if (stickFiring) { mouse.down = false; stickFiring = false; }
+      return false;
+    }
     mouse.x = cx + Math.cos(api.aimAngle) * AIM_REACH;
     mouse.y = cy + Math.sin(api.aimAngle) * AIM_REACH;
     mouse.down = true;
+    stickFiring = true;
     return true;
   }
 

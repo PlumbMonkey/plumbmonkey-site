@@ -456,7 +456,7 @@
     'spectral-manor-soul-circuit':      { pad: 'dpad', actions: [] },
     'spectral-manor-crystal-dimension': { pad: 'lr',   actions: [['THRUST', 'ArrowUp'], ['FIRE', 'Space'], ['NOVA', 'KeyX']] },
     'spectral-manor-infestation':       { pad: 'dpad', actions: [['FIRE', 'Space']] },
-    'spectral-manor-cruise':            { pad: 'lr',   actions: [['GAS', 'ArrowUp'], ['BRAKE', 'ArrowDown']] }
+    'spectral-manor-cruise':            { pad: 'lr',   actions: [['GAS', 'ArrowUp'], ['BRAKE', 'ArrowDown'], ['NITRO', 'Space']] }
   };
 
   function key(code, type) {
@@ -596,10 +596,17 @@
       if (cv) {
         cv.style.touchAction = 'none';
         const toMouse = (type, t) => cv.dispatchEvent(new MouseEvent(type, { clientX: t.clientX, clientY: t.clientY, bubbles: true }));
-        cv.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; toMouse('mousemove', t); toMouse('mousedown', t); }, { passive: false });
-        cv.addEventListener('touchmove', e => { e.preventDefault(); toMouse('mousemove', e.changedTouches[0]); }, { passive: false });
-        cv.addEventListener('touchend', e => { e.preventDefault(); toMouse('mouseup', e.changedTouches[0]); }, { passive: false });
-        cv.addEventListener('touchcancel', e => { toMouse('mouseup', e.changedTouches[0]); }, { passive: false });
+        /* When touch-controls.js is driving the twin sticks, stay out of it.
+           These synthetic mouse events used to run alongside the sticks: the
+           mousedown from ANY touch (even the move thumb, or a resting aim
+           thumb) left mouse.down stuck true, and the synthetic mousemove made
+           TouchPad think a real mouse had taken over, so nothing released it —
+           the gun kept firing with the aim stick not pushed. */
+        const padOwns = () => typeof TouchPad !== 'undefined' && TouchPad.enabled;
+        cv.addEventListener('touchstart', e => { if (padOwns()) return; e.preventDefault(); const t = e.changedTouches[0]; toMouse('mousemove', t); toMouse('mousedown', t); }, { passive: false });
+        cv.addEventListener('touchmove', e => { if (padOwns()) return; e.preventDefault(); toMouse('mousemove', e.changedTouches[0]); }, { passive: false });
+        cv.addEventListener('touchend', e => { if (padOwns()) return; e.preventDefault(); toMouse('mouseup', e.changedTouches[0]); }, { passive: false });
+        cv.addEventListener('touchcancel', e => { if (padOwns()) return; toMouse('mouseup', e.changedTouches[0]); }, { passive: false });
       }
     }
   }

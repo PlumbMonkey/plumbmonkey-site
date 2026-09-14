@@ -32,7 +32,7 @@
     .start-overlay {
       position: absolute; inset: 0; background: rgba(7, 4, 15, 0.92);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      z-index: 10; cursor: pointer;
+      z-index: 10; cursor: pointer; text-align: center; padding: 0 1rem;
     }
     .start-overlay h2 { font-size: 1.9rem; color: #c084fc; text-shadow: 0 0 22px #c084fc; margin-bottom: 0.5rem; }
     .start-overlay p { color: #d8b4fe; margin: 0.2rem 0; font-size: 0.95rem; }
@@ -41,16 +41,16 @@
 </head>
 <body>
   <h1>SPECTRAL MANOR CRUISE</h1>
-  <div class="subtitle">Ghost Circuit · Midnight Highway · Monster Grand Prix</div>
+  <div class="subtitle">Ghost Circuit · Four Tracks · Monster Grand Prix</div>
 
   <div style="position:relative">
     <canvas id="gameCanvas" width="960" height="540"></canvas>
     <div id="startOverlay" class="start-overlay">
       <h2>MIDNIGHT CRUISE</h2>
-      <p>Three laps down the haunted highway.</p>
-      <p>Beat Vampire, Werewolf, Witch, Frank — and the Ghost.</p>
-      <p style="opacity:0.85">The Ghost's car phases straight through you… and haunts your steering.</p>
-      <p style="opacity:0.85">Win to unlock the next race: faster rivals, and from Race 2 they throw fire.</p>
+      <p>Race your hot-rod hearse against Vampire, Werewolf, Witch, Frank — and the Ghost.</p>
+      <p>Midnight Highway · Hollow Woods · Boneyard Canyon · Neon Necropolis</p>
+      <p style="opacity:0.85">Tuck in behind a rival to slipstream, grab soul orbs, and burn NITRO on the straights.</p>
+      <p style="opacity:0.85">Win to unlock the next track: faster rivals — and from Race 2 they throw fire.</p>
       <p style="margin-top:0.8rem; opacity:0.75; font-size:0.85rem">Click or ENTER to start your engine</p>
     </div>
   </div>
@@ -58,30 +58,34 @@
   <div class="hud">
     <div>SPEED: <span id="speed">0</span> mph</div>
     <div>LAP: <span id="lap">1/3</span></div>
-    <div>POSITION: <span id="place">5th</span></div>
-    <div>TIME: <span id="time">0:00</span></div>
+    <div>POSITION: <span id="place">6th</span></div>
+    <div>TIME: <span id="time">0:00.0</span></div>
   </div>
 
   <div class="controls">
-    ↑ / W : Accelerate &nbsp;&nbsp;•&nbsp;&nbsp; ↓ / S : Brake &nbsp;&nbsp;•&nbsp;&nbsp; ← → / A D : Steer &nbsp;&nbsp;•&nbsp;&nbsp; Enter : Start / Restart<br>
-    Stay on the road — the graveyard shoulder eats your speed. Bumping racers costs you too.<br>
-    Ghost contact reverses your steering for a moment · Race 2+: dodge the fireballs
+    ↑ / W : Gas &nbsp;•&nbsp; ↓ / S : Brake &nbsp;•&nbsp; ← → / A D : Steer &nbsp;•&nbsp; Space / Shift : Nitro &nbsp;•&nbsp; P / Esc : Pause &nbsp;•&nbsp; Enter : Start<br>
+    The shoulder eats your speed and roadside objects spin you out · Hit ramps at speed to fly over trouble<br>
+    Logs, lava and puddles sit in one lane — change lanes early · The Ghost phases through you and reverses your steering
   </div>
 
-  <script src="../leaderboard.js"></script>
-  <script src="../arcade-controls.js?v=2"></script>
+  <script src="../leaderboard.js?v=5"></script>
+  <script src="../arcade-controls.js?v=5"></script>
   <script src="../arcade-audio.js?v=1"></script>
   <script src="../vr-mode.js?v=2"></script>
-  <script src="game.js"></script>
+  <script src="tracks.js?v=4"></script>
+  <script src="cars.js?v=4"></script>
+  <script src="render.js?v=4"></script>
+  <script src="game.js?v=4"></script>
   <script>
-    // Racer: stick steers, trigger is the gas — no vertical axis on the stick
-    // so a resting thumb can never accelerate you into a wall.
+    // Racer: stick steers, triggers are gas and brake, X is nitro. No vertical
+    // axis on the stick, so a resting thumb can never accelerate you into a wall.
     ArcadeControls.init(keys, {
       accent: '#ef4444',
       move: 'horizontal',
       buttons: [
         { code: 'ArrowUp',   label: 'GAS' },
-        { code: 'ArrowDown', label: 'BRAKE' }
+        { code: 'ArrowDown', label: 'BRAKE' },
+        { code: 'Space',     label: 'NITRO' }
       ]
     });
   </script>

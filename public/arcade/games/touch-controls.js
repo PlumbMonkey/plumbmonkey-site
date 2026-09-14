@@ -136,7 +136,9 @@ const TouchPad = (function () {
 
   function refresh() {
     api.moveActive = move.id !== null;
-    api.firing = aim.id !== null;
+    // Fire only while the aim stick is PUSHED. A thumb resting on it (inside
+    // the dead zone) aims nothing and must not keep shooting.
+    api.firing = aim.id !== null && Math.hypot(aim.x - aim.ox, aim.y - aim.oy) > DEAD;
 
     if (api.moveActive) {
       const dx = move.x - move.ox, dy = move.y - move.oy;
