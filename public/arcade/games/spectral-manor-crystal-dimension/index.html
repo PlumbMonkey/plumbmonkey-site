@@ -47,8 +47,9 @@
     <canvas id="gameCanvas" width="960" height="540"></canvas>
     <div id="startOverlay" class="start-overlay">
       <h2>CRYSTAL DIMENSION</h2>
-      <p>Gravity has failed. Rocks crush. Space ghosts hunt.</p>
-      <p>← → rotate · ↑ thrust · Space fire</p>
+      <p>Gravity has failed. Four sectors. Four guardians.</p>
+      <p>← → rotate · ↑ thrust · Space fire · X nova</p>
+      <p style="font-size:0.82rem; opacity:0.8">Collect 8 crystals to charge a nova bomb</p>
       <p style="margin-top:0.75rem; opacity:0.75; font-size:0.85rem">Click or ENTER to enter</p>
     </div>
   </div>
@@ -56,21 +57,26 @@
   <div class="hud">
     <div>SCORE: <span id="score">0</span></div>
     <div>LIVES: <span id="lives">3</span></div>
-    <div>WAVE: <span id="wave">1</span></div>
+    <div>WAVE: <span id="wave">1-1</span></div>
+    <div>NOVA: <span id="novas">1</span></div>
   </div>
 
   <div class="controls">
-    ← → or A D : Rotate &nbsp;&nbsp;•&nbsp;&nbsp; ↑ or W : Thrust &nbsp;&nbsp;•&nbsp;&nbsp; Space : Fire &nbsp;&nbsp;•&nbsp;&nbsp; Enter : Start / Restart<br>
-    Destroy rocks &amp; space ghosts · Collect crystals · Avoid being crushed
+    ← → or A D : Rotate &nbsp;&nbsp;•&nbsp;&nbsp; ↑ or W : Thrust &nbsp;&nbsp;•&nbsp;&nbsp; Space : Fire &nbsp;&nbsp;•&nbsp;&nbsp; X or Shift : Nova &nbsp;&nbsp;•&nbsp;&nbsp; P : Pause &nbsp;&nbsp;•&nbsp;&nbsp; Enter : Start<br>
+    Shatter crystals · Armored geodes take 3 hits · Orange crystals explode · Beat the guardian to clear each sector
   </div>
 
   <script src="../leaderboard.js"></script>
   <script src="../arcade-controls.js?v=2"></script>
   <script src="../arcade-audio.js?v=1"></script>
   <script src="../vr-mode.js?v=2"></script>
-  <script src="game.js"></script>
+  <script src="sectors.js?v=2"></script>
+  <script src="sprites.js?v=2"></script>
+  <script src="enemies.js?v=2"></script>
+  <script src="bosses.js?v=2"></script>
+  <script src="game.js?v=2"></script>
   <script>
-    // The stick ROTATES only (left/right); thrust and fire
+    // The stick ROTATES only (left/right); thrust, fire and nova
     // are dedicated buttons. move:'horizontal' ignores the stick's vertical
     // axis so nudging up while steering no longer also thrusts — otherwise
     // thrust fired from both the stick and the THRUST button at once.
@@ -79,7 +85,8 @@
       move: 'horizontal',
       buttons: [
         { code: 'Space',   label: 'FIRE' },
-        { code: 'ArrowUp', label: 'THRUST' }
+        { code: 'ArrowUp', label: 'THRUST' },
+        { code: 'KeyX',    label: 'NOVA' }
       ]
     });
   </script>

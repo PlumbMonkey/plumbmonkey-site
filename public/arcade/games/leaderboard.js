@@ -448,7 +448,7 @@
     'spectral-manor-swarm':             { pad: 'dpad', actions: [['FIRE', 'Space']], aim: true },
     'spectral-skyline':                 { pad: 'lr',   actions: [['FLAP', 'Space']] },
     'spectral-manor-soul-circuit':      { pad: 'dpad', actions: [] },
-    'spectral-manor-crystal-dimension': { pad: 'lr',   actions: [['THRUST', 'ArrowUp'], ['FIRE', 'Space']] },
+    'spectral-manor-crystal-dimension': { pad: 'lr',   actions: [['THRUST', 'ArrowUp'], ['FIRE', 'Space'], ['NOVA', 'KeyX']] },
     'spectral-manor-infestation':       { pad: 'dpad', actions: [['FIRE', 'Space']] },
     'spectral-manor-cruise':            { pad: 'lr',   actions: [['GAS', 'ArrowUp'], ['BRAKE', 'ArrowDown']] }
   };
