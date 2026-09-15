@@ -26,8 +26,9 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync('public/arcade/games/kit/hero-kit.js', 'utf8'), sandbox, { filename: 'hero-kit.js' });
+vm.runInContext(fs.readFileSync('public/arcade/games/wave3/sprite-kit.js', 'utf8'), sandbox, { filename: 'sprite-kit.js' });
 const dir = 'public/arcade/games/spectral-manor-revenger/';
-['sectors.js', 'fx.js', 'ship.js', 'enemies.js', 'bosses.js', 'render.js', 'game.js']
+['sectors.js', 'fx.js', 'ship.js', 'enemies.js', 'bosses.js', 'runner.js', 'runner-art.js', 'render.js', 'game.js']
   .forEach(f => vm.runInContext(fs.readFileSync(dir + f, 'utf8'), sandbox, { filename: f }));
 const run = code => vm.runInContext(code, sandbox);
 const steps = n => run(`for (let i = 0; i < ${n}; i++) update();`);
@@ -217,7 +218,8 @@ bosses.forEach(([type, open], i) => {
   assert.equal(run('boss'), null);
   assert.equal(run('phase'), 'clear');
   steps(120);
-  assert.equal(run('info.wave + "/" + info.sectorIdx + "/" + info.cycle'), `0/${(i + 1) % 4}/${i === 3 ? 1 : 0}`);
+  if (i < 3) assert.equal(run('info.wave + "/" + info.sectorIdx + "/" + info.cycle'), `0/${i + 1}/0`);
+  else assert.equal(run('phase + "/" + dockKind + "/" + mothership.finale'), 'dock/core/true', 'after the last mothership, the command ship docks you for the core');
 });
 
 // --- hazards: the leviathan's lightning lane and the dreadnought's spokes ---
@@ -228,6 +230,173 @@ run(`boss.state = 'hover'; ship.inv = 0;
 assert.ok(run('hazardHitsShip(hazards[0])'));
 run('ship.y = 260;');
 assert.ok(!run('hazardHitsShip(hazards[0])'), 'a lane only hurts its own row');
+
+// ================= Phase 2: docking, the runner, Plumbmonkey =================
+const noInp = '{ left: false, right: false, up: false, down: false, fire: false, bomb: false, warp: false }';
+const inpOf = o => `Object.assign(${noInp}, ${JSON.stringify(o)})`;
+const stepR = (n, o = {}) => run(`for (let i = 0; i < ${n}; i++) stepRun(R, ${inpOf(o)});`);
+const bare = (extra = '') => run(`info = stageInfo(0); var R = createRun('rescue'); R.phase = 'go';
+  R.solids = [{ x: 0, y: FLOOR_Y, w: 4000, h: 200 }]; R.gates = []; R.pods = []; R.foes = []; R.hearts = []; R.exitX = 1e9; R.length = 4000; ${extra}`);
+
+// --- on foot: jump on a press, land, no bounce while held ---
+bare('R.p.x = 200;');
+stepR(2);
+assert.ok(run('R.p.ground'), 'the Spaceman stands on the deck');
+stepR(1, { up: true });
+assert.ok(run('R.p.vy < 0'), 'a press jumps');
+stepR(80, { up: true });
+assert.ok(run('R.p.ground && R.p.vy === 0'), 'he lands, and holding jump does not bounce');
+
+// --- on foot: one press, one blaster bolt, through the real input path ---
+bare('R.p.x = 200;');
+run(`gameRunning = true; paused = false; hitPause = 0; phase = 'runner'; run = R; shotsFired = 0; Object.keys(keys).forEach(k => keys[k] = false); fireWasDown = false;`);
+key('keydown', 'Space'); run('keys.Space = true;'); steps(40);
+assert.equal(run('shotsFired'), 1, 'on foot, holding fire shoots once');
+key('keyup', 'Space'); steps(1); key('keydown', 'Space'); key('keyup', 'Space'); steps(2);
+assert.equal(run('shotsFired'), 2);
+run('keys.Space = false; phase = "play"; run = null;');
+
+// --- laser gates: slide under the low one, jump the floor one ---
+const lowGate = 'R.gates = [{ x: 320, kind: "low", y0: CEIL_Y, y1: FLOOR_Y - 34 }];';
+bare('R.p.x = 180;' + lowGate);
+stepR(10, { right: true }); stepR(60, { right: true, down: true });
+assert.equal(run('R.p.hp'), 3, 'sliding passes under a low laser');
+assert.ok(run('R.p.x') > 340);
+bare('R.p.x = 180;' + lowGate);
+stepR(60, { right: true });
+assert.equal(run('R.p.hp'), 2, 'running upright into it hurts');
+const highGate = 'R.gates = [{ x: 320, kind: "high", y0: FLOOR_Y - 36, y1: FLOOR_Y }];';
+bare('R.p.x = 180;' + highGate);
+stepR(60, { right: true });
+assert.equal(run('R.p.hp'), 2, 'a floor laser has to be jumped');
+bare('R.p.x = 180;' + highGate);
+for (let i = 0; i < 80; i++) stepR(1, { right: true, up: run('R.p.x') > 262 });
+assert.equal(run('R.p.hp'), 3, 'and a jump clears it');
+assert.ok(run('R.p.x') > 400);
+
+// --- a pit costs health and puts you back on safe deck ---
+bare('R.solids = [{ x: 0, y: FLOOR_Y, w: 400, h: 200 }, { x: 700, y: FLOOR_Y, w: 400, h: 200 }]; R.p.x = 200;');
+stepR(90, { right: true });
+stepR(30);
+assert.equal(run('R.p.hp'), 2, 'one fall, one hit, even if he walks off again while flashing');
+assert.ok(run('R.p.x < 400 && R.p.ground'), 'back on the deck');
+
+// --- stasis pods take three bolts and free two fans ---
+bare('R.pods = [{ id: 9001, x: 500, y: FLOOR_Y, hp: 3, fans: 2, open: false, flash: 0, look: 0 }]; R.podsTotal = 1; R.p.x = 300;');
+for (let i = 0; i < 3; i++) { stepR(1, { fire: true }); stepR(20); }
+assert.equal(run('R.pods[0].open + "/" + R.freed'), 'true/2');
+
+// --- the clock ---
+bare('R.timer = 2;');
+stepR(3);
+assert.equal(run('R.result + "/" + R.why'), 'fail/TIME UP');
+
+// --- the Rift: a mothership appears; docking runs the rescue; success closes the Rift ---
+run('startGame(31);');
+steps(150);
+run(`${calm} rift = true; fans = []; dockCool = 0; mothership = null; stepMothership();`);
+assert.ok(run('mothership !== null'), 'a mothership appears in the Rift');
+run('ship.x = mothership.x; ship.y = bayY(); stepMothership();');
+assert.equal(run('phase'), 'dock');
+steps(150);
+assert.equal(run('phase + "/" + run.kind'), 'runner/rescue');
+run('run.freed = 4; endRun(run, "success", "4 FANS FREED");');
+steps(121);
+assert.equal(run('phase + "/" + rift + "/" + fans.length'), 'rift/false/4', 'a successful rescue closes the Rift and restores the fans');
+
+// --- a failed run costs a ship, and the Rift persists ---
+run(`${calm} rift = true; fans = []; lives = 3; mothership = { x: ship.x, y: ship.y - 44, finale: false }; beginDock('rescue', 150);`);
+steps(150);
+run('endRun(run, "fail", "TIME UP");');
+steps(121);
+assert.equal(run('phase + "/" + rift + "/" + lives'), 'undock/true/2', 'a failed run costs a ship and the Rift persists');
+assert.ok(run('dockCool > 0 && mothership === null'), 'the mothership comes back later for another try');
+steps(89);
+assert.equal(run('phase'), 'play');
+
+// --- losing the last ship on foot still gets the GAME OVER beat ---
+run(`${calm} rift = true; fans = []; lives = 1; mothership = { x: ship.x, y: ship.y - 44, finale: false }; beginDock('rescue', 150);`);
+steps(150);
+run('endRun(run, "fail", "SPACEMAN DOWN");');
+submitted = null;
+steps(120);
+assert.equal(run('phase'), 'ending');
+steps(149);
+assert.equal(submitted, null, 'no initials prompt on the death frame, on foot either');
+steps(1);
+assert.notEqual(submitted, null);
+
+// --- Plumbmonkey: armour outside his openings, dizzy at each third, a jumpable stomp ---
+run(`startGame(41); info = stageInfo(15); var R = createRun('core'); R.phase = 'go'; R.foes = []; R.p.x = R.arenaX + 100; R.p.y = FLOOR_Y;`);
+stepR(1);
+assert.ok(run('R.boss !== null && R.lockCam'), 'the arena locks and Plumbmonkey arrives');
+run('R.boss.state = "idle"; R.boss.t = 0; R.boss.x = R.arenaX + 600; var hp0 = R.boss.hp; R.p.x = R.boss.x - 250; R.p.face = 1; R.p.inv = 9999;');
+stepR(1, { fire: true }); stepR(25);
+assert.equal(run('R.boss.hp'), run('hp0'), 'his jacket shrugs off shots outside the taunt');
+run('pmGo(R.boss, "taunt");');
+stepR(1, { fire: true }); stepR(25);
+assert.equal(run('R.boss.hp'), run('hp0 - 1'), 'the taunt is the opening');
+run('R.boss.hp = Math.floor(R.boss.maxHp * 2 / 3) + 1; pmGo(R.boss, "taunt");');
+stepR(1, { fire: true }); stepR(20);
+assert.equal(run('R.boss.state'), 'dizzy', 'losing a third of his health leaves him dizzy');
+run('R.boss.hp = R.boss.maxHp; R.boss.thirds = 2; pmGo(R.boss, "stomp"); R.boss.x = R.arenaX + 600; R.waves = []; R.barrels = []; R.p.inv = 0; R.p.hp = 3; R.p.x = R.arenaX + 60;');
+stepR(95);
+assert.equal(run('R.p.hp'), 2, 'the stomp shockwave hurts a grounded Spaceman');
+run('pmGo(R.boss, "stomp"); R.boss.x = R.arenaX + 600; R.waves = []; R.barrels = []; R.p.inv = 0; R.p.hp = 3; R.p.x = R.arenaX + 60; R.p.upWas = false;');
+for (let i = 0; i < 100; i++) stepR(1, { up: run('R.waves.some(w => Math.abs(w.x - R.p.x) < 50)') });
+assert.equal(run('R.p.hp'), 3, 'and a jump clears it');
+run('R.boss.hp = 1; R.boss.x = R.arenaX + 600; R.barrels = []; R.waves = []; R.foes = []; pmGo(R.boss, "taunt"); R.p.x = R.boss.x - 200; R.p.face = 1; R.p.inv = 9999;');
+stepR(1, { fire: true }); stepR(20);
+assert.ok(run('R.boss.dying > 0'), 'Plumbmonkey falls');
+stepR(185);
+assert.equal(run('R.result'), 'success');
+
+// --- the finale: the last mothership → command ship → core → cycle 2 ---
+run(`startGame(43); stageN = 15; info = stageInfo(15); enemies = []; boss = null; phase = 'clear'; phaseT = 1;`);
+steps(1);
+assert.equal(run('phase + "/" + dockKind'), 'dock/core');
+steps(180);
+assert.equal(run('phase + "/" + run.kind'), 'runner/core');
+run('endRun(run, "success", "PLUMBMONKEY DEFEATED");');
+steps(121);
+assert.equal(run('info.cycle + "/" + info.sectorIdx + "/" + info.wave + "/" + rift + "/" + fans.length'), '1/0/0/false/10', 'beating Plumbmonkey loops the run as cycle 2');
+run(`startGame(44); stageN = 15; info = stageInfo(15); lives = 3; mothership = { x: ship.x, y: 100, finale: true }; beginDock('core', 180);`);
+steps(180);
+run('endRun(run, "fail", "SPACEMAN DOWN");');
+steps(120);
+assert.equal(run('phase + "/" + run.kind + "/" + lives'), 'runner/core/2', 'losing in the core costs a ship and restarts the core');
+
+// --- the bot clears every sector's rescue run, and the core, unassisted ---
+const botRuns = [];
+for (let s = 0; s < 4; s++) {
+  run(`startGame(${60 + s}); stageN = ${s * 4}; info = stageInfo(${s * 4}); var R = createRun('rescue'); var guard = 0;
+    while (!R.result && guard++ < 9000) stepRun(R, runnerPilot(R));`);
+  const res = run('({ result: R.result, why: R.why, freed: R.freed, hp: R.p.hp, secs: Math.round(R.t / 60), x: Math.round(R.p.x), len: R.length })');
+  botRuns.push(`rescue ${s + 1}: ${res.secs}s hp ${res.hp} freed ${res.freed}`);
+  assert.equal(res.result, 'success', `bot clears the sector ${s + 1} rescue run: ${JSON.stringify(res)}`);
+  assert.ok(res.freed >= 8, `and frees the fans on the way: ${JSON.stringify(res)}`);
+}
+run(`startGame(70); stageN = 15; info = stageInfo(15); var R = createRun('core'); var guard = 0;
+  while (!R.result && guard++ < 14000) stepRun(R, runnerPilot(R));`);
+const coreRes = run('({ result: R.result, why: R.why, hp: R.p.hp, secs: Math.round(R.t / 60), boss: R.boss && R.boss.hp, x: Math.round(R.p.x), arena: R.arenaX })');
+botRuns.push(`core: ${coreRes.secs}s hp ${coreRes.hp}`);
+assert.equal(coreRes.result, 'success', `bot beats Plumbmonkey: ${JSON.stringify(coreRes)}`);
+
+// --- end to end: every fan lost, then the ship bot finds the mothership, docks, runs the rescue, closes the Rift ---
+run('startGame(88); botMode = true;');
+steps(150);
+run(`fans = []; ship.carried = []; var e2e = { rift: false, docked: false, runner: false }, e2eFrames = 0;
+  for (let i = 0; i < 20000; i++) {
+    update(); lives = 3; e2eFrames = i;
+    if (rift) e2e.rift = true;
+    if (phase === 'dock') e2e.docked = true;
+    if (phase === 'runner') e2e.runner = true;
+    if (e2e.runner && !rift && phase === 'play') break;
+  }
+  botMode = false;`);
+assert.equal(run('JSON.stringify(e2e) + "/" + rift + "/" + (fans.length > 0)'), '{"rift":true,"docked":true,"runner":true}/false/true',
+  'the bot docks, runs the rescue and closes the Rift on its own');
+botRuns.push(`rift e2e: ${Math.round(run('e2eFrames') / 60)}s`);
 
 // --- last ship: a GAME OVER beat before the initials prompt ---
 run(`startGame(9); steps0 = 0;`.replace('steps0 = 0;', ''));
@@ -251,7 +420,12 @@ run('paused = false;');
 // --- draw() survives every phase ---
 run(`startGame(2); draw(); for (let i = 0; i < 150; i++) update(); draw(); rift = true; draw(); rift = false;
   stageN = 3; enterStage(); for (let i = 0; i < 150; i++) update(); draw(); boss.state = 'beam'; draw();
-  phase = 'clear'; draw(); paused = true; draw(); paused = false;`);
+  phase = 'clear'; draw(); paused = true; draw(); paused = false;
+  mothership = { x: ship.x, y: 150, finale: true }; draw(); phase = 'dock'; dockLen = 150; phaseT = 100; draw();
+  run = createRun('rescue'); phase = 'runner'; draw(); run.phase = 'go'; for (let i = 0; i < 300; i++) stepRun(run, runnerPilot(run)); draw();
+  run = createRun('core'); run.phase = 'go'; run.p.x = run.arenaX + 100; stepRun(run, runnerPilot(run)); draw();
+  for (const s of ['taunt', 'dizzy', 'throw', 'stomp']) { pmGo(run.boss, s); draw(); }
+  run.boss.dying = 100; run.boss.state = 'defeat'; draw(); endRun(run, 'success', 'x'); draw(); run = null; phase = 'play';`);
 
 // --- soak: the bot plays every sector with ships topped up; nothing goes NaN ---
 run('startGame(77); botMode = true; var stuck = 0, lastStage = 0, nudges = 0;');
@@ -272,4 +446,4 @@ run('botMode = false;');
 ['1-M', '2-M', '3-M', '4-M'].forEach(l => assert.ok(reached.has(l), `soak reached mothership ${l}`));
 assert.ok(soak.stageN >= 16, `the bot cleared all four sectors (reached stage ${soak.stageN})`);
 
-console.log(`revenger rules ok (soak: ${soak.stageN} stages in ${soak.tick} frames, ${soak.nudges} nudges, score ${soak.score})`);
+console.log(`revenger rules ok (soak: ${soak.stageN} stages in ${soak.tick} frames, ${soak.nudges} nudges, score ${soak.score}; bot ${botRuns.join(', ')})`);

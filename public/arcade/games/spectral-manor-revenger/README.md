@@ -29,6 +29,24 @@ Touch and gamepad: FIRE / BOMB / WARP buttons (A / B / X). There is deliberately
   - Losing a ship costs one laser level, your options and the tractor.
   - Drops come from carriers, every 8-kill streak and every third rescue.
 - **Hurry-up:** baiters hunt you if a wave drags on.
+- **The mothership:** inside the Rift a mothership hangs over the planet (it shows on the radar).
+  - Fly into its lit bay to dock, then run the rescue on foot: break the stasis pods and reach the exit before the clock runs out.
+  - Freeing fans closes the Rift and restores them to the planet.
+  - Failing costs a ship; the Rift persists, and the mothership returns for another try.
+- **The core:** after the fourth sector's mothership, Plumbmonkey's command ship takes you to the core.
+  - Plumbmonkey throws drum barrels, commands his monsters and stomps out shockwaves.
+  - His jacket shrugs off shots until he taunts, and every third of his health leaves him dizzy.
+  - Beat him and the run loops as a harder cycle.
+
+### On foot
+
+| Key | Action |
+|---|---|
+| ← → or A D | Run |
+| ↑ or W | Jump (hold for height) |
+| ↓ or S | Slide under low lasers while running; duck when standing |
+| Space or Z | Blaster, one press per shot |
+| X or Shift | Power Chord |
 
 ## Files (load order)
 
@@ -38,6 +56,8 @@ fx.js        sound, glow sprites, laser beam drawing, explosions, shake, flash (
 ship.js      flight, one-press firing, beams, options, catching fans, fighter sprite
 enemies.js   the Defender cast, fans, enemy fire, mines, pre-rendered enemy sprites
 bosses.js    the four motherships: parts, weak points, patterns, hazards, art
+runner.js    on-foot rules: level chunks, physics, gates, pods, monsters, Plumbmonkey, autopilot
+runner-art.js mothership interior, pods, monsters (SpriteKit), Hero Kit poses, runner HUD, exterior
 render.js    backdrops, terrain, Rift overlay, pickups, HUD + radar, banners, draw()
 game.js      state, flow, collisions, input, autopilot, fixed 60 Hz loop
 ```

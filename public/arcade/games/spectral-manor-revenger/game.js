@@ -28,6 +28,7 @@ let camX = 0, nextId = 0, hitPause = 0, combo = 0, comboT = 0, nextLife = EXTRA_
 let shotsFired = 0, rescuedCount = 0, fansLost = 0, dawdleT = 0, baiterT = 0, clearBonus = 0;
 let fireWasDown = false, fireLatch = false, bombWasDown = false, bombLatch = false, warpWasDown = false, warpLatch = false;
 let banner = { text: '', sub: '' };
+let run = null, mothership = null, dockKind = 'rescue', dockLen = 150, dockCool = 0, dockFrom = { x: 0, y: 0 };
 
 function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch (e) { return 0; } }
 function saveBest() { try { localStorage.setItem(BEST_KEY, best); } catch (e) {} }
@@ -101,6 +102,7 @@ function startGame(seed) {
   score = 0; lives = 3; tick = 0; stageN = 0; nextLife = EXTRA_LIFE_FIRST;
   combo = 0; comboT = 0; hitPause = 0; shotsFired = 0; rescuedCount = 0; fansLost = 0;
   ship = newShip(); rift = false; paused = false;
+  run = null; mothership = null; dockCool = 0;
   fireLatch = bombLatch = warpLatch = false;
   FX.reset();
   enterStage();
@@ -115,7 +117,7 @@ function enterStage() {
   info = stageInfo(stageN);
   if (info.wave === 0) { rift = false; spawnFans(FANS_PER_SECTOR); }
   beams = []; enemies = []; enemyShots = []; mines = []; hazards = []; pickups = []; boss = null;
-  dawdleT = 0; baiterT = 0;
+  dawdleT = 0; baiterT = 0; mothership = null; dockCool = 240;
   ship.y = Math.min(ship.y, shipFloor(ship.x));
   snapCamera();
   phase = 'intro';
@@ -253,6 +255,88 @@ function finishGame() {
   if (typeof Arcade !== 'undefined') Arcade.submitFlow(finalScore, show); else show();
 }
 
+// ---------- the mothership, docking and the runner ----------
+// In the Rift a mothership hangs over the planet. Fly into its bay to dock and
+// run the rescue on foot; after the last sector's mothership, Plumbmonkey's
+// command ship takes you to the core.
+function bayY() { return mothership.y + 44; }
+function stepMothership() {
+  if (!rift || info.isBoss) { mothership = null; return; }
+  if (dockCool > 0) { dockCool--; return; }
+  if (!mothership) {
+    mothership = { x: wrapX(ship.x + ship.facing * 1300), y: 150, finale: false };
+    FX.popup(ship.x, ship.y - 40, 'MOTHERSHIP DETECTED', '#a5f3fc');
+    sfx.warning();
+    return;
+  }
+  mothership.x = wrapX(mothership.x + Math.sin(tick * 0.004) * 0.6);
+  if (Math.abs(wrapDX(mothership.x, ship.x)) < 40 && Math.abs(bayY() - ship.y) < 24) beginDock('rescue', 150);
+}
+
+function beginDock(kind, len) {
+  dockKind = kind; dockLen = len;
+  phase = 'dock'; phaseT = len;
+  dockFrom = { x: ship.x, y: ship.y };
+  enemyShots = []; hazards = []; beams = [];
+  ship.carried = [];
+  sfx.dock();
+}
+
+function beginFinale() {
+  mothership = { x: wrapX(ship.x + ship.facing * 300), y: 150, finale: true };
+  beginDock('core', 180);
+}
+
+// Put the ship back outside the mothership's bay, with room to breathe.
+function placeShipOut() {
+  if (mothership) { ship.x = mothership.x; ship.y = bayY() + 50; }
+  ship.vx = 0; ship.inv = 120; ship.fireQueued = false; ship.trail = [];
+  enemies.forEach(e => {
+    const dx = wrapDX(e.x, ship.x);
+    if (Math.abs(dx) < 360) e.x = wrapX(ship.x + (dx < 0 ? -1 : 1) * 560);
+  });
+  snapCamera();
+}
+
+function loseRunLife(then) {
+  lives--;
+  if (lives <= 0) {
+    lives = 0;
+    placeShipOut();
+    phase = 'ending'; phaseT = ENDING_FRAMES;
+    banner = { text: 'GAME OVER', sub: `SECTOR ${info.label}` };
+    Object.keys(keys).forEach(k => { keys[k] = false; });
+    sfx.gameOver();
+  } else then();
+  updateHUD();
+}
+
+function finishRun() {
+  const r = run;
+  run = null;
+  FX.reset();
+  if (r.kind === 'core') {
+    if (r.result === 'success') { mothership = null; nextStage(); return; }
+    loseRunLife(() => { run = createRun('core'); phase = 'runner'; });
+    return;
+  }
+  placeShipOut();
+  mothership = null;
+  if (r.result === 'success' && r.freed > 0) {
+    spawnFans(Math.min(FANS_PER_SECTOR, r.freed));
+    rift = false;
+    phase = 'rift'; phaseT = 110;                 // the title-freeze beat, reused for the Rift closing
+    banner = { text: 'THE RIFT CLOSES', sub: `${fans.length} fans restored to the planet` };
+    FX.flash(0.8, '#a5f3fc');
+    sfx.rescue();
+    updateHUD();
+    return;
+  }
+  dockCool = r.result === 'success' ? 900 : 1200;
+  if (r.result === 'success') { phase = 'undock'; phaseT = 90; return; }
+  loseRunLife(() => { phase = 'undock'; phaseT = 90; });
+}
+
 // ---------- camera ----------
 function camTarget() { return wrapX(ship.x - W * (ship.facing > 0 ? 0.32 : 0.68)); }
 function snapCamera() { camX = camTarget(); }
@@ -317,6 +401,8 @@ function stepPlay(inp) {
   if (combo && comboT > 0 && --comboT === 0) combo = 0;
   checkRift();
   if (phase !== 'play') return;
+  stepMothership();
+  if (phase !== 'play') return;
   if (boss && boss.dying) { phase = 'bossDeath'; return; }
   checkClear();
 }
@@ -367,7 +453,28 @@ function update() {
       if (boss.dying <= 0) { boss = null; phase = 'play'; checkClear(); }
       break;
     case 'clear':
-      if (--phaseT <= 0) nextStage();
+      if (--phaseT <= 0) {
+        if (info.isBoss && info.sectorIdx === SECTORS.length - 1) beginFinale();
+        else nextStage();
+      }
+      break;
+    case 'dock': {
+      const k = Math.min(1, (1 - phaseT / dockLen) * 1.6);
+      ship.x = wrapX(dockFrom.x + wrapDX(mothership.x, dockFrom.x) * k);
+      ship.y = dockFrom.y + (mothership.y + 44 - dockFrom.y) * k;
+      ship.vx = 0; ship.facing = wrapDX(mothership.x, dockFrom.x) >= 0 ? 1 : -1;
+      updateCamera();
+      if (--phaseT <= 0) { run = createRun(dockKind); FX.reset(); phase = 'runner'; }
+      break;
+    }
+    case 'runner':
+      stepRun(run, isAttract() || botMode ? runnerPilot(run) : inp);
+      if (run.phase === 'result' && run.phaseT <= 0) finishRun();
+      break;
+    case 'undock':
+      ship.y = Math.min(shipFloor(ship.x), ship.y + 1.2);
+      updateCamera();
+      if (--phaseT <= 0) phase = 'play';
       break;
     case 'ending':
       if (--phaseT <= 0) finishGame();
@@ -392,6 +499,7 @@ function autopilot() {
   const falling = fans.filter(f => f.state === 'falling' && groundY(f.x) - f.fallFrom > FALL_SAFE - 20).sort((a, b) => dist(a) - dist(b))[0];
   if (s.carried.length) { inp.down = true; }
   else if (falling && dist(falling) < 900) steerTo(falling.x, falling.y - 8, 10);
+  else if (mothership && !boss) steerTo(mothership.x, mothership.y + 44, 12);
   else {
     const lifting = enemies.filter(e => e.type === 'lander' && e.carry).sort((a, b) => dist(a) - dist(b))[0];
     const bt = boss && bossTarget(boss);

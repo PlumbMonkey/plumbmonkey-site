@@ -30,7 +30,7 @@ and a design brief for each of the three games left: **Graveyard Shift**, **Amp 
 | House of the Hooded | Untouched this round (a future idea: new board shapes and multi-hit tiles) | `wave3/hooded.js` |
 | Graveyard Shift | Rebuilt 2026-09-14: Mario-style, 2 worlds × 3 levels, ghost blocks, portals, Gatekeeper + Plumbmonkey guitar finale | `wave3/graveyard-levels.js`, `graveyard-world.js`, `graveyard-foes.js`, `graveyard.js`, `graveyard-paint.js`, `graveyard-art.js` + `kit/hero-kit.js` |
 | Amp Rampage | Rebuilt 2026-09-14: Load-in (DK), Cable Jungle (DK Jr.), Stage Build (BurgerTime), Rivets + collapse, looping harder | `wave3/amp-data.js`, `amp-world.js`, `amp-stages.js`, `amp.js`, `amp-art.js` |
-| **Revenger** | **Phase 1 rebuilt 2026-09-14** (uncommitted): Defender ship game, 4 sectors × (3 waves + mothership), one press per shot. **Phase 2 NEXT:** Rift docking, runner, Plumbmonkey core boss | `sectors.js`, `fx.js`, `ship.js`, `enemies.js`, `bosses.js`, `render.js`, `game.js` |
+| **Revenger** | **Rebuilt 2026-09-14** (Phase 1 committed; Phase 2 uncommitted): Defender ship game, 4 sectors × (3 waves + mothership), one press per shot; Rift → dock → on-foot rescue; command ship → core → Plumbmonkey → cycle 2 | `sectors.js`, `fx.js`, `ship.js`, `enemies.js`, `bosses.js`, `render.js`, `game.js` |
 
 ---
 
@@ -372,6 +372,45 @@ Plumbmonkey is the villain at the top of the rig (Donkey Kong's role) and has ki
 >   - `runner.js` holds the docking sequence and the side-scrolling mothership interior: run, jump, slide, one-press blaster, stasis pods, a timer.
 >   - The Plumbmonkey core fight after 4-M, drawn with `HeroKit.spaceman` + `HeroKit.plumbmonkey`.
 >   - The Hero Kit still needs `slide`/`duck` and Plumbmonkey's `command` use.
+>
+> **PHASE 2 BUILT 2026-09-14** (uncommitted). The plan above is done.
+> - **Files:**
+>   - `runner.js`: rules for the on-foot run.
+>     - Seeded chunks: flat, gap, steps, low/high/pulse laser gates, platforms, pod, witch block, werewolf, vampire.
+>     - Physics with coyote time, jump buffer, variable jump, slide and duck.
+>     - A one-press blaster, pods, the timer, monsters and Plumbmonkey.
+>     - `runnerPilot`.
+>   - `runner-art.js`:
+>     - The Rift-lit interior, which turns red in the core.
+>     - Stasis pods with fans inside, SpriteKit monsters at 0.8 scale, the mutant sprite.
+>     - `HeroKit.frames` Spaceman poses, a live `HeroKit.plumbmonkey`.
+>     - The runner HUD, and `drawMothership` for the exterior with its lit bay.
+>   - The cabinet now also loads `../wave3/sprite-kit.js`. The Hero Kit gained `slide` and `duck` poses (kit `?v=5`).
+> - **Flow** (`game.js`):
+>   - In the Rift (not on mothership stages), a mothership spawns 1300px ahead once `dockCool` runs out.
+>   - Flying into the bay triggers `beginDock` (150f guided approach and fade) and then `createRun('rescue')`.
+>   - `finishRun` handles the three outcomes:
+>     - **Success with fans freed:** `spawnFans(freed)`, the Rift closes, and a 110f title freeze plays.
+>     - **Success with none freed:** the mothership comes back later.
+>     - **Failure:** lose a ship, the Rift persists, `dockCool` 1200.
+>   - Clearing 4-M calls `beginFinale`: the command ship, a 180f dock, then `createRun('core')`. Nine chunks lead to a locked arena.
+>   - Beating Plumbmonkey calls `nextStage()`, which makes cycle 2. Failing in the core costs a ship and restarts the core.
+> - **Plumbmonkey:**
+>   - Pattern: idle headbang, then throw / command / stomp in rotation.
+>     - Throw: drum barrels that bounce, then roll; shootable.
+>     - Command: two minions from the arena edges, capped at 4.
+>     - Stomp: he leaps at you and sends floor shockwaves both ways; jump them.
+>   - Every attack is followed by a taunt, and only the taunt and dizzy take damage (dizzy ×2).
+>   - Each third of his HP makes him dizzy. Under 40% HP he rages: faster, with a second barrel.
+>   - HP is 30 × the cycle multiplier.
+> - **Fix found by the test:** a second pit fall during the invincibility frames never teleported him back, so he fell forever. A fall now always respawns and only costs health outside the invincibility frames.
+> - **Tests:** `test-revenger.cjs` now also covers:
+>   - Movement and firing: jump and landing (no bounce while held), one press = one bolt on foot, slide under a low gate, jump a floor gate, a pit costs one hit.
+>   - Pods free two fans, and the clock runs out.
+>   - Rift outcomes: dock → rescue → Rift closes; failure → ship lost, Rift persists; runner GAME OVER beat.
+>   - Plumbmonkey: armour, taunt, dizzy, stomp hurts and a jump clears it, defeat.
+>   - Finale: → cycle 2, core retry.
+>   - Bot clears: all four rescue runs and the core unassisted, and an end-to-end Rift → dock → rescue → Rift closes.
 
 ### Today
 `spectral-manor-revenger/game.js`: 2,056 lines in one file, with no test.

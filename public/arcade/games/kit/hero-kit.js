@@ -161,6 +161,16 @@
         r.arms = [[2.85, 3.05], [2.75, 2.95]];
         r.lean = 0.02;
         break;
+      case "slide":                // feet-first under a barrier, leaning right back
+        r.legs = [[1.45, 1.5], [1.2, 1.4]];
+        r.arms = [[-0.5, -0.1], [0.9, 1.3]];
+        r.drop = 17; r.lean = -1.0;
+        break;
+      case "duck":                 // crouched, blaster forward
+        r.legs = [[1.25, -0.8], [0.9, -1.3]];
+        r.arms = [[1.57, 1.57], [0.4, 0.9]];
+        r.drop = 13; r.lean = 0.2;
+        break;
       case "hurt":
         r.legs = [[0.3, 0.5], [-0.2, 0.1]];
         r.lean = -0.35;
@@ -269,7 +279,7 @@
       c.shadowBlur = 0;
       stroke(c, [[tip[0] + dx * 2 - dy * 3, tip[1] + dy * 2 + dx * 3], [tip[0] + dx * 2 + dy * 3, tip[1] + dy * 2 - dx * 3]], "#475569", 1);
     }
-    if (pose === "shoot" || pose === "runShoot" || pose === "airShoot") {
+    if (pose === "shoot" || pose === "runShoot" || pose === "airShoot" || pose === "duck") {
       c.shadowColor = "#a9f5e3"; c.shadowBlur = 8;
       ell(c, hand[0] + 2, hand[1], 2.4, 2.4, "#dffcf5", null);
       c.shadowBlur = 0;

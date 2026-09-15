@@ -80,6 +80,13 @@ const sfx = {
   extraLife() { [784, 988, 1175, 1568].forEach((f, i) => playTone(f, 0.1, 'square', 0.05, 0, 0, i * 0.07)); },
   enemyShot(pan) { playTone(700, 0.1, 'square', 0.03, 260, pan); },
   mine(pan) { playTone(180, 0.08, 'triangle', 0.03, 120, pan); },
+  blaster() { playTone(1500, 0.08, 'square', 0.05, 380); playNoise(0.05, 0.04, 'highpass', 2500); playTone(160, 0.07, 'sine', 0.06, 60); },
+  jump() { playTone(330, 0.12, 'triangle', 0.05, 660); },
+  slide() { playNoise(0.25, 0.05, 'bandpass', 900, 300); },
+  pod() { playTone(1200, 0.2, 'triangle', 0.05, 2400); playNoise(0.3, 0.06, 'highpass', 3000, 900); },
+  clang() { playTone(620, 0.12, 'square', 0.04, 480); playTone(930, 0.1, 'triangle', 0.03, 700); },
+  dock() { playTone(90, 1.4, 'sawtooth', 0.06, 60); playNoise(1.2, 0.05, 'lowpass', 700, 120); },
+  boss() { [0, 0.3, 0.6, 0.9].forEach((d, i) => playTone(110 * (i % 2 ? 1.5 : 1), 0.28, 'sawtooth', 0.06, 0, 0, d)); },
   gameOver() { playTone(300, 0.3, 'sawtooth', 0.07, 200); playTone(200, 0.5, 'sawtooth', 0.07, 90, 0, 0.3); }
 };
 

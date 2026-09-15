@@ -296,6 +296,7 @@ function drawHUD(c) {
   enemies.forEach(e => { c.fillStyle = e.type === 'lander' ? (e.carry ? '#fbbf24' : '#e879f9') : e.type === 'baiter' ? '#f97316' : '#fda4af'; c.fillRect(toR(e.x) - 1.5, yR(e.y) - 1.5, 3, 3); });
   pickups.forEach(p => { c.fillStyle = PICKUP_INFO[p.type].color; c.fillRect(toR(p.x) - 1, yR(p.y) - 1, 2, 2); });
   if (boss) { c.fillStyle = '#ffffff'; c.fillRect(toR(boss.x) - 4, yR(boss.y) - 3, 8, 6); }
+  if (mothership && Math.floor(tick / 10) % 2) { c.fillStyle = '#a5f3fc'; c.fillRect(toR(mothership.x) - 6, yR(mothership.y) - 2, 12, 4); }
   c.fillStyle = '#ffffff'; c.fillRect(rx + rw / 2 - 2, yR(ship.y) - 2, 4, 4);
 
   // right: sector, laser, shield, options, tractor
@@ -328,6 +329,12 @@ function drawBanner(c) {
   if (phase === 'intro') a = Math.min(1, phaseT / 20);
   else if (phase === 'clear' || phase === 'rift') a = Math.min(1, phaseT / 20);
   else if (phase === 'ending') a = Math.min(1, (ENDING_FRAMES - phaseT) / 20);
+  else if (phase === 'dock') {
+    a = Math.min(1, (dockLen - phaseT) / 20);
+    banner = dockKind === 'core'
+      ? { text: "PLUMBMONKEY'S COMMAND SHIP", sub: 'docking · end the invasion at its core' }
+      : { text: 'DOCKING', sub: 'into the mothership · free the fans' };
+  }
   else if (phase === 'bossDeath' && boss && boss.dying < 90) { a = 1; banner = { text: 'MOTHERSHIP DESTROYED', sub: '' }; }
   if (a <= 0 || !banner.text) return;
   c.save();
@@ -347,9 +354,32 @@ function drawBanner(c) {
 let scanlines = null;
 function draw() {
   const c = ctx;
+  if (run && phase === 'runner') {
+    c.save(); c.translate(FX.sx, FX.sy); drawRunner(c, run); c.restore();
+    if (scanlines) c.drawImage(scanlines, 0, 0);
+    FX.drawFlash(c);
+    drawRunnerHUD(c, run);
+    const b = runnerBanner(run);
+    if (b) {
+      c.save();
+      c.globalAlpha = b.a; c.textAlign = 'center';
+      c.fillStyle = run.kind === 'core' ? '#ff8fab' : '#c084fc'; c.shadowColor = c.fillStyle; c.shadowBlur = 24;
+      c.font = 'bold 44px "Segoe UI", system-ui, sans-serif'; c.fillText(b.text, W / 2, H / 2 - 30);
+      c.shadowBlur = 8; c.fillStyle = '#f5f3ff'; c.font = 'bold 16px "Segoe UI", system-ui, sans-serif';
+      c.fillText(b.sub, W / 2, H / 2 + 2);
+      c.restore();
+    }
+    if (paused) {
+      c.save(); c.fillStyle = 'rgba(7,3,15,0.6)'; c.fillRect(0, 0, W, H);
+      c.fillStyle = '#c084fc'; c.textAlign = 'center'; c.font = 'bold 48px "Segoe UI", sans-serif'; c.fillText('PAUSED', W / 2, H / 2 - 10);
+      c.restore();
+    }
+    return;
+  }
   c.save();
   c.translate(FX.sx, FX.sy);
   drawWorldBack(c);
+  if (mothership) drawMothership(c, mothership, toScreen(mothership.x));
   drawFans(c);
   drawPickups(c);
   drawEnemies(c);
@@ -364,6 +394,8 @@ function draw() {
   }
   FX.draw(c, toScreen);
   c.restore();
+  const fade = phase === 'dock' ? Math.max(0, 1 - phaseT / 45) : phase === 'undock' ? Math.max(0, (phaseT - 60) / 30) : 0;
+  if (fade > 0) { c.fillStyle = `rgba(0,0,0,${fade})`; c.fillRect(0, 0, W, H); }
   if (!scanlines) {
     scanlines = mkCanvas(W, H);
     const sc = scanlines.getContext('2d');
