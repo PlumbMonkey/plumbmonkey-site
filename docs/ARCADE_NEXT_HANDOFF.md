@@ -501,4 +501,87 @@ Drop sources: kill streaks, rescues, and a special carrier enemy.
 
 ## 8. Kick-off prompt for the new chat
 
-> Read `docs/ARCADE_NEXT_HANDOFF.md` in the plumbmonkey-site repo. Commit the uncommitted Beam Me Up work first if it's still pending. Then start with §3, the Hero Kit (Spaceman hero, Plumbmonkey final boss), following the house rules in §2, and ask me the open questions in §7 before building the three games. The reference images are in `docs/arcade-art/`.
+> Read `docs/ARCADE_NEXT_HANDOFF.md` in the plumbmonkey-site repo, especially §2 (house rules) and §9 (Gregg's playtest notes). Work through the §9 change list, following the house rules, and ask me the open questions in §9 before redesigning Amp Rampage.
+
+---
+
+## 9. Gregg's playtest notes (collected 2026-09-14): do these next session
+
+Gregg: "The updates for all the games are great … they are super fun." All twelve rebuilds are committed (Revenger Phase 2 is e67f99b). He is still playtesting, so add any new notes here before starting.
+
+### The theme running through the notes: inspired by, not a copy
+Several rebuilds now read as clones of the classics they drew on. Keep the mechanics that make them fun, but drop the **signature names, props and set pieces** of the original: Galaga's "Challenging Stage", Donkey Kong's barrel-thrower at the top, Mario's flagpole. Use the manor's own vocabulary instead: music, monsters, lanterns, the Rift. Apply this check to every future rebuild.
+
+### Change list
+
+1. **Beam Me Up: Live!: rename the CHALLENGING STAGE to a SURVIVAL ROUND.**
+   - The text is at `wave3/beam-art.js:639` (`banner("CHALLENGING STAGE", "Hit all 40. Nothing shoots back", …)`).
+   - The logic keys off `kind === "challenge"` (`wave3/beam.js`, `CHALLENGE` paths in `wave3/beam-data.js:46`). Search for any other "CHALLENG", "PERFECT" or shooting-gallery wording in toasts and the HUD.
+   - *Question for Gregg:* just a rename, or should the round become a real survival round (enemies DO fire, survive the timer, bonus per second survived)? The pre-rebuild Beam Me Up had "a survival wave every 3rd level", so the second option returns to the game's own original idea and moves further from Galaga.
+2. **Cruise: a translucent orange box sits behind the hero car.**
+   - **Prime suspect:** `spectral-manor-cruise/render.js:303-305`. The underglow is a radial gradient of radius 150, filled into a `fillRect(x - 150, y - 40, 300, 80)` only 80px tall, so it never reaches transparency and its hard edges show (the same trap as Infestation's fog: "a gradient must fade to transparent INSIDE its fill bounds"). It uses `lighter` over warm road and tail-light colours, so the purple can read orange.
+   - Also check the brake and tail `lamp()` glow in `cars.js:95+` (shadowBlur on pre-rendered sprites) and the headlight beam at `render.js:297-301`.
+   - Gregg suspected the tail lights, so confirm by rendering the car with each layer toggled.
+3. **Cruise billboards: replace GHOST CIRCUIT with the other arcade games.**
+   - The billboard sprite is `spectral-manor-cruise/tracks.js:327-333`, which fills the text `'GHOST'`/`'CIRCUIT'`. Roadside sprites are pre-rendered canvases.
+   - Rotate through the other eleven game titles, ideally with a **still image of each game** on the board.
+   - Options:
+     - (a) Capture a frame from each cabinet's attract mode to small PNGs (e.g. `spectral-manor-cruise/billboards/<slug>.png`) and draw them into the billboard canvas once loaded.
+     - (b) Paint a mini title card per game in canvas.
+   - First check whether the arcade hub already has static cabinet screens (it shows static screens on mobile; see `app/arcade/ArcadeRoom.tsx`).
+   - The other signs (`tracks.js:413`: MOTEL / CRYPT / DINER / BAR, OPEN 24 HRS) are fine.
+4. **Amp Rampage: too close to Donkey Kong.** The clearest tell is Plumbmonkey throwing barrels down the rig.
+   - This needs a design pass, not a reskin. Gear throwing lives in `wave3/amp-stages.js`; layouts are in `amp-data.js` and art in `amp-art.js`. The other stage types also borrow DK Jr.'s key and cage and BurgerTime's layer drop.
+   - *Question for Gregg:* which parts feel most like a copy, and what should he do instead? Ideas to offer:
+     - Power-chord sound waves that travel along the trusses and are jumped or ducked.
+     - Walking amps and snaking cables that crawl the rig.
+     - Speaker stacks that topple in a telegraphed direction.
+     - Plumbmonkey retuning the stage lights into sweeping hazards.
+     - A goal of patching the rig back together (plugging in cables) rather than reaching the top.
+5. **Graveyard Shift: remove the pole at the end of each level; the exit becomes lighting a lantern.**
+   - Today the level exit is the Mario-style bell rope on a pole, graded by grab height:
+     - legend `E` in `wave3/graveyard-levels.js:18`
+     - `s.bells` in `graveyard.js:58` and the finish at `graveyard.js:255-261, 323`
+     - `paintBell` in `graveyard-paint.js:253`
+     - the draw at `graveyard-art.js:188`, the toast at `:77` and the pose at `:333`
+   - Replace it with a **great lantern** at the exit that the Spaceman lights. Checkpoint lanterns (`C`, `paintLantern` in `graveyard-paint.js:227`) already exist, so make the exit lantern clearly bigger and different, and play a lighting moment.
+   - Replace height-based scoring with something of the game's own, such as notes collected, time left, or ghosts vaporised. Update `scripts/test-graveyard.cjs` and the `ROUTES`/autopilot finish.
+6. **Revenger: when the HERO ship blows up, bring back the old big particle burst.**
+   - Combine it with the current multi-stage explosion. **Enemies keep the current explosion unchanged.**
+   - The old effect is `createDeathBlast` plus its draw block in the pre-rebuild `game.js`: `git show 9e38101:public/arcade/games/spectral-manor-revenger/game.js`, around line 755.
+     - A ~180-particle colour ring and 60 secondary particles with friction.
+     - An expanding ring out to ~500px.
+     - A white screen flash, glowing particles and a 70-frame life.
+   - Add it as an FX-only effect in `fx.js` (e.g. `FX.shipDeath(x, y)` with its own particle list), called from `damageShip()` in `game.js` next to the existing `FX.explode(…, 3, …)`.
+   - Keep it off the rules RNG so the FX-on vs FX-off test still passes. Consider using it for the on-foot "SPACEMAN DOWN" too.
+
+### Fixed in the same session: wave 3 had no usable mobile controls
+- **Cause:**
+  - The four wave-3 slugs were missing from `CONTROL_LAYOUTS` in `leaderboard.js`, so the phone touch bar that waves 1–2 get (a bottom band in portrait, side gutters in landscape) never built.
+  - The only fallback was the `ArcadeControls` pad, which is drawn *inside* `.frame` (367×206 in portrait): hidden under the start overlay, and covering most of the game once playing.
+- **Fix:**
+  - The four slugs now have layouts:
+    - Beam: ◀▶ + FIRE.
+    - Amp: 4-way + JUMP/FEEDBACK.
+    - Graveyard: ◀▶ + JUMP/SONIC/ENTER.
+    - Hooded: a new `pad: 'diag'` 2×2 ↖↗↙↘ hop pad (↖=ArrowLeft, ↗=ArrowUp, ↙=ArrowDown, ↘=ArrowRight, matching `hooded.js`).
+  - Their `ArcadeControls.init` calls pass `autoPad: 'quest'`, so the in-frame pad is Quest-only.
+  - `wave3.css` sizes `.frame` and the overlay under `body.sm-touch-active`.
+  - **Landscape gutters now fit their controls.** They were hard-coded per pad type (a dpad's right gutter was 76px, room for ONE action button), so Amp's JUMP and Revenger's new FIRE/BOMB/WARP covered a corner of the game.
+    - `initTouchControls` sets `--sm-gut-l` from the pad (dpad 156, lr 138, diag 128) and `--sm-gut-r` from the actions.
+    - The actions wrap at most two to a row in landscape, so the right gutter is 24px (no actions), 88px (one) or 142px (two or more).
+    - This applies to all twelve cabinets.
+  - Versions: leaderboard `?v=7` on all twelve pages, wave3.css `?v=2` on the four wave-3 pages.
+- **Verified:** in the pane at the mobile preset, each cabinet builds its bar, the in-frame pad is hidden, and a button press reaches `wave3Keys`. Also checked in landscape with `?touch=1`.
+- **Testing gotcha:** the pane caches index.html, so add a cache-busting `?cb=` query. A custom viewport ≥768px wide is NOT emulated as a phone; use `?touch=1` to force touch mode there.
+
+### Standing preferences from earlier sessions (still in force)
+- **Heroes:** the Spaceman is the hero everywhere; Plumbmonkey is only ever the final boss, never playable.
+- **Revenger:** one press per shot, no auto-fire chip.
+- **Swarm and Mess Hall:** the aim stick aims AND fires, and releasing it stops firing.
+- **Mess Hall:** no chef hats; the throw is overhand.
+- **Titles and endings:** nothing moves under a level or wave title, and the initials prompt never opens on the death frame (GAME OVER beat first).
+- **Visuals:** full-width thin lines read as rendering bugs, so telegraphs must grow from their source; gradients fade out inside their fill.
+- **Graveyard Shift:** ghost blocks are vaporised by music notes and re-form, and the Music Room is always the last level.
+- **Cruise:** no off-screen attacks; rivals drop visible hazards instead.
+- **If a note is ambiguous** ("an arm looks wrong"), ask which character or object rather than guessing.

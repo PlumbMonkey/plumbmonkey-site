@@ -46,3 +46,20 @@ html:-webkit-full-screen .game{width:100%}
 html:-webkit-full-screen .frame{width:min(100vw,calc(84vh*16/9));height:min(84vh,calc(100vw*9/16));max-width:100vw;max-height:84vh;border-radius:0}
 html:-webkit-full-screen .frame:after{border-radius:0}
 html:-webkit-full-screen #gameCanvas{width:100%;height:100%;max-width:none}
+/* Phones. leaderboard.js adds body.sm-touch-active and its control bar OUTSIDE the game (a bottom
+   band in portrait, side gutters in landscape). Its sizing rules target #gameCanvas directly, but
+   here the canvas fills .frame, so the frame is what has to fit around the controls. The in-frame
+   ArcadeControls pad is Quest-only on these pages (autoPad:'quest'), so the two never stack. */
+body.sm-touch-active .kicker{display:none!important}
+body.sm-touch-active .game{width:100%;padding-top:40px}
+body.sm-touch-active .frame{width:min(100%,calc((100dvh - 190px)*16/9));max-height:none}
+body.sm-touch-active #gameCanvas{width:100%!important;height:100%!important;max-height:none!important}
+body.sm-touch-active .overlay{padding:3% 5%;font-size:.78rem;justify-content:safe center;overflow:auto}
+body.sm-touch-active .overlay h2{font-size:1.15rem;margin-bottom:.2rem}
+body.sm-touch-active .overlay p{margin:.1rem 0}
+body.sm-touch-active .overlay button{margin-top:.45rem;padding:.4rem 1rem}
+@media(max-height:460px){
+  body.sm-touch-active .game{padding-top:0}
+  body.sm-touch-active .topbar{display:none}
+  body.sm-touch-active .frame{width:min(100%,calc((100dvh - 8px)*16/9))}
+}

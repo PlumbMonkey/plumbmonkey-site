@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Ghost Circuit: Graveyard Shift — Spectral Manor Arcade</title>
-  <link rel="stylesheet" href="../wave3/wave3.css">
+  <link rel="stylesheet" href="../wave3/wave3.css?v=2">
   <style>
     body[data-game="graveyardShift"] .frame:before{opacity:.28}
     body[data-game="graveyardShift"] .frame:after{box-shadow:inset 0 0 28px 4px #0004}
@@ -37,7 +37,7 @@
     <p class="controls">A/D or ←/→: Move · W/↑/Space: Jump (hold for height) · X/Ctrl: Sonic note · S/↓: Enter graves &amp; paintings<br>P/Esc: Pause · Enter: Start · 100 soul notes = extra life</p>
     <p id="intro" hidden>Climb from the cemetery gate to the Music Room at the top of the manor. Ghost blocks are solid until a music note or a head-bump blasts them to vapour, and they slowly re-form. Music boxes hold the Amp (take an extra hit), the Guitar (fire notes) and Encore. Graves and paintings lead elsewhere: press Down. Plumbmonkey waits upstairs. Stun him, take the legendary guitar and play it on the beat.</p>
   </main>
-  <script src="../leaderboard.js?v=4"></script>
+  <script src="../leaderboard.js?v=7"></script>
   <script src="../arcade-controls.js?v=5"></script>
   <script src="../arcade-audio.js?v=1"></script>
   <script src="../wave3/sprite-kit.js?v=2"></script>
@@ -49,6 +49,6 @@
   <script src="../wave3/graveyard-paint.js?v=1"></script>
   <script src="../wave3/graveyard-art.js?v=1"></script>
   <script src="../wave3/wave3.js?v=7"></script>
-  <script>ArcadeControls.init(window.wave3Keys, { accent: '#fb7185', move: 'horizontal', buttons: [{ code: 'Space', label: 'JUMP' }, { code: 'KeyX', label: 'SONIC', onTap: () => window.wave3Tap('KeyX') }, { code: 'ArrowDown', label: 'ENTER' }] });</script>
+  <script>ArcadeControls.init(window.wave3Keys, { accent: '#fb7185', move: 'horizontal', autoPad: 'quest', buttons: [{ code: 'Space', label: 'JUMP' }, { code: 'KeyX', label: 'SONIC', onTap: () => window.wave3Tap('KeyX') }, { code: 'ArrowDown', label: 'ENTER' }] });</script>
 </body>
 </html>

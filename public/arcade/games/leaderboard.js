@@ -456,7 +456,12 @@
     'spectral-manor-soul-circuit':      { pad: 'dpad', actions: [] },
     'spectral-manor-crystal-dimension': { pad: 'lr',   actions: [['THRUST', 'ArrowUp'], ['FIRE', 'Space'], ['NOVA', 'KeyX']] },
     'spectral-manor-infestation':       { pad: 'dpad', actions: [['FIRE', 'Space']] },
-    'spectral-manor-cruise':            { pad: 'lr',   actions: [['GAS', 'ArrowUp'], ['BRAKE', 'ArrowDown'], ['NITRO', 'Space']] }
+    'spectral-manor-cruise':            { pad: 'lr',   actions: [['GAS', 'ArrowUp'], ['BRAKE', 'ArrowDown'], ['NITRO', 'Space']] },
+    // wave 3 (wave3.js host)
+    'spectral-manor-beam-me-up':        { pad: 'lr',   actions: [['FIRE', 'Space']] },
+    'spectral-manor-amp-rampage':       { pad: 'dpad', actions: [['JUMP', 'Space'], ['FEEDBACK', 'KeyE']] },
+    'spectral-manor-graveyard-shift':   { pad: 'lr',   actions: [['JUMP', 'Space'], ['SONIC', 'KeyX'], ['ENTER', 'ArrowDown']] },
+    'spectral-manor-hooded':            { pad: 'diag', actions: [] }   // hop game: ↖ ↗ ↙ ↘ are its arrow keys
   };
 
   function key(code, type) {
@@ -522,6 +527,8 @@
       .sm-dpad{display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(3,52px);gap:5px}
       .sm-dpad .sm-up{grid-area:1/2} .sm-dpad .sm-left{grid-area:2/1}
       .sm-dpad .sm-right{grid-area:2/3} .sm-dpad .sm-down{grid-area:3/2}
+      .sm-diag{display:grid;grid-template-columns:repeat(2,60px);grid-template-rows:repeat(2,60px);gap:8px}
+      .sm-diag .sm-dir{width:60px;height:60px;font-size:1.6rem}
       .sm-actions{flex-direction:row}
       /* These games are 16:9, so in portrait the canvas is capped by screen
          width and a lot of height goes unused — nudge the player to rotate,
@@ -543,8 +550,12 @@
            the dpad needs ~150px on the left but the single action button only
            needs ~70px on the right, so an asymmetric page padding reclaims the
            difference for the canvas rather than mirroring the widest side. */
-        body.sm-touch-active.sm-pad-dpad{ padding: 2px 76px 2px 156px !important; }
-        body.sm-touch-active.sm-pad-lr{ padding: 2px 138px 2px 138px !important; }
+        body.sm-touch-active{ padding: 2px var(--sm-gut-r, 76px) 2px var(--sm-gut-l, 156px) !important; }
+        /* at most two action buttons per row, so three-button layouts stack into a
+           two-wide block instead of pushing a third button over the game */
+        .sm-touch .sm-actions{flex-wrap:wrap;justify-content:flex-end;align-content:flex-end;max-width:118px}
+        .sm-diag{grid-template-columns:repeat(2,50px);grid-template-rows:repeat(2,50px);gap:6px}
+        .sm-diag .sm-dir{width:50px;height:50px;font-size:1.3rem}
         body.sm-touch-active #gameCanvas{ max-height: calc(100dvh - 26px) !important; max-width: 100% !important; }
         .sm-dir{width:44px;height:44px;font-size:1.2rem} .sm-dpad{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:4px}
         .sm-lr{width:56px;height:48px;font-size:1.4rem} .sm-act{width:54px;height:54px;font-size:.66rem}
@@ -552,7 +563,12 @@
     `;
     document.head.appendChild(css);
     document.body.classList.add('sm-touch-active');
-    document.body.classList.add('sm-pad-' + layout.pad); // dpad clusters are wider → need bigger side gutters in landscape
+    document.body.classList.add('sm-pad-' + layout.pad);
+    // Landscape side gutters, sized to the controls that live on each side: the
+    // pad on the left, up to two 54px action buttons per row on the right.
+    const perRow = Math.min(2, layout.actions.length);
+    document.body.style.setProperty('--sm-gut-l', ({ dpad: 156, lr: 138, diag: 128 }[layout.pad] || 138) + 'px');
+    document.body.style.setProperty('--sm-gut-r', (perRow ? perRow * 54 + (perRow - 1) * 10 + 24 : 24) + 'px');
     addFullscreenBtn();
 
     const rotate = document.createElement('div');
@@ -573,6 +589,14 @@
       pad.appendChild(makeBtn('sm-dir sm-left', '◀', 'ArrowLeft'));
       pad.appendChild(makeBtn('sm-dir sm-right', '▶', 'ArrowRight'));
       pad.appendChild(makeBtn('sm-dir sm-down', '▼', 'ArrowDown'));
+      left.appendChild(pad);
+    } else if (layout.pad === 'diag') {
+      const pad = document.createElement('div');
+      pad.className = 'sm-diag';
+      pad.appendChild(makeBtn('sm-dir', '↖', 'ArrowLeft'));
+      pad.appendChild(makeBtn('sm-dir', '↗', 'ArrowUp'));
+      pad.appendChild(makeBtn('sm-dir', '↙', 'ArrowDown'));
+      pad.appendChild(makeBtn('sm-dir', '↘', 'ArrowRight'));
       left.appendChild(pad);
     } else { // lr
       left.appendChild(makeBtn('sm-lr', '◀', 'ArrowLeft'));
