@@ -386,8 +386,9 @@ const ArcadeControls = (function () {
     });
     bar.appendChild(pt);
 
-    // Only offer auto-fire where there IS an action to repeat.
-    if (opts.buttons[0]) {
+    // Only offer auto-fire where there IS an action to repeat, and never in a
+    // game that asks for one press per shot (autoFire: false).
+    if (opts.buttons[0] && opts.autoFire !== false) {
       const af = document.createElement('button');
       af.className = 'ac-chip';
       af.id = 'ac-autofire';

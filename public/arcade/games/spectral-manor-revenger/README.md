@@ -1,64 +1,50 @@
 # Spectral Manor Revenger
 
-An original Ghost Circuit arcade game.
-Built for Plumbmonkey Media / plumbmonkey.online
-
----
-
-## How to Run
-
-### Option 1 – Live Server (Recommended)
-1. Open this folder in **VS Code**
-2. Right-click `index.html`
-3. Select **Open with Live Server**
-
-### Option 2 – Simple Browser
-Just double-click `index.html` and open it in Chrome, Firefox, or Edge.
-
----
+A Defender-style Ghost Circuit arcade game for plumbmonkey.online. The Spaceman flies the Revenger
+fighter against Plumbmonkey's invasion, which is abducting fans all around a wrapping planet.
 
 ## Controls
 
-| Key              | Action              |
-|------------------|---------------------|
-| ← → or A D       | Move left / right   |
-| ↑ ↓ or W S       | Climb / Dive        |
-| Space or Z       | Fire                |
-| P                | Pause               |
+| Key | Action |
+|---|---|
+| ← → or A D | Thrust and turn (the ship keeps momentum) |
+| ↑ ↓ or W S | Climb / dive |
+| Space or Z | Fire. One press is one shot; holding does not repeat |
+| X or Shift | Power Chord smart bomb (clears the screen) |
+| C | Warp across the planet (sometimes faults) |
+| P or Esc | Pause |
 
----
+Touch and gamepad: FIRE / BOMB / WARP buttons (A / B / X). There is deliberately no auto-fire chip.
 
-## Game Features
+## Rules
 
-- **Ghost Circuit theme** – defend the concert outside the Spectral Manor
-- **UAP enemies**: Ghosts, Spheres, Capsules (Tic-Tac), Cylinders, Pyramids
-- **Fans** on the ground – enemies try to abduct them
-- **Rescue mechanic** – shoot an enemy carrying a fan to free them (+250 points)
-- **Power-ups**: DUAL / HEAVY / SPREAD weapons
-- **Ship features**: dual cannons, banking tilt, engine trails, shield flicker
-- **Background**: haunted manor silhouette, concert stage, animated lights, moon
-- **Synthesized sound effects** (Web Audio – no files needed)
+- **Four sectors:** Concert Grounds, Graveyard Hills, Storm Coast and Neon City. Each has three waves and then a mothership: the Harvester, the Ossuary, the Storm Leviathan and the Prism Dreadnought. After all four, the run loops as a harder cycle.
+- **Fans and abductors:**
+  - Landers carry fans up; a fan that reaches the top is lost and its lander becomes a mutant.
+  - Shoot the lander to free the fan. A fan dropped from high must be caught, then flown low to set it down.
+- **The Rift:** if every fan is lost, the planet phases into the Rift and all landers mutate. The planet is restored at the start of the next sector.
+- **Power-ups** are persistent and levelled:
+  - Laser 1–4: single, then twin, then pierce, then wave beam.
+  - Power Chord bombs, a Feedback shield that absorbs 2 hits, up to two Ghost Options, the Tractor and Warp charges.
+  - Losing a ship costs one laser level, your options and the tractor.
+  - Drops come from carriers, every 8-kill streak and every third rescue.
+- **Hurry-up:** baiters hunt you if a wave drags on.
 
----
-
-## Files
+## Files (load order)
 
 ```
-spectral-manor-revenger/
-├── index.html      ← Open this
-├── game.js         ← All game logic
-└── README.md       ← This file
+sectors.js   canvas, world wrap, seeded rules RNG, SECTORS data, stageInfo(), terrain
+fx.js        sound, glow sprites, laser beam drawing, explosions, shake, flash (never touches rules)
+ship.js      flight, one-press firing, beams, options, catching fans, fighter sprite
+enemies.js   the Defender cast, fans, enemy fire, mines, pre-rendered enemy sprites
+bosses.js    the four motherships: parts, weak points, patterns, hazards, art
+render.js    backdrops, terrain, Rift overlay, pickups, HUD + radar, banners, draw()
+game.js      state, flow, collisions, input, autopilot, fixed 60 Hz loop
 ```
 
----
+The shared `../kit/hero-kit.js` draws the Spaceman pilot in the canopy.
 
-## Story
+## Test
 
-A Ghost Circuit concert is happening just outside the haunted manor.  
-Mysterious UAPs and spectral entities are descending to abduct the fans.  
-You pilot the Spectral Revenger fighter to stop them.
-
----
-
-Built with pure HTML5 Canvas + JavaScript  
-Part of the Plumbmonkey Media / Ghost Circuit universe
+`node scripts/test-revenger.cjs` (part of `npm test`) runs headless rules checks. It also includes a bot
+soak that must clear all four sectors.

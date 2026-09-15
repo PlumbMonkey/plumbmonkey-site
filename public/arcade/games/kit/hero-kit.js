@@ -465,7 +465,30 @@
     void s;
   }
 
-  const api = { spaceman, plumbmonkey, guitar, frames, blit, shoulder, arm, SPACEMAN: SP, PLUMBMONKEY: PM, INK };
+  /* MINI pilot portrait (~16px, head and shoulders) for a cockpit canopy.
+     Anchor is the base of the neck. look 0 faces forward, 1 glances down. */
+  function pilot(c, x, y, o = {}) {
+    const face = o.face < 0 ? -1 : 1, sc = o.scale || 1, lk = o.look ? 1 : 0;
+    c.save();
+    c.translate(x, y); c.scale(face * sc, sc);
+    c.lineJoin = "round"; c.lineCap = "round";
+    poly(c, [[-7, 4], [7, 4], [6, -1], [-6, -1]], SP.suit, INK, 1.2);
+    poly(c, [[-6, -0.5], [-1.5, -0.5], [-1.5, 4], [-6, 4]], SP.navy, null);
+    ell(c, -4, 1.5, 0.9, 0.9, SP.print[0], null);
+    ell(c, 0.5, -1.5, 4, 1.6, SP.suit, INK, 1);
+    c.translate(lk * 0.6, lk * 0.5);
+    poly(c, [[-4, -10], [2, -12], [5, -9], [0, -7], [-2, -3], [-8, 0], [-7, -5]], SP.hair, INK, 1);
+    ell(c, 1.5, -7, 3.6, 4.2, SP.skin, INK, 1.2);
+    ell(c, -0.3, -6.6, 1.3, 3, SP.skinShade, null);
+    poly(c, [[-3.5, -8.5], [0, -11.6], [4.5, -10.5], [5.2, -8.4], [1.5, -9.3], [-1.5, -7.5]], SP.hair, null);
+    stroke(c, [[0, -7.2], [5.4, -7.4]], SP.frame, 0.8);
+    ell(c, 4, -6.8, 1.5, 1.1, SP.lens, SP.frame, 0.6);
+    c.shadowColor = "#ffd27a"; c.shadowBlur = 3;
+    ell(c, 4.4, -7.2, 0.5, 0.35, "#e9b86a", null);
+    c.restore();
+  }
+
+  const api = { spaceman, plumbmonkey, pilot, guitar, frames, blit, shoulder, arm, SPACEMAN: SP, PLUMBMONKEY: PM, INK };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.HeroKit = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

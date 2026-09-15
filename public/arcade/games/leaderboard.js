@@ -449,7 +449,7 @@
 
   // per-game layout: pad = 'dpad' (4-way) | 'lr' (steer only); actions = [[label, code]]
   const CONTROL_LAYOUTS = {
-    'spectral-manor-revenger':          { pad: 'dpad', actions: [['FIRE', 'Space']] },
+    'spectral-manor-revenger':          { pad: 'dpad', actions: [['FIRE', 'Space'], ['BOMB', 'KeyX'], ['WARP', 'KeyC']] },
     'spectral-manor-mess-hall':         { pad: 'dpad', actions: [['THROW', 'Space']], aim: true },
     'spectral-manor-swarm':             { pad: 'dpad', actions: [['FIRE', 'Space'], ['DASH', 'ShiftLeft']], aim: true },
     'spectral-skyline':                 { pad: 'lr',   actions: [['FLAP', 'Space'], ['DIVE', 'ArrowDown']] },

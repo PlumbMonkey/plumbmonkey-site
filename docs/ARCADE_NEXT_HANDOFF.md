@@ -30,7 +30,7 @@ and a design brief for each of the three games left: **Graveyard Shift**, **Amp 
 | House of the Hooded | Untouched this round (a future idea: new board shapes and multi-hit tiles) | `wave3/hooded.js` |
 | Graveyard Shift | Rebuilt 2026-09-14: Mario-style, 2 worlds × 3 levels, ghost blocks, portals, Gatekeeper + Plumbmonkey guitar finale | `wave3/graveyard-levels.js`, `graveyard-world.js`, `graveyard-foes.js`, `graveyard.js`, `graveyard-paint.js`, `graveyard-art.js` + `kit/hero-kit.js` |
 | Amp Rampage | Rebuilt 2026-09-14: Load-in (DK), Cable Jungle (DK Jr.), Stage Build (BurgerTime), Rivets + collapse, looping harder | `wave3/amp-data.js`, `amp-world.js`, `amp-stages.js`, `amp.js`, `amp-art.js` |
-| **Revenger** | **NEXT**: rebuild as Defender, plus a runner level | `spectral-manor-revenger/game.js` (2,056 lines, one file) |
+| **Revenger** | **Phase 1 rebuilt 2026-09-14** (uncommitted): Defender ship game, 4 sectors × (3 waves + mothership), one press per shot. **Phase 2 NEXT:** Rift docking, runner, Plumbmonkey core boss | `sectors.js`, `fx.js`, `ship.js`, `enemies.js`, `bosses.js`, `render.js`, `game.js` |
 
 ---
 
@@ -331,6 +331,47 @@ Plumbmonkey is the villain at the top of the rig (Donkey Kong's role) and has ki
 ---
 
 ## 6. Revenger: Defender, levelled up, with an interdimensional runner
+
+> **PHASE 1 BUILT 2026-09-14** (uncommitted).
+> - **Gregg's decisions:**
+>   - Runner failure costs a life, and the Rift stays until the sector ends.
+>   - Plumbmonkey is a **runner boss in the mothership core**, fought on foot by the same Hero Kit Spaceman as Mess Hall, Swarm and Amp.
+>   - After Plumbmonkey the run loops as Cycle 2.
+>   - Build in two phases.
+> - **Files** (load order after `../kit/hero-kit.js?v=4`):
+>   - `sectors.js`: canvas, wrap, the seeded rules `rng()`, SECTORS, `stageInfo(n)`, terrain.
+>   - `fx.js`: sfx, glow cache, `drawBeam`, multi-stage `FX.explode`, shake and flash. It uses only Math.random, so FX on or off cannot change a run.
+>   - `ship.js`: momentum flight, `fireShip`, beams, options, catching, the fighter sprite with `HeroKit.pilot` in the canopy.
+>   - `enemies.js`: lander, mutant, baiter, bomber, pod → swarmers, carrier; fans; mines.
+>   - `bosses.js`: Harvester, Ossuary, Storm Leviathan, Prism Dreadnought, built from circle parts; hazards.
+>   - `render.js`: backdrops, Rift overlay, HUD and radar, `draw()`.
+>   - `game.js`: flow, collisions, input, autopilot, fixed-step loop.
+> - **Firing:**
+>   - `arcade-controls.js` writes `keys[]` directly and dispatches no events, so a shot fires on either a keydown latch (`!e.repeat`) or the `keys` state edge. That catches sub-frame taps and virtual buttons alike.
+>   - One press is buffered through the 4-frame gap.
+>   - `ArcadeControls.init(..., { autoFire: false })` now hides the ⟳ chip.
+> - **Boss hits:**
+>   - A beam strikes the part it *enters* first, measured along the beam axis through the chord.
+>   - Weak points and turrets reach 16px further. Without that, the Harvester lens and the Ossuary core (now at y+34) were shielded by body circles.
+> - **Rift, Phase 1 part:**
+>   - Losing every fan sets `rift`: an inverted palette, all landers mutate, and new landers spawn mutated.
+>   - The planet is restored at the next sector's wave 1.
+>   - Phase 2 adds docking into the mothership and the on-foot runner, whose success restores fans early.
+> - **Other changes:**
+>   - Extra ship at 20k, then every 60k. At 10k it was one per stage and hid every death.
+>   - BOMB (X/Shift) and WARP (C) buttons are in `CONTROL_LAYOUTS` (leaderboard `?v=5`) and in ArcadeControls (`?v=6`).
+> - **Tests:** `scripts/test-revenger.cjs` (in `npm test`) covers:
+>   - Firing: title freeze, fixed step, and one press = one shot (held, auto-repeat, sub-frame tap, buffered tap, virtual keys).
+>   - Weapons: no chip, laser levels and options, one-hit / pierce-once, FX-on vs FX-off identical state.
+>   - Pickups and death penalty, bomb screen-only, warp.
+>   - Fans: abduction → mutant, fatal vs safe falls, catch + set-down, tractor.
+>   - Rift + restore, and all 4 motherships (armour, body, weak point, turrets, death → next sector).
+>   - The lane hazard, the GAME OVER beat, pause, draw in every phase, and a 16-stage soak.
+> - **Balance:** an unassisted bot clears two full cycles on 8 seeds; stages take 10–24 s and motherships 15–31 s. Human-feel tuning waits on Gregg's playtest.
+> - **Phase 2 plan:**
+>   - `runner.js` holds the docking sequence and the side-scrolling mothership interior: run, jump, slide, one-press blaster, stasis pods, a timer.
+>   - The Plumbmonkey core fight after 4-M, drawn with `HeroKit.spaceman` + `HeroKit.plumbmonkey`.
+>   - The Hero Kit still needs `slide`/`duck` and Plumbmonkey's `command` use.
 
 ### Today
 `spectral-manor-revenger/game.js`: 2,056 lines in one file, with no test.

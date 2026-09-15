@@ -12,6 +12,18 @@
       "port": 8123
     },
     {
+      "name": "arcade-test",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5191",
+        "--directory",
+        "public"
+      ],
+      "port": 5191
+    },
+    {
       "name": "visual-static",
       "runtimeExecutable": "python",
       "runtimeArgs": [
