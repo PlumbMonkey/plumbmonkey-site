@@ -324,12 +324,27 @@ const SPRITE_DEFS = {
     c.fillStyle = '#6b6680'; [36, 60, 160, 184].forEach(x => c.fillRect(x - 6, 86, 12, 112));
     glowDot(c, 110, 108, 22, '#a855f7');
   } },
-  billboard: { w: 260, h: 240, world: 2400, collide: 0.3, draw(c) {
-    c.fillStyle = '#1b1426'; c.fillRect(60, 120, 12, 120); c.fillRect(188, 120, 12, 120);
-    poly(c, [[6, 20], [254, 20], [254, 128], [6, 128]], '#120a20', 4);
-    c.strokeStyle = '#e879f9'; c.lineWidth = 4; c.shadowColor = '#e879f9'; c.shadowBlur = 12; c.strokeRect(16, 30, 228, 88);
-    c.fillStyle = '#f0abfc'; c.font = 'bold 30px sans-serif'; c.textAlign = 'center'; c.fillText('GHOST', 130, 70); c.fillText('CIRCUIT', 130, 104);
-    c.shadowBlur = 0;
+  // one painted board per other cabinet in the arcade: a still of the game over its title
+  billboard: { w: 260, h: 240, world: 2400, collide: 0.3, draw(c, rng, v = 0) {
+    const game = BILLBOARD_GAMES[v % BILLBOARD_GAMES.length];
+    c.fillStyle = '#1b1426'; c.fillRect(60, 170, 12, 70); c.fillRect(188, 170, 12, 70);
+    poly(c, [[4, 4], [256, 4], [256, 178], [4, 178]], '#120a20', 4);
+    const frame = () => {
+      c.save(); c.strokeStyle = game.accent; c.lineWidth = 3; c.shadowColor = game.accent; c.shadowBlur = 10;
+      c.strokeRect(12, 12, 236, 159); c.restore();
+    };
+    c.fillStyle = game.bg; c.fillRect(12, 12, 236, 133);
+    c.fillStyle = '#0b0712'; c.fillRect(12, 145, 236, 26);
+    let size = 17; c.font = `bold ${size}px sans-serif`;
+    const wide = () => (c.measureText ? (c.measureText(game.title.toUpperCase()) || {}).width || 0 : 0);
+    while (size > 11 && wide() > 224) c.font = `bold ${--size}px sans-serif`;
+    c.fillStyle = game.accent; c.textAlign = 'center'; c.fillText(game.title.toUpperCase(), 130, 164);
+    frame();
+    if (typeof Image !== 'undefined') {           // the still arrives after the board is built; paint it in place
+      const img = new Image();
+      img.onload = () => { c.drawImage(img, 12, 12, 236, 133); frame(); };
+      img.src = `billboards/${game.slug}.jpg`;
+    }
   } },
   pine: { w: 180, h: 320, world: 3400, collide: 0.1, draw(c) {
     c.fillStyle = '#2a1a12'; c.fillRect(82, 270, 16, 50);
@@ -425,6 +440,20 @@ const SPRITE_DEFS = {
   tunnelLight: { w: 40, h: 60, world: 900, collide: 0, draw(c) { glowDot(c, 20, 20, 20, '#fde68a'); c.fillStyle = '#fef3c7'; c.fillRect(12, 14, 16, 8); } }
 };
 
+const BILLBOARD_GAMES = [
+  { slug: 'spectral-manor-revenger', title: 'Revenger', accent: '#c084fc', bg: '#0a0612' },
+  { slug: 'spectral-manor-mess-hall', title: 'Mess Hall', accent: '#f0abfc', bg: '#12091f' },
+  { slug: 'spectral-manor-swarm', title: 'Swarm', accent: '#22d3ee', bg: '#0b0614' },
+  { slug: 'spectral-skyline', title: "Luno's Flight", accent: '#fbbf24', bg: '#0a0618' },
+  { slug: 'spectral-manor-soul-circuit', title: 'Soul Circuit', accent: '#e879f9', bg: '#0a0614' },
+  { slug: 'spectral-manor-crystal-dimension', title: 'Crystal Dimension', accent: '#67e8f9', bg: '#06040f' },
+  { slug: 'spectral-manor-infestation', title: 'Infestation', accent: '#4ade80', bg: '#0d0618' },
+  { slug: 'spectral-manor-beam-me-up', title: 'Beam Me Up: Live!', accent: '#67e8f9', bg: '#06040f' },
+  { slug: 'spectral-manor-amp-rampage', title: 'Amp Rampage', accent: '#d9ff63', bg: '#0a0612' },
+  { slug: 'spectral-manor-hooded', title: 'House of the Hooded', accent: '#c084fc', bg: '#0b0614' },
+  { slug: 'spectral-manor-graveyard-shift', title: 'Graveyard Shift', accent: '#fb7185', bg: '#0d0618' }
+];
+
 let SPRITES = null;
 function buildSprites() {
   if (SPRITES) return SPRITES;
@@ -432,11 +461,11 @@ function buildSprites() {
   const rng = mulberry32(777);
   Object.entries(SPRITE_DEFS).forEach(([name, d]) => {
     // variety: buildings and neon signs get several painted versions
-    const variants = name === 'building' || name === 'neon' ? 4 : 1;
+    const variants = name === 'building' || name === 'neon' ? 4 : name === 'billboard' ? BILLBOARD_GAMES.length : 1;
     SPRITES[name] = [];
     for (let v = 0; v < variants; v++) {
       const cv = makeCanvas(d.w, d.h);
-      if (cv) { const c = cv.getContext('2d'); c.lineJoin = 'round'; c.lineCap = 'round'; d.draw(c, rng); }
+      if (cv) { const c = cv.getContext('2d'); c.lineJoin = 'round'; c.lineCap = 'round'; d.draw(c, rng, v); }
       SPRITES[name].push(cv);
     }
   });

@@ -1,8 +1,8 @@
 /* Beam Me Up: Live! — RULES (no drawing; beam-art.js renders and wires the host).
 
    Galaga, played at the manor. Every stage number maps to a venue and a stage
-   kind: two formation waves, a CHALLENGE stage (a shooting gallery, nothing
-   fires) and a BOSS. Formation waves keep the capture mechanic: an abductor
+   kind: two formation waves, a SURVIVAL round (flyers loop their patterns and
+   shoot back until a 30-second clock runs out) and a BOSS. Formation waves keep the capture mechanic: an abductor
    dives, parks and lowers its tractor beam; a hero caught in it is carried back
    to the formation. Shoot that abductor while it is DIVING and the hero flies
    back to join you (double, then triple fire); shoot it in formation and the
@@ -13,10 +13,11 @@
 (function (root) {
   "use strict";
   const DATA = typeof module !== "undefined" && module.exports ? require("./beam-data.js") : root.BeamData;
-  const { VENUES, ENTRY, CHALLENGE } = DATA;
+  const { VENUES, ENTRY, SURVIVAL } = DATA;
 
   const W = 960, H = 720, PY = 652;
   const INTRO = 150, CLEAR = 110, RESULT = 210, DYING = 80, ENDING = 150, READY = 90, CAPTURE = 110;
+  const SURVIVE = 1800;   // the survival round's clock: 30 s of play
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rnd = (a, b) => a + Math.random() * (b - a);
 
@@ -68,7 +69,7 @@
   // ---------- stage setup ----------
   function stageInfo(level) {
     const i = Math.max(0, level - 1);
-    return { cycle: Math.floor(i / 16), venue: Math.floor(i / 4) % 4, stage: i % 4, kind: i % 4 === 2 ? "challenge" : i % 4 === 3 ? "boss" : "wave" };
+    return { cycle: Math.floor(i / 16), venue: Math.floor(i / 4) % 4, stage: i % 4, kind: i % 4 === 2 ? "survival" : i % 4 === 3 ? "boss" : "wave" };
   }
   let uid = 0;
   function makeEnemy(type, o) {
@@ -88,10 +89,11 @@
       p: { x: 480, ally: (carry && carry.ally) || 0, inv: 0, cd: 0 },
       enemies: [], shots: [], bolts: [], popups: [], strikes: [],
       hazardT: 360, diveT: 240, breathe: 0, boss: null, rescue: null,
-      capBy: 0, capT: 0, capX: 480, hits: 0, total: 0, bonus: 0, playT: 0
+      capBy: 0, capT: 0, capX: 480, hits: 0, total: 0, bonus: 0, playT: 0,
+      surviveT: info.kind === "survival" ? SURVIVE : 0, streakT: 0, deaths: 0, secs: 0
     };
     if (info.kind === "wave") buildFormation(s);
-    else if (info.kind === "challenge") buildChallenge(s);
+    else if (info.kind === "survival") buildSurvival(s);
     else s.boss = createBoss(s);
     return s;
   }
@@ -121,11 +123,11 @@
     s.total = s.enemies.length;
   }
 
-  function buildChallenge(s) {
-    const pats = CHALLENGE[s.info.venue], types = ["bat", "witch", "bat", s.venue.rows[1], "witch"];
+  function buildSurvival(s) {
+    const pats = SURVIVAL[s.info.venue], types = ["bat", "witch", "bat", s.venue.rows[1], "witch"];
     for (let g = 0; g < 5; g++) for (let i = 0; i < 8; i++) {
       const mirror = g === 2 ? i % 2 === 1 : g >= 3;
-      s.enemies.push(makeEnemy(types[g], { challenge: true, hp: 1, group: g, t: 30 + g * 190 + (g === 2 ? Math.floor(i / 2) * 10 : i * 8),
+      s.enemies.push(makeEnemy(types[g], { survivor: true, hp: 1, group: g, t: 30 + g * 190 + (g === 2 ? Math.floor(i / 2) * 10 : i * 8),
         path: path(pats[g % 2], mirror), speed: 7 + 1.5 * Math.min(s.diff, 1) }));
     }
     s.total = 40;
@@ -195,9 +197,18 @@
         e.dist += e.speed;
         const [x, y, done] = along(e.path, e.dist);
         face(e, x, y);
-        if (done) { if (e.challenge) e.gone = true; else e.state = "home"; }
+        if (e.survivor) {
+          // every pattern starts and ends off-screen, so looping it is seamless
+          if (done) e.dist = 0;
+          if (s.phase === "play" && e.y > 110 && e.y < 470 && s.bolts.length < 3 + Math.round(2 * Math.min(s.diff, 1)) && Math.random() < 0.003) fireFrom(s, e.x, e.y + 14);
+        } else if (done) e.state = "home";
         break;
       }
+      case "flee":
+        e.fleeV = Math.min(12, (e.fleeV || 2) + 0.5);
+        face(e, e.x, e.y - e.fleeV);
+        if (e.y < -40) e.gone = true;
+        break;
       case "home":
       case "return": {
         const [tx, ty] = slotPos(s, e.row, e.col), dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy), sp = Math.max(3.5, e.speed * 0.8);
@@ -262,7 +273,7 @@
     e.gone = true;
     const T = TYPES[e.type];
     let pts = isDiving(e) || e.state === "enter" ? T.dive : T.pts;
-    if (e.challenge) { pts = 100; s.hits++; }
+    if (e.survivor) { pts = 100; s.hits++; }
     if (e.type === "abductor" && e.state === "dive") {
       const esc = s.enemies.filter(o => !o.gone && o.leader === e.id && o.state === "dive").length;
       pts = [400, 800, 1600][esc];
@@ -498,7 +509,7 @@
       let hit = null;
       for (const b of s.bolts) if (Math.abs(b.x - x) < 11 && Math.abs(b.y - PY) < 16) { hit = b; b.y = H + 99; break; }
       if (!hit) for (const e of s.enemies) {
-        if (e.gone || e.state === "wait" || e.state === "form" || e.challenge) continue;
+        if (e.gone || e.state === "wait" || e.state === "form" || e.state === "flee") continue;
         const r = TYPES[e.type].r + 10;
         if (Math.abs(e.x - x) < r && Math.abs(e.y - PY) < r) { hit = e; e.hp = 1; hitEnemy(s, e, ev); break; }
       }
@@ -506,7 +517,7 @@
       if (!hit && s.strikes.some(k => k.t >= 60 && k.t < 80 && Math.abs(k.x - x) < 26)) hit = {};
       if (!hit) continue;
       if (p.ally > 0) { p.ally--; p.inv = 60; ev.push({ type: "shipLost", x, y: PY }); }
-      else { s.phase = "dying"; s.dying = DYING; s.shots = []; ev.push({ type: "die", x, y: PY }); }
+      else { s.phase = "dying"; s.dying = DYING; s.shots = []; s.streakT = 0; s.deaths++; ev.push({ type: "die", x, y: PY }); }
       return;
     }
   }
@@ -522,11 +533,14 @@
 
   function checkClear(s, ev) {
     if (s.enemies.length || s.boss || s.rescue) return;
-    if (s.info.kind === "challenge") {
-      s.bonus = s.hits * 100 + (s.hits === s.total ? 10000 : 0);
+    if (s.info.kind === "survival") {
+      // 100 a second since your last loss; clearing the sky early banks the rest of the clock
+      s.streakT += s.surviveT; s.surviveT = 0;
+      s.secs = Math.floor(s.streakT / 60);
+      s.bonus = s.secs * 100 + (s.deaths === 0 ? 10000 : 0);
       s.phase = "result"; s.phaseT = RESULT;
       if (s.bonus) ev.push({ type: "score", n: s.bonus });
-      ev.push({ type: s.hits === s.total ? "perfect" : "challengeEnd" });
+      ev.push({ type: s.deaths === 0 ? "untouched" : "survived" });
     } else {
       s.phase = "clear"; s.phaseT = CLEAR;
       ev.push({ type: "stageClear" });
@@ -547,6 +561,14 @@
     if (p.cd > 0) p.cd--;
     if (s.phase === "play") {
       s.playT++;
+      if (s.surviveT > 0) {
+        s.streakT++;
+        if (--s.surviveT <= 0) {
+          s.bolts = [];
+          s.enemies.forEach(e => { if (e.state === "wait") e.gone = true; else e.state = "flee"; });
+          ev.push({ type: "timeUp" });
+        }
+      }
       const n = 1 + p.ally, half = (n - 1) * 19;
       p.x = clamp(p.x + clamp(input.move || 0, -1, 1) * 6.2, 40 + half, W - 40 - half);
       if (input.fire && p.cd <= 0 && s.shots.length < 2 * n) {
@@ -664,7 +686,7 @@
   }
 
   const exports = { createState, step, respawn: beginRegroup, stageInfo, shipXs, autopilot, isDiving, slotPos, beamHalf,
-    startDive, hitEnemy, makeEnemy, TYPES, PY, W, H, VENUES };
+    startDive, hitEnemy, makeEnemy, TYPES, PY, W, H, VENUES, SURVIVE };
   if (typeof module !== "undefined" && module.exports) module.exports = exports;
   else root.BeamGame = exports;
 })(typeof window !== "undefined" ? window : globalThis);

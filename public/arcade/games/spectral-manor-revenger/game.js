@@ -204,7 +204,8 @@ function damageShip() {
   }
   lives--; combo = 0; comboT = 0; hitPause = 0;
   FX.explode(ship.x, ship.y, 3, ['#ffffff', '#eef0f2', '#1e3558', '#d98a3a', '#67e8f9']);
-  FX.flash(0.5); sfx.hit(); sfx.explode(3, 0);
+  FX.shipDeath(ship.x, ship.y);
+  sfx.hit(); sfx.explode(3, 0);
   ship.carried.forEach(f => { f.state = 'falling'; f.vy = 0; f.fallFrom = f.y; });
   ship.carried = [];
   enemyShots = []; hazards = [];

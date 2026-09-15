@@ -34,9 +34,16 @@ function carRect(c, x, y, w, h, r, fill, lw = 3) {
   if (lw) { c.strokeStyle = INK; c.lineWidth = lw; c.stroke(); }
 }
 function lamp(c, x, y, w, h, color, bright) {
-  const g = c.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, Math.max(w, h) * (bright ? 1.6 : 1.1));
+  // An elliptical halo that reaches transparency inside its own fill: a round
+  // gradient sized to a wide bar's width, clipped to a thin box, left a hard
+  // translucent rectangle behind the car.
+  const rx = w / 2 + h * (bright ? 1.6 : 1.1), ry = h * (bright ? 1.9 : 1.4);
+  c.save();
+  c.translate(x + w / 2, y + h / 2); c.scale(rx / ry, 1);
+  const g = c.createRadialGradient(0, 0, 0, 0, 0, ry);
   g.addColorStop(0, rgba(color, bright ? 0.9 : 0.55)); g.addColorStop(1, rgba(color, 0));
-  c.fillStyle = g; c.fillRect(x - w, y - h, w * 3, h * 3);
+  c.fillStyle = g; c.fillRect(-ry, -ry, ry * 2, ry * 2);
+  c.restore();
   carRect(c, x, y, w, h, Math.min(w, h) * 0.35, color, 2);
   c.fillStyle = bright ? '#ffffff' : shade(color, 0.55);
   c.fillRect(x + w * 0.2, y + h * 0.25, w * 0.6, h * 0.3);
@@ -57,12 +64,21 @@ function glass(c, pts) {
 function drawDriver(c, kind, x, y, s) {
   c.save(); c.translate(x, y); c.scale(s, s);
   if (kind === 'hero') {
-    carRect(c, -16, -4, 32, 20, 6, '#6d28d9', 2);                 // suit shoulders
-    c.beginPath(); c.arc(0, -14, 15, 0, Math.PI * 2); c.fillStyle = '#e9d5ff'; c.fill();
-    c.strokeStyle = INK; c.lineWidth = 2; c.stroke();
-    c.fillStyle = '#a78bfa'; c.fillRect(-15, -16, 30, 4);         // helmet band
-    c.strokeStyle = '#e9d5ff'; c.lineWidth = 2; c.beginPath(); c.moveTo(8, -26); c.lineTo(12, -38); c.stroke();
-    c.fillStyle = '#f472b6'; c.beginPath(); c.arc(12, -39, 3, 0, 7); c.fill();
+    // the Spaceman from behind, in the Hero Kit palette: white quilted flight
+    // suit, navy vest straps, high neck ring, long dark swept-back hair, gold aviator arms
+    carRect(c, -19, -2, 38, 20, 7, '#eef0f2', 2);                              // suit shoulders
+    c.strokeStyle = '#c3c8cf'; c.lineWidth = 1.5;
+    for (const qx of [-4, 4]) { c.beginPath(); c.moveTo(qx, 3); c.lineTo(qx, 16); c.stroke(); }   // quilting
+    carPoly(c, [[-15, -1], [-8, -1], [-9, 18], [-16, 18]], '#1e3558', 1.5);      // vest straps
+    carPoly(c, [[15, -1], [8, -1], [9, 18], [16, 18]], '#1e3558', 1.5);
+    c.fillStyle = '#d98a3a'; c.fillRect(-13, 7, 3, 3); c.fillStyle = '#e9b86a'; c.fillRect(11, 11, 3, 3);   // cosmic print
+    carRect(c, -11, -9, 22, 9, 4, '#eef0f2', 2);                               // helmet-seal neck ring
+    carPoly(c, [[-13, -20], [-16, -1], [-7, -5], [0, -2], [7, -5], [16, -1], [13, -20]], '#2a211c', 2);   // hair to the shoulders
+    c.beginPath(); c.ellipse(0, -20, 13, 14, 0, 0, Math.PI * 2); c.fillStyle = '#2a211c'; c.fill(); c.strokeStyle = INK; c.lineWidth = 2; c.stroke();
+    c.strokeStyle = '#4a3a30'; c.lineWidth = 1.5;
+    for (const hx of [-6, 0, 6]) { c.beginPath(); c.moveTo(hx * 0.5, -32); c.quadraticCurveTo(hx, -18, hx * 1.4, -4); c.stroke(); }   // swept-back strands
+    c.fillStyle = '#c28a66'; c.fillRect(-15, -21, 3, 6); c.fillRect(12, -21, 3, 6);    // ears
+    c.fillStyle = '#c9a24a'; c.fillRect(-17, -22, 6, 2); c.fillRect(11, -22, 6, 2);    // aviator arms
   } else if (kind === 'vampire') {
     carPoly(c, [[-20, 16], [-22, -4], [-10, 2], [0, -6], [10, 2], [22, -4], [20, 16]], '#7f1d1d', 2);   // high collar
     c.beginPath(); c.arc(0, -12, 12, 0, Math.PI * 2); c.fillStyle = '#120a16'; c.fill(); c.strokeStyle = INK; c.lineWidth = 2; c.stroke();

@@ -74,7 +74,9 @@
           case "clang": burst(e.x, e.y, "#cbd5e1", 5); api.beep(1400, 0.04, "triangle", 0.025); break;
           case "checkpoint": api.chord([440, 554, 659]); api.toast("CHECKPOINT LANTERN LIT"); break;
           case "warp": api.sweep(e.kind === "portal" ? 300 : 700, e.kind === "portal" ? 1200 : 120, 0.4, "sine", 0.04); break;
-          case "bell": api.chord([392, 523, 659, 784, 1047]); api.toast(`BELL RUNG · ${e.n.toLocaleString()}`); break;
+          case "lantern": api.sweep(300, 900, 0.5, "triangle", 0.03); break;
+          case "flare": flash = 12; shake = Math.max(shake, 5); burst(e.x, e.y, "#ffd27a", 36); burst(e.x, e.y, "#fff1c9", 18); api.chord([392, 523, 659, 784, 1047]); api.toast(`GREAT LANTERN LIT · ${e.n.toLocaleString()}`); break;
+          case "hurry": api.toast("HURRY! THE LANTERNS ARE DIMMING"); api.sweep(880, 440, 0.3, "square", 0.04); break;
           case "door": api.chord([392, 494, 587, 784]); break;
           case "gargoyle": api.beep(90, 0.2, "sawtooth", 0.03); break;
           case "slam": shake = Math.max(shake, 9); api.sweep(120, 40, 0.3, "sawtooth", 0.07); break;
@@ -185,7 +187,25 @@
         const open = !s.boss || s.boss.st === "gone";
         blit(sprite("door" + (open ? 1 : 0), 80, 100, 40, 94, g => PT.paintDoor(g, open)), d.x * TILE + 24, (d.y + 1) * TILE);
       }
-      for (const b of s.bells) if (b.room === name) { c.save(); c.translate(b.x, b.top); PT.paintBell(c, b.bottom - b.top); c.restore(); }
+      for (const L of s.exitLanterns) if (L.room === name) {
+        const f = s.finish && s.finish.kind === "lantern" && s.finish.lantern.x === L.x && s.finish.lantern.room === L.room ? s.finish : null;
+        const lit = f && f.t >= G.LIGHT ? 1 + ((s.t >> 4) % 2) : 0;
+        blit(sprite("great" + lit, 260, 300, 130, 290, g => PT.paintGreatLantern(g, lit)), L.x, L.bottom);
+        if (f) {
+          const lampY = L.bottom - 142, k = Math.min(1, f.t / G.LIGHT);
+          if (k < 1) {   // a spark carried from the Spaceman's hand up into the wick
+            const hx = s.p.x + s.p.w, hy = s.p.y + 26, x = hx + (L.x - hx) * k, y = hy + (lampY - hy) * k - Math.sin(k * Math.PI) * 50;
+            const sg = c.createRadialGradient(x, y, 1, x, y, 22);
+            sg.addColorStop(0, "rgba(255,241,201,1)"); sg.addColorStop(0.35, "rgba(255,179,71,0.7)"); sg.addColorStop(1, "rgba(255,179,71,0)");
+            c.fillStyle = sg; c.fillRect(x - 22, y - 22, 44, 44);
+          } else {       // the flare: a bloom that swells past the lantern, then settles into its halo
+            const bloom = Math.max(0, 1 - (f.t - G.LIGHT) / 60), r = 90 + bloom * 220;
+            const bg = c.createRadialGradient(L.x, lampY, 4, L.x, lampY, r);
+            bg.addColorStop(0, `rgba(255,241,201,${0.25 + bloom * 0.6})`); bg.addColorStop(0.4, `rgba(255,190,90,${0.12 + bloom * 0.3})`); bg.addColorStop(1, "rgba(255,190,90,0)");
+            c.fillStyle = bg; c.fillRect(L.x - r, lampY - r, r * 2, r * 2);
+          }
+        }
+      }
       for (const n in s.world.links) for (const end of s.world.links[n]) {
         if (end.room !== name || end.solid) continue;
         const kind = (s.level.links[n] || {}).kind;
@@ -330,7 +350,12 @@
       else if (p.state === "jam") { pose = "strum"; phase = strumT > 0 ? (14 - strumT) * 0.45 : 0; }
       else if (p.state === "chord") pose = "chord";
       else if (p.state === "victory") { pose = "victory"; phase = s.t * 0.1; }
-      else if (p.state === "bell") pose = "fall";
+      else if (p.state === "light") {
+        const t = s.finish ? s.finish.t : 0;
+        if (!p.on && p.y + p.h < s.finish.lantern.bottom) pose = "fall";
+        else if (t < G.LIGHT) pose = "shoot";
+        else { pose = "victory"; phase = s.t * 0.1; }
+      }
       else if (!p.on) pose = p.shootT > 0 ? "airShoot" : p.vy < 0 ? "jump" : "fall";
       else if (p.land > 4 && Math.abs(p.vx) < 1) pose = "land";
       else if (Math.abs(p.vx) > 0.4 || p.state === "walkoff") { pose = p.shootT > 0 ? "runShoot" : "run"; phase = p.dist * 0.075; }
@@ -375,8 +400,13 @@
       label(`× ${String(s.notes).padStart(2, "0")}`, 960 + PAD - 226, 32, 16, "#fef9c3", "left");
       const tiers = ["SPACEMAN", "AMP", "GUITAR"];
       label(p.encore > 0 ? "ENCORE!" : tiers[p.tier - 1], 960 + PAD - 24, 32, 14, p.encore > 0 ? "#fde047" : ["#cbd5e1", "#fdba74", "#f0abfc"][p.tier - 1], "right");
-      const b = s.boss;
-      if (b && b.st !== "sleep" && b.st !== "gone") {
+      const b = s.boss, fighting = b && b.st !== "sleep" && b.st !== "gone";
+      if (!fighting && !s.arena) {
+        const secs = Math.ceil(s.timeT / 60), low = secs <= 60 && s.phase === "play";
+        c.fillStyle = "rgba(7,4,15,0.6)"; c.fillRect(480 - 70, 10, 140, 30);
+        label(`TIME ${secs}`, 480, 32, 16, low && (s.t >> 4) % 2 ? "#fb7185" : "#fef9c3");
+      }
+      if (fighting) {
         const w = 380, x = 480 - w / 2, y = 14;
         c.fillStyle = "rgba(7,4,15,0.75)"; c.fillRect(x - 6, y - 4, w + 12, 32);
         c.fillStyle = "#2e1065"; c.fillRect(x, y + 16, w, 8);
@@ -429,7 +459,12 @@
       hud();
       const L = s.level;
       if (s.phase === "intro") banner(`WORLD ${L.id}`, `${L.name} · ${L.sub}`, Math.min(s.phaseT / 20, (G.INTRO - s.phaseT) / 20 + 0.2), PT.THEMES[L.theme].accent);
-      else if (s.phase === "clear") banner(s.finish && s.finish.kind === "door" ? "INTO THE MANSION" : "COURSE CLEAR", s.last ? "" : "On to the next floor", Math.min(1, (G.CLEAR - s.phaseT) / 20), "#fde68a");
+      else if (s.phase === "clear") {
+        const f = s.finish;
+        if (f && f.kind === "lantern") {
+          if (f.t >= G.LIGHT) banner("LANTERN LIT", `NOTES ${f.notes} × 50  ·  TIME ${f.secs} × 20  ·  GHOSTS ${f.ghosts} × 100  =  ${f.points.toLocaleString()}`, Math.min(1, (f.t - G.LIGHT) / 20, s.phaseT / 20), "#ffd27a");
+        } else banner(f && f.kind === "door" ? "INTO THE MANSION" : "COURSE CLEAR", s.last ? "" : "On to the next floor", Math.min(1, (G.CLEAR - s.phaseT) / 20), "#fde68a");
+      }
       else if (s.phase === "ending" || s.phase === "over") banner("GAME OVER", "", Math.min(1, (G.ENDING - s.phaseT) / 30), "#fb7185");
       else if (s.phase === "victory") banner("PLUMBMONKEY DEFEATED", "The Music Room is yours. Ghost Circuit plays on.", Math.min(1, (G.VICTORY - s.phaseT) / 40), "#f0abfc");
     }

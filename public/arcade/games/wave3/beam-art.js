@@ -335,8 +335,9 @@
           case "shards": case "launch": case "hex": api.beep(340, 0.06, "square", 0.025); break;
           case "wake": case "open": api.sweep(200, 700, 0.3, "triangle", 0.04); break;
           case "stageClear": api.chord([523, 659, 784]); break;
-          case "perfect": api.toast("PERFECT! 10,000 BONUS"); api.chord([523, 659, 784, 1047, 1319]); break;
-          case "challengeEnd": api.beep(660, 0.15); break;
+          case "untouched": api.toast("UNTOUCHED! 10,000 BONUS"); api.chord([523, 659, 784, 1047, 1319]); break;
+          case "survived": api.beep(660, 0.15); break;
+          case "timeUp": api.toast("TIME! THEY'RE FLEEING"); api.chord([523, 659, 784]); break;
           case "next": api.next(); return;
         }
       }
@@ -628,7 +629,7 @@
       const info = s.info, V = s.venue;
       c.fillStyle = "rgba(7,4,15,0.55)"; c.fillRect(-PAD + 12, 10, 330, 26);
       label(`${V.name} · STAGE ${s.level}${info.cycle ? ` · CYCLE ${info.cycle + 1}` : ""}`, -PAD + 22, 28, 13, V.accent, "left");
-      if (info.kind === "challenge") label(`HITS ${s.hits} / ${s.total}`, 960 + PAD - 22, 28, 15, "#fde68a", "right");
+      if (info.kind === "survival") label(`SURVIVE ${Math.ceil(s.surviveT / 60)}s · HITS ${s.hits}`, 960 + PAD - 22, 28, 15, s.surviveT < 300 && s.surviveT > 0 && (t >> 4) % 2 ? "#fb7185" : "#fde68a", "right");
       for (let i = 0; i < Math.min(6, api.lives() - 1); i++) blit(shipSprite(0, false), -PAD + 34 + i * 40, 692);
       if (s.boss) drawBossBar(s.boss);
 
@@ -636,14 +637,14 @@
       if (ph === "intro") {
         const a = Math.min(1, s.phaseT / 25, (150 - s.phaseT) / 20);
         if (info.kind === "boss") banner(`WARNING · ${V.boss.name}`, V.boss.sub, a * ((t >> 5) % 2 ? 1 : 0.75), "#fb7185");
-        else if (info.kind === "challenge") banner("CHALLENGING STAGE", "Hit all 40. Nothing shoots back", a, "#fde68a");
+        else if (info.kind === "survival") banner("SURVIVAL ROUND", "They shoot back. Outlast the 30-second clock", a, "#fde68a");
         else if (info.stage === 0) banner((info.cycle ? `CYCLE ${info.cycle + 1} · ` : "") + V.name, V.sub, a);
         else banner(`STAGE ${s.level}`, V.name, a);
       } else if (ph === "ready") banner("READY", `${1 + p.ally > 1 ? "HERO SQUADRON" : "NEXT HERO SHIP"} LAUNCHING`, 1, "#67e8f9");
       else if (ph === "clear") banner(info.kind === "boss" ? "VENUE CLEARED" : "STAGE CLEAR", "", Math.min(1, s.phaseT / 20, (110 - s.phaseT) / 15));
       else if (ph === "result") {
         const a = Math.min(1, s.phaseT / 20, (210 - s.phaseT) / 15);
-        banner(s.hits === s.total ? "PERFECT!" : `NUMBER OF HITS  ${s.hits}`, `BONUS  ${s.bonus.toLocaleString()}`, a, "#fde68a");
+        banner(s.deaths === 0 ? "UNTOUCHED!" : `SURVIVED  ${s.secs}s`, `HITS ${s.hits}  ·  BONUS  ${s.bonus.toLocaleString()}`, a, "#fde68a");
       } else if (ph === "captured") banner("HERO CAPTURED", "Shoot that abductor mid-dive to win your hero back", Math.min(1, s.capT / 20), "#fb7185");
       else if (ph === "ending" || ph === "over") banner("GAME OVER", "", Math.min(1, (150 - s.phaseT) / 30), "#fb7185");
     }

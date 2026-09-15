@@ -11,53 +11,82 @@ function run(s, frames, input = {}, lives = 3) {
 }
 function play(n) { const s = G.createState(n); s.phase = 'play'; return s; }
 function standG(s, g, x) { Object.assign(s.p, { g, lastG: g, x, y: W.gy(s.geo, g, x), vx: 0, vy: 0, state: 'walk', ladder: -1 }); }
-function barrel(s, g, x, dir) { const b = { x, y: W.gy(s.geo, g, x), g, dir, state: 'roll', vx: 0, vy: 0, spin: 0, burning: false, decided: {}, jumped: false }; s.barrels.push(b); return b; }
+const stackAt = (s, g, x) => s.stacks.find(q => q.g === g && q.x === x);
 function hang(s, cable, hands) { const c = s.def.cables[cable]; Object.assign(s.p, { state: 'hang', cable, partner: -1, grip: 1, x: c.x, y: hands + W.BODY_H, vx: 0, vy: 0, g: -1, lastMove: 0 }); }
 
 // --- stage map: four types, then the set loops harder ---
 {
   assert.deepEqual([1, 2, 3, 4, 5, 8].map(n => D.stageInfo(n).def.kind), ['loadin', 'cables', 'build', 'rivets', 'loadin', 'rivets']);
   assert.equal(D.stageInfo(5).cycle, 1);
-  assert.ok(G.createState(5).throwEvery < G.createState(1).throwEvery, 'a second loop throws faster');
+  assert.ok(G.createState(5).kickEvery < G.createState(1).kickEvery, 'a second loop kicks faster');
 }
 
 // --- the title freezes everything ---
 {
-  const s = G.createState(1), x = s.p.x, throwT = s.boss.throwT;
+  const s = G.createState(1), x = s.p.x, kickT = s.boss.kickT;
   run(s, G.INTRO - 1, { move: 1, jump: true });
-  assert.equal(s.phase, 'intro'); assert.equal(s.p.x, x); assert.equal(s.boss.throwT, throwT);
+  assert.equal(s.phase, 'intro'); assert.equal(s.p.x, x); assert.equal(s.boss.kickT, kickT);
   run(s, 1); assert.equal(s.phase, 'play');
 }
 
-// --- LOAD-IN: gear follows the slopes, drops off the ends and sometimes down ladders ---
+// --- LOAD-IN: a stomp sends a pulse to the stack nearest you; it wobbles with its zone lit, then topples ---
 {
-  const s = play(1); s.boss.throwT = 1e9; standG(s, 0, 900);
-  const b = barrel(s, 5, 680, 1);
-  run(s, 90);
-  assert.equal(b.g, 4, 'rolled off the end of the top truss onto the one below');
-  assert.equal(b.state, 'roll'); assert.equal(b.dir, -1, 'and follows that truss downhill');
-
-  let drops = 0, landed = 0;
-  for (let seed = 1; seed <= 300; seed++) {
-    const t = play(1); t.boss.throwT = 1e9; standG(t, 0, 900); t.rng = seed * 7919;
-    const r = barrel(t, 4, 200, -1);
-    run(t, 20);
-    if (r.state === 'ladder') { drops++; run(t, 80); if (r.g === 3 && r.state === 'roll' && r.dir === 1) landed++; }
+  const S = G.Stages;
+  const s = play(1); standG(s, 2, 180); s.boss.kickT = S.KICK_WIND + 1;
+  assert.equal(count(run(s, 1), 'warning'), 1); assert.equal(s.boss.pose, 'stomp', 'he winds up where you can see it');
+  assert.equal(count(run(s, S.KICK_WIND), 'kick'), 1);
+  const k = s.stacks.find(q => q.state === 'armed');
+  assert.ok(k, 'the stomp arms a stack'); assert.deepEqual([k.g, k.x], [2, 110], 'the stack whose zone is nearest you');
+  s.boss.kickT = 1e9;
+  let wobbled = 0, crashed = false;
+  for (let i = 0; i < S.ORB + S.WOBBLE + 5 && !crashed; i++) {
+    const e = run(s, 1);
+    if (count(e, 'crash')) crashed = true;
+    else { assert.equal(s.phase, 'play', 'nothing hurts before the crash'); if (k.state === 'wobble') wobbled++; }
   }
-  assert.ok(drops > 20 && drops < 280, `some gear drops down ladders, most does not (${drops}/300)`);
-  assert.equal(landed, drops, 'gear that drops a ladder lands and rolls on');
+  assert.ok(crashed); assert.ok(wobbled >= S.WOBBLE - 2, `a full wobble telegraph (${wobbled} frames)`);
+  assert.equal(s.phase, 'dying'); assert.equal(s.p.why, 'stack', 'standing in the lit zone at the crash is fatal');
+
+  // just outside the zone: a close call, worth points
+  const c = play(1); c.boss.kickT = 1e9; standG(c, 2, 260);
+  Object.assign(stackAt(c, 2, 110), { state: 'wobble', t: 2 });
+  const e2 = run(c, 3);
+  assert.equal(c.phase, 'play'); assert.equal(count(e2, 'closeCall'), 1);
+
+  // a crash over a ladder top sends a cabinet down the ladder: fatal below, shatters at the bottom
+  const d = play(1); d.boss.kickT = 1e9; standG(d, 1, 200);
+  Object.assign(stackAt(d, 2, 110), { state: 'wobble', t: 1 });
+  assert.equal(count(run(d, 1), 'tumble'), 1); assert.equal(d.cabinets.length, 1);
+  run(d, 60);
+  assert.equal(d.phase, 'dying'); assert.equal(d.p.why, 'stack', 'a tumbling cabinet hits whoever is at the foot of the ladder');
+  const u = play(1); u.boss.kickT = 1e9; standG(u, 1, 320);
+  Object.assign(stackAt(u, 2, 110), { state: 'wobble', t: 1 });
+  const e4 = run(u, 60);
+  assert.equal(count(e4, 'shatter'), 1); assert.equal(u.phase, 'play'); assert.equal(u.cabinets.length, 0);
+
+  // a hot stack sparks a fire ghost where it lands
+  const h = play(1); h.boss.kickT = 1e9; standG(h, 0, 900);
+  Object.assign(stackAt(h, 3, 300), { state: 'wobble', t: 1, hot: true });
+  assert.equal(count(run(h, 1), 'ignite'), 1); assert.equal(h.fires.length, 1);
+
+  // the crew stacks it back up
+  const r = play(1); r.boss.kickT = 1e9; standG(r, 0, 900);
+  const k6 = Object.assign(stackAt(r, 1, 420), { state: 'wobble', t: 1 });
+  run(r, 1 + S.DOWN + S.REBUILD + S.RISE + 2);
+  assert.equal(k6.state, 'stand');
 }
 
 // --- hammer: jump into a mic stand, smash gear, and no climbing while you hold it ---
 {
-  const s = play(1); s.boss.throwT = 1e9;
+  const s = play(1); s.boss.kickT = 1e9;
   standG(s, 1, 860);
   const ev = run(s, 50, i => ({ jump: i === 0 }));
   assert.equal(count(ev, 'hammer'), 1); assert.ok(s.p.hammer > 500);
-  standG(s, 1, 700); s.p.face = 1;
-  barrel(s, 1, 760, -1);
+  standG(s, 1, 660); s.p.face = 1;
+  const k = stackAt(s, 1, 700);
   const smash = run(s, 30);
-  assert.equal(count(smash, 'smash'), 1, 'the mic stand smashes gear in front');
+  assert.equal(count(smash, 'smash'), 1, 'the mic stand smashes a stack in front');
+  assert.equal(k.state, 'gone');
   assert.ok(smash.some(e => e.type === 'score' && e.n === 300));
   assert.equal(s.phase, 'play');
   standG(s, 1, 780);
@@ -65,19 +94,13 @@ function hang(s, cable, hands) { const c = s.def.cables[cable]; Object.assign(s.
   assert.equal(s.p.state, 'walk', 'no ladders while holding the hammer');
 }
 
-// --- jumping gear scores; walking off a truss end is a fall; the bonus clock kills ---
+// --- walking off a truss end is a fall; the bonus clock kills ---
 {
-  const s = play(1); s.boss.throwT = 1e9; standG(s, 0, 500);
-  barrel(s, 0, 540, -1);
-  const ev = run(s, 60, i => ({ jump: i === 0 }));
-  assert.equal(count(ev, 'jumpBonus'), 1);
-  assert.equal(s.phase, 'play', 'cleared the gear');
-
-  const f = play(1); f.boss.throwT = 1e9; standG(f, 1, 868);
+  const f = play(1); f.boss.kickT = 1e9; standG(f, 1, 868);
   run(f, 60, { move: 1 });
   assert.equal(f.phase, 'dying'); assert.equal(f.p.why, 'fall');
 
-  const t = play(1); t.boss.throwT = 1e9; t.bonus = 100; t.bonusT = 1;
+  const t = play(1); t.boss.kickT = 1e9; t.bonus = 100; t.bonusT = 1;
   run(t, 1);
   assert.equal(t.phase, 'dying'); assert.equal(t.p.why, 'time');
 }
@@ -111,11 +134,23 @@ function hang(s, cable, hands) { const c = s.def.cables[cable]; Object.assign(s.
   c.cymbals[0].state = 'fall'; c.cymbals[0].vy = 1;
   assert.equal(count(run(c, 40), 'crush'), 1);
 
-  // the key opens the cage
+  // leads: carry one at a time; each socket powers up; the third clears the stage and survives a death
   const k = play(2); k.boss.jackT = 1e9; k.bats = [];
-  Object.assign(k.p, { g: 4, x: 890, y: k.def.platforms[4].y, state: 'walk', key: true });
+  const L0 = k.leads[0], L1 = k.leads[1], S0 = k.sockets[0], S2 = k.sockets[2];
+  Object.assign(k.p, { g: L0.p, x: L0.x, y: L0.y, state: 'walk' });
+  assert.equal(count(run(k, 2), 'lead'), 1); assert.equal(k.p.lead, 0);
+  Object.assign(k.p, { g: L1.p, x: L1.x, y: L1.y });
   run(k, 2);
-  assert.equal(k.phase, 'clear');
+  assert.equal(k.p.lead, 0, 'one lead at a time'); assert.ok(!L1.taken);
+  Object.assign(k.p, { g: S0.p, x: S0.x, y: S0.y, state: 'walk' });
+  assert.equal(count(run(k, 2), 'plug'), 1);
+  assert.equal(k.p.lead, -1); assert.ok(S0.on); assert.equal(k.phase, 'play');
+  const again = G.respawn(k);
+  assert.ok(again.sockets[0].on && again.leads[0].taken, 'a plugged lead stays plugged after a death');
+  k.sockets[1].on = true; k.leads[2].taken = true; k.p.lead = 2;
+  Object.assign(k.p, { g: S2.p, x: S2.x, y: S2.y, state: 'walk' });
+  run(k, 2);
+  assert.equal(k.phase, 'clear', 'the third socket powers the stage');
   assert.equal(count(run(k, G.CLEAR + 2), 'next'), 1);
 }
 
@@ -206,4 +241,4 @@ for (let n = 1; n <= 8; n++) {
   console.log(`  stage ${n} ${s.kind} cleared in ${f} frames, ${deaths} deaths, ${Date.now() - t0} ms`);
 }
 
-console.log('Amp Rampage: stage map, title freeze, rolling + ladder drops, hammer, jump bonus, falls, bonus clock, cable grips, cymbals, key + cage, build cascade + crush + riders + feedback, rivet gaps + collapse, respawn progress, GAME OVER beat and the soak passed.');
+console.log('Amp Rampage: stage map, title freeze, stomp → pulse → wobble → topple, close calls, tumbling cabinets, hot stacks, rebuilds, hammer, falls, bonus clock, cable grips, cymbals, leads + sockets, build cascade + crush + riders + feedback, rivet gaps + collapse, respawn progress, GAME OVER beat and the soak passed.');

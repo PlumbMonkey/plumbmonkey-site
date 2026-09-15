@@ -15,7 +15,8 @@
      *  refilling music box — gives the next power tier and comes back, so a
         puzzle or a boss that needs the Guitar can never become unwinnable
      o  soul note        -  one-way ledge     =  crumbling floor    ^  spikes
-     C  checkpoint lantern   E  bell rope (top of pole) — the level exit
+     C  checkpoint lantern   E  great lantern — the level exit; it stands on the
+        ground below the E, and touching anywhere in that column lights it
      D  door — the exit once the boss is down    X  boss spawn
      @  start            1-9 link endpoints (graves, portals, dumbwaiters)
    ENEMIES / MOVERS

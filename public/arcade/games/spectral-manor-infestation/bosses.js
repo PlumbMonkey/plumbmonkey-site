@@ -23,7 +23,7 @@ function createBoss(def) {
     Object.assign(b, { hp: Math.round(30 * scale), gap: 19, nodes: [], state: 'under', wait: 80, shots: [], trail: [], x: -100, y: 0, dir: 1, surfaces: 0 });
     for (let i = 0; i < 9; i++) b.nodes.push({ x: -100, y: 0, sub: true });
   } else if (def.type === 'mandrake') {
-    Object.assign(b, { hp: Math.round(22 * scale), x: W / 2, y: 80, state: 'idle', wait: 90, atk: 0, vines: [], shots: [], volley: 0 });
+    Object.assign(b, { hp: Math.round(28 * scale), x: W / 2, y: 80, state: 'idle', wait: 90, atk: 0, vines: [], shots: [], volley: 0 });
   }
   b.maxHp = b.hp;
   return b;
@@ -473,8 +473,8 @@ function updateMandrake(b) {
         const a = pattern[b.atk++ % pattern.length];
         if (a === 'lash') {
           const snap = x => cellX(Math.floor(Math.max(24, Math.min(W - 24, x)) / CELL));
-          b.vines = [{ cx: snap(player.x), phase: 'warn', t: b.enraged ? 40 : 50 }];
-          if (b.enraged) b.vines.push({ cx: snap(player.x + (player.x < W / 2 ? 1 : -1) * 132), phase: 'warn', t: 56 });
+          b.vines = [{ cx: snap(player.x), phase: 'warn', t: b.enraged ? 34 : 42 }];
+          if (b.enraged) b.vines.push({ cx: snap(player.x + (player.x < W / 2 ? 1 : -1) * 132), phase: 'warn', t: 44 });   // enraged: a second vine cuts off the escape
           b.state = 'lash';
           sfx.hiss();
         } else { b.state = a; b.wait = a === 'seeds' ? 36 : 48; }
@@ -496,7 +496,7 @@ function updateMandrake(b) {
         } else if (v.phase === 'slam') { v.phase = 'retract'; v.t = 20; }
         else v.phase = 'done';
       });
-      if (!busy) { b.state = 'open'; b.wait = b.enraged ? 85 : 100; b.vines = []; sfx.open(); }
+      if (!busy) { b.state = 'open'; b.wait = b.enraged ? 70 : 84; b.vines = []; sfx.open(); }
       break;
     }
     case 'open':
@@ -505,7 +505,7 @@ function updateMandrake(b) {
     case 'seeds':
       if (b.wait === 12) {
         sfx.spit();
-        const n = b.enraged ? 8 : 6, pod = b.volley++ % 3 === 2;
+        const n = b.enraged ? 9 : 7, pod = b.volley++ % 3 === 2;
         for (let i = 0; i < n; i++) {
           let c = 0, r = 0, tries = 0;
           do { c = 1 + Math.floor(Math.random() * (COLS - 2)); r = FIELD_TOP + 3 + Math.floor(Math.random() * (FIELD_BOTTOM - FIELD_TOP - 3)); }

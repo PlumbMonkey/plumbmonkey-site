@@ -21,7 +21,9 @@
   const F = NODE ? require("./graveyard-foes.js") : root.GraveyardFoes;
   const { TILE } = WD;
 
-  const INTRO = 150, DYING = 110, CLEAR = 170, ENDING = 150, VICTORY = 320;
+  const INTRO = 150, DYING = 110, CLEAR = 200, ENDING = 150, VICTORY = 320;
+  const TIME = 300;        // seconds on each level's clock; it stands still inside a boss arena
+  const LIGHT = 40;        // frames from touching the great lantern to its flare
   const PHYS = { accel: 0.42, skid: 0.9, decel: 0.5, air: 0.3, max: 5.2, jumpV: -13.6, gUp: 0.5, gDown: 1.0, maxFall: 13, coyote: 6, buffer: 6 };
   const VIEW_L = 160, VIEW_R = 1120;     // world 960 drawn into a 1280 view (PAD 160 either side)
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -50,12 +52,14 @@
     const world = WD.createWorld(L);
     const s = { n, count: all.length, last: n >= all.length, level: L, world, t: 0, phase: "intro", phaseT: INTRO,
       rng: (n * 2654435761) >>> 0, notes: carry.notes || 0, shots: [], bolts: [], items: [], foes: [], movers: [], bars: [],
-      boss: null, arena: null, checkpoint: carry.checkpoint || null, cam: { x: 0, y: 0, lead: 0 }, finish: null };
+      boss: null, arena: null, checkpoint: carry.checkpoint || null, cam: { x: 0, y: 0, lead: 0 }, finish: null,
+      timeT: (L.time || TIME) * 60, stats: { notes: carry.stats ? carry.stats.notes : 0, ghosts: carry.stats ? carry.stats.ghosts : 0 } };
     const at = s.checkpoint || world.start;
     s.p = { room: at.room, x: at.x * TILE + 10, y: (at.y + 1) * TILE - 60, w: 28, h: 60, vx: 0, vy: 0, face: 1, on: true,
       coyote: 0, buffer: 0, held: false, tier: carry.tier || 1, inv: 0, encore: 0, cd: 0, dist: 0, land: 0, shootT: 0,
       state: "play", warpT: 0, ride: null };
-    s.bells = scan(world, "E").map(e => { const r = world.rooms[e.room]; return { room: e.room, x: e.x * TILE + 24, top: e.y * TILE, bottom: groundBelow(s, r, e.x, e.y) }; });
+    // the great lantern stands on the ground below its E; the whole column above it lights it, so it can't be jumped over
+    s.exitLanterns = scan(world, "E").map(e => { const r = world.rooms[e.room]; return { room: e.room, x: e.x * TILE + 24, top: e.y * TILE, bottom: groundBelow(s, r, e.x, e.y) }; });
     s.doors = scan(world, "D");
     s.lanterns = scan(world, "C");
     F.spawnFoes(s);
@@ -64,7 +68,7 @@
     camera(s, true);
     return s;
   }
-  const respawn = s => createState(s.n, { notes: s.notes, checkpoint: s.checkpoint, tier: 1 });
+  const respawn = s => createState(s.n, { notes: s.notes, checkpoint: s.checkpoint, tier: 1, stats: s.stats });
   const nextState = s => createState(s.n + 1, { notes: s.notes, tier: s.p.tier });
 
   // ============================================================ player
@@ -252,13 +256,15 @@
         return;
       }
     }
-    for (const b of s.bells) {
-      if (b.room !== p.room || p.x + p.w < b.x - 6 || p.x > b.x + 6 || p.y + p.h < b.top) continue;
-      const k = clamp((b.bottom - (p.y + p.h)) / (b.bottom - b.top), 0, 1);
-      const n = k > 0.92 ? 5000 : k > 0.7 ? 2000 : k > 0.45 ? 800 : k > 0.2 ? 400 : 100;
-      s.phase = "clear"; s.phaseT = CLEAR; p.state = "bell"; p.vx = 0; p.vy = 0; p.x = b.x - p.w / 2 - 10;
-      s.finish = { kind: "bell", bell: b, points: n };
-      ev.push({ type: "bell", n, x: b.x, y: p.y }, { type: "score", n, x: b.x, y: p.y });
+    for (const L of s.exitLanterns) {
+      if (L.room !== p.room || p.x + p.w < L.x - 24 || p.x > L.x + 24 || p.y + p.h < L.top) continue;
+      // the tally: soul notes gathered, seconds left on the clock, ghost blocks blasted to vapour
+      const secs = Math.ceil(s.timeT / 60), { notes, ghosts } = s.stats;
+      const bonus = { notes: notes * 50, time: secs * 20, ghosts: ghosts * 100 };
+      const n = bonus.notes + bonus.time + bonus.ghosts;
+      s.phase = "clear"; s.phaseT = CLEAR; p.state = "light"; p.vx = 0; p.vy = 0; p.face = 1; p.x = L.x - p.w / 2 - 40;
+      s.finish = { kind: "lantern", lantern: L, t: 0, secs, notes, ghosts, bonus, points: n };
+      ev.push({ type: "lantern", x: L.x, y: L.bottom - 130 });
       return;
     }
     const bossDown = !s.boss || s.boss.st === "gone";
@@ -320,9 +326,12 @@
       case "ending": if (--s.phaseT <= 0) { s.phase = "over"; ev.push({ type: "gameover" }); } return ev;
       case "clear": {
         const f = s.finish;
-        if (f && f.kind === "bell") {
-          if (p.y + p.h < f.bell.bottom) p.y = Math.min(f.bell.bottom - p.h, p.y + 5);
-          else if (s.phaseT < 110) { p.state = "walkoff"; p.face = 1; p.x += 2.6; p.dist += 2.6; }
+        if (f && f.kind === "lantern") {
+          if (p.y + p.h < f.lantern.bottom) p.y = Math.min(f.lantern.bottom - p.h, p.y + 6);
+          if (++f.t === LIGHT) {
+            ev.push({ type: "flare", n: f.points, x: f.lantern.x, y: f.lantern.bottom - 130 });
+            if (f.points) ev.push({ type: "score", n: f.points, x: f.lantern.x, y: f.lantern.bottom - 200 });
+          }
         }
         camera(s);
         if (--s.phaseT <= 0) { s.phase = "done"; ev.push({ type: s.last ? "win" : "next" }); }
@@ -335,6 +344,11 @@
     }
 
     // ---- play ----
+    const notes0 = s.notes;
+    if (!s.arena && s.timeT > 0) {
+      if (--s.timeT === 60 * 60) ev.push({ type: "hurry" });
+      if (s.timeT <= 0) die(s, ev, "time");
+    }
     for (const k of ["inv", "encore", "cd", "shootT", "land"]) if (p[k] > 0) p[k]--;
     if (p.state === "warp") warp(s, ev);
     else {
@@ -359,6 +373,9 @@
       s.phase = "victory"; s.phaseT = VICTORY; p.state = "victory"; p.vx = 0;
       ev.push({ type: "victory" }, { type: "score", n: 20000, x: p.x, y: p.y });
     }
+    // level stats for the lantern tally (an extra life takes 100 notes off the counter)
+    s.stats.notes += s.notes - notes0;
+    for (const e of ev) { if (e.type === "vapour") s.stats.ghosts++; else if (e.type === "extraLife") s.stats.notes += 100; }
     camera(s);
     return ev;
   }
@@ -415,7 +432,7 @@
       return { room: b.room, x: clamp(b.x + b.w / 2 + side * 280, s.arena.left + 60, s.arena.right - 60), y: b.y + b.h };
     }
     if (!wp || wp.exit) {
-      const d = s.doors[0], e = s.bells[0];
+      const d = s.doors[0], e = s.exitLanterns[0];
       if (d) return { room: d.room, x: d.x * TILE + 24, y: (d.y + 1) * TILE };
       if (e) return { room: e.room, x: e.x, y: e.bottom };
       if (b) return { room: b.room, x: b.x, y: b.y + b.h };
@@ -530,7 +547,7 @@
   const pilotInfo = s => pilots.get(s);
 
   const exports = { createState, step, respawn, nextState, autopilot, pilotInfo, clone, hurt, die, camera, levels, rnd,
-    PHYS, INTRO, DYING, CLEAR, ENDING, VICTORY, TILE, ROUTES, World: WD, Foes: F, Levels: LV };
+    PHYS, INTRO, DYING, CLEAR, ENDING, VICTORY, TIME, LIGHT, TILE, ROUTES, World: WD, Foes: F, Levels: LV };
   if (NODE) module.exports = exports;
   else root.GraveyardGame = exports;
 })(typeof window !== "undefined" ? window : globalThis);

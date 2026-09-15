@@ -250,12 +250,46 @@
     P(g, [[-14, 0], [-14, -42], [0, -54], [14, -42], [14, 0]], "#07040c", 2);
     glow(g, "#a78bfa", 8, () => { g.fillStyle = "#c4b5fd"; g.font = "700 16px Georgia"; g.textAlign = "center"; g.fillText("↓", 0, -18); });
   }
-  function paintBell(g, height) {
-    const pg = g.createLinearGradient(-4, 0, 4, 0); pg.addColorStop(0, "#5b5566"); pg.addColorStop(0.5, "#c9c2d6"); pg.addColorStop(1, "#4a4455");
-    R(g, -4, 0, 8, height, pg, 1.5);
-    P(g, [[-20, 0], [-16, -28], [0, -36], [16, -28], [20, 0]], "#c9a24a", 2);
-    P(g, [[4, -32], [16, -28], [20, 0], [8, 0]], "#8e6f2a", 0);
-    O(g, 0, 3, 5, 4, "#8e6f2a", 1.5);
+  // The level exit: a great lantern on a stone plinth, far bigger than a
+  // checkpoint lantern. lit: 0 dark, 1/2 the two flicker frames.
+  function paintGreatLantern(g, lit) {
+    const head = -142;
+    if (lit) {
+      const hg = g.createRadialGradient(0, head, 6, 0, head, 128);
+      hg.addColorStop(0, "rgba(255,210,122,0.55)"); hg.addColorStop(0.5, "rgba(255,179,71,0.18)"); hg.addColorStop(1, "rgba(255,179,71,0)");
+      g.fillStyle = hg; g.fillRect(-128, head - 128, 256, 256);
+    }
+    // plinth
+    P(g, [[-50, 0], [-44, -26], [44, -26], [50, 0]], "#4a4658", 3);
+    P(g, [[14, -26], [44, -26], [50, 0], [18, 0]], "#38344a", 0);
+    R(g, -38, -40, 76, 14, "#5f5b72", 2.5, 3);
+    g.strokeStyle = "rgba(20,12,30,0.5)"; g.lineWidth = 1.5; g.beginPath(); g.moveTo(-20, -24); g.lineTo(-24, -2); g.moveTo(22, -24); g.lineTo(20, -8); g.stroke();
+    // iron column with a brass collar
+    const cg = g.createLinearGradient(-10, 0, 10, 0); cg.addColorStop(0, "#1d1a24"); cg.addColorStop(0.5, "#5b5566"); cg.addColorStop(1, "#1d1a24");
+    R(g, -10, -98, 20, 60, cg, 2);
+    R(g, -24, -106, 48, 10, "#c9a24a", 2, 2);
+    R(g, -16, -114, 32, 8, "#2a2530", 2);
+    // the cage: glass panes between iron bars, wider at the top
+    const glass = lit ? (() => { const gg = g.createLinearGradient(0, -184, 0, -114); gg.addColorStop(0, lit === 1 ? "#ffe39a" : "#ffd27a"); gg.addColorStop(1, "#f2a65a"); return gg; })() : "#2c2638";
+    P(g, [[-30, -114], [30, -114], [38, -184], [-38, -184]], glass, 3);
+    if (!lit) { g.fillStyle = "rgba(167,139,250,0.12)"; P(g, [[-24, -120], [-12, -120], [-14, -178], [-30, -178]], "rgba(167,139,250,0.12)", 0); }
+    g.strokeStyle = INK; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(-10, -114); g.lineTo(-13, -184); g.moveTo(10, -114); g.lineTo(13, -184); g.stroke();
+    g.lineWidth = 2; g.beginPath(); g.moveTo(-34, -150); g.lineTo(34, -150); g.stroke();
+    // flame, or a cold wick
+    if (lit) glow(g, "#ffb347", 26, () => {
+      const h = lit === 1 ? 30 : 26, w = lit === 1 ? 9 : 11;
+      g.beginPath(); g.moveTo(0, head - h); g.quadraticCurveTo(w * 1.6, head - 4, 0, head + 14); g.quadraticCurveTo(-w * 1.6, head - 4, 0, head - h); g.fillStyle = "#ffb347"; g.fill();
+      O(g, 0, head + 4, w * 0.45, 9, "#fff1c9");
+    });
+    else { R(g, -2, head - 2, 4, 14, "#3b3346"); O(g, 0, head + 14, 8, 3, "#2a2530"); }
+    // roof, brass trim and finial
+    R(g, -42, -190, 84, 7, "#c9a24a", 2, 2);
+    P(g, [[-50, -190], [50, -190], [22, -218], [-22, -218]], "#2a2530", 3);
+    P(g, [[6, -218], [22, -218], [50, -190], [26, -190]], "#1b1822", 0);
+    P(g, [[-22, -218], [22, -218], [0, -244]], "#3a3542", 3);
+    O(g, 0, -252, 7, 8, null, 3);
+    if (lit) glow(g, "#ffd27a", 10, () => { g.strokeStyle = "rgba(255,210,122,0.8)"; g.lineWidth = 2; g.beginPath(); g.moveTo(-36, -110); g.lineTo(36, -110); g.stroke(); });
   }
   function paintPedestal(g, t) {
     const lg = g.createRadialGradient(0, -60, 4, 0, -60, 90); lg.addColorStop(0, "rgba(255,230,150,0.5)"); lg.addColorStop(1, "rgba(255,230,150,0)");
@@ -367,7 +401,7 @@
   }
 
   const exports = { THEMES, INK, hash, shade, P, O, R, glow, note, paintSky, paintFar, paintMid, paintTile, paintLantern, paintDoor, paintPortal,
-    paintTombDoor, paintBell, paintPedestal, paintSkull, paintArmourShell, paintBat, paintFlower, paintCloud, paintPumpkin, paintGargoyle,
+    paintTombDoor, paintGreatLantern, paintPedestal, paintSkull, paintArmourShell, paintBat, paintFlower, paintCloud, paintPumpkin, paintGargoyle,
     paintChandelier, paintPlatform, paintAmp, paintEncore, paintBarrel, paintPotion };
   if (typeof module !== "undefined" && module.exports) module.exports = exports;
   else root.GraveyardPaint = exports;

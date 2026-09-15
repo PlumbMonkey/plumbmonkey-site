@@ -171,6 +171,11 @@
         r.arms = [[1.57, 1.57], [0.4, 0.9]];
         r.drop = 13; r.lean = 0.2;
         break;
+      case "ride":                 // astride a mount: thighs forward, shins hanging, both hands on the reins
+        r.legs = [[1.3 + s * 0.04, 0.15], [1.15 + s * 0.04, 0.05]];
+        r.arms = [[0.7 + s * 0.05, 1.45], [0.55 + s * 0.05, 1.3]];
+        r.lean = 0.12; r.drop = s * 0.6;
+        break;
       case "hurt":
         r.legs = [[0.3, 0.5], [-0.2, 0.1]];
         r.lean = -0.35;

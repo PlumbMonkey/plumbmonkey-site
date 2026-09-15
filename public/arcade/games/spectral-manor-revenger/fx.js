@@ -157,11 +157,11 @@ function drawBeam(c, b, originSX, alpha = 1) {
 // ---------- Explosions and screen juice ----------
 const FX = {
   enabled: true,
-  flashes: [], rings: [], shards: [], smoke: [], embers: [], sparks: [], ghosts: [], popups: [],
+  flashes: [], rings: [], shards: [], smoke: [], embers: [], sparks: [], ghosts: [], popups: [], blasts: [],
   shakeAmt: 0, shakeT: 0, sx: 0, sy: 0, screenFlash: 0, flashColor: '#ffffff',
 
   reset() {
-    ['flashes', 'rings', 'shards', 'smoke', 'embers', 'sparks', 'ghosts', 'popups'].forEach(k => { this[k] = []; });
+    ['flashes', 'rings', 'shards', 'smoke', 'embers', 'sparks', 'ghosts', 'popups', 'blasts'].forEach(k => { this[k] = []; });
     this.shakeAmt = 0; this.shakeT = 0; this.sx = 0; this.sy = 0; this.screenFlash = 0;
   },
   shake(amount, frames) {
@@ -200,6 +200,29 @@ const FX = {
     }
     this.shake(2 + size * 2.5, 8 + size * 6);
     if (size >= 3) this.flash(0.25 + (size - 3) * 0.3);
+  },
+  /* The hero's death, layered on top of explode(): the original Revenger's
+     rainbow burst — a 180-particle ring plus 60 loose ones with friction, a
+     ring racing out to 500px and a white flash, over 70 frames. */
+  shipDeath(x, y) {
+    if (!this.enabled) return;
+    const cols = ['#ff00aa', '#00ff88', '#00ccff', '#ffee00', '#ff4400', '#c084fc', '#ffffff', '#ff66cc', '#22d3ee'];
+    const pick = () => cols[Math.floor(Math.random() * cols.length)];
+    const blast = { x, y, life: 70, max: 70, parts: [] };
+    for (let i = 0; i < 180; i++) {
+      const a = (i / 180) * Math.PI * 2, sp = 3 + Math.random() * 14;
+      blast.parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 40 + Math.random() * 40,
+        size: 2 + Math.random() * 6, color: pick(), friction: 0.97 + Math.random() * 0.02 });
+    }
+    for (let i = 0; i < 60; i++) {
+      blast.parts.push({ x: x + (Math.random() - 0.5) * 40, y: y + (Math.random() - 0.5) * 40,
+        vx: (Math.random() - 0.5) * 18, vy: (Math.random() - 0.5) * 18, life: 30 + Math.random() * 35,
+        size: 3 + Math.random() * 8, color: pick(), friction: 0.96 });
+    }
+    blast.parts.forEach(p => { p.max = p.life; });
+    this.blasts.push(blast);
+    this.flash(0.7);
+    this.shake(16, 40);
   },
   spark(x, y, color) {
     if (!this.enabled) return;
@@ -241,6 +264,11 @@ const FX = {
     this.ghosts = age(this.ghosts);
     this.popups.forEach(p => { p.y -= 0.6; });
     this.popups = age(this.popups);
+    this.blasts.forEach(b => {
+      b.parts.forEach(p => { p.x += p.vx; p.y += p.vy; p.vx *= p.friction; p.vy *= p.friction; });
+      b.parts = age(b.parts);
+    });
+    this.blasts = age(this.blasts);
   },
 
   // World-space effects; toScreen maps world x → screen x.
@@ -278,6 +306,20 @@ const FX = {
       c.strokeStyle = p.color; c.lineWidth = 1.6;
       c.beginPath(); c.moveTo(x, p.y); c.lineTo(x - p.vx * 2.5, p.y - p.vy * 2.5); c.stroke();
     });
+    this.blasts.forEach(b => {
+      const k = 1 - b.life / b.max, bx = toScreen(b.x);
+      c.globalAlpha = (1 - k) * 0.8;
+      c.strokeStyle = '#ffffff'; c.lineWidth = 3 + (1 - k) * 6;
+      c.beginPath(); c.arc(bx, b.y, k * 500, 0, Math.PI * 2); c.stroke();
+      b.parts.forEach(p => {
+        const a = p.life / p.max;
+        c.globalAlpha = a;
+        drawGlow(c, p.color, bx + (p.x - b.x), p.y, p.size * 2.2, a * 0.6);
+        c.fillStyle = p.color;
+        c.beginPath(); c.arc(bx + (p.x - b.x), p.y, p.size * (0.4 + a * 0.6), 0, Math.PI * 2); c.fill();
+      });
+    });
+    c.globalAlpha = 1;
     c.globalCompositeOperation = 'source-over';
     this.shards.forEach(p => {
       const x = toScreen(p.x); if (!vis(x)) return;

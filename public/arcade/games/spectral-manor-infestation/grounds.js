@@ -80,15 +80,17 @@ const GROUNDS = [
   {
     id: 'conservatory', name: 'THE CONSERVATORY', sub: 'Open flytraps eat your shots and the Hauntipede alike',
     source: { x: W / 2, y: 78 },        // the cracked planter under the glass dome
+    // the last ground is the hardest: a faster Hauntipede, busier critters, puffballs that burst three ways
+    speedMult: 1.2, spawnMult: 1.45, spores: 3,
     pal: { cap: ['#db2777', '#9d174d'], spot: '#fce7f3', stem: '#fbcfe8', glow: '#f472b6',
            body: '#f9a8d4', head: '#c084fc', legs: '#9d174d', accent: '#f472b6', mist: '190,242,100' },
     levels: [
-      { len: 12, toadstools: 36, traps: 2, puff: 0.2, roster: { ghost: 2, bug: 2, moth: 1, spider: 1, beetle: 1 } },
-      { len: 13, toadstools: 40, traps: 3, puff: 0.25, roster: { ghost: 2, bug: 3, moth: 1, spider: 1, beetle: 1, scorpion: 1 } },
-      { len: 14, toadstools: 44, traps: 4, puff: 0.3, roster: { ghost: 3, bug: 3, moth: 1, spider: 2, beetle: 1, scorpion: 1 } }
+      { len: 14, toadstools: 46, traps: 4, puff: 0.35, roster: { ghost: 3, bug: 3, moth: 1, spider: 2, beetle: 1, scorpion: 1 } },
+      { len: 15, toadstools: 52, traps: 5, puff: 0.42, roster: { ghost: 3, bug: 4, moth: 1, spider: 2, beetle: 2, scorpion: 2 } },
+      { len: 16, toadstools: 58, traps: 6, puff: 0.5, roster: { ghost: 4, bug: 4, moth: 1, spider: 3, beetle: 2, scorpion: 2 } }
     ],
     boss: { type: 'mandrake', name: 'THE MANDRAKE', sub: 'Watch the vines, then shoot it while it\'s open',
-            toadstools: 22, traps: 2, puff: 0.3, escort: 0, roster: { bug: 2, moth: 1, spider: 1 } }
+            toadstools: 30, traps: 3, puff: 0.45, escort: 0, roster: { bug: 3, moth: 1, spider: 2, scorpion: 1 } }
   }
 ];
 

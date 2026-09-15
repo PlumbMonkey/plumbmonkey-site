@@ -147,8 +147,12 @@ assert.ok(run('score - s0') >= 5);
 assert.ok(run('readyT > 0'));
 
 // --- extra life every 12,000 ---
-run('lives = 2; score = 11990; nextLife = 12000; addScore(20);');
-assert.equal(run('lives'), 3);
+assert.equal(run('FIRST_EXTRA_LIFE'), 25000);
+run('lives = 2; score = 24990; nextLife = FIRST_EXTRA_LIFE; addScore(20);');
+assert.equal(run('lives'), 3); assert.equal(run('nextLife'), 75000);
+run('lives = 5; score = 74990; addScore(20);');
+assert.equal(run('lives'), 5, 'never more than five lives in hand'); assert.equal(run('nextLife'), 125000);
+assert.ok(run('GROUNDS[3].speedMult > 1 && GROUNDS[3].spawnMult > 1 && GROUNDS[3].spores === 3'), 'the conservatory is the hardest ground');
 
 // --- progression: 1-1 → 1-2 → 1-3 → boss → pumpkin patch; the loop is a new cycle ---
 run(`startGame(); groundIdx = 0; levelIdx = 2; advance();`);

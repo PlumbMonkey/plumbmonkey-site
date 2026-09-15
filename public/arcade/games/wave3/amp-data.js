@@ -1,11 +1,11 @@
 /* Amp Rampage — STAGE DATA (no rules, no drawing).
 
-   Donkey Kong × Donkey Kong Jr. × BurgerTime, rigged at the manor's basement
-   gig. Plumbmonkey has grabbed a fan and climbed the rig; the Spaceman climbs
-   after him. Four stage types, played in order and then looped harder:
+   Climb, swing and build through the manor's basement gig. Plumbmonkey has
+   grabbed a fan and climbed the rig; the Spaceman climbs after him. Four stage
+   types, played in order and then looped harder:
 
-     LOAD-IN   sloped trusses, rolling amps and drum barrels, mic-stand hammers
-     CABLES    hanging cables and chains, snap-jack amps, falling cymbals, a key
+     LOAD-IN   sloped trusses, speaker stacks Plumbmonkey topples, mic-stand hammers
+     CABLES    hanging cables and chains, snap-jack amps, falling cymbals, three leads to plug in
      BUILD     walk the stage parts to drop them, stack four rigs, Feedback stuns
      RIVETS    pull eight rig bolts and the whole thing comes down
 
@@ -16,7 +16,7 @@
   "use strict";
 
   const LOADIN = {
-    kind: "loadin", name: "LOAD-IN", sub: "Jump the gear. Grab a mic stand and smash it.",
+    kind: "loadin", name: "LOAD-IN", sub: "Get clear of toppling stacks. A mic stand smashes them.",
     girders: [
       { x0: 0,   x1: 960, y0: 690, y1: 690 },   // 0 stage floor
       { x0: 0,   x1: 880, y0: 580, y1: 600 },   // 1 low end right
@@ -38,18 +38,20 @@
     start: { x: 110, g: 0 },
     boss: { x: 110, g: 5 },
     fan: { x: 380, g: 6 },
-    drum: { x: 40, g: 0 },                     // the burning amp stack at the bottom
-    throwEvery: 150, rollSpeed: 1.6
+    // speaker stacks [girder, x, the way it topples]. A stack whose fall covers the
+    // top of a ladder sends a loose cabinet tumbling down that ladder.
+    stacks: [[1, 420, 1], [1, 700, 1], [2, 110, 1], [2, 640, -1], [3, 300, 1], [3, 540, -1], [4, 300, -1], [4, 800, -1]],
+    kickEvery: 170
   };
 
   const CABLES = {
-    kind: "cables", name: "CABLE JUNGLE", sub: "Two cables climb fast. Knock the cymbals down.",
+    kind: "cables", name: "CABLE JUNGLE", sub: "Two cables climb fast. Plug in all three leads.",
     platforms: [
       { x0: 0,   x1: 180, y: 640 },   // start
       { x0: 330, x1: 430, y: 610 },
       { x0: 520, x1: 660, y: 580 },
-      { x0: 780, x1: 960, y: 560 },   // the key ledge
-      { x0: 560, x1: 960, y: 120 },   // Plumbmonkey and the cage
+      { x0: 780, x1: 960, y: 560 },   // the ledge
+      { x0: 560, x1: 960, y: 120 },   // Plumbmonkey and the fan
       { x0: 0,   x1: 200, y: 200 }
     ],
     cables: [
@@ -60,8 +62,11 @@
     ],
     cymbals: [{ cable: 2, y: 250 }, { cable: 3, y: 300 }, { cable: 6, y: 230 }],
     bats: [{ y: 390, x0: 300, x1: 820 }, { y: 250, x0: 120, x1: 640 }],
-    key: { x: 910, p: 3 },
-    cage: { x: 890, p: 4 },
+    // loose cable leads and the sockets they plug into (p = platform). Carry one at
+    // a time; any lead fits any socket, and the third powers the stage.
+    leads: [{ x: 120, p: 0 }, { x: 545, p: 2 }, { x: 810, p: 3 }],
+    sockets: [{ x: 630, p: 2 }, { x: 935, p: 3 }, { x: 940, p: 4 }],
+    fan: { x: 870, p: 4 },
     start: { x: 60, p: 0 },
     boss: { x: 640, p: 4 },
     pit: 700,

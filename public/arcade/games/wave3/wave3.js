@@ -189,7 +189,7 @@
         down,tap,reduced,attract:attractMode,score:addScore,burst,beep,sweep,chord,toast,lose,next});
     },
     /* AMP RAMPAGE now lives in amp-data.js (stages), amp-world.js (girders,
-       ladders, cables), amp-stages.js (gear, foes, parts, rivets), amp.js (rules
+       ladders, cables), amp-stages.js (stacks, leads, foes, parts, rivets), amp.js (rules
        and autopilot) and amp-art.js (drawing and glue). */
     ampRampage(){
       return window.AmpGame.create({ctx,W,H,PAD,VIEW_W,level:()=>level,lives:()=>lives,addLife:()=>{lives++;hud()},

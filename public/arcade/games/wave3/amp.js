@@ -35,7 +35,7 @@
       x = def.start.x; y = W.gy(s.geo, g, x);
     }
     s.p = { x, y, g, lastG: g, vx: 0, vy: 0, state: "walk", face: 1, ladder: -1, jumpY: y, hammer: 0, dist: 0, climb: 0,
-      cable: -1, partner: -1, grip: 1, grabCd: 0, lastMove: 0, key: false, why: null };
+      cable: -1, partner: -1, grip: 1, grabCd: 0, lastMove: 0, lead: -1, why: null };
     S.setup(s, carry.stage);
     return s;
   }
@@ -109,9 +109,10 @@
      the stage goal without dying. Costs come from the ladder graph
      (amp-world.js costField); the Cable Jungle follows a waypoint list. */
   const CABLE_ROUTE = [
-    { x: 175, y: 640 }, { x: 243, y: 300, hang: true }, { x: 430, y: 420, hang: true }, { x: 600, y: 580 },
-    { x: 713, y: 440, hang: true }, { x: 863, y: 420, hang: true }, { x: 900, y: 560, key: true },
-    { x: 863, y: 460, hang: true }, { x: 863, y: 210, hang: true }, { x: 890, y: 120 }
+    { x: 120, y: 640, lead: 0 }, { x: 175, y: 640 }, { x: 243, y: 300, hang: true }, { x: 430, y: 420, hang: true },
+    { x: 630, y: 580, plug: 0 }, { x: 545, y: 580, lead: 1 },
+    { x: 713, y: 440, hang: true }, { x: 863, y: 420, hang: true }, { x: 935, y: 560, plug: 1 }, { x: 810, y: 560, lead: 2 },
+    { x: 863, y: 460, hang: true }, { x: 863, y: 210, hang: true }, { x: 940, y: 120, plug: 2 }
   ];
   const pilots = new WeakMap();
 
@@ -134,8 +135,19 @@
   function progress(s) {
     if (s.kind === "rivets") return s.rivets.filter(r => r.pulled).length * 4000;
     if (s.kind === "build") return s.parts.reduce((a, q) => a + (q.k - (q.state === "tray" ? -1 : q.g)) * 900 + q.pressed.reduce((u, v) => u + v, 0) * 250, 0);
-    if (s.kind === "cables") return s.p.key ? 20000 : 0;
+    if (s.kind === "cables") return s.sockets.filter(k => k.on).length * 20000 + (s.p.lead >= 0 ? 8000 : 0);
     return 0;
+  }
+  // standing inside a stack's lit crash zone costs far more than any detour
+  function danger(c) {
+    if (c.kind !== "loadin") return 0;
+    let d = 0;
+    for (const k of c.stacks) {
+      if ((k.state !== "armed" && k.state !== "wobble") || c.p.g !== k.g) continue;
+      const z = S.zone(k);
+      if (c.p.x > z.x0 - 20 && c.p.x < z.x1 + 20) d += 1500;
+    }
+    return d;
   }
   function makeCost(s, pl) {
     if (s.kind === "cables") {
@@ -154,11 +166,12 @@
     if (c.phase === "dying" || c.phase === "ending" || c.phase === "over") return -1e9;
     if (c.phase === "clear" || c.phase === "collapse" || c.phase === "done") return 1e9;
     const k = cost(c);
-    return -(Number.isFinite(k) ? k : 5000) + progress(c) + (c.p.hammer > 0 ? 50 : 0);
+    return -(Number.isFinite(k) ? k : 5000) + progress(c) + (c.p.hammer > 0 ? 50 : 0) - danger(c);
   }
   function cableReached(s, wp) {
     const p = s.p;
-    if (wp.key) return p.key;
+    if (wp.lead != null) return s.leads[wp.lead].taken;
+    if (wp.plug != null) return s.sockets[wp.plug].on;
     return Math.abs(p.x - wp.x) < 16 && Math.abs(p.y - wp.y) < 30 && (wp.hang ? p.state === "hang" : p.state === "walk");
   }
 

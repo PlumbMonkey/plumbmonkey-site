@@ -300,9 +300,11 @@ function drawPlayer(t, theme) {
   const lean = player.steerVis * 60;
   ctx.beginPath(); ctx.moveTo(x - 90, y - 60); ctx.lineTo(x + 90, y - 60); ctx.lineTo(x + 260 + lean, H / 2 + 30); ctx.lineTo(x - 260 + lean, H / 2 + 30); ctx.fill();
   // underglow
-  const ug = ctx.createRadialGradient(x, y, 0, x, y, 150);
+  // squashed to an ellipse so it fades out inside its fill instead of ending in a hard box
+  ctx.translate(x, y); ctx.scale(1, 40 / 150);
+  const ug = ctx.createRadialGradient(0, 0, 0, 0, 0, 150);
   ug.addColorStop(0, player.nitroOn ? 'rgba(56,189,248,0.55)' : 'rgba(168,85,247,0.45)'); ug.addColorStop(1, 'rgba(168,85,247,0)');
-  ctx.fillStyle = ug; ctx.fillRect(x - 150, y - 40, 300, 80);
+  ctx.fillStyle = ug; ctx.fillRect(-150, -150, 300, 300);
   ctx.restore();
 
   if (player.airHeight > 0) {        // shadow left on the road while airborne
@@ -487,6 +489,10 @@ function drawHud(theme, t) {
     ctx.fillStyle = finishPlace === 1 ? '#fde68a' : '#e9d5ff'; ctx.font = 'bold 52px "Segoe UI", system-ui, sans-serif';
     ctx.fillText(finishPlace === 1 ? 'VICTORY!' : `${ordinal(finishPlace).toUpperCase()} PLACE`, W / 2, H / 2 - 30);
     ctx.fillStyle = '#c4b5fd'; ctx.font = '600 16px "Segoe UI", sans-serif'; ctx.fillText(`${fmtTime(raceTime)} · ${theme.name.toLowerCase()}`, W / 2, H / 2 + 2);
+    if (typeof HeroKit !== 'undefined') {   // the Spaceman, out of the hearse: a victory pose, or catching his breath
+      const k = FINISH_FRAMES - finishing;
+      HeroKit.spaceman(ctx, W / 2 - 250, H / 2 + 26, { pose: finishPlace === 1 ? 'victory' : 'idle', phase: k * 0.1, face: 1, scale: 1.1 });
+    }
   }
   if (paused) {
     ctx.fillStyle = 'rgba(5,3,12,0.6)'; ctx.fillRect(0, 0, W, H);

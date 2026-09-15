@@ -1,7 +1,7 @@
 // ============================================================
 // LUNO'S FLIGHT — Luno, the riders, ghosts, nests and crystals
 // Luno is an owl-griffin: owl head and wings, lion haunch and tail. The rider
-// is the arcade's helmeted spaceman (same hero as Mess Hall and Swarm).
+// is the arcade's Spaceman from kit/hero-kit.js (same hero as every other cabinet).
 // Everything is drawn in the house style: ink outline, a shade pass, lit eyes.
 // ============================================================
 
@@ -76,8 +76,13 @@ function drawLuno(p, t) {
   ctx.fillStyle = '#e7e5e4';
   for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(8 - i * 1, -2 + i * 4, 3, 0, Math.PI); ctx.fill(); }
 
-  // rider: the spaceman in a violet saddle, leaning with the flight
+  // rider: the arcade's Spaceman (Hero Kit 'ride' pose) in a violet saddle, leaning with the flight
   inkOval(-3, -8, 11, 4, '#4c1d95', 1.6);
+  const tilt = Math.max(-0.2, Math.min(0.2, p.vy * 0.03)) + (p.dive ? -0.3 : 0);
+  if (typeof HeroKit !== 'undefined') {
+    const RIDER = 0.62;                          // the hip sits on the saddle; the kit anchors at the feet
+    HeroKit.spaceman(ctx, -3, -9 + 30 * RIDER, { pose: 'ride', phase: p.flightPhase || 0, face: 1, scale: RIDER, tilt });
+  } else {
   ctx.save();
   ctx.translate(-2, -10);
   ctx.rotate(Math.max(-0.2, Math.min(0.2, p.vy * 0.03)) + (p.dive ? -0.3 : 0));
@@ -92,6 +97,7 @@ function drawLuno(p, t) {
   ctx.shadowBlur = 0;
   limb([[3, -8], [9, -6], [13, -3]], '#6d28d9', 2.5);                    // arm on the reins
   ctx.restore();
+  }
   ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.moveTo(11, -13); ctx.quadraticCurveTo(16, -12, 18, -6); ctx.stroke();
 

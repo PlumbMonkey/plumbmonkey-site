@@ -77,19 +77,7 @@ function draw() {
     }
   });
 
-  // aim reticle: a ring at the cursor and a short sight from the muzzle
-  if (gameRunning && !ending && !ATTRACT_MODE) {
-    const mz = heroMuzzle(player);
-    const sight = ctx.createLinearGradient(mz.x, mz.y, mz.x + Math.cos(player.angle) * 60, mz.y + Math.sin(player.angle) * 60);
-    sight.addColorStop(0, 'rgba(192,132,252,0.5)'); sight.addColorStop(1, 'rgba(192,132,252,0)');
-    ctx.strokeStyle = sight; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(mz.x, mz.y); ctx.lineTo(mz.x + Math.cos(player.angle) * 60, mz.y + Math.sin(player.angle) * 60); ctx.stroke();
-    ctx.strokeStyle = 'rgba(240,171,252,0.85)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 8, 0, Math.PI * 2);
-    ctx.moveTo(mouse.x - 13, mouse.y); ctx.lineTo(mouse.x - 5, mouse.y); ctx.moveTo(mouse.x + 5, mouse.y); ctx.lineTo(mouse.x + 13, mouse.y);
-    ctx.moveTo(mouse.x, mouse.y - 13); ctx.lineTo(mouse.x, mouse.y - 5); ctx.moveTo(mouse.x, mouse.y + 5); ctx.lineTo(mouse.x, mouse.y + 13);
-    ctx.stroke();
-  }
+  // no reticle or sight line: the rifle in the hero's hands shows the aim
   ctx.restore();
 
   // ---- UI ----

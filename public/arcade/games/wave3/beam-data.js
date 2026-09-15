@@ -1,5 +1,5 @@
 /* Beam Me Up: Live! — venue and flight-path data.
-   Four venues, each two formation waves, a challenge stage and a boss; the
+   Four venues, each two formation waves, a survival round and a boss; the
    stage number from the host (`level`) picks the venue, and after the Void the
    set list loops as the next CYCLE. Paths are control points in WORLD space
    (960x720) for a flight starting on the LEFT; beam.js mirrors them for the
@@ -41,9 +41,9 @@
     bottom: [[-70, 640], [150, 560], [330, 430], [400, 300], [330, 190], [210, 210], [240, 310]]
   };
 
-  // Challenge stages: two flight patterns per venue, alternating by group.
-  // Nothing fires and nothing dives at you — it is a shooting gallery.
-  const CHALLENGE = [
+  // Survival rounds: two flight patterns per venue, alternating by group. The
+  // flyers loop them and shoot back until the clock runs out.
+  const SURVIVAL = [
     [ // lawn: a figure-S across, and a swirl down the middle
       [[-60, 150], [300, 190], [520, 420], [380, 560], [230, 420], [520, 250], [1030, 300]],
       [[480, -50], [470, 190], [290, 370], [480, 520], [670, 370], [480, 190], [490, -60]]
@@ -62,7 +62,7 @@
     ]
   ];
 
-  const exports = { VENUES, ENTRY, CHALLENGE };
+  const exports = { VENUES, ENTRY, SURVIVAL };
   if (typeof module !== "undefined" && module.exports) module.exports = exports;
   else root.BeamData = exports;
 })(typeof window !== "undefined" ? window : globalThis);

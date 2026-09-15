@@ -20,8 +20,8 @@ function parked(s, type, x, y, extra = {}) {
 // fire one real shot from the ship line at column x and let it fly
 function shoot(s, x, frames = 50) { s.shots.push({ x, y: PY - 22 }); return run(s, frames); }
 
-// --- stage map: two waves, a challenge, a boss per venue; the set loops as a cycle ---
-assert.deepEqual([1, 2, 3, 4].map(l => stageInfo(l).kind), ['wave', 'wave', 'challenge', 'boss']);
+// --- stage map: two waves, a survival round, a boss per venue; the set loops as a cycle ---
+assert.deepEqual([1, 2, 3, 4].map(l => stageInfo(l).kind), ['wave', 'wave', 'survival', 'boss']);
 assert.deepEqual([4, 8, 12, 16].map(l => createState(l).boss.type), ['queen', 'colossus', 'coven', 'deep']);
 assert.equal(stageInfo(17).cycle, 1);
 assert.equal(stageInfo(17).venue, 0);
@@ -167,16 +167,31 @@ assert.equal(stageInfo(17).venue, 0);
   assert.equal(count(ev, 'gameover'), 1);
 }
 
-// --- challenge stage: nothing fires, nothing hurts; results and the perfect bonus ---
+// --- survival round: flyers loop and shoot back, the clock runs out, they flee; bonus per second survived ---
 {
   const s = createState(3);
-  let bolts = 0; const ev = [];
-  for (let i = 0; i < 60 * 40 && s.phase !== 'done'; i++) { ev.push(...step(s, calm)); bolts += s.bolts.length; }
-  assert.equal(bolts, 0); assert.equal(s.p.inv, 0, 'never needed protection');
-  assert.equal(count(ev, 'die'), 0); assert.equal(count(ev, 'next'), 1); assert.equal(s.bonus, 0);
-  const p = createState(3); p.phase = 'play'; p.enemies = []; p.hits = 40;
-  const ev2 = step(p, calm);
-  assert.equal(p.phase, 'result'); assert.equal(p.bonus, 14000); assert.equal(count(ev2, 'perfect'), 1);
+  assert.equal(s.info.kind, 'survival'); assert.equal(s.surviveT, G.SURVIVE);
+  let bolts = 0, looped = false, fled = false; const ev = [], dist = new Map();
+  for (let i = 0; i < 60 * 45 && s.phase !== 'done'; i++) {
+    s.p.inv = 5;                                   // untouchable: watch the round run its course
+    ev.push(...step(s, calm));
+    bolts = Math.max(bolts, s.bolts.length);
+    for (const e of s.enemies) { if (dist.has(e.id) && e.dist < dist.get(e.id) && e.state === 'enter') looped = true; dist.set(e.id, e.dist); if (e.state === 'flee') fled = true; }
+    for (const b of s.bolts) assert.ok(Number.isFinite(b.x) && Number.isFinite(b.y));
+  }
+  assert.ok(bolts > 0, 'survival flyers shoot back');
+  assert.ok(looped, 'flyers loop their pattern while the clock runs');
+  assert.ok(fled, 'flyers flee when time is up');
+  assert.equal(count(ev, 'timeUp'), 1); assert.equal(count(ev, 'untouched'), 1); assert.equal(count(ev, 'next'), 1);
+  assert.equal(s.bonus, 30 * 100 + 10000);
+  // a loss resets the streak: only seconds since the last loss pay, and the rest of the clock banks if the sky is cleared
+  const k = createState(3); k.phase = 'play'; k.surviveT = 1000;
+  k.bolts = [{ x: k.p.x, y: G.PY, vx: 0, vy: 0 }];
+  step(k, calm);
+  assert.equal(k.phase, 'dying'); assert.equal(k.streakT, 0); assert.equal(k.deaths, 1);
+  const r = createState(3); r.phase = 'play'; r.enemies = []; r.deaths = 1; r.streakT = 600; r.surviveT = 300;
+  const ev2 = step(r, calm);
+  assert.equal(r.phase, 'result'); assert.equal(r.secs, 15); assert.equal(r.bonus, 1500); assert.equal(count(ev2, 'survived'), 1);
 }
 
 // --- wraiths split; drones shield their neighbours in formation ---
@@ -277,4 +292,4 @@ for (let level = 1; level <= 16; level++) {
 }
 
 void TYPES;
-console.log('Beam Me Up: stage map, formations, entries, shot limit, single-hit, escorts, capture, last-life beam guard, rescue, turncoat, captive shot, dual hit, regroup, ending, challenge + perfect, wraith split, drone shields, lightning, 4 bosses, venue clear, 16-stage soak passed.');
+console.log('Beam Me Up: stage map, formations, entries, shot limit, single-hit, escorts, capture, last-life beam guard, rescue, turncoat, captive shot, dual hit, regroup, ending, survival round, wraith split, drone shields, lightning, 4 bosses, venue clear, 16-stage soak passed.');

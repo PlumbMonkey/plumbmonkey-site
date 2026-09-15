@@ -116,7 +116,7 @@ function hurtRunner(r, fell) {
   FX.shake(6, 12);
   sfx.hit();
   if (!fell) { p.vx = -p.face * 3; p.vy = Math.min(p.vy, -5); p.slideT = 0; }
-  if (p.hp <= 0) endRun(r, 'fail', 'SPACEMAN DOWN');
+  if (p.hp <= 0) { FX.shipDeath(p.x, p.y - 30); endRun(r, 'fail', 'SPACEMAN DOWN'); }
 }
 
 // ---------- the step ----------

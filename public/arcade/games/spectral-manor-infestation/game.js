@@ -7,7 +7,8 @@
 
 const STEP = 1000 / 60;
 const ENDING_FRAMES = 150;
-const EXTRA_LIFE_EVERY = 12000;
+// extra lives are earned, not showered: the first at 25k, then every 50k, and never more than 5 in hand
+const FIRST_EXTRA_LIFE = 25000, EXTRA_LIFE_EVERY = 50000, MAX_LIVES = 5;
 const FIRE_COOLDOWN = 9, RAPID_COOLDOWN = 4;
 const POWER_TIME = 600;
 const SPAWN_EVERY = { ghost: 210, bug: 120, beetle: 480, moth: 620, scorpion: 760, spider: 400 };
@@ -91,7 +92,7 @@ let bullets = [], critters = [], eggs = [], spores = [], webs = [], acids = [], 
 let particles = [], shockwaves = [], popups = [];
 let spawnT = {};
 let boss = null;
-let dying = 0, readyT = 0, ending = 0, nextLife = EXTRA_LIFE_EVERY;
+let dying = 0, readyT = 0, ending = 0, nextLife = FIRST_EXTRA_LIFE;
 let power = null, powerTime = 0, fireCd = 0, muzzle = 0, shakeAmt = 0;
 let backdrop = null;
 
@@ -116,8 +117,8 @@ function addScore(n, x, y) {
   score += n;
   if (x !== undefined && n >= 100) popup(String(n), x, y, 45);
   while (score >= nextLife) {
-    nextLife += EXTRA_LIFE_EVERY; lives++;
-    sfx.extra(); popup('EXTRA LIFE', player.x, player.y - 30, 80);
+    nextLife += EXTRA_LIFE_EVERY;
+    if (lives < MAX_LIVES) { lives++; sfx.extra(); popup('EXTRA LIFE', player.x, player.y - 30, 80); }
   }
   updateHUD();
 }
@@ -140,7 +141,7 @@ function sporeLethal(s) { return s.age > 36 && s.life > 30; }
 function startGame() {
   score = 0; lives = 3; tick = 0; playT = 0;
   groundIdx = 0; levelIdx = 0; cycle = 0; cycleMult = 1;
-  nextLife = EXTRA_LIFE_EVERY; paused = false; ending = 0; dying = 0; readyT = 0;
+  nextLife = FIRST_EXTRA_LIFE; paused = false; ending = 0; dying = 0; readyT = 0;
   power = null; powerTime = 0; fireCd = 0; shakeAmt = 0;
   particles = []; shockwaves = []; popups = [];
   enterLevel();
@@ -216,7 +217,7 @@ function spawnHauntipede(len, c0, r0) {
     dir = c0 < COLS / 2 ? 1 : -1;
     c0 = dir > 0 ? Math.max(c0, len - 1) : Math.min(c0, COLS - len);
   }
-  const base = Math.min(2.1 + levelNumber() * 0.1, 3.7) * cycleMult;
+  const base = Math.min(2.3 + levelNumber() * 0.12, 4.2) * (ground().speedMult || 1) * cycleMult;
   for (let i = 0; i < len; i++) {
     segments.push({
       x: cellX(c0 - i * dir), y: cellY(r0), dir, vdir: 1, drop: 0,
@@ -341,7 +342,7 @@ function spawnCritters() {
     if (!max || --spawnT[kind] > 0) return;
     const have = critters.reduce((n, e) => n + (e.kind === kind ? 1 : 0), 0);
     if (have < max) spawnCritter(kind);
-    spawnT[kind] = Math.max(40, SPAWN_EVERY[kind] * (0.7 + Math.random() * 0.6) / cycleMult);
+    spawnT[kind] = Math.max(40, SPAWN_EVERY[kind] * (0.7 + Math.random() * 0.6) / (cycleMult * (ground().spawnMult || 1)));
   });
 }
 
@@ -594,7 +595,11 @@ function hitBullet(b) {
     if (mushrooms[k] <= 0) {
       removeToadstool(k);
       addScore(5);
-      if (puff) { spores.push(makeSpore(cellX(c), cellY(r), (Math.random() - 0.5) * 0.4, 0.55)); sfx.spore(); }
+      if (puff) {                              // conservatory puffballs burst into a fan of three
+        const n = ground().spores || 1;
+        for (let i = 0; i < n; i++) spores.push(makeSpore(cellX(c), cellY(r), (i - (n - 1) / 2) * 0.55 + (Math.random() - 0.5) * 0.2, 0.55 + (n > 1 ? 0.15 : 0)));
+        sfx.spore();
+      }
     } else addScore(1);
     return true;
   }
@@ -688,6 +693,14 @@ function autopilot() {
   const threats = segments.concat(critters.filter(e => e.hurt));
   const danger = threats.find(t => t.y > ZONE_Y - 30 && Math.hypot(t.x - player.x, t.y - player.y) < 80);
   if (danger) { mx = Math.sign(player.x - danger.x) || 1; my = danger.y < player.y ? 1 : -1; }
+  // Mandrake vines: leave a warned or slamming column (away from a second vine) and don't walk back in
+  const vines = boss && boss.vines ? boss.vines.filter(v => v.phase === 'warn' || v.phase === 'slam') : [];
+  for (const v of vines) {
+    const d = player.x - v.cx, other = vines.find(o => o !== v);
+    if (Math.abs(d) < 44) mx = other ? (Math.sign(player.x - other.cx) || 1) : (d < 0 ? -1 : 1);
+    else if (Math.abs(d) < 66 && mx && Math.sign(mx) !== Math.sign(d)) mx = 0;
+  }
+  if ((player.x < 30 && mx < 0) || (player.x > W - 30 && mx > 0)) mx = -mx;
   return { mx, my, fire: true };
 }
 

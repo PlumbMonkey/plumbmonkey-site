@@ -296,6 +296,51 @@ function jam(s, hitAll) {
   assert.equal(count(run(l, G.DYING + 30, {}, 3), 'lose'), 1, 'with lives left it is just a lost life');
 }
 
+// --- the great lantern: its whole column lights it, the tally pays notes + time + ghosts, then the level ends ---
+{
+  const s = quiet(1), L = s.exitLanterns[0];
+  assert.ok(L, '1-1 has a great lantern');
+  assert.ok(!('bells' in s), 'no bell pole left');
+  s.stats = { notes: 12, ghosts: 3 }; s.timeT = 200 * 60 + 1;
+  Object.assign(s.p, { room: L.room, x: L.x - s.p.w / 2, y: L.top - 10, vx: 0, vy: 0, on: false, inv: 0 });   // high in the column, as if leaping over it
+  let ev = run(s, 1);
+  assert.equal(s.phase, 'clear'); assert.equal(count(ev, 'lantern'), 1); assert.equal(s.p.state, 'light');
+  assert.equal(s.finish.points, 12 * 50 + 200 * 20 + 3 * 100);
+  ev = run(s, G.LIGHT + 2);
+  assert.equal(count(ev, 'flare'), 1);
+  assert.equal(ev.find(e => e.type === 'score').n, 4900);
+  ev = run(s, G.CLEAR);
+  assert.equal(count(ev, 'next'), 1);
+  assert.equal(s.p.y + s.p.h, L.bottom, 'he comes down to the ground to light it');
+}
+// --- level stats count vapour; a respawn keeps them, the next level starts fresh ---
+{
+  const v = quiet(1); v.stats = { notes: 0, ghosts: 0 };
+  const room = v.world.rooms[v.p.room], gi = room.grid.findIndex(ch => ch === 'G');
+  assert.ok(gi >= 0, '1-1 has ghost blocks');
+  const gx = gi % room.w, gy = Math.floor(gi / room.w);
+  // a note whose leading edge sits inside the ghost block
+  v.shots = [{ room: v.p.room, x: gx * TILE + 14, y: gy * TILE + 16, w: 20, h: 16, vx: 1, life: 30, whistle: false, age: 0 }];
+  const ev = run(v, 1);
+  assert.ok(count(ev, 'vapour') >= 1, 'the note blasts the ghost block');
+  assert.equal(v.stats.ghosts, count(ev, 'vapour'));
+  v.stats = { notes: 7, ghosts: 4 };
+  assert.deepEqual(JSON.parse(JSON.stringify(G.respawn(v).stats)), { notes: 7, ghosts: 4 });
+  assert.deepEqual(JSON.parse(JSON.stringify(G.createState(2, { notes: 5 }).stats)), { notes: 0, ghosts: 0 });
+}
+// --- the clock: HURRY at 60 s, time out costs a life, and it stands still in a boss arena ---
+{
+  const s = quiet(1);
+  s.timeT = 60 * 60 + 1;
+  assert.equal(count(run(s, 1), 'hurry'), 1);
+  s.timeT = 1;
+  const ev = run(s, 1);
+  assert.equal(s.phase, 'dying'); assert.equal(ev.find(e => e.type === 'die').why, 'time');
+  const b = quiet(1); b.arena = { room: b.p.room, left: 0, right: 1e6 }; b.timeT = 500;
+  run(b, 30);
+  assert.equal(b.timeT, 500);
+}
+
 // --- soak: the autopilot clears every level (respawning at checkpoints), positions stay finite ---
 for (let n = 1; n <= 6; n++) {
   let s = G.createState(n), deaths = 0, cleared = false, f = 0;

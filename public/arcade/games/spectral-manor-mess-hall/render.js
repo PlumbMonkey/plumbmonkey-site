@@ -207,17 +207,7 @@ function draw() {
   ctx.globalAlpha = 1;
   chandeliers.forEach(c => drawChandelier(c, t));
 
-  // aim guide from the hero's throwing hand
-  if (gameRunning && ammo > 0 && !ending && !ATTRACT_MODE) {
-    const rp = heroReleasePoint();
-    ctx.save();
-    ctx.strokeStyle = 'rgba(192,132,252,0.3)'; ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
-    ctx.beginPath(); ctx.moveTo(rp.x, rp.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.strokeStyle = 'rgba(240,171,252,0.8)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 7, 0, Math.PI * 2); ctx.stroke();
-    ctx.restore();
-  }
+  // no aim guide or cursor ring: the hero's throwing arm shows where the food goes
   ctx.restore();
 
   // ---- UI ----

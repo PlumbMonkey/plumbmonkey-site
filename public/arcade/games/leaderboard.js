@@ -648,7 +648,6 @@
   let gamepadTimer = null;       // ~60Hz input poll (setInterval, not rAF, so it
                                  // keeps polling even when the tab isn't painting)
   let aimCursor = null;          // virtual aim cursor in canvas coords (aim games)
-  let reticleEl = null;
   const vk = {};                 // synthetic-key held-state for edge detection
   let prevStart = false, prevAimFire = false;
 
@@ -716,18 +715,6 @@
     document.body.appendChild(b);
   }
 
-  function moveReticle(cx, cy) {
-    if (!reticleEl) {
-      reticleEl = document.createElement('div');
-      reticleEl.style.cssText = 'position:fixed;width:26px;height:26px;margin:-13px 0 0 -13px;z-index:9996;' +
-        'pointer-events:none;border:2px solid rgba(240,171,252,.9);border-radius:50%;' +
-        'box-shadow:0 0 10px rgba(240,171,252,.7),inset 0 0 6px rgba(240,171,252,.5)';
-      document.body.appendChild(reticleEl);
-    }
-    reticleEl.style.left = cx + 'px';
-    reticleEl.style.top = cy + 'px';
-  }
-
   function pollGamepad() {
     if (attract || gamepadIndex === null) return;
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -772,7 +759,6 @@
         const clientX = rect.left + (aimCursor.x / cv.width) * rect.width;
         const clientY = rect.top + (aimCursor.y / cv.height) * rect.height;
         cv.dispatchEvent(new MouseEvent('mousemove', { clientX, clientY, bubbles: true }));
-        moveReticle(clientX, clientY);
         const fireNow = mag > DZ || held(7);
         if (fireNow !== prevAimFire) {
           cv.dispatchEvent(new MouseEvent(fireNow ? 'mousedown' : 'mouseup', { clientX, clientY, bubbles: true }));
