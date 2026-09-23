@@ -2,6 +2,7 @@ import type { NaturalMediaDocument } from "./documentModel";
 import type { TileSetDescriptorV1 } from "./binaryStorage";
 import { parseWorkingDocument, projectWorkingDocument } from "./workingDocument";
 import type { WorkingDocumentV1 } from "./workingDocument";
+import type { WorkingSnapshotReferences } from "./workingDocument";
 
 export type RasterLayerDescriptors = Record<string, TileSetDescriptorV1 | undefined>;
 
@@ -21,7 +22,8 @@ const assertMatchingStructure = (document: NaturalMediaDocument, working: Workin
 export const createLiveDocumentState = (
   document: NaturalMediaDocument,
   rasterLayers: RasterLayerDescriptors = {},
-): LiveDocumentState => ({ document, working: projectWorkingDocument(document, rasterLayers) });
+  snapshotReferences: WorkingSnapshotReferences = {},
+): LiveDocumentState => ({ document, working: projectWorkingDocument(document, rasterLayers, snapshotReferences) });
 
 export const restoreLiveDocumentState = (
   document: NaturalMediaDocument,
@@ -37,12 +39,20 @@ export const updateLiveDocumentState = (
   current: LiveDocumentState,
   update: NaturalMediaDocument | ((document: NaturalMediaDocument) => NaturalMediaDocument),
   rasterLayers: RasterLayerDescriptors = {},
+  snapshotReferences: WorkingSnapshotReferences = {},
 ): LiveDocumentState => {
   const document = typeof update === "function" ? update(current.document) : update;
-  return createLiveDocumentState(document, rasterLayers);
+  return createLiveDocumentState(document, rasterLayers, snapshotReferences);
 };
 
 export const refreshLiveDocumentRaster = (
   current: LiveDocumentState,
   rasterLayers: RasterLayerDescriptors,
-): LiveDocumentState => createLiveDocumentState(current.document, rasterLayers);
+  snapshotReferences: WorkingSnapshotReferences = {},
+): LiveDocumentState => createLiveDocumentState(current.document, rasterLayers, snapshotReferences);
+
+export const refreshLiveDocumentSnapshots = (
+  current: LiveDocumentState,
+  snapshotReferences: WorkingSnapshotReferences,
+  rasterLayers: RasterLayerDescriptors = {},
+): LiveDocumentState => createLiveDocumentState(current.document, rasterLayers, snapshotReferences);

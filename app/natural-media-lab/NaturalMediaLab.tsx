@@ -22,7 +22,8 @@ import { cropCanvasLayer, fillCanvasLinearGradient, flattenCanvas, flipCanvasLay
 import { ExportJobCancelledError, ExportJobController, isExportJobCancelled } from "../../packages/art-room-core/src/exportJob";
 import { BRUSHES, renderBrushStroke } from "../../packages/art-room-core/src/brushEngine";
 import { PROCEDURAL_BRUSHES, renderProceduralStroke } from "../../packages/art-room-core/src/proceduralEngine";
-import { createLiveDocumentState, refreshLiveDocumentRaster, restoreLiveDocumentState, updateLiveDocumentState } from "../../packages/art-room-core/src/liveDocument";
+import { createLiveDocumentState, refreshLiveDocumentRaster, refreshLiveDocumentSnapshots, restoreLiveDocumentState, updateLiveDocumentState } from "../../packages/art-room-core/src/liveDocument";
+import { DocumentBinarySession } from "../../packages/art-room-core/src/documentBinarySession";
 import { encodeGif } from "./gifEncoder";
 import { encodeComicPdf } from "./pdfEncoder";
 import { getComicTransformPatch } from "../../packages/art-room-core/src/comicLayout";
@@ -46,6 +47,13 @@ const TOUR = [
   ["Publish locally", "Export artwork, GIF animation, print-ready pages, or a complete PDF without uploading your work."],
 ] as const;
 const clone = (value: NaturalMediaDocument): NaturalMediaDocument => JSON.parse(JSON.stringify(value));
+const loadCanvasImage = (sourceUrl: string) => new Promise<HTMLImageElement | null>((resolve) => {
+  if (!sourceUrl) return resolve(null);
+  const image = new Image();
+  image.onload = () => resolve(image);
+  image.onerror = () => resolve(null);
+  image.src = sourceUrl;
+});
 const layerRigRotation = (document: NaturalMediaDocument, frame: AnimationFrame, layerId: string) => {
   const binding = document.rig.layerBindings[layerId];
   return binding ? poseRotation(document, frame, binding.boneId) : 0;
@@ -98,11 +106,13 @@ const hsvToHex = (h: number, s: number, v: number) => {
 export default function NaturalMediaLab() {
   const rasterSessionRef = useRef<RasterSession | null>(null);
   const rasterSession = rasterSessionRef.current ??= new RasterSession();
+  const documentBinarySessionRef = useRef<DocumentBinarySession | null>(null);
+  const documentBinarySession = documentBinarySessionRef.current ??= new DocumentBinarySession();
   const [liveDocument, setLiveDocument] = useState(() => createLiveDocumentState(createDocument()));
   const document = liveDocument.document;
   const setDocument = useCallback((update: NaturalMediaDocument | ((document: NaturalMediaDocument) => NaturalMediaDocument)) => {
-    setLiveDocument((current) => updateLiveDocumentState(current, update, rasterSession.layerDescriptors()));
-  }, [rasterSession]);
+    setLiveDocument((current) => updateLiveDocumentState(current, update, rasterSession.layerDescriptors(), documentBinarySession.workingReferences()));
+  }, [documentBinarySession, rasterSession]);
   const [tool, setTool] = useState(BRUSHES[0]);
   const [toolFamily, setToolFamily] = useState<"natural" | "procedural">("natural");
   const [proceduralTool, setProceduralTool] = useState(PROCEDURAL_BRUSHES[0]);
@@ -204,9 +214,23 @@ export default function NaturalMediaLab() {
     return buffers;
   }, []);
 
+  const resolveAnimationLayerSource = useCallback(async (layerId: string, sourceUrl: string, frame: AnimationFrame) => {
+    const spriteIndex = frame.spriteExposure[layerId] ?? -1;
+    const resolved = spriteIndex >= 0
+      ? await documentBinarySession.resolveSprite(layerId, spriteIndex)
+      : await documentBinarySession.resolveFrameLayer(frame.id, layerId);
+    return loadCanvasImage(resolved ?? sourceUrl);
+  }, [documentBinarySession]);
+
+  const captureDocumentBinaries = useCallback(async (source: NaturalMediaDocument) => {
+    const captured = await documentBinarySession.capture(source);
+    if (captured) setLiveDocument((current) => refreshLiveDocumentSnapshots(current, documentBinarySession.workingReferences(), rasterSession.layerDescriptors()));
+    return captured;
+  }, [documentBinarySession, rasterSession]);
+
   const resetRasterTileCache = () => {
     rasterSession.reset();
-    setLiveDocument((current) => refreshLiveDocumentRaster(current, {}));
+    setLiveDocument((current) => refreshLiveDocumentRaster(current, {}, documentBinarySession.workingReferences()));
     dirtyStrokeRef.current = null;
   };
 
@@ -217,7 +241,7 @@ export default function NaturalMediaLab() {
         dirty,
       }).then((revision) => {
       if (!revision) return;
-      setLiveDocument((current) => refreshLiveDocumentRaster(current, rasterSession.layerDescriptors()));
+      setLiveDocument((current) => refreshLiveDocumentRaster(current, rasterSession.layerDescriptors(), documentBinarySession.workingReferences()));
       commandJournalRef.current = appendJournalEntry(commandJournalRef.current, {
         id: revision.id,
         kind: revision.type,
@@ -261,7 +285,7 @@ export default function NaturalMediaLab() {
 
   const restoreRecoveredRaster = async (snapshot: RasterRecoverySnapshotV1, recoveredDocument: NaturalMediaDocument) => {
     if (!await rasterSession.restore(snapshot)) return;
-    setLiveDocument((current) => refreshLiveDocumentRaster(current, rasterSession.layerDescriptors()));
+    setLiveDocument((current) => refreshLiveDocumentRaster(current, rasterSession.layerDescriptors(), documentBinarySession.workingReferences()));
     const resolver = rasterSession.createResolver();
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     for (const layer of recoveredDocument.layers) {
@@ -279,6 +303,7 @@ export default function NaturalMediaLab() {
     loadRecovery().then((saved) => {
       if (!saved) return;
       setLiveDocument(restoreLiveDocumentState(saved.document, "working" in saved ? saved.working : undefined));
+      void captureDocumentBinaries(saved.document);
       if ("raster" in saved && saved.raster) void restoreRecoveredRaster(saved.raster, saved.document).catch(() => setPerformanceNote("Tile recovery unavailable; restored the document snapshot instead."));
     })
       .catch(() => setSaveState("Local recovery unavailable")).finally(() => setHydrated(true));
@@ -399,7 +424,7 @@ export default function NaturalMediaLab() {
       return;
     }
     rasterSession.applyRevision(entry.rasterRevision, direction);
-    setLiveDocument((current) => refreshLiveDocumentRaster(current, rasterSession.layerDescriptors()));
+    setLiveDocument((current) => refreshLiveDocumentRaster(current, rasterSession.layerDescriptors(), documentBinarySession.workingReferences()));
     setDocument(entry.document);
     window.setTimeout(() => {
       paintCanvases(entry.document);
@@ -660,33 +685,39 @@ export default function NaturalMediaLab() {
     const file = event.target.files?.[0]; if (!file) return;
     try {
       const project = parseProject(JSON.parse(await file.text()));
-      historyRef.current = []; redoRef.current = []; commandJournalRef.current = createCommandJournal<ArtRoomCommand>(); resetRasterTileCache(); setDocument(project);
+      historyRef.current = []; redoRef.current = []; commandJournalRef.current = createCommandJournal<ArtRoomCommand>(); resetRasterTileCache(); documentBinarySession.reset(); setDocument(project);
       window.setTimeout(() => paintCanvases(project));
     } catch (error) { alert(error instanceof Error ? error.message : "Could not open this project."); }
     event.target.value = "";
   };
   const createNew = () => {
-    pushHistory(); commandJournalRef.current = createCommandJournal<ArtRoomCommand>(); resetRasterTileCache(); setDocument(createDocument(newSize.width, newSize.height, newSize.background)); setShowNew(false);
+    pushHistory(); commandJournalRef.current = createCommandJournal<ArtRoomCommand>(); resetRasterTileCache(); documentBinarySession.reset(); setDocument(createDocument(newSize.width, newSize.height, newSize.background)); setShowNew(false);
   };
   const goToFrame = async (frameId: string) => {
     const captured = captureDocument();
     const target = captured.animation.frames.find((frame) => frame.id === frameId); if (!target) return;
+    await captureDocumentBinaries(captured);
     const targetIndex = captured.animation.frames.findIndex((frame) => frame.id === frameId);
-    if (onionSkin && targetIndex > 0) setOnionUrl((await renderAnimationFrame(captured, captured.animation.frames[targetIndex - 1].id)).toDataURL("image/png")); else setOnionUrl("");
-    const next = { ...captured, layers: captured.layers.map((layer) => ({ ...layer, dataUrl: target.layerData[layer.id] ?? "" })), animation: { ...captured.animation, activeFrameId: frameId } };
+    if (onionSkin && targetIndex > 0) setOnionUrl((await renderAnimationFrame(captured, captured.animation.frames[targetIndex - 1].id, { resolveLayerSource: resolveAnimationLayerSource })).toDataURL("image/png")); else setOnionUrl("");
+    const layers = await Promise.all(captured.layers.map(async (layer) => ({ ...layer, dataUrl: await documentBinarySession.resolveFrameLayer(frameId, layer.id) ?? target.layerData[layer.id] ?? "" })));
+    const next = { ...captured, layers, animation: { ...captured.animation, activeFrameId: frameId } };
     setDocument(next); window.setTimeout(() => paintCanvases(next));
   };
-  const addFrame = (duplicate = false) => {
+  const addFrame = async (duplicate = false) => {
     const captured = captureDocument(), active = captured.animation.frames.find((frame) => frame.id === captured.animation.activeFrameId)!;
-    const frame = { id: crypto.randomUUID(), name: `Frame ${captured.animation.frames.length + 1}`, layerData: duplicate ? { ...active.layerData } : Object.fromEntries(captured.layers.map((layer) => [layer.id, ""])), hold: 1, transforms: duplicate ? JSON.parse(JSON.stringify(active.transforms)) : {}, bonePose: duplicate ? { ...active.bonePose } : {}, spriteExposure: duplicate ? { ...active.spriteExposure } : {}, mouthCue: duplicate ? active.mouthCue : "rest" as const, camera: duplicate ? { ...active.camera } : { x: 0, y: 0, zoom: 100, rotation: 0, shake: 0 } };
+    if (duplicate) await captureDocumentBinaries(captured);
+    const layerData = duplicate ? Object.fromEntries(await Promise.all(captured.layers.map(async (layer) => [layer.id, await documentBinarySession.resolveFrameLayer(active.id, layer.id) ?? active.layerData[layer.id] ?? ""]))) : Object.fromEntries(captured.layers.map((layer) => [layer.id, ""]));
+    const frame = { id: crypto.randomUUID(), name: `Frame ${captured.animation.frames.length + 1}`, layerData, hold: 1, transforms: duplicate ? JSON.parse(JSON.stringify(active.transforms)) : {}, bonePose: duplicate ? { ...active.bonePose } : {}, spriteExposure: duplicate ? { ...active.spriteExposure } : {}, mouthCue: duplicate ? active.mouthCue : "rest" as const, camera: duplicate ? { ...active.camera } : { x: 0, y: 0, zoom: 100, rotation: 0, shake: 0 } };
     const next = { ...captured, layers: captured.layers.map((layer) => ({ ...layer, dataUrl: frame.layerData[layer.id] ?? "" })), animation: { ...captured.animation, activeFrameId: frame.id, frames: [...captured.animation.frames, frame] } };
-    pushHistory(); setDocument(next); window.setTimeout(() => paintCanvases(next));
+    pushHistory(); setDocument(next); void captureDocumentBinaries(next); window.setTimeout(() => paintCanvases(next));
   };
-  const deleteFrame = () => {
+  const deleteFrame = async () => {
     if (document.animation.frames.length === 1) return;
-    pushHistory(); const index = document.animation.frames.findIndex((frame) => frame.id === document.animation.activeFrameId);
-    const frames = document.animation.frames.filter((frame) => frame.id !== document.animation.activeFrameId), target = frames[Math.max(0, index - 1)];
-    const next = { ...document, layers: document.layers.map((layer) => ({ ...layer, dataUrl: target.layerData[layer.id] ?? "" })), animation: { ...document.animation, frames, activeFrameId: target.id } };
+    pushHistory(); const captured = captureDocument(), index = captured.animation.frames.findIndex((frame) => frame.id === captured.animation.activeFrameId);
+    const frames = captured.animation.frames.filter((frame) => frame.id !== captured.animation.activeFrameId), target = frames[Math.max(0, index - 1)];
+    await captureDocumentBinaries(captured);
+    const layers = await Promise.all(captured.layers.map(async (layer) => ({ ...layer, dataUrl: await documentBinarySession.resolveFrameLayer(target.id, layer.id) ?? target.layerData[layer.id] ?? "" })));
+    const next = { ...captured, layers, animation: { ...captured.animation, frames, activeFrameId: target.id } };
     setDocument(next); window.setTimeout(() => paintCanvases(next));
   };
   const moveFrame = (direction: -1 | 1) => {
@@ -756,7 +787,8 @@ export default function NaturalMediaLab() {
     const canvas = canvasRefs.current.get(activeLayer.id); if (!canvas) return;
     const variants = document.rig.sprites[activeLayer.id] ?? [];
     const name = prompt("Sprite name", `Sprite ${variants.length + 1}`); if (!name) return;
-    setDocument((current) => ({ ...current, rig: { ...current.rig, sprites: { ...current.rig.sprites, [activeLayer.id]: [...variants, { name, dataUrl: canvas.toDataURL("image/png") }] } } }));
+    const next = { ...document, rig: { ...document.rig, sprites: { ...document.rig.sprites, [activeLayer.id]: [...variants, { name, dataUrl: canvas.toDataURL("image/png") }] } } };
+    setDocument(next); void captureDocumentBinaries(next);
   };
   const setSpriteExposure = (index: number) => {
     setDocument((current) => ({ ...current, animation: { ...current.animation, frames: current.animation.frames.map((frame) => frame.id === current.animation.activeFrameId ? { ...frame, spriteExposure: { ...frame.spriteExposure, [current.activeLayerId]: index } } : frame) } }));
@@ -764,28 +796,31 @@ export default function NaturalMediaLab() {
   const updateCamera = (patch: Partial<AnimationFrame["camera"]>) => {
     setDocument((current) => ({ ...current, animation: { ...current.animation, frames: current.animation.frames.map((frame) => frame.id === current.animation.activeFrameId ? { ...frame, camera: { ...frame.camera, ...patch } } : frame) } }));
   };
-  const goToComicPage = (id: string) => {
+  const goToComicPage = async (id: string) => {
     const captured = captureDocument(), target = captured.comic.pages.find((page) => page.id === id); if (!target) return;
-    const next = { ...captured, layers: captured.layers.map((layer) => ({ ...layer, dataUrl: target.layerData[layer.id] ?? "" })), comic: { ...captured.comic, activePageId: id, panels: target.panels, text: target.text } };
+    await captureDocumentBinaries(captured);
+    const layers = await Promise.all(captured.layers.map(async (layer) => ({ ...layer, dataUrl: await documentBinarySession.resolveComicPageLayer(id, layer.id) ?? target.layerData[layer.id] ?? "" })));
+    const next = { ...captured, layers, comic: { ...captured.comic, activePageId: id, panels: target.panels, text: target.text } };
     setDocument(next); window.setTimeout(() => paintCanvases(next));
     setSelectedPanelId(null); setSelectedTextId(null); setSelectedComicIds([]);
   };
-  const addComicPage = (duplicate = false) => {
+  const addComicPage = async (duplicate = false) => {
     pushHistory(); const id = crypto.randomUUID(), captured = captureDocument();
-    const layerData = Object.fromEntries(captured.layers.map((layer) => [layer.id, duplicate ? layer.dataUrl : ""]));
+    if (duplicate) await captureDocumentBinaries(captured);
+    const layerData = duplicate ? Object.fromEntries(await Promise.all(captured.layers.map(async (layer) => [layer.id, await documentBinarySession.resolveComicPageLayer(captured.comic.activePageId, layer.id) ?? layer.dataUrl]))) : Object.fromEntries(captured.layers.map((layer) => [layer.id, ""]));
     const page = { id, name: `Page ${captured.comic.pages.length + 1}`, panels: duplicate ? captured.comic.panels.map((panel) => ({ ...panel, id: crypto.randomUUID() })) : [], text: duplicate ? captured.comic.text.map((item) => ({ ...item, id: crypto.randomUUID() })) : [], layerData };
     const next = { ...captured, layers: captured.layers.map((layer) => ({ ...layer, dataUrl: layerData[layer.id] })), comic: { ...captured.comic, enabled: true, activePageId: id, pages: [...captured.comic.pages, page], panels: page.panels, text: page.text } };
-    setDocument(next); window.setTimeout(() => paintCanvases(next));
+    setDocument(next); void captureDocumentBinaries(next); window.setTimeout(() => paintCanvases(next));
     setSelectedPanelId(null); setSelectedTextId(null); setSelectedComicIds([]);
   };
-  const deleteComicPage = () => {
+  const deleteComicPage = async () => {
     if (document.comic.pages.length === 1) return; pushHistory();
-    setDocument((current) => {
-      const index = current.comic.pages.findIndex((page) => page.id === current.comic.activePageId);
-      const pages = current.comic.pages.filter((page) => page.id !== current.comic.activePageId), target = pages[Math.max(0, index - 1)];
-      const layers = current.layers.map((layer) => ({ ...layer, dataUrl: target.layerData[layer.id] ?? "" }));
-      const next = { ...current, layers, comic: { ...current.comic, activePageId: target.id, pages, panels: target.panels, text: target.text } }; window.setTimeout(() => paintCanvases(next)); return next;
-    });
+    const captured = captureDocument(), index = captured.comic.pages.findIndex((page) => page.id === captured.comic.activePageId);
+    const pages = captured.comic.pages.filter((page) => page.id !== captured.comic.activePageId), target = pages[Math.max(0, index - 1)];
+    await captureDocumentBinaries(captured);
+    const layers = await Promise.all(captured.layers.map(async (layer) => ({ ...layer, dataUrl: await documentBinarySession.resolveComicPageLayer(target.id, layer.id) ?? target.layerData[layer.id] ?? "" })));
+    const next = { ...captured, layers, comic: { ...captured.comic, activePageId: target.id, pages, panels: target.panels, text: target.text } };
+    setDocument(next); window.setTimeout(() => paintCanvases(next));
   };
   const moveComicPage = (direction: -1 | 1) => {
     const index = document.comic.pages.findIndex((page) => page.id === document.comic.activePageId), target = index + direction;
@@ -980,7 +1015,8 @@ export default function NaturalMediaLab() {
       const result = await exportJob.run("animation-gif", async (job) => {
         const gifPlan = planGifExport(document.width, document.height);
         const captured = captureDocument();
-        const images = await renderAnimationImageData(captured, gifPlan.width, gifPlan.height);
+        await captureDocumentBinaries(captured);
+        const images = await renderAnimationImageData(captured, gifPlan.width, gifPlan.height, { resolveLayerSource: resolveAnimationLayerSource });
         job.throwIfCancelled();
         return { blob: encodeGif(images, gifPlan.width, gifPlan.height, captured.animation.fps, captured.animation.loop, captured.animation.frames.map((frame) => frame.hold)), captured };
       });

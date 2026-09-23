@@ -10,7 +10,7 @@ try {
   execFileSync(process.execPath, [
     join(process.cwd(), "node_modules", "typescript", "bin", "tsc"),
     "app/natural-media-lab/documentModel.ts", "app/natural-media-lab/pdfEncoder.ts", "app/natural-media-lab/gifEncoder.ts", "app/natural-media-lab/viewportMath.ts",
-    "packages/art-room-core/src/recovery.ts", "packages/art-room-core/src/projectFormats.ts", "packages/art-room-core/src/commandJournal.ts", "packages/art-room-core/src/documentModel.ts", "packages/art-room-core/src/documentSnapshot.ts", "packages/art-room-core/src/workingDocument.ts", "packages/art-room-core/src/liveDocument.ts", "packages/art-room-core/src/animation.ts", "packages/art-room-core/src/animationRenderer.ts", "packages/art-room-core/src/rig.ts", "packages/art-room-core/src/comicLayout.ts", "packages/art-room-core/src/comicRenderer.ts", "packages/art-room-core/src/canvasOperations.ts", "packages/art-room-core/src/exportJob.ts", "packages/art-room-core/src/brushEngine.ts", "packages/art-room-core/src/proceduralEngine.ts", "packages/art-room-core/src/editorCommands.ts", "packages/art-room-core/src/binaryStorage.ts", "packages/art-room-core/src/rasterSurface.ts", "packages/art-room-core/src/rasterRecovery.ts", "packages/art-room-core/src/rasterRevision.ts", "packages/art-room-core/src/rasterSession.ts", "packages/art-room-core/src/historyController.ts", "packages/art-room-core/src/exportPlanning.ts", "packages/art-room-core/src/workload.ts",
+    "packages/art-room-core/src/recovery.ts", "packages/art-room-core/src/projectFormats.ts", "packages/art-room-core/src/commandJournal.ts", "packages/art-room-core/src/documentModel.ts", "packages/art-room-core/src/documentSnapshot.ts", "packages/art-room-core/src/workingDocument.ts", "packages/art-room-core/src/liveDocument.ts", "packages/art-room-core/src/documentBinarySession.ts", "packages/art-room-core/src/animation.ts", "packages/art-room-core/src/animationRenderer.ts", "packages/art-room-core/src/rig.ts", "packages/art-room-core/src/comicLayout.ts", "packages/art-room-core/src/comicRenderer.ts", "packages/art-room-core/src/canvasOperations.ts", "packages/art-room-core/src/exportJob.ts", "packages/art-room-core/src/brushEngine.ts", "packages/art-room-core/src/proceduralEngine.ts", "packages/art-room-core/src/editorCommands.ts", "packages/art-room-core/src/binaryStorage.ts", "packages/art-room-core/src/rasterSurface.ts", "packages/art-room-core/src/rasterRecovery.ts", "packages/art-room-core/src/rasterRevision.ts", "packages/art-room-core/src/rasterSession.ts", "packages/art-room-core/src/historyController.ts", "packages/art-room-core/src/exportPlanning.ts", "packages/art-room-core/src/workload.ts",
     "--target", "ES2022", "--module", "commonjs", "--rootDir", ".", "--outDir", output, "--skipLibCheck",
   ], { stdio: "pipe" });
   const require = createRequire(import.meta.url);
@@ -30,6 +30,7 @@ try {
   const { captureDocumentSnapshot } = require(coreCompiled("documentSnapshot.js"));
   const { parseWorkingDocument, projectWorkingDocument, workingDocumentHandleIds } = require(coreCompiled("workingDocument.js"));
   const { createLiveDocumentState, refreshLiveDocumentRaster, restoreLiveDocumentState, updateLiveDocumentState } = require(coreCompiled("liveDocument.js"));
+  const { DocumentBinarySession } = require(coreCompiled("documentBinarySession.js"));
   const { DEFAULT_LAYER_TRANSFORM, easeTimelineValue, framePlaybackDelay, resolveLayerTransform } = require(coreCompiled("animation.js"));
   const { animationCameraState, animationLayerSourceUrl, renderAnimationFrame, renderAnimationImageData } = require(coreCompiled("animationRenderer.js"));
   const { comicPanelSourceTransform, comicRectToPixels, comicTextPosition, getComicTransformPatch, wrapComicText } = require(coreCompiled("comicLayout.js"));
@@ -65,6 +66,30 @@ try {
   assert.equal(capturedSnapshot.comic.pages[0].layerData.layer, capturedSnapshot.layers[0].dataUrl);
   assert.equal(capturedSnapshot.updatedAt, "2026-09-02T02:00:00.000Z");
   assert.equal(migrated.layers[0].dataUrl, "");
+  const binarySessionSource = structuredClone(capturedSnapshot);
+  binarySessionSource.layers[0].dataUrl = "data:image/png;base64,AQID";
+  binarySessionSource.layers[0].simulation = { wetMapUrl: "", heightMapUrl: "" };
+  binarySessionSource.animation.frames[0].layerData.layer = "data:image/png;base64,BAUG";
+  binarySessionSource.comic.pages[0].layerData.layer = "data:image/png;base64,BwgJ";
+  binarySessionSource.rig.sprites.layer = [{ name: "Pose", dataUrl: "data:image/png;base64,CgsM" }];
+  const documentBinarySession = new DocumentBinarySession({ now: () => "2026-09-16T00:00:00.000Z" });
+  const binarySnapshot = await documentBinarySession.capture(binarySessionSource);
+  assert.equal(binarySnapshot.checkpoint.sequence, 1);
+  assert.equal(documentBinarySession.frameLayerReference(binarySessionSource.animation.frames[0].id, "layer").kind, "binary-handle");
+  assert.equal(documentBinarySession.comicPageLayerReference(binarySessionSource.comic.pages[0].id, "layer").kind, "binary-handle");
+  assert.equal(documentBinarySession.spriteReference("layer", 0).kind, "binary-handle");
+  assert.equal(await documentBinarySession.resolveFrameLayer(binarySessionSource.animation.frames[0].id, "layer"), "data:image/png;base64,BAUG");
+  assert.equal(await documentBinarySession.resolveComicPageLayer(binarySessionSource.comic.pages[0].id, "layer"), "data:image/png;base64,BwgJ");
+  assert.equal(await documentBinarySession.resolveSprite("layer", 0), "data:image/png;base64,CgsM");
+  const binaryWorkingDocument = projectWorkingDocument(binarySessionSource, {}, documentBinarySession.workingReferences());
+  assert.equal(binaryWorkingDocument.animation.frames[0].layerReferences.layer.kind, "binary-handle");
+  assert.equal(binaryWorkingDocument.comic.pages[0].layerReferences.layer.kind, "binary-handle");
+  assert.equal(binaryWorkingDocument.rig.sprites.layer[0].reference.kind, "binary-handle");
+  assert.equal(workingDocumentHandleIds(binaryWorkingDocument).length, 3);
+  assert.ok(!JSON.stringify(binaryWorkingDocument).includes("data:image"));
+  documentBinarySession.reset();
+  assert.equal(documentBinarySession.current, undefined);
+  assert.equal(await documentBinarySession.resolveFrameLayer(binarySessionSource.animation.frames[0].id, "layer"), undefined);
   const transformFrames = [
     { ...migrated.animation.frames[0], id: "animation-1", transforms: { layer: { ...DEFAULT_LAYER_TRANSFORM, x: 0, opacity: 100, easing: "ease-in-out" } } },
     { ...migrated.animation.frames[0], id: "animation-2", transforms: {} },
@@ -374,7 +399,7 @@ try {
   assert.ok(!JSON.stringify(workingDocument).includes("data:image"));
   assert.deepEqual(workingDocument.animation.frames[0].populatedLayerIds, ["paint"]);
   assert.deepEqual(workingDocument.comic.pages[0].populatedLayerIds, ["paint"]);
-  assert.deepEqual(workingDocument.rig.sprites.paint, [{ name: "Pose" }]);
+  assert.deepEqual(workingDocument.rig.sprites.paint, [{ name: "Pose", reference: null }]);
   assert.deepEqual(parseWorkingDocument(structuredClone(workingDocument)), workingDocument);
   const unsupportedWorkingDocument = structuredClone(workingDocument);
   unsupportedWorkingDocument.version = 2;
@@ -388,6 +413,9 @@ try {
   const invalidWorkingRaster = structuredClone(workingDocument);
   invalidWorkingRaster.layers[0].raster.width = 0;
   assert.throws(() => parseWorkingDocument(invalidWorkingRaster), /positive integer/);
+  const invalidWorkingReference = structuredClone(workingDocument);
+  invalidWorkingReference.animation.frames[0].layerReferences.paint = { kind: "binary-handle", handleId: "" };
+  assert.throws(() => parseWorkingDocument(invalidWorkingReference), /binary handle reference/);
   const standaloneWorkingDocument = projectWorkingDocument(handleBackedSource, { paint: sessionSecondRevision.after });
   assert.deepEqual(standaloneWorkingDocument.layers[0].raster, workingDocument.layers[0].raster);
   const liveDocument = createLiveDocumentState(handleBackedSource, { paint: sessionSecondRevision.after });
