@@ -54,6 +54,15 @@
     return filmFor(href);
   }
 
+  /* A walk to the Theatre's or the Gallery's enter screen carries on into the
+     room itself (rooms.js, `lobby`). The one exception is leaving that room
+     for its own lobby — the Exit in its menu — which must not walk the visitor
+     straight back in. */
+  function walkTarget(href) {
+    var target = root.PM_WALK_TARGET ? root.PM_WALK_TARGET(href) : href;
+    return target.split(/[?#]/)[0] === root.location.pathname ? href : target;
+  }
+
   /* One reason at a time, so a bug here is a plain navigation and never a
      visitor stuck on a black screen. */
   function shouldSkip() {
@@ -85,7 +94,7 @@
      strong signal, the fetch is idempotent, and by click time the film usually
      has only the scene build left to cover rather than several megabytes. */
   function prefetch(href) {
-    var route = routeFor(href);
+    var route = routeFor(walkTarget(href));
     if (route) warm(route.model);
   }
 
@@ -131,6 +140,7 @@
    */
   function play(href, leave) {
     leave = leave || function (h) { root.location.href = h; };
+    href = walkTarget(href);
     var route = routeFor(href);
     if (!route || shouldSkip()) { leave(href); return; }
 

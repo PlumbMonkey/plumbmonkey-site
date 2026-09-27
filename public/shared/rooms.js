@@ -43,6 +43,13 @@
    headed for the 3D entrance — see filmFor() below. A room with no `film`
    simply navigates the old way.
 
+   `lobby` means the room's `href` is only an enter screen in front of its
+   `room3d` (the Theatre's and the Gallery's "Enter the …" pages). A walk that
+   ends on a lobby would land the visitor at a button that starts another load,
+   so the walk goes on into the room instead; see walkTarget() below. The
+   lobby is still reachable as a plain page, and the room's Exit returns to it.
+   The Luminarium and the Art Room are not lobbies: their `href` is a tool.
+
    `npm test` accepts a foyer arch pointing at either address, and checks the
    room3d file, the film pair and the model are really there.
    ============================================================ */
@@ -58,9 +65,10 @@
       film: "spiral", model: "/luminarium/luminarium-web.glb" },
     { href: "/natural-media-lab", label: "Art Room", room3d: "/artroom/viewer.html",
       film: "stair", model: "/artroom/artroom-web.glb" },
-    { href: "/screening-room", label: "Theatre", film: "hall-turn-left" },
-    { href: "/gallery", label: "Gallery", film: "hall-straight",
-      model: "/gallery/gallery-web.glb" },
+    { href: "/screening-room", label: "Theatre", room3d: "/theatre/viewer.html", lobby: true,
+      film: "hall-turn-left", model: "/theatre/theatre-web.glb" },
+    { href: "/gallery", label: "Gallery", room3d: "/gallery/viewer.html", lobby: true,
+      film: "hall-straight", model: "/gallery/gallery-web.glb" },
     { href: "/workshop", label: "Workshop", film: "hall-turn-right" }
   ];
 
@@ -119,15 +127,28 @@
     return { film: room.film, model: wants3d ? (room.model || null) : null, room: room };
   }
 
+  /* Where a walk to `href` should really end. A walk to a lobby goes on into
+     its 3D room — the hallway film is the way in, and stopping it at an enter
+     screen made visitors walk the corridor and then click "Enter" as well.
+     Everything else is left exactly as asked. */
+  function walkTarget(href) {
+    var room = roomFor(href);
+    if (!room || !room.lobby || !room.room3d) return href;
+    var path = String(href).split(/[?#]/)[0].replace(/\/$/, "");
+    return path === room.href ? room.room3d : href;
+  }
+
   root.PM_ROOMS = ROOMS;
   root.PM_CTA = CTA;
   root.PM_ENTRANCE = entrance;
   root.PM_ROOM_PATHS = roomPaths;
   root.PM_ROOM_FOR = roomFor;
   root.PM_FILM_FOR = filmFor;
+  root.PM_WALK_TARGET = walkTarget;
 
   if (typeof module !== "undefined" && module.exports) {
     module.exports = { ROOMS: ROOMS, CTA: CTA, entrance: entrance,
-                       roomPaths: roomPaths, roomFor: roomFor, filmFor: filmFor };
+                       roomPaths: roomPaths, roomFor: roomFor, filmFor: filmFor,
+                       walkTarget: walkTarget };
   }
 })(typeof globalThis !== "undefined" ? globalThis : this);
