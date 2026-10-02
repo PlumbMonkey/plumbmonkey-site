@@ -19,6 +19,8 @@ const STUDIO = [
   { href: "/booking", label: "Book a call" },
   { href: "/upload", label: "Send me files" },
   { href: "/contact", label: "Contact" },
+  { href: "/privacy", label: "Privacy policy" },
+  { href: "/terms", label: "Terms of use" },
 ];
 
 export default function Footer() {
