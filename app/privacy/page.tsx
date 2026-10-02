@@ -88,8 +88,10 @@ export default function PrivacyPage() {
         Each event is linked to a random ID created on your phone, not to you. Like most apps, PostHog
         also receives basic technical details with each event, such as app version, operating system
         version and device type. We do not use session recording, we do not track what is on your
-        screen, and we do not send your photos, models, file names or any text you type. We have
-        configured PostHog not to store IP addresses.
+        screen, and we do not send your photos, models, file names or any text you type. Every
+        internet request carries an IP address, so PostHog may use it momentarily to work out a
+        general region (such as your country or city) and then discards it: we have configured
+        PostHog not to store IP addresses.
       </p>
 
       <h3>3. Crash reports and product updates</h3>
