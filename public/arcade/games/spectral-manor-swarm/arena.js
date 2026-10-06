@@ -246,7 +246,9 @@ function drawShockRings(rings) {
     ctx.strokeStyle = `rgba(244,114,182,${a * 0.8})`; ctx.lineWidth = 5 * a + 2;
     ctx.beginPath(); ctx.ellipse(r.x, r.y, r.r, r.r * 0.75, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.strokeStyle = `rgba(255,255,255,${a * 0.5})`; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.ellipse(r.x, r.y, r.r - 6, (r.r - 6) * 0.75, 0, 0, Math.PI * 2); ctx.stroke();
+    // the golem's inner slam ring starts at r 0, and a negative radius throws,
+    // which kills the game loop — so the highlight waits until it fits
+    if (r.r > 6) { ctx.beginPath(); ctx.ellipse(r.x, r.y, r.r - 6, (r.r - 6) * 0.75, 0, 0, Math.PI * 2); ctx.stroke(); }
   });
 }
 
