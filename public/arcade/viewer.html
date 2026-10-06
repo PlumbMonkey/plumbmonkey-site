@@ -515,6 +515,137 @@ renderer.domElement.addEventListener('touchend', (e) => {
   if (c && c !== hovered) { setHover(c); e.preventDefault(); }
 }, { passive: false });
 
+/* The high-score board on the side wall.
+   The export models the board's rows as fixed 3D text (HS_Names, HS_Vals) —
+   ten made-up ACE scores. Those stay as the fallback; once real scores arrive
+   from the Worker they are hidden and a panel drawn on a canvas takes their
+   place, showing the same combined top 10 as the list page's hall of fame.
+   HS_Title is left alone. The panel reuses the text's own material so it
+   glows exactly like the title above it.
+
+   Game titles come from the cabinets' labels (matched by the slug in their
+   href), so this adds no fourth copy of the game list to keep in step. */
+const BOARD_ROWS = 10;
+const BOARD_W = 1.14, BOARD_H = 1.46;           // metres; the board face is 1.3 × 1.95
+const BOARD_CENTRE = new THREE.Vector3(-3.305, 2.35, 6.5);
+const BOARD_FONT = '"Futura", "Century Gothic", "Josefin Sans", "Trebuchet MS", sans-serif';
+
+function setupScoreBoard(root) {
+  const names = root.getObjectByName('HS_Names');
+  const vals = root.getObjectByName('HS_Vals');
+  if (!names || !vals) return;
+
+  const cv = document.createElement('canvas');
+  cv.width = 1024;
+  cv.height = Math.round(1024 * BOARD_H / BOARD_W);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+  const mat = names.material.clone();
+  mat.map = tex;
+  mat.emissiveMap = tex;
+  mat.transparent = true;
+  mat.depthWrite = false;
+
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(BOARD_W, BOARD_H), mat);
+  panel.name = 'HS_Live';
+  panel.position.copy(BOARD_CENTRE);
+  panel.rotation.y = Math.PI / 2;               // face into the room (+x)
+  panel.visible = false;
+  root.add(panel);
+
+  const titleFor = (slug) => {
+    const c = cabinets.find((x) => x.href.split('/').includes(slug));
+    return c ? c.label : slug.replace(/^spectral-manor-/, '').replace(/-/g, ' ');
+  };
+
+  function draw(rows) {
+    const g = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    const pitch = H / BOARD_ROWS;
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = '#fff';
+    g.textBaseline = 'middle';
+
+    for (let i = 0; i < BOARD_ROWS; i++) {
+      const y = pitch * (i + 0.5);
+      const r = rows[i];
+      g.font = `500 ${Math.round(pitch * 0.5)}px ${BOARD_FONT}`;
+      g.textAlign = 'right';
+      g.fillText(i + 1 + '.', 92, y);
+      g.textAlign = 'left';
+      g.fillText(r ? r.i : '---', 112, y);
+      g.textAlign = 'right';
+      g.fillText(r ? r.s.toLocaleString('en-US') : '', W - 24, y);
+
+      if (r) {
+        // the game, smaller and dimmer, between initials and score
+        const label = r.game.toUpperCase();
+        let size = Math.round(pitch * 0.36);
+        g.font = `500 ${size}px ${BOARD_FONT}`;
+        while (size > 12 && g.measureText(label).width > 360) {
+          g.font = `500 ${--size}px ${BOARD_FONT}`;
+        }
+        g.globalAlpha = 0.7;
+        g.textAlign = 'center';
+        g.fillText(label, 490, y);
+        g.globalAlpha = 1;
+      }
+    }
+    tex.needsUpdate = true;
+  }
+
+  function show(games) {
+    const all = [];
+    for (const [slug, top] of Object.entries(games)) {
+      for (const e of top || []) all.push({ i: e.i, s: e.s, game: titleFor(slug) });
+    }
+    if (!all.length) return;                     // nothing yet: keep the modelled board
+    all.sort((a, b) => b.s - a.s);
+    draw(all.slice(0, BOARD_ROWS));
+    names.visible = vals.visible = false;
+    panel.visible = true;
+  }
+
+  // The last global boards this browser saw (shared with the list page and
+  // leaderboard.js), so the wall is right straight away and stays right offline.
+  const cached = {};
+  for (const c of cabinets) {
+    const slug = c.href.split('/').find((s) => s.startsWith('spectral-'));
+    if (!slug) continue;
+    try {
+      const rows = JSON.parse(localStorage.getItem('spectralArcade.global.' + slug) || 'null');
+      if (Array.isArray(rows)) cached[slug] = rows;
+    } catch (e) {}
+  }
+  show(cached);
+
+  // track.js (which defines PMApi) is a deferred script after this module.
+  const api = () => window.PMApi ? Promise.resolve(window.PMApi)
+    : new Promise((ok, no) => {
+        if (document.readyState !== 'loading') return no();
+        document.addEventListener('DOMContentLoaded', () => window.PMApi ? ok(window.PMApi) : no(), { once: true });
+      });
+
+  let last = 0;
+  function refresh() {
+    if (Date.now() - last < 15000) return;      // the Worker caches /scores for 15 s
+    last = Date.now();
+    api().then((a) => a.get('/scores')).then((res) => {
+      if (!res.ok || !res.games) return;
+      for (const [slug, top] of Object.entries(res.games)) {
+        try { localStorage.setItem('spectralArcade.global.' + slug, JSON.stringify(top.map((e) => ({ i: e.i, s: e.s })))); } catch (e) {}
+      }
+      show(res.games);
+    }).catch(() => {});
+  }
+  refresh();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refresh();
+  });
+}
+
 let mixer = null;
 const clock = new THREE.Clock();
 
@@ -531,6 +662,7 @@ gltfLoader.load('/arcade/arcade-web.glb',
 
     const n = wireCabinets(gltf.scene);
     if (n !== 12) console.warn(`arcade: wired ${n} cabinets, expected 12`);
+    setupScoreBoard(gltf.scene);
 
     if (gltf.animations && gltf.animations.length) {
       mixer = new THREE.AnimationMixer(gltf.scene);
