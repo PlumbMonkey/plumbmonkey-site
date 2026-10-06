@@ -685,14 +685,16 @@ gltfLoader.load('/arcade/arcade-web.glb',
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
     });
 
-    const goToPose = (pos, dir, fov, btn) => {
+    // `reach` is how far ahead the orbit pivot sits: dragging swings the camera
+    // round a circle that size, so a stop in a tight spot wants a short one.
+    const goToPose = (pos, dir, fov, btn, reach = 5) => {
       // Take the authored lens, not just the position: both arcade cameras are
       // wide (20-21 mm, past 80 degrees) and the viewer defaults to 60, so
       // without this the room reads far tighter than it was framed to.
       camera.fov = Math.min(fov, 78);
       camera.updateProjectionMatrix();
       camera.position.copy(pos);
-      controls.target.copy(pos).addScaledVector(dir, 5);
+      controls.target.copy(pos).addScaledVector(dir, reach);
       controls.update();
       viewsEl.querySelectorAll('button').forEach((b) =>
         b.setAttribute('aria-current', String(b === btn)));
@@ -720,7 +722,14 @@ gltfLoader.load('/arcade/arcade-web.glb',
        Everything is derived from the cabinets, not typed: stand at their
        centroid at the hero camera's eye height, and look at the centroid of
        whichever row has more machines. Move the rows in Blender and this
-       follows them — they have been moved down the hall once already. */
+       follows them — they have been moved down the hall once already.
+
+       The orbit pivots on the middle of the aisle, with the camera AISLE_PIVOT
+       behind it. With the usual 5 m pivot the target sat past the far row, so
+       turning round swung the camera through the wall behind; this way a drag
+       turns you on the spot, and half a turn faces the other row. The cabinet
+       fronts are ~2.6 m either side of centre, so a 1 m circle stays clear. */
+    const AISLE_PIVOT = 1.0;
     function midAislePose() {
       if (!cabinets.length) return null;
       const hero = cams.find((c) => c.name === 'CAM_ArcadeHero') || cams[0];
@@ -750,7 +759,8 @@ gltfLoader.load('/arcade/arcade-web.glb',
       const dir = target.sub(mid);
       dir.y = 0;
       if (dir.lengthSq() < 1e-6) return null;
-      return { pos: mid, dir: dir.normalize() };
+      dir.normalize();
+      return { pos: mid.clone().addScaledVector(dir, -AISLE_PIVOT), dir };
     }
 
     /* Ordered as a walk through the room: arrive, step in among the cabinets,
@@ -764,7 +774,7 @@ gltfLoader.load('/arcade/arcade-web.glb',
     if (midPose) {
       stops.splice(Math.min(1, stops.length), 0, {
         label: 'Mid Aisle',
-        go: (btn) => goToPose(midPose.pos, midPose.dir, 75, btn),
+        go: (btn) => goToPose(midPose.pos, midPose.dir, 75, btn, AISLE_PIVOT),
       });
     }
 
