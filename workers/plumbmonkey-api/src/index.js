@@ -10,7 +10,9 @@
              POST /scores               submit initials + score
              POST /track                visit/click counts from /shared/track.js
 
-     PRIVATE GET  /admin                the dashboard (HTTP Basic auth)
+     PRIVATE GET  /admin                the dashboard (HTTP Basic auth; five
+                                        wrong passwords lock a visitor out
+                                        for 15 minutes)
              GET  /admin/data           its numbers
              POST /admin/delete-score   remove a cheater's entry
 
@@ -55,7 +57,10 @@ const SUBMITS_PER_HOUR = 12;
 const TOP_CACHE_MS = 10_000;
 
 const TRACK_KINDS = new Set(['view', 'click', 'finish']);
-const TRACK_MAX_EVENTS = 50;
+const TRACK_MAX_EVENTS = 20;           // track.js flushes at 20
+
+const ADMIN_MAX_FAILS = 5;             // wrong passwords in a row before a lockout
+const ADMIN_LOCK_MS = 15 * 60_000;
 
 // Initials a public board should not show. Replaced, not refused, so the
 // player still gets their place.
@@ -103,6 +108,13 @@ async function route(request, env, ctx, url, allowed) {
   // Everything below writes, so only the site itself may call it.
   if (method === 'POST' && ['/run', '/scores', '/track'].includes(pathname)) {
     if (!allowed) return json({ ok: false, reason: 'origin' }, 403);
+    // Origin only stops other websites; a script can send any Origin it likes,
+    // so each visitor is also capped before anything reaches D1.
+    const limiter = pathname === '/track' ? env.TRACK_LIMITER : env.WRITE_LIMITER;
+    if (limiter) {
+      const { success } = await limiter.limit({ key: await visitorHash(request, env, 'limit') });
+      if (!success) return json({ ok: false, reason: 'too-many' }, 429);
+    }
     if (pathname === '/run') return issueRun(request, env);
     if (pathname === '/scores') return submitScore(request, env);
     return track(request, env);
@@ -223,14 +235,19 @@ async function track(request, env) {
   const body = await readJson(request);
   if (!body || !Array.isArray(body.e)) return new Response(null, { status: 204 });
   const path = cleanText(body.p, 120) || '/';
-  const events = [];
+  // Repeats of the same event in one batch become one row update, n at a time.
+  const tally = new Map();
   let sawView = false;
   for (const ev of body.e.slice(0, TRACK_MAX_EVENTS)) {
     if (!Array.isArray(ev) || !TRACK_KINDS.has(ev[0])) continue;
     const label = ev[0] === 'view' ? '' : cleanText(ev[1], 80);
     if (ev[0] === 'view') sawView = true;
-    events.push([ev[0], path, label]);
+    const k = ev[0] + '\n' + label;
+    const hit = tally.get(k);
+    if (hit) hit[3]++;
+    else tally.set(k, [ev[0], path, label, 1]);
   }
+  const events = [...tally.values()];
   if (!events.length) return new Response(null, { status: 204 });
 
   const stmts = [];
@@ -244,11 +261,11 @@ async function track(request, env) {
 
 async function countEvents(env, events, stmts = []) {
   const day = today();
-  for (const [kind, path, label] of events) {
+  for (const [kind, path, label, n = 1] of events) {
     stmts.push(env.DB.prepare(
-      `INSERT INTO events (day, kind, path, label, count) VALUES (?, ?, ?, ?, 1)
-       ON CONFLICT (day, kind, path, label) DO UPDATE SET count = count + 1`
-    ).bind(day, kind, path, label));
+      `INSERT INTO events (day, kind, path, label, count) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (day, kind, path, label) DO UPDATE SET count = count + excluded.count`
+    ).bind(day, kind, path, label, n));
   }
   if (stmts.length) await env.DB.batch(stmts);
 }
@@ -257,12 +274,39 @@ async function countEvents(env, events, stmts = []) {
 
 async function admin(request, env, url) {
   if (!env.ADMIN_PASSWORD) return new Response('Set ADMIN_PASSWORD first: npx wrangler secret put ADMIN_PASSWORD', { status: 503 });
+  const challenge = () => new Response('Password required', {
+    status: 401,
+    headers: { 'WWW-Authenticate': 'Basic realm="Plumbmonkey dashboard", charset="UTF-8"', 'Cache-Control': 'no-store' }
+  });
+  const locked = ms => new Response('Too many wrong passwords. Try again later.', {
+    status: 429,
+    headers: { 'Retry-After': String(Math.ceil(ms / 1000)), 'Cache-Control': 'no-store' }
+  });
+
+  // A browser's first visit carries no password at all, so only real guesses
+  // count towards the lockout.
+  if (!request.headers.get('Authorization')) return challenge();
+
+  const who = await visitorHash(request, env, 'admin');
+  const now = Date.now();
+  const row = await env.DB.prepare('SELECT fails, locked_until FROM admin_failures WHERE hash = ?').bind(who).first();
+  if (row && row.locked_until > now) return locked(row.locked_until - now);
+
   if (!(await authorised(request, env))) {
-    return new Response('Password required', {
-      status: 401,
-      headers: { 'WWW-Authenticate': 'Basic realm="Plumbmonkey dashboard", charset="UTF-8"', 'Cache-Control': 'no-store' }
-    });
+    const { fails } = await env.DB.prepare(
+      `INSERT INTO admin_failures (hash, fails, locked_until, updated_at) VALUES (?, 1, 0, ?)
+       ON CONFLICT (hash) DO UPDATE SET fails = fails + 1, updated_at = excluded.updated_at
+       RETURNING fails`
+    ).bind(who, now).first();
+    if (fails < ADMIN_MAX_FAILS) return challenge();
+    await env.DB.batch([
+      env.DB.prepare('UPDATE admin_failures SET fails = 0, locked_until = ? WHERE hash = ?').bind(now + ADMIN_LOCK_MS, who),
+      // The hash changes daily, so yesterday's rows can never match again.
+      env.DB.prepare('DELETE FROM admin_failures WHERE updated_at < ?').bind(now - 86400_000)
+    ]);
+    return locked(ADMIN_LOCK_MS);
   }
+  if (row) await env.DB.prepare('DELETE FROM admin_failures WHERE hash = ?').bind(who).run();
   const noStore = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' };
 
   if (request.method === 'GET' && url.pathname === '/admin') {

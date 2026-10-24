@@ -34,3 +34,12 @@ CREATE TABLE IF NOT EXISTS visitors (
   hash TEXT NOT NULL,
   PRIMARY KEY (day, hash)
 );
+
+-- Wrong dashboard passwords, per visitor (the same daily-salted hash, never an
+-- IP). Enough misses in a row locks that visitor out of /admin for a while.
+CREATE TABLE IF NOT EXISTS admin_failures (
+  hash         TEXT    PRIMARY KEY,
+  fails        INTEGER NOT NULL DEFAULT 0,
+  locked_until INTEGER NOT NULL DEFAULT 0,  -- unix ms
+  updated_at   INTEGER NOT NULL             -- unix ms, for clearing old rows
+);

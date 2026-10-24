@@ -24,6 +24,17 @@
       "port": 5191
     },
     {
+      "name": "api-worker",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "workers/plumbmonkey-api",
+        "run",
+        "dev"
+      ],
+      "port": 8787
+    },
+    {
       "name": "visual-static",
       "runtimeExecutable": "python",
       "runtimeArgs": [

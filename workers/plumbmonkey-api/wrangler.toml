@@ -18,6 +18,20 @@ binding = "DB"
 database_name = "plumbmonkey"
 database_id = "7b23da55-c8b6-45ed-94b3-10ba86462990"
 
+# Per-visitor request caps, counted at Cloudflare's edge so they cost no D1
+# reads or writes. namespace_id is any number unique within the account.
+#   TRACK_LIMITER  POST /track — the real client sends at most ~15 a minute
+#   WRITE_LIMITER  POST /run and /scores — one of each per game played
+[[ratelimits]]
+name = "TRACK_LIMITER"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
+
+[[ratelimits]]
+name = "WRITE_LIMITER"
+namespace_id = "1002"
+simple = { limit = 30, period = 60 }
+
 # Secrets — never in this file. Set once with:
 #   npx wrangler secret put ADMIN_PASSWORD   (the dashboard password)
 #   npx wrangler secret put TOKEN_SECRET     (any long random string)
