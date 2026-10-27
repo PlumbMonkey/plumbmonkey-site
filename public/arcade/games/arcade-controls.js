@@ -174,11 +174,14 @@ const ArcadeControls = (function () {
     const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0;
 
     // Movement: stick or D-pad, whichever is deflected.
-    if (ax < -MOVE_DEAD || pressed(pad, 14)) padKeys.add('ArrowLeft');
-    if (ax > MOVE_DEAD || pressed(pad, 15)) padKeys.add('ArrowRight');
-    if (opts.move !== 'horizontal') {
-      if (ay < -MOVE_DEAD || pressed(pad, 12)) padKeys.add('ArrowUp');
-      if (ay > MOVE_DEAD || pressed(pad, 13)) padKeys.add('ArrowDown');
+    if (opts.stick === 'cardinal') addCardinal(pad, ax, ay);
+    else {
+      if (ax < -MOVE_DEAD || pressed(pad, 14)) padKeys.add('ArrowLeft');
+      if (ax > MOVE_DEAD || pressed(pad, 15)) padKeys.add('ArrowRight');
+      if (opts.move !== 'horizontal') {
+        if (ay < -MOVE_DEAD || pressed(pad, 12)) padKeys.add('ArrowUp');
+        if (ay > MOVE_DEAD || pressed(pad, 13)) padKeys.add('ArrowDown');
+      }
     }
 
     // Action buttons. The profile's first button is the primary (A / right
@@ -209,6 +212,37 @@ const ArcadeControls = (function () {
     // already wires up (and it inits audio).
     if (pressed(pad, 9)) tryStart();
   }
+
+  // 4-way maze games (stick: 'cardinal'). Reading each axis against its own
+  // deadzone turns any slightly-diagonal thumb into TWO held directions, and
+  // the game then queues a turn the player never meant — it fires at the next
+  // side opening and runs them into a dead end. So the stick reports only its
+  // dominant axis, with hysteresis so a thumb resting near 45° can't flicker
+  // between the two. The D-pad gets the same one-direction rule.
+  const AXIS_SWITCH = 1.25;   // the other axis must lead by this much to take over
+  let stickAxis = null;       // 'x' | 'y' — the axis the stick last reported
+  function addCardinal(pad, ax, ay) {
+    let dx = 0, dy = 0;
+    if (Math.hypot(ax, ay) > MOVE_DEAD) {
+      const absX = Math.abs(ax), absY = Math.abs(ay);
+      if (stickAxis === 'x') { if (absY > absX * AXIS_SWITCH) stickAxis = 'y'; }
+      else if (stickAxis === 'y') { if (absX > absY * AXIS_SWITCH) stickAxis = 'x'; }
+      else stickAxis = absX >= absY ? 'x' : 'y';
+      if (stickAxis === 'x') dx = Math.sign(ax); else dy = Math.sign(ay);
+    } else {
+      stickAxis = null;
+      const px = (pressed(pad, 15) ? 1 : 0) - (pressed(pad, 14) ? 1 : 0);
+      const py = (pressed(pad, 13) ? 1 : 0) - (pressed(pad, 12) ? 1 : 0);
+      // D-pad diagonal: the newer press wins, so rolling from ◀ onto ▲ turns.
+      if (px && py) { if (dpadAxis === 'x') dy = py; else dx = px; }
+      else { dx = px; dy = py; dpadAxis = px ? 'x' : py ? 'y' : null; }
+    }
+    if (dx < 0) padKeys.add('ArrowLeft');
+    if (dx > 0) padKeys.add('ArrowRight');
+    if (dy < 0) padKeys.add('ArrowUp');
+    if (dy > 0) padKeys.add('ArrowDown');
+  }
+  let dpadAxis = null;        // the axis of the D-pad direction held alone last
 
   let startCooldown = 0;
   function tryStart() {
