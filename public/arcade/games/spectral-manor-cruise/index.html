@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectral Manor Cruise | Ghost Circuit</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #07040f;
+      color: #e0d4ff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+    h1 { font-size: 1.5rem; letter-spacing: 3px; text-shadow: 0 0 18px #c084fc; margin-bottom: 0.15rem; }
+    .subtitle { font-size: 0.8rem; color: #a78bfa; margin-bottom: 0.6rem; }
+    #gameCanvas {
+      border: 2px solid #7c3aed;
+      box-shadow: 0 0 45px rgba(124, 58, 237, 0.45);
+      background: #0a0614;
+      max-width: 100%;
+    }
+    .hud { display: flex; gap: 1.5rem; margin-top: 0.6rem; font-size: 0.92rem; font-weight: 600; }
+    .hud span { color: #c084fc; }
+    .controls { margin-top: 0.6rem; font-size: 0.75rem; color: #9ca3af; text-align: center; line-height: 1.45; }
+    .start-overlay {
+      position: absolute; inset: 0; background: rgba(7, 4, 15, 0.92);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 10; cursor: pointer;
+    }
+    .start-overlay h2 { font-size: 1.9rem; color: #c084fc; text-shadow: 0 0 22px #c084fc; margin-bottom: 0.5rem; }
+    .start-overlay p { color: #d8b4fe; margin: 0.2rem 0; font-size: 0.95rem; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <h1>SPECTRAL MANOR CRUISE</h1>
+  <div class="subtitle">Ghost Circuit · Midnight Highway · Monster Grand Prix</div>
+
+  <div style="position:relative">
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div id="startOverlay" class="start-overlay">
+      <h2>MIDNIGHT CRUISE</h2>
+      <p>Three laps down the haunted highway.</p>
+      <p>Beat Vampire, Werewolf, Witch, Frank — and the Ghost.</p>
+      <p style="opacity:0.85">The Ghost's car phases straight through you… and haunts your steering.</p>
+      <p style="opacity:0.85">Win to unlock the next race: faster rivals, and from Race 2 they throw fire.</p>
+      <p style="margin-top:0.8rem; opacity:0.75; font-size:0.85rem">Click or SPACE to start your engine</p>
+    </div>
+  </div>
+
+  <div class="hud">
+    <div>SPEED: <span id="speed">0</span> mph</div>
+    <div>LAP: <span id="lap">1/3</span></div>
+    <div>POSITION: <span id="place">5th</span></div>
+    <div>TIME: <span id="time">0:00</span></div>
+  </div>
+
+  <div class="controls">
+    ↑ / W : Accelerate &nbsp;&nbsp;•&nbsp;&nbsp; ↓ / S : Brake &nbsp;&nbsp;•&nbsp;&nbsp; ← → / A D : Steer<br>
+    Stay on the road — the graveyard shoulder eats your speed. Bumping racers costs you too.<br>
+    Ghost contact reverses your steering for a moment · Race 2+: dodge the fireballs
+  </div>
+
+  <script src="../leaderboard.js"></script>
+  <script src="../arcade-controls.js?v=2"></script>
+  <script src="../arcade-audio.js?v=1"></script>
+  <script src="../vr-mode.js?v=2"></script>
+  <script src="game.js"></script>
+  <script>
+    // Racer: stick steers, trigger is the gas — no vertical axis on the stick
+    // so a resting thumb can never accelerate you into a wall.
+    ArcadeControls.init(keys, {
+      accent: '#ef4444',
+      move: 'horizontal',
+      buttons: [
+        { code: 'ArrowUp',   label: 'GAS' },
+        { code: 'ArrowDown', label: 'BRAKE' }
+      ]
+    });
+  </script>
+</body>
+</html>
