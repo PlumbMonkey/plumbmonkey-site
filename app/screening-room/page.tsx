@@ -3,7 +3,7 @@ import EnterRoomLink from "../components/EnterRoomLink";
 import RoomHero from "../components/RoomHero";
 
 export const metadata: Metadata = {
-  title: "The Screening Room",
+  title: "The Theatre",
   description:
     "Professional video editing, motion graphics, and audio production. Transparent pricing, fast turnaround, cinematic quality.",
 };
@@ -46,7 +46,7 @@ export default function ScreeningRoomPage() {
     <main className="min-h-screen">
       <RoomHero
         roomSlug="screening-room"
-        title="The Screening Room"
+        title="The Theatre"
         subtitle="Video editing & production — the service that started it all."
       />
 

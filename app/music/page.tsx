@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "The Music Room",
+  title: "The Music Sandbox",
   description:
     "Step into the manor's music room in 3D. Two consoles and a song desk, each one opening a real instrument you can play in the browser.",
   keywords: ["Stave", "SY-2 synthesizer", "DM-2 drum machine", "browser synth", "browser drum machine", "3D music room"],
   openGraph: {
-    title: "The Music Room — The Spectral Manor",
+    title: "The Music Sandbox — Spectral Manor",
     description: "Summon a beat. Shape your sound. Build a complete song.",
     type: "website",
   },
