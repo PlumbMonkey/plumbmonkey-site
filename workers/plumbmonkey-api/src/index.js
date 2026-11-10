@@ -238,10 +238,12 @@ async function track(request, env) {
   // Repeats of the same event in one batch become one row update, n at a time.
   const tally = new Map();
   let sawView = false;
+  let sawClick = false;
   for (const ev of body.e.slice(0, TRACK_MAX_EVENTS)) {
     if (!Array.isArray(ev) || !TRACK_KINDS.has(ev[0])) continue;
     const label = ev[0] === 'view' ? '' : cleanText(ev[1], 80);
     if (ev[0] === 'view') sawView = true;
+    if (ev[0] === 'click') sawClick = true;
     const k = ev[0] + '\n' + label;
     const hit = tally.get(k);
     if (hit) hit[3]++;
@@ -251,9 +253,10 @@ async function track(request, env) {
   if (!events.length) return new Response(null, { status: 204 });
 
   const stmts = [];
-  if (sawView) {
+  if (sawView || sawClick) {
     const hash = await visitorHash(request, env, 'visitor');
-    stmts.push(env.DB.prepare('INSERT OR IGNORE INTO visitors (day, hash) VALUES (?, ?)').bind(today(), hash));
+    if (sawView) stmts.push(env.DB.prepare('INSERT OR IGNORE INTO visitors (day, hash) VALUES (?, ?)').bind(today(), hash));
+    if (sawClick) stmts.push(env.DB.prepare('INSERT OR IGNORE INTO click_visitors (day, hash) VALUES (?, ?)').bind(today(), hash));
   }
   await countEvents(env, events, stmts);
   return new Response(null, { status: 204 });
@@ -317,8 +320,9 @@ async function admin(request, env, url) {
     const days = Math.min(365, Math.max(1, Number(url.searchParams.get('days')) || 30));
     const since = new Date(Date.now() - (days - 1) * 86400_000).toISOString().slice(0, 10);
     const q = (sql, ...args) => env.DB.prepare(sql).bind(...args).all().then(r => r.results);
-    const [visitors, views, pages, clicks, finishes, rejects, scores] = await Promise.all([
+    const [visitors, clickers, views, pages, clicks, finishes, rejects, scores] = await Promise.all([
       q('SELECT day, COUNT(*) AS n FROM visitors WHERE day >= ? GROUP BY day ORDER BY day', since),
+      q('SELECT day, COUNT(*) AS n FROM click_visitors WHERE day >= ? GROUP BY day ORDER BY day', since),
       q("SELECT day, SUM(count) AS n FROM events WHERE kind = 'view' AND day >= ? GROUP BY day ORDER BY day", since),
       q("SELECT path, SUM(count) AS n FROM events WHERE kind = 'view' AND day >= ? GROUP BY path ORDER BY n DESC LIMIT 50", since),
       q("SELECT path, label, SUM(count) AS n FROM events WHERE kind = 'click' AND day >= ? GROUP BY path, label ORDER BY n DESC LIMIT 100", since),
@@ -326,7 +330,7 @@ async function admin(request, env, url) {
       q("SELECT path AS game, label AS reason, SUM(count) AS n FROM events WHERE kind = 'reject' AND day >= ? GROUP BY path, label ORDER BY n DESC", since),
       q('SELECT id, game, initials, score, created_at FROM scores ORDER BY created_at DESC LIMIT 200')
     ]);
-    return json({ ok: true, days, since, visitors, views, pages, clicks, finishes, rejects, scores }, 200, noStore);
+    return json({ ok: true, days, since, visitors, clickers, views, pages, clicks, finishes, rejects, scores }, 200, noStore);
   }
 
   // The custom header can't be sent cross-site without a CORS preflight, which
@@ -500,6 +504,7 @@ async function load() {
 
   $('stats').innerHTML = [
     [sum(d.visitors), 'visitor-days'], [sum(d.views), 'page views'], [sum(d.clicks), 'clicks'],
+    [sum(d.clickers), 'clicker-days (people who clicked)'],
     [sum(d.finishes), 'games finished'], [sum(d.rejects), 'refused scores']
   ].map(([n, l]) => '<div class="stat"><b>' + fmt(n) + '</b><span>' + l + ' · last ' + d.days + ' days</span></div>').join('');
 

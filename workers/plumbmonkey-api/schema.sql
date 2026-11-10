@@ -35,6 +35,14 @@ CREATE TABLE IF NOT EXISTS visitors (
   PRIMARY KEY (day, hash)
 );
 
+-- Unique people who clicked something, per day. Same daily-salted hash as
+-- `visitors`, so it holds no IPs and can't be linked from one day to the next.
+CREATE TABLE IF NOT EXISTS click_visitors (
+  day  TEXT NOT NULL,
+  hash TEXT NOT NULL,
+  PRIMARY KEY (day, hash)
+);
+
 -- Wrong dashboard passwords, per visitor (the same daily-salted hash, never an
 -- IP). Enough misses in a row locks that visitor out of /admin for a while.
 CREATE TABLE IF NOT EXISTS admin_failures (

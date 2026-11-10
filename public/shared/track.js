@@ -43,7 +43,12 @@
 
   var attract = /[?&]attract\b/.test(location.search);  // arcade cabinet previews
   var optedOut = navigator.globalPrivacyControl === true || navigator.doNotTrack === '1';
-  var counting = !attract && !optedOut;
+  // The site owner's own browsers: run  localStorage.pmIgnore = 1  in the
+  // console once and nothing from that browser is counted. (Clear it with
+  // localStorage.removeItem('pmIgnore').)
+  var ignored = false;
+  try { ignored = !!localStorage.getItem('pmIgnore'); } catch (e) {}
+  var counting = !attract && !optedOut && !ignored;
 
   var queue = [];
   var timer = null;

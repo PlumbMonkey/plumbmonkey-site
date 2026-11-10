@@ -24,7 +24,7 @@ export default function NavBar() {
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-moonlit-950/85 backdrop-blur-xl">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
-        <Link href="/" className="group flex items-center gap-3" onClick={() => setOpen(false)}>
+        <Link href="/" data-track="Plumbmonkey Home" className="group flex items-center gap-3" onClick={() => setOpen(false)}>
           <span className="grid h-8 w-8 place-items-center border border-brass-500/60 font-display text-brass-300">
             P
           </span>
