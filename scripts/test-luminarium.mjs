@@ -4,6 +4,7 @@ import { readFile, stat } from "node:fs/promises";
 const html = await readFile(new URL("../public/visual/index.html", import.meta.url), "utf8");
 const js = await readFile(new URL("../public/visual/visual.js", import.meta.url), "utf8");
 const css = await readFile(new URL("../public/visual/luminarium.css", import.meta.url), "utf8");
+const mp4 = await readFile(new URL("../public/visual/mp4-convert.js", import.meta.url), "utf8");
 const rooms = await readFile(new URL("../public/shared/rooms.js", import.meta.url), "utf8");
 const doors = await readFile(new URL("../app/components/RoomDoors.tsx", import.meta.url), "utf8");
 // The sandbox page, which carries the Luminarium hand-off. It moved to
@@ -54,6 +55,17 @@ assert.match(js, /const resetLuminarium = \(\) =>/);
 assert.match(js, /localStorage\.removeItem\('luminariumSession'\)/);
 assert.ok((html.match(/global-reset/g) || []).length >= 2, "Global reset must be available on desktop and mobile");
 assert.match(css, /body\.controls-open \.inspector/);
+
+// WebM -> MP4: loaded before visual.js, no libraries, colour labelled
+assert.ok(html.indexOf("mp4-convert.js") > -1 && html.indexOf("mp4-convert.js") < html.indexOf("visual.js?v="), "mp4-convert.js must load before visual.js");
+assert.match(html, /id="exportFormat"/);
+assert.match(html, /id="convertPanel"/);
+assert.doesNotMatch(mp4, /import|require\(|https?:\/\//, "The MP4 converter must not pull in libraries");
+assert.match(mp4, /box\('colr'/);
+assert.match(mp4, /global\.LuminariumMP4 = \{/);
+assert.match(js, /saveRecordingAsMp4\(blob/);
+assert.match(js, /downloadBlob\(webm, baseName \+ '\.webm'\)/); // never lose a recording
+new Function(mp4.replace("})(window);", "})({});"));
 
 new Function(js);
 console.log("The Luminarium source checks passed");

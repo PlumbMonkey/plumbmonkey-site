@@ -2229,9 +2229,9 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   if (new URLSearchParams(location.search).get('clean') === '1') setClean(true);
 
-  // ---------- WebM recording (canvas + active audio source) ----------
-  // WebM by design: browsers can't encode MP4 in JS without a ~30MB WASM
-  // encoder — against the no-libraries rule. Any free converter makes MP4.
+  // ---------- Video recording (canvas + active audio source) ----------
+  // MediaRecorder writes WebM; mp4-convert.js then re-encodes it to MP4 with
+  // the browser's own H.264 encoder (WebCodecs), still with no libraries.
   const recBtn = document.getElementById('recBtn');
   const REC_MAX_MS = 30 * 60 * 1000;
   let recorder = null, recChunks = [], recTick = null, recStartedAt = 0, audioDest = null, wakeLock = null, selectedEnd = null, recordingSize = null, loopBeforeRecording = null;
@@ -2289,18 +2289,18 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       loopBeforeRecording = null;
       if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock=null; }
-      const a = document.createElement('a');
       const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'luminarium-' + ts + '.webm';
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-      recBtn.classList.remove('rec');
-      recBtn.textContent = '● Begin video export';
-      document.getElementById('recBtnBottom').classList.remove('rec');
-      document.getElementById('recBtnBottom').textContent = 'Export video';
-      setStatus(`Saved ${recordingSize.width}×${recordingSize.height} WebM with audio`);
+      const size = recordingSize;
       recordingSize = null;
+      recBtn.classList.remove('rec');
+      document.getElementById('recBtnBottom').classList.remove('rec');
+      if (document.getElementById('exportFormat').value === 'mp4' && mp4Ready) {
+        saveRecordingAsMp4(blob, 'luminarium-' + ts, size, fps, (performance.now() - recStartedAt) * 1000);
+      } else {
+        downloadBlob(blob, 'luminarium-' + ts + '.webm');
+        resetRecButtons();
+        setStatus(`Saved ${size.width}×${size.height} WebM with audio`);
+      }
     };
     if (audioEl && isFinite(audioEl.duration)) {
       loopBeforeRecording = audioEl.loop;
@@ -2327,6 +2327,146 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 500);
     setStatus(`Recording ${recordingSize.width}×${recordingSize.height} at ${fps} FPS · press R to stop`);
   }
+
+  function downloadBlob(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  }
+
+  function resetRecButtons() {
+    recBtn.disabled = false;
+    document.getElementById('recBtnBottom').disabled = false;
+    recBtn.textContent = '● Begin video export';
+    document.getElementById('recBtnBottom').textContent = 'Export video';
+  }
+
+  async function saveRecordingAsMp4(webm, baseName, size, fps, durationUs) {
+    const bottom = document.getElementById('recBtnBottom');
+    recBtn.disabled = bottom.disabled = true;
+    const show = f => {
+      const pct = Math.round(f * 100) + '%';
+      recBtn.textContent = 'Making MP4… ' + pct;
+      bottom.textContent = 'MP4 ' + pct;
+      setStatus(`Converting ${size.width}×${size.height} recording to MP4 · ${pct} · keep this tab open`);
+    };
+    try {
+      show(0);
+      const info = await LuminariumMP4.probe(webm);
+      const result = await LuminariumMP4.convert(info, { size: 'original', fps, quality: 'high', durationUs }, show);
+      downloadBlob(result.blob, baseName + '.mp4');
+      setStatus(`Saved ${result.width}×${result.height} MP4` + (result.audio ? ' with audio' : ''));
+    } catch (error) {
+      // Never lose a performance: fall back to the original WebM
+      downloadBlob(webm, baseName + '.webm');
+      setStatus('MP4 conversion failed, so the WebM was saved instead: ' + (error && error.message || error));
+    }
+    resetRecButtons();
+  }
+
+  // ---------- WebM → MP4 converter panel ----------
+  let mp4Ready = false;
+  const convert = {
+    input: document.getElementById('convertInput'),
+    drop: document.getElementById('convertDrop'),
+    btn: document.getElementById('convertBtn'),
+    status: document.getElementById('convertStatus'),
+    progress: document.getElementById('convertProgress'),
+    bar: document.getElementById('convertBar'),
+    file: null, info: null, abort: null
+  };
+  const convertStatus = (msg, isError) => {
+    convert.status.textContent = msg;
+    convert.status.classList.toggle('error', !!isError);
+  };
+  const selectedSizes = () => [...document.querySelectorAll('#convertSizes [data-size].active')].map(b => b.dataset.size);
+  const sizeLabel = size => size === 'original' ? 'original size' : size + 'p';
+
+  document.querySelectorAll('#convertSizes [data-size]').forEach(btn => btn.addEventListener('click', () => {
+    btn.classList.toggle('active');
+    if (!selectedSizes().length) btn.classList.add('active'); // always keep one
+    document.getElementById('convertSizesVal').textContent = selectedSizes().length > 1 ? selectedSizes().length + ' files' : '';
+  }));
+
+  async function loadConvertFile(file) {
+    if (!file || convert.abort) return;
+    convert.file = file; convert.info = null;
+    convert.btn.disabled = true;
+    document.getElementById('convertFileName').textContent = file.name;
+    document.getElementById('convertFileInfo').textContent = 'Reading…';
+    convertStatus('');
+    try {
+      const info = await LuminariumMP4.probe(file);
+      convert.info = info;
+      const v = info.video;
+      const audio = info.audio ? 'with audio' : info.audioSkipped ? 'audio not supported, video only' : 'no audio';
+      document.getElementById('convertFileInfo').textContent =
+        `${v.width}×${v.height} · ${fmtTime(info.durationUs / 1e6)} · ${info.rateLabel} FPS · ${(file.size / 1048576).toFixed(1)} MB · ${audio}`;
+      convert.btn.disabled = false;
+    } catch (error) {
+      document.getElementById('convertFileInfo').textContent = 'Could not read this file';
+      convertStatus(error && error.message || String(error), true);
+    }
+  }
+
+  async function runConversion() {
+    if (convert.abort) { convert.abort.abort(); return; }
+    if (!convert.info) return;
+    const sizes = selectedSizes().length ? selectedSizes() : ['original'];
+    const fpsChoice = document.getElementById('convertFps').value;
+    const quality = document.getElementById('convertQuality').value;
+    const baseName = convert.file.name.replace(/\.[^.]+$/, '');
+    convert.abort = new AbortController();
+    convert.btn.textContent = 'Cancel';
+    convert.progress.hidden = false;
+    const started = performance.now();
+    const made = [];
+    try {
+      for (let i = 0; i < sizes.length; i++) {
+        const size = sizes[i];
+        const result = await LuminariumMP4.convert(convert.info, { size, fps: fpsChoice, quality, signal: convert.abort.signal }, f => {
+          if (convert.abort && convert.abort.signal.aborted) return;
+          const overall = (i + f) / sizes.length;
+          convert.bar.style.width = (overall * 100).toFixed(1) + '%';
+          const elapsed = (performance.now() - started) / 1000;
+          const left = overall > 0.03 ? Math.max(0, elapsed / overall - elapsed) : null;
+          convertStatus(`Converting ${sizeLabel(size)}${sizes.length > 1 ? ` (${i + 1} of ${sizes.length})` : ''} · ${Math.round(f * 100)}%` + (left !== null ? ` · about ${fmtTime(left)} left` : ''));
+        });
+        const suffix = sizes.length > 1 || size !== 'original' ? '_' + result.height + 'p' : '';
+        downloadBlob(result.blob, baseName + suffix + '.mp4');
+        made.push(`${result.width}×${result.height} (${(result.blob.size / 1048576).toFixed(1)} MB)`);
+      }
+      convertStatus(`Saved ${made.join(', ')} to your downloads` + (convert.info.audioSkipped ? ' · original audio format not supported, video only' : ''));
+    } catch (error) {
+      if (error && error.name === 'AbortError') convertStatus('Conversion cancelled' + (made.length ? ` after saving ${made.join(', ')}` : ''));
+      else convertStatus('Conversion failed: ' + (error && error.message || error), true);
+    }
+    convert.abort = null;
+    convert.btn.textContent = 'Convert to MP4';
+    convert.progress.hidden = true;
+    convert.bar.style.width = '0';
+  }
+
+  convert.input.addEventListener('change', () => { loadConvertFile(convert.input.files[0]); convert.input.value = ''; });
+  convert.drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); convert.input.click(); } });
+  ['dragenter', 'dragover'].forEach(type => convert.drop.addEventListener(type, e => { e.preventDefault(); convert.drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(type => convert.drop.addEventListener(type, () => convert.drop.classList.remove('over')));
+  convert.drop.addEventListener('drop', e => { e.preventDefault(); loadConvertFile(e.dataTransfer.files[0]); });
+  convert.btn.addEventListener('click', runConversion);
+
+  (window.LuminariumMP4 ? LuminariumMP4.isSupported() : Promise.resolve(false)).then(ok => {
+    mp4Ready = ok;
+    if (ok) return;
+    const format = document.getElementById('exportFormat');
+    format.value = 'webm';
+    format.querySelector('option[value="mp4"]').disabled = true;
+    document.getElementById('exportFormatNote').textContent = 'This browser can only export WebM. Chrome, Edge and Safari can save MP4 directly. PNG stills and setup files download instantly.';
+    convert.drop.style.pointerEvents = 'none';
+    convert.drop.style.opacity = '.5';
+    convertStatus('This browser cannot make MP4 files. Open the Luminarium in Chrome, Edge or Safari to convert.', true);
+  });
 
   if (typeof MediaRecorder === 'undefined' || !canvas.captureStream) {
     recBtn.style.display = 'none';
