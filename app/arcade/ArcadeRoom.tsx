@@ -224,7 +224,7 @@ const CSS = `
   box-shadow: 0 16px 40px rgba(0,0,0,.6), 0 0 30px color-mix(in srgb, var(--accent) 40%, transparent); }
 
 .sm-marquee {
-  text-align: center; font-family: 'Cinzel', Georgia, serif; font-weight: 700;
+  text-align: center; font-family: var(--font-cinzel), 'Cinzel', Georgia, serif; font-weight: 700;
   font-size: .82rem; letter-spacing: 1px; color: #0f0a18;
   background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #fff));
   border-radius: 8px; padding: .32rem .3rem; margin-bottom: .5rem;
@@ -248,7 +248,7 @@ const CSS = `
 
 .sm-static { position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; text-align: center; gap: .25rem; }
-.sm-static-title { font-family: 'Cinzel', Georgia, serif; font-weight: 700; font-size: 1rem;
+.sm-static-title { font-family: var(--font-cinzel), 'Cinzel', Georgia, serif; font-weight: 700; font-size: 1rem;
   color: var(--accent); text-shadow: 0 0 14px var(--accent); }
 .sm-static-tag { font-size: .68rem; color: #a78bfa; }
 .sm-static-cta { margin-top: .4rem; font-size: .62rem; letter-spacing: 2px; color: #e0d4ff;
@@ -275,7 +275,7 @@ const CSS = `
 .sm-more:hover { color: var(--accent); }
 
 .sm-hof { margin-top: 3rem; text-align: center; border-top: 1px solid rgba(124,58,237,.3); padding-top: 2rem; }
-.sm-hof h2 { font-family: 'Cinzel', Georgia, serif; font-size: 1.8rem; color: #e9d5ff;
+.sm-hof h2 { font-family: var(--font-cinzel), 'Cinzel', Georgia, serif; font-size: 1.8rem; color: #e9d5ff;
   text-shadow: 0 0 20px #c084fc; letter-spacing: 2px; }
 .sm-hof-sub { color: #a78bfa; font-size: .85rem; margin-bottom: 1.2rem; }
 .sm-hof-empty { color: #7c6aa0; font-style: italic; }

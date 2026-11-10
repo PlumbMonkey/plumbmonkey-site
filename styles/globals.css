@@ -28,6 +28,16 @@ body {
   filter: saturate(0.96) contrast(1.03);
 }
 
+/* On a portrait screen `contain` shrinks the 16:9 loop to a thin band with
+   black above and below it. Fill the hero instead, and keep the hooded figure
+   and the moon (about a third of the way across the frame) in the crop. */
+@media (max-aspect-ratio: 4/5) {
+  .manor-hero-image {
+    object-fit: cover;
+    object-position: 32% center;
+  }
+}
+
 .manor-mist {
   background:
     radial-gradient(ellipse at 15% 100%, rgba(200, 210, 220, 0.13), transparent 45%),

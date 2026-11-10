@@ -23,8 +23,8 @@ export default function NavBar() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-moonlit-950/85 backdrop-blur-xl">
-      <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
-        <Link href="/" data-track="Plumbmonkey Home" className="group flex items-center gap-3" onClick={() => setOpen(false)}>
+      <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-5 px-5">
+        <Link href="/" data-track="Plumbmonkey Home" className="group flex shrink-0 items-center gap-3" onClick={() => setOpen(false)}>
           <span className="grid h-8 w-8 place-items-center border border-brass-500/60 font-display text-brass-300">
             P
           </span>
@@ -36,7 +36,9 @@ export default function NavBar() {
           </span>
         </Link>
 
-        <div className="hidden items-center gap-6 text-xs uppercase tracking-[0.14em] text-moonlit-200 lg:flex">
+        {/* Tighter below xl: at the full 0.14em/24px rhythm the row needs about
+            1050px, so at a 1024 window the labels wrapped and ran into the brand. */}
+        <div className="hidden items-center gap-4 whitespace-nowrap text-xs uppercase tracking-[0.1em] text-moonlit-200 lg:flex xl:gap-6 xl:tracking-[0.14em]">
           {LINKS.map((link) => (
             <Link
               key={link.href}
@@ -48,7 +50,7 @@ export default function NavBar() {
           ))}
           <Link
             href={CTA.href}
-            className="border border-brass-500/70 px-4 py-2 text-brass-200 transition hover:bg-brass-400 hover:text-moonlit-950"
+            className="border border-brass-500/70 px-3 py-2 text-brass-200 transition hover:bg-brass-400 hover:text-moonlit-950 xl:px-4"
           >
             {CTA.label}
           </Link>

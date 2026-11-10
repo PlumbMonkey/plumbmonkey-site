@@ -143,6 +143,14 @@
   .pm-nav__links, .pm-nav__inner > .pm-nav__cta { display: none; }
   .pm-nav__toggle { display: grid; place-items: center; }
 }
+/* Between the hamburger breakpoint and 1280 the full rhythm (24px gaps, .14em
+   tracking) needs about 1050px, so at a 1024 window "Work with me" ran 23px
+   off the right edge. Mirrors the lg→xl squeeze in NavBar.tsx. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .pm-nav__inner, .pm-nav__links { gap: 16px; }
+  .pm-nav__links a, .pm-nav__cta { letter-spacing: .1em; }
+  .pm-nav__cta { padding-inline: 12px; }
+}
 @media (max-width: 420px) {
   :root { --pm-nav-h: 56px; --pm-nav-pad: 14px; }
   .pm-nav__name strong { font-size: 14px; }

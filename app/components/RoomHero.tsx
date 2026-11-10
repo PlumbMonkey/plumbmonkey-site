@@ -3,8 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 
 interface RoomHeroProps {
-  /** Matches the folder under public/rooms/<roomSlug>/ (hero.mp4 + hero-poster.jpg). */
+  /** Matches the folder under public/rooms/<roomSlug>/ (hero-poster.jpg, and hero.mp4 if `video`). */
   roomSlug: string;
+  /** Set once public/rooms/<roomSlug>/hero.mp4 exists. No room has one yet, and
+   *  asking anyway cost every room page a 404. */
+  video?: boolean;
   title: string;
   subtitle?: string;
   children?: React.ReactNode;
@@ -16,7 +19,7 @@ interface RoomHeroProps {
  * the first-frame poster shown immediately and swapped in once the video can
  * play. Respects prefers-reduced-motion by never requesting the video at all.
  */
-export default function RoomHero({ roomSlug, title, subtitle, children }: RoomHeroProps) {
+export default function RoomHero({ roomSlug, video = false, title, subtitle, children }: RoomHeroProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
@@ -37,11 +40,14 @@ export default function RoomHero({ roomSlug, title, subtitle, children }: RoomHe
       <img
         src={`/rooms/${roomSlug}/hero-poster.jpg`}
         alt=""
+        onError={(e) => {
+          e.currentTarget.style.display = "none";
+        }}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
           videoReady && !reducedMotion ? "opacity-0" : "opacity-100"
         }`}
       />
-      {!reducedMotion && (
+      {video && !reducedMotion && (
         <video
           ref={videoRef}
           className="absolute inset-0 h-full w-full object-cover"

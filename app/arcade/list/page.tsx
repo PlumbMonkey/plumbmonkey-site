@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
+import { Cinzel } from "next/font/google";
 import ArcadeRoom from "../ArcadeRoom";
 import NeonCursor from "../../components/NeonCursor";
+
+/* The marquees and headings have always asked for Cinzel, but nothing loaded
+   it, so they rendered in Georgia. */
+const cinzel = Cinzel({ subsets: ["latin"], weight: ["700"], variable: "--font-cinzel", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Spectral Manor Arcade",
@@ -22,7 +27,7 @@ export const metadata: Metadata = {
 
 export default function ArcadePage() {
   return (
-    <main className="min-h-screen bg-[#07040f] text-purple-100">
+    <main className={`min-h-screen bg-[#07040f] text-purple-100 ${cinzel.variable}`}>
       {/* Neon trail — the arcade lobby only. The games themselves opt out:
           Swarm and Mess Hall aim with the mouse, and a glowing ribbon over
           the reticle would fight the gameplay. */}
@@ -35,7 +40,7 @@ export default function ArcadePage() {
         </p>
         <h1
           className="text-4xl md:text-5xl font-bold text-purple-200 mb-4 tracking-wider"
-          style={{ fontFamily: "'Cinzel', Georgia, serif" }}
+          style={{ fontFamily: "var(--font-cinzel), 'Cinzel', Georgia, serif" }}
         >
           Spectral Manor Arcade
         </h1>
@@ -56,7 +61,7 @@ export default function ArcadePage() {
           Built by Plumbmonkey Media
         </p>
         <p className="text-purple-600 text-xs mt-2">
-          Free to play · Wave 1 &amp; Wave 2 now live
+          Free to play · all twelve cabinets now live
         </p>
       </div>
     </main>
