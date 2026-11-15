@@ -608,3 +608,12 @@ Gregg's answers: Beam gets a *real* survival round; Amp's barrel throwing and cl
 - **Graveyard Shift:** ghost blocks are vaporised by music notes and re-form, and the Music Room is always the last level.
 - **Cruise:** no off-screen attacks; rivals drop visible hazards instead.
 - **If a note is ambiguous** ("an arm looks wrong"), ask which character or object rather than guessing.
+
+### Done 2026-11-15: Revenger sectors get their own enemy and hazards (uncommitted)
+From a review of all twelve cabinets. A bot cycle took about 5 minutes, never triggered the Rift and ended with 6–9 ships, and every sector played the same. This round fixes only the last point.
+- **Data:** `SECTORS` entries take `hint` (shown under the wave-1 title), `storm: true`, `towers: [[x, width, height, searchlight], …]`, and waves take `wraiths`. `spawnWaveEnemies` reads `WAVE_KEYS`, so a new enemy is one map entry.
+- **Graveyard Hills, wraith** (`enemies.js`): rises from the ground for `WRAITH_RISE` 70 f, then homes slowly. Solid 150 f of every 260 f; `ghosted(e)` gates beams, ship contact, lightning and the bot's aim. It flickers for the last 28 f before turning solid. The Power Chord kills it either way.
+- **Storm Coast** (`sector-hazards.js`): gust = warn 80 f, blow 200 f at 0.14 px/f² on the ship (falling fans and mines drift too). Lightning = cloud over where the ship is heading, 75 f leader, 12 f strike, ±26 px column; kills the ship and any invader under it. Wind stays for the Leviathan; lightning does not.
+- **Neon City** (`sector-hazards.js`): `surfaceY(x)` is the roof or the ground and replaces `groundY` for fans, pickups, the ship floor and the enemy clamp. A tower side zeroes `ship.vx`. `beamRange()` cuts a shot short at a wall, and enemy bolts die inside a tower. Searchlights: 30 f in a cone spawns a baiter (max 2), then 420 f cool-down. Towers stay for the Dreadnought; searchlights do not.
+- **Bot:** climbs over a tower in its path, closes in when a tower blocks its shot, flies out from under a bolt, ignores faded wraiths. Eight-seed probe after the change: Neon waves 10–23 s with 0 deaths, whole cycle about as deadly as before.
+- **Still open from the review:** cap extra ships (as Infestation), wave types and longer waves, an optional mothership raid so good players see the runner, four new sectors for cycle 2, per-sector runner interiors. House of the Hooded and Swarm are the thinnest other cabinets.

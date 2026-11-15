@@ -198,6 +198,7 @@ function drawWorldBack(c) {
     T.decor(c, sx, groundY(wx) + 2, hash(idx + info.sectorIdx * 100));
   }
   if (info.sector.id === 'grounds') drawStage(c);
+  drawTowers(c);
   if (T.weather) T.weather(c);
   if (rift) drawRift(c);
 }
@@ -290,10 +291,12 @@ function drawHUD(c) {
   c.beginPath();
   for (let i = 0; i <= rw; i += 4) { const wx = ship.x + ((i - rw / 2) / rw) * WORLD_W; i ? c.lineTo(rx + i, yR(groundY(wx))) : c.moveTo(rx, yR(groundY(wx))); }
   c.stroke();
+  c.fillStyle = 'rgba(244,114,182,0.7)';
+  towers.forEach(t => { c.fillRect(toR(t.x) - 1.5, yR(t.top), 3, yR(groundY(t.x)) - yR(t.top)); });
   const vp = (W / WORLD_W) * rw, vx = toR(camX + W / 2);
   c.strokeStyle = 'rgba(255,255,255,0.3)'; c.strokeRect(vx - vp / 2, ry + 1, vp, rh - 2);
   fans.forEach(f => { c.fillStyle = f.state === 'grabbed' ? '#f87171' : '#67e8f9'; c.fillRect(toR(f.x) - 1, yR(f.y) - 2, 2, 2); });
-  enemies.forEach(e => { c.fillStyle = e.type === 'lander' ? (e.carry ? '#fbbf24' : '#e879f9') : e.type === 'baiter' ? '#f97316' : '#fda4af'; c.fillRect(toR(e.x) - 1.5, yR(e.y) - 1.5, 3, 3); });
+  enemies.forEach(e => { c.fillStyle = e.type === 'lander' ? (e.carry ? '#fbbf24' : '#e879f9') : e.type === 'baiter' ? '#f97316' : e.type === 'wraith' ? (ghosted(e) ? 'rgba(94,234,212,0.4)' : '#5eead4') : '#fda4af'; c.fillRect(toR(e.x) - 1.5, yR(e.y) - 1.5, 3, 3); });
   pickups.forEach(p => { c.fillStyle = PICKUP_INFO[p.type].color; c.fillRect(toR(p.x) - 1, yR(p.y) - 1, 2, 2); });
   if (boss) { c.fillStyle = '#ffffff'; c.fillRect(toR(boss.x) - 4, yR(boss.y) - 3, 8, 6); }
   if (mothership && Math.floor(tick / 10) % 2) { c.fillStyle = '#a5f3fc'; c.fillRect(toR(mothership.x) - 6, yR(mothership.y) - 2, 12, 4); }
@@ -385,6 +388,7 @@ function draw() {
   drawEnemies(c);
   drawBoss(c, boss);
   drawEnemyFire(c);
+  drawSectorFront(c);
   beams.forEach(b => drawBeam(c, b, toScreen(b.x0)));
   const sx = toScreen(ship.x);
   if (gameRunning && phase !== 'dying' && phase !== 'ending') {

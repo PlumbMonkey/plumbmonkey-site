@@ -36,7 +36,9 @@ const rrange = (a, b) => a + rng() * (b - a);
 /* Each sector: a backdrop theme, a terrain line (whole sine cycles per world
    lap, so it never seams at the wrap), three waves and a mothership boss.
    Wave fields: landers abduct fans, bombers lay mines, pods split into
-   swarmers, carriers always drop a power-up. */
+   swarmers, carriers always drop a power-up. Sectors after the first add
+   something of their own: `wraiths` in a wave, `storm` (gusts and lightning),
+   `towers` as [x, width, height, searchlight]. `hint` shows under the title. */
 const SECTORS = [
   {
     id: 'grounds', name: 'CONCERT GROUNDS', accent: '#c084fc',
@@ -50,16 +52,18 @@ const SECTORS = [
   },
   {
     id: 'graveyard', name: 'GRAVEYARD HILLS', accent: '#5eead4',
+    hint: 'wraiths fade out · shoot them while they are solid',
     terrain: { base: H - 46, waves: [[4, 16, 0.7], [13, 6, 2.1]] },
     waves: [
-      { landers: 9, bombers: 2, pods: 0, carriers: 1 },
-      { landers: 10, bombers: 3, pods: 1, carriers: 0 },
-      { landers: 11, bombers: 3, pods: 2, carriers: 1 }
+      { landers: 9, bombers: 2, pods: 0, carriers: 1, wraiths: 1 },
+      { landers: 10, bombers: 3, pods: 1, carriers: 0, wraiths: 2 },
+      { landers: 11, bombers: 3, pods: 2, carriers: 1, wraiths: 3 }
     ],
     boss: { type: 'ossuary', escort: { bombers: 1 } }
   },
   {
     id: 'storm', name: 'STORM COAST', accent: '#7dd3fc',
+    hint: 'ride out the gusts · keep clear of the lightning', storm: true,
     terrain: { base: H - 44, waves: [[2, 12, 1.1], [7, 10, 0.4], [19, 3, 2.6]] },
     waves: [
       { landers: 10, bombers: 2, pods: 1, carriers: 1 },
@@ -70,6 +74,8 @@ const SECTORS = [
   },
   {
     id: 'neon', name: 'NEON CITY', accent: '#f472b6',
+    hint: 'fly round the towers · stay out of the searchlights',
+    towers: [[560, 88, 150, 1], [1040, 70, 110, 0], [1500, 96, 165, 1], [2010, 78, 120, 0], [2480, 92, 150, 1], [2950, 70, 105, 0], [3430, 88, 140, 1]],
     terrain: { base: H - 42, waves: [[5, 5, 0.9], [16, 3, 0.1]] },
     waves: [
       { landers: 11, bombers: 3, pods: 2, carriers: 1 },

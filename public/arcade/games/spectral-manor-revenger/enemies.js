@@ -12,8 +12,13 @@ const ENEMY = {
   bomber:  { r: 14, pts: 250,  core: true,  size: 2, hp: 1 },
   pod:     { r: 15, pts: 1000, core: true,  size: 3, hp: 1 },
   swarmer: { r: 8,  pts: 150,  core: true,  size: 1, hp: 1 },
-  carrier: { r: 17, pts: 300,  core: false, size: 3, hp: 3 }
+  carrier: { r: 17, pts: 300,  core: false, size: 3, hp: 3 },
+  wraith:  { r: 13, pts: 300,  core: true,  size: 2, hp: 1 }
 };
+const WAVE_KEYS = { landers: 'lander', bombers: 'bomber', pods: 'pod', carriers: 'carrier', wraiths: 'wraith' };
+const WRAITH_CYCLE = 260, WRAITH_SOLID = 150, WRAITH_RISE = 70;
+// A faded wraith can't be shot, and can't hurt the ship either.
+function ghosted(e) { return e.type === 'wraith' && !!e.faded; }
 const FALL_SAFE = 150;          // a fan dropped from higher than this needs catching
 const MAX_MINES = 14;
 
@@ -35,10 +40,13 @@ function spawnEnemy(type, x, y, extra) {
 function spawnWaveEnemies(def) {
   const place = () => wrapX(ship.x + W * 0.75 + rng() * (WORLD_W - W * 1.5));
   const alt = () => HUD_H + 40 + rng() * 220;
-  for (let i = 0; i < (def.landers || 0); i++) spawnEnemy('lander', place(), alt());
-  for (let i = 0; i < (def.bombers || 0); i++) spawnEnemy('bomber', place(), alt());
-  for (let i = 0; i < (def.pods || 0); i++) spawnEnemy('pod', place(), alt());
-  for (let i = 0; i < (def.carriers || 0); i++) spawnEnemy('carrier', place(), alt());
+  Object.keys(WAVE_KEYS).forEach(k => {
+    for (let i = 0; i < (def[k] || 0); i++) {
+      const x = place();
+      if (k === 'wraiths') spawnEnemy('wraith', x, groundY(x) - 18, { state: 'rise', cyc: Math.floor(rng() * WRAITH_CYCLE) });   // out of a grave
+      else spawnEnemy(WAVE_KEYS[k], x, alt());
+    }
+  });
 }
 
 function coreEnemiesLeft() { return enemies.some(e => !e.dead && ENEMY[e.type].core); }
@@ -48,7 +56,7 @@ function spawnFans(n) {
   fans = [];
   for (let i = 0; i < n; i++) {
     const x = i < 4 ? 120 + i * 60 + rng() * 20 : rng() * WORLD_W;
-    fans.push({ id: ++nextId, x: wrapX(x), y: groundY(x), vx: (rng() - 0.5) * 0.4, vy: 0,
+    fans.push({ id: ++nextId, x: wrapX(x), y: surfaceY(x), vx: (rng() - 0.5) * 0.4, vy: 0,
       state: 'ground', by: 0, fallFrom: 0, look: i % 6, beat: rng() * 6.28 });
   }
 }
@@ -71,8 +79,9 @@ function stepFans() {
     if (f.dead) return;
     if (f.state === 'ground') {
       if (rng() < 0.004) f.vx = (rng() - 0.5) * 0.5;
-      f.x = wrapX(f.x + f.vx);
-      f.y = groundY(f.x);
+      if (Math.abs(surfaceY(f.x + f.vx * 8) - surfaceY(f.x)) > 12) f.vx = -f.vx;   // turn back at a roof edge or a wall
+      else f.x = wrapX(f.x + f.vx);
+      f.y = surfaceY(f.x);
     } else if (f.state === 'grabbed') {
       if (f.by === -1) return;                 // held in the Harvester's beam
       const e = enemies.find(en => en.id === f.by && !en.dead);
@@ -81,7 +90,7 @@ function stepFans() {
     } else if (f.state === 'falling') {
       f.vy = Math.min(5, f.vy + 0.18);
       f.y += f.vy;
-      const gy = groundY(f.x);
+      const gy = surfaceY(f.x);
       if (f.y >= gy) {
         if (gy - f.fallFrom > FALL_SAFE) loseFan(f, 'FAN LOST');
         else { f.state = 'ground'; f.y = gy; f.vy = 0; addScore(250, f.x, gy - 24, 'LANDED'); }
@@ -206,6 +215,16 @@ function stepEnemy(e) {
       if (e.fireT <= 0) { if (Math.sign(e.vx) === Math.sign(wrapDX(ship.x, e.x))) fireAt(e, 3.8); e.fireT = (160 + rng() * 120) / info.mult; }
       break;
     }
+    case 'wraith': {
+      // climbs out of a grave, then drifts after the ship, fading in and out
+      if (e.state === 'rise') { e.y -= 1.3; if (e.t > WRAITH_RISE) e.state = 'hunt'; break; }
+      const ph = (e.t + (e.cyc || 0)) % WRAITH_CYCLE;
+      e.faded = ph >= WRAITH_SOLID;
+      e.warn = ph >= WRAITH_CYCLE - 28;            // flickers just before it turns solid again
+      homeOn(e, 0.07, (e.faded ? 3 : 2) * m, ship.x, ship.y + Math.sin(e.t * 0.05 + e.phaseOff) * 40);
+      e.x = wrapX(e.x + e.vx); e.y += e.vy;
+      break;
+    }
     case 'carrier': {
       const gap = wrapDX(e.x, ship.x);
       if (Math.abs(gap) < W * 0.8) e.x = wrapX(e.x + Math.sign(gap || 1) * 2.1 * m);
@@ -214,13 +233,13 @@ function stepEnemy(e) {
       break;
     }
   }
-  e.y = Math.max(HUD_H + 12, Math.min(groundY(e.x) - 18, e.y));
+  e.y = Math.max(HUD_H + 12, Math.min(surfaceY(e.x) - 18, e.y));
 }
 
 function stepEnemies() {
   enemies.forEach(e => { if (!e.dead) stepEnemy(e); });
   enemyShots.forEach(s => { s.x = wrapX(s.x + s.vx); s.y += s.vy; s.life--; });
-  enemyShots = enemyShots.filter(s => s.life > 0 && s.y > HUD_H - 10 && s.y < H + 10);
+  enemyShots = enemyShots.filter(s => s.life > 0 && s.y > HUD_H - 10 && s.y < H + 10 && !insideTower(s.x, s.y));
   mines.forEach(mn => { mn.life--; if (mn.arm > 0) mn.arm--; });
   mines = mines.filter(mn => mn.life > 0 && !mn.dead);
 }
@@ -241,7 +260,7 @@ function killEnemy(e, quiet) {
   if (quiet) return;
   const pal = { lander: ['#94a3b8', '#67e8f9', '#f472b6', '#ffffff'], mutant: ['#86efac', '#c084fc', '#f0abfc', '#ffffff'],
     baiter: ['#fbbf24', '#f97316', '#ffffff'], bomber: ['#a855f7', '#e879f9', '#ffffff'], pod: ['#fb7185', '#fdba74', '#ffffff', '#c084fc'],
-    swarmer: ['#e0e7ff', '#a5b4fc'], carrier: ['#5eead4', '#fde68a', '#ffffff'] }[e.type];
+    swarmer: ['#e0e7ff', '#a5b4fc'], carrier: ['#5eead4', '#fde68a', '#ffffff'], wraith: ['#99f6e4', '#f0fdfa', '#5eead4'] }[e.type];
   FX.explode(e.x, e.y, d.size, pal);
   sfx.explode(d.size, soundPan(toScreen(e.x)));
   hitPause = Math.max(hitPause, d.size >= 3 ? 3 : d.size - 1);
@@ -347,6 +366,14 @@ const ENEMY_ART = {
     shape(c, [[-6, -2], [-6, 6], [-3 + s, 3], [0, 7], [3 + s, 3], [6, 6], [6, -2], [0, -9]], '#e0e7ff', 1.5);
     litEyes(c, [[-2, -2], [2.5, -2]], '#6366f1', 1.4);
   }),
+  wraith: k => withSprite('wraith' + k, 56, c => {
+    // a hooded grave-ghost with a ragged hem and nothing in the hood but two lit eyes
+    const s = Math.sin(k * 1.57) * 2;
+    shape(c, [[-11, -4], [-9, -14], [0, -19], [9, -14], [11, -4], [12, 11], [7 + s, 6], [4, 15], [s, 8], [-4, 15], [-7 + s, 6], [-12, 11]], '#99f6e4');
+    shape(c, [[2, -18], [9, -14], [11, -4], [12, 11], [7 + s, 6], [5, 12]], '#5fc9b8', 0);
+    shape(c, [[-7, -12], [0, -16], [7, -12], [6, -2], [-6, -2]], '#0b1f1c', 1.4);
+    litEyes(c, [[-3, -8], [3, -8]], '#f0fdfa', 1.8);
+  }),
   carrier: k => withSprite('carrier' + k, 72, c => {
     // a teal cargo cylinder with a glowing gift in the bay
     shape(c, [[-24, -9], [20, -9], [26, 0], [20, 9], [-24, 9], [-28, 0]], '#0f766e');
@@ -372,6 +399,8 @@ function drawEnemies(c) {
     const face = e.vx < -0.2 || (e.type === 'lander' && e.dir < 0) ? -1 : 1;
     c.save();
     c.translate(sx, e.y);
+    if (ghosted(e)) c.globalAlpha = e.warn ? (Math.floor(tick / 4) % 2 ? 0.75 : 0.3) : 0.22;
+    else if (e.type === 'wraith') drawGlow(c, '#5eead4', 0, 0, 24, 0.45);
     if (e.type === 'baiter' || e.type === 'carrier') c.scale(face, 1);
     c.drawImage(spr, -spr.width / 2, -spr.height / 2);
     c.restore();

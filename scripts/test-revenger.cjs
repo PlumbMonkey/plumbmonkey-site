@@ -28,7 +28,7 @@ vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync('public/arcade/games/kit/hero-kit.js', 'utf8'), sandbox, { filename: 'hero-kit.js' });
 vm.runInContext(fs.readFileSync('public/arcade/games/wave3/sprite-kit.js', 'utf8'), sandbox, { filename: 'sprite-kit.js' });
 const dir = 'public/arcade/games/spectral-manor-revenger/';
-['sectors.js', 'fx.js', 'ship.js', 'enemies.js', 'bosses.js', 'runner.js', 'runner-art.js', 'render.js', 'game.js']
+['sectors.js', 'fx.js', 'ship.js', 'enemies.js', 'sector-hazards.js', 'bosses.js', 'runner.js', 'runner-art.js', 'render.js', 'game.js']
   .forEach(f => vm.runInContext(fs.readFileSync(dir + f, 'utf8'), sandbox, { filename: f }));
 const run = code => vm.runInContext(code, sandbox);
 const steps = n => run(`for (let i = 0; i < ${n}; i++) update();`);
@@ -230,6 +230,71 @@ run(`boss.state = 'hover'; ship.inv = 0;
 assert.ok(run('hazardHitsShip(hazards[0])'));
 run('ship.y = 260;');
 assert.ok(!run('hazardHitsShip(hazards[0])'), 'a lane only hurts its own row');
+
+// ================= what each sector adds =================
+run('checkClear = function () {}; checkRift = function () {};');   // a quiet field again for these unit checks
+// --- Graveyard Hills: wraiths climb out of graves; a faded one can't be shot and can't hurt ---
+run('startGame(5); stageN = 4; enterStage();');
+assert.match(run('banner.sub'), /wraiths/, 'the first wave of a sector shows its hint under the title');
+steps(150);
+assert.equal(run('enemies.filter(e => e.type === "wraith").length'), 1);
+assert.equal(run('enemies.find(e => e.type === "wraith").state'), 'rise', 'a wraith starts in the ground');
+assert.equal(run('towers.length + "/" + !!info.sector.storm'), '0/false');
+const wraithAt = (dx, t) => run(`${calm} lives = 3; var wr = spawnEnemy('wraith', ship.x + ${dx}, ship.y, { cyc: 0 }); wr.t = ${t};`);
+wraithAt(200, 'WRAITH_SOLID + 5');
+run('fireShip(ship);'); steps(8);
+assert.ok(run('!wr.dead && wr.faded'), 'a shot passes through a faded wraith');
+wraithAt(0, 'WRAITH_SOLID + 5');
+steps(3);
+assert.equal(run('lives + "/" + phase'), '3/play', 'and a faded wraith passes through the ship');
+wraithAt(200, 0);
+run('fireShip(ship);'); steps(8);
+assert.ok(run('wr.dead'), 'a solid wraith dies to one shot');
+wraithAt(0, 0);
+steps(2);
+assert.equal(run('lives'), 2, 'a solid wraith is deadly to touch');
+
+// --- Storm Coast: a gust shoves the ship; lightning warns, then kills whatever is under it ---
+run('startGame(5); stageN = 8; enterStage();');
+steps(150);
+run(`${calm} lives = 3; bolts = []; boltT = 9999; wind = { state: 'blow', t: 100, dir: 1 };`);
+steps(30);
+assert.ok(run('ship.vx') > 1, 'the gust pushes a drifting ship');
+run(`${calm} lives = 3; wind = { state: 'calm', t: 9999, dir: 1 }; boltT = 9999;
+  bolts = [{ id: 9001, x: ship.x, t: BOLT_WARN - 3 }]; var struck = spawnEnemy('pod', ship.x + 10, 100);`);
+steps(2);
+assert.equal(run('lives + "/" + struck.dead'), '3/false', 'nothing is hurt while the cloud is still gathering');
+steps(2);
+assert.equal(run('lives + "/" + struck.dead'), '2/true', 'the strike kills the ship and the invader under it');
+run(`${calm} lives = 3; boltT = 9999; bolts = [{ id: 9002, x: wrapX(ship.x + 200), t: BOLT_WARN - 1 }];`);
+steps(14);
+assert.equal(run('lives + "/" + bolts.length'), '3/0', 'a bolt only hurts its own column, and then it is gone');
+
+// --- Neon City: towers stop the ship and shots both ways; roofs count as ground; searchlights call a hunter ---
+run('startGame(5); stageN = 12; enterStage();');
+steps(150);
+assert.equal(run('towers.length'), 7);
+assert.ok(run('surfaceY(560) < groundY(560) - 100 && shipFloor(560) === surfaceY(560) - 20'), 'a roof is a floor');
+run(`${calm} lives = 3; spotCool = 9999; ship.x = 400; ship.y = 420; keys.ArrowRight = true;`);
+steps(80);
+assert.ok(run('ship.x < 520 && lives === 3'), `a tower's side stops the ship without harming it (x ${run('ship.x')})`);
+run(`${calm} spotCool = 9999; ship.x = 400; ship.y = 250; keys.ArrowRight = true;`);
+steps(80);
+assert.ok(run('ship.x') > 620, 'and it flies clean over the top');
+run(`${calm} spotCool = 9999; ship.x = 400; ship.y = 420; var hid = spawnEnemy('pod', 700, 420); hid.vy = 0.0001; fireShip(ship);`);
+assert.ok(run('beams[0].range') < 120, 'a tower cuts the shot short');
+steps(20);
+assert.ok(run('!hid.dead'), 'so an invader behind a tower is safe from it');
+run(`${calm} ship.x = 400; ship.y = 250; fireShip(ship);`);
+assert.equal(run('beams[0].range'), run('BEAM_RANGE'), 'above the roofline the shot flies its full range');
+run(`enemies = []; enemyShots = [{ x: 560, y: 420, vx: 0, vy: 0, r: 4, life: 50, kind: 'bolt' }, { x: 300, y: 420, vx: 0, vy: 0, r: 4, life: 50, kind: 'bolt' }]; stepEnemies();`);
+assert.equal(run('enemyShots.length'), 1, 'towers stop enemy fire too');
+run(`${calm} spot = 0; spotCool = 0; var lt = towers[0];
+  for (let i = 0; i < 31; i++) { const a = lightAngle(lt); ship.x = wrapX(lt.x + Math.sin(a) * 120); ship.y = lt.top - 10 - Math.cos(a) * 120; stepSearchlights(); }`);
+assert.equal(run('enemies.filter(e => e.type === "baiter").length + "/" + (spotCool > 0)'), '1/true', 'half a second in a searchlight calls a hunter, then the lamps cool');
+run(`${calm} spot = 0; spotCool = 0; ship.x = wrapX(lt.x + 300); ship.y = 200; for (let i = 0; i < 200; i++) stepSearchlights();`);
+assert.equal(run('enemies.length'), 0, 'outside the cone nothing is called');
+run('checkClear = realCheckClear; checkRift = realCheckRift;');
 
 // ================= Phase 2: docking, the runner, Plumbmonkey =================
 const noInp = '{ left: false, right: false, up: false, down: false, fire: false, bomb: false, warp: false }';

@@ -19,6 +19,12 @@ Touch and gamepad: FIRE / BOMB / WARP buttons (A / B / X). There is deliberately
 ## Rules
 
 - **Four sectors:** Concert Grounds, Graveyard Hills, Storm Coast and Neon City. Each has three waves and then a mothership: the Harvester, the Ossuary, the Storm Leviathan and the Prism Dreadnought. After all four, the run loops as a harder cycle.
+- **Each sector has something of its own** (the hint shows under the sector title):
+  - Concert Grounds: nothing extra; it teaches the game.
+  - Graveyard Hills: wraiths climb out of graves and drift after you, fading in and out. A faded wraith can't be shot and can't hurt you; shoot it while it is solid.
+  - Storm Coast: gusts push the ship (arrows show which way), and lightning gathers in a cloud before it strikes. A strike kills whatever is under it, invaders included.
+  - Neon City: seven towers you have to fly round. Their sides stop the ship without harming it, they block shots both ways, and fans can stand on the roofs. Hold still in a searchlight for half a second and it calls a hunter.
+  - Motherships: the Storm Leviathan keeps the wind, and the Prism Dreadnought keeps the towers; lightning and searchlights rest during the fight.
 - **Fans and abductors:**
   - Landers carry fans up; a fan that reaches the top is lost and its lander becomes a mutant.
   - Shoot the lander to free the fan. A fan dropped from high must be caught, then flown low to set it down.
@@ -54,7 +60,8 @@ Touch and gamepad: FIRE / BOMB / WARP buttons (A / B / X). There is deliberately
 sectors.js   canvas, world wrap, seeded rules RNG, SECTORS data, stageInfo(), terrain
 fx.js        sound, glow sprites, laser beam drawing, explosions, shake, flash (never touches rules)
 ship.js      flight, one-press firing, beams, options, catching fans, fighter sprite
-enemies.js   the Defender cast, fans, enemy fire, mines, pre-rendered enemy sprites
+enemies.js   the Defender cast, wraiths, fans, enemy fire, mines, pre-rendered enemy sprites
+sector-hazards.js  Storm Coast's wind and lightning, Neon City's towers and searchlights (rules + art)
 bosses.js    the four motherships: parts, weak points, patterns, hazards, art
 runner.js    on-foot rules: level chunks, physics, gates, pods, monsters, Plumbmonkey, autopilot
 runner-art.js mothership interior, pods, monsters (SpriteKit), Hero Kit poses, runner HUD, exterior

@@ -33,7 +33,7 @@ let run = null, mothership = null, dockKind = 'rescue', dockLen = 150, dockCool 
 function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch (e) { return 0; } }
 function saveBest() { try { localStorage.setItem(BEST_KEY, best); } catch (e) {} }
 function isAttract() { return typeof Arcade !== 'undefined' && Arcade.attract; }
-function groundY(x) { return terrainAt(info.sector, x); }
+function groundY(x) { return terrainAt(info.sector, x); }   // the land itself; surfaceY() adds Neon City's roofs
 function toScreen(wx) {
   let r = (wx - camX) % WORLD_W;
   if (r < -WORLD_W / 2) r += WORLD_W;
@@ -68,7 +68,7 @@ function dropPickup(x, y, type) {
     let roll = rng() * total;
     type = Object.keys(w).find(k => (roll -= w[k]) < 0) || 'bomb';
   }
-  pickups.push({ id: ++nextId, type, x: wrapX(x), y: Math.min(y, groundY(x) - 30), vy: -1.2, life: 660 });
+  pickups.push({ id: ++nextId, type, x: wrapX(x), y: Math.min(y, surfaceY(x) - 30), vy: -1.2, life: 660 });
 }
 
 function applyPickup(type) {
@@ -86,7 +86,7 @@ function applyPickup(type) {
 function stepPickups() {
   pickups.forEach(p => {
     p.vy = Math.min(0.5, p.vy + 0.03);
-    p.y = Math.min(groundY(p.x) - 24, p.y + p.vy);
+    p.y = Math.min(surfaceY(p.x) - 24, p.y + p.vy);
     p.life--;
     if (Math.abs(wrapDX(p.x, ship.x)) < 28 && Math.abs(p.y - ship.y) < 24) { p.life = 0; applyPickup(p.type); }
   });
@@ -115,6 +115,7 @@ function startGame(seed) {
 // Set the stage up behind its title. Nothing spawns until the title is gone.
 function enterStage() {
   info = stageInfo(stageN);
+  setupSectorHazards();
   if (info.wave === 0) { rift = false; spawnFans(FANS_PER_SECTOR); }
   beams = []; enemies = []; enemyShots = []; mines = []; hazards = []; pickups = []; boss = null;
   dawdleT = 0; baiterT = 0; mothership = null; dockCool = 240;
@@ -124,7 +125,7 @@ function enterStage() {
   phaseT = info.wave === 0 || info.isBoss ? 150 : 110;
   banner = info.isBoss
     ? { text: BOSS_NAME[info.sector.boss.type], sub: `MOTHERSHIP · SECTOR ${info.sectorIdx + 1}` }
-    : { text: info.sector.name, sub: `WAVE ${info.wave + 1}${info.cycle ? ` · CYCLE ${info.cycle + 1}` : ''}` };
+    : { text: info.sector.name, sub: `WAVE ${info.wave + 1}${info.cycle ? ` · CYCLE ${info.cycle + 1}` : ''}${info.wave === 0 && info.sector.hint ? ` · ${info.sector.hint}` : ''}` };
   if (info.isBoss) sfx.warning();
   updateHUD();
 }
@@ -143,10 +144,10 @@ function nextStage() {
 
 function checkClear() {
   if (coreEnemiesLeft() || boss) return;
-  ship.carried.forEach(f => { f.state = 'ground'; f.y = groundY(f.x); rescuedCount++; });
+  ship.carried.forEach(f => { f.state = 'ground'; f.y = surfaceY(f.x); rescuedCount++; });
   ship.carried = [];
   enemies.forEach(e => { if (!e.dead) { FX.explode(e.x, e.y, 1); killEnemy(e, true); } });
-  enemies = []; mines = []; enemyShots = []; hazards = [];
+  enemies = []; mines = []; enemyShots = []; hazards = []; bolts = [];
   clearBonus = fans.length * 100 * (info.sectorIdx + 1) * (info.cycle + 1);
   if (clearBonus) addScore(clearBonus);
   phase = 'clear'; phaseT = 120;
@@ -349,7 +350,7 @@ function resolveHits() {
     if (b.dead) return;
     if (boss && beamHitBoss(b, boss) && b.dead) return;
     const touched = [];
-    enemies.forEach(e => { if (!e.dead && beamTouches(b, e.x, e.y, e.r)) touched.push({ along: wrapDX(e.x, b.x0) * b.dir, e }); });
+    enemies.forEach(e => { if (!e.dead && !ghosted(e) && beamTouches(b, e.x, e.y, e.r)) touched.push({ along: wrapDX(e.x, b.x0) * b.dir, e }); });
     mines.forEach(m => { if (!m.dead && beamTouches(b, m.x, m.y, m.r)) touched.push({ along: wrapDX(m.x, b.x0) * b.dir, m }); });
     touched.sort((a, c) => a.along - c.along);
     for (const t of touched) {
@@ -369,7 +370,8 @@ function checkShipDamage() {
   const near = (x, y, rx, ry) => Math.abs(wrapDX(x, ship.x)) < rx && Math.abs(y - ship.y) < ry;
   for (const s of enemyShots) if (near(s.x, s.y, 22, 9 + s.r)) { s.life = 0; return damageShip(); }
   for (const m of mines) if (!m.dead && m.arm <= 0 && near(m.x, m.y, 24, 14)) { m.dead = true; FX.explode(m.x, m.y, 1); return damageShip(); }
-  for (const e of enemies) if (!e.dead && near(e.x, e.y, 22 + e.r, 8 + e.r)) { killEnemy(e); return damageShip(); }
+  for (const e of enemies) if (!e.dead && !ghosted(e) && near(e.x, e.y, 22 + e.r, 8 + e.r)) { killEnemy(e); return damageShip(); }
+  if (boltHitsShip()) return damageShip();
   if (boss && bossTouchesShip(boss)) return damageShip();
   for (const h of hazards) if (hazardHitsShip(h)) return damageShip();
 }
@@ -386,6 +388,7 @@ function stepPlay(inp) {
   stepEnemies();
   if (boss) stepBoss(boss);
   stepHazards();
+  stepSectorHazards();
   stepFans();
   stepCatch(ship);
   stepPickups();
@@ -512,20 +515,27 @@ function autopilot() {
   }
   if (aim) {
     const adx = wrapDX(aim.x, s.x), dir = adx >= 0 ? 1 : -1, far = Math.abs(adx);
-    const standoff = boss && aim !== boss && bossTarget(boss) === aim ? 360 : 240;
+    const clear = beamRange(s.x + dir * 26, aim.y, dir) >= far - 30;     // no tower in the way
+    const standoff = !clear ? 60 : boss && aim !== boss && bossTarget(boss) === aim ? 360 : 240;
     if (s.facing !== dir || far > standoff + 80) { if (dir > 0) inp.right = true; else inp.left = true; }
     let ty = aim.y;
     if (boss && boss.type === 'leviathan' && boss.state === 'charge') ty = boss.laneY + (s.y < boss.laneY ? -70 : 70);
     ty = Math.max(shipCeil(), Math.min(shipFloor(s.x), ty));
     if (ty < s.y - 3) inp.up = true; else if (ty > s.y + 3) inp.down = true;
-    if (s.facing === dir && Math.abs(aim.y - s.y) < 10 + (aim.r || 8) && far < 820 && botFireGap <= 0) { inp.fire = true; botFireGap = 5; }
+    if (s.facing === dir && Math.abs(aim.y - s.y) < 10 + (aim.r || 8) && far < 820 && clear && !ghosted(aim) && botFireGap <= 0) { inp.fire = true; botFireGap = 5; }
   }
   if (botFireGap > 0) botFireGap--;
 
+  // climb over a tower in the way (dodging, below, still has the last word)
+  const heading = inp.right ? 1 : inp.left ? -1 : Math.abs(s.vx) > 1.5 ? Math.sign(s.vx) : 0;
+  if (heading) for (const px of Math.abs(s.vx) > 4 ? [30, 90, 150, 210] : [30, 90]) {
+    const tw = towerAt(s.x + heading * px);
+    if (tw && s.y > tw.top - 40) { inp.up = true; inp.down = false; break; }
+  }
   // dodge the nearest incoming threat
   const threats = enemyShots.map(t => ({ x: t.x + t.vx * 6, y: t.y + t.vy * 6, r: 30 }))
     .concat(mines.map(m => ({ x: m.x, y: m.y, r: 30 })))
-    .concat(enemies.filter(e => e.type !== 'lander' || !e.carry).map(e => ({ x: e.x, y: e.y, r: 20 + e.r })));
+    .concat(enemies.filter(e => (e.type !== 'lander' || !e.carry) && !ghosted(e)).map(e => ({ x: e.x, y: e.y, r: 20 + e.r })));
   const danger = threats.find(t => Math.abs(wrapDX(t.x, s.x)) < 70 && Math.abs(t.y - s.y) < t.r);
   if (danger) {
     const up = danger.y > s.y ? s.y - 40 > shipCeil() : s.y + 40 > shipFloor(s.x);
@@ -535,6 +545,9 @@ function autopilot() {
     const gap = wrapDX(s.x, boss.x);
     if (Math.abs(gap) < 330) { inp.left = gap < 0; inp.right = gap >= 0; }
   }
+  // get out from under a gathering bolt
+  const bolt = bolts.find(b => Math.abs(wrapDX(b.x, s.x)) < 80);
+  if (bolt) { const away = wrapDX(s.x, bolt.x) >= 0; inp.right = away; inp.left = !away; }
   const crowd = enemies.filter(e => onScreen(e.x, 0) && dist(e) < 240).length;
   if (s.bombs > 0 && (crowd >= 4 || (danger && s.shield === 0 && lives <= 1))) inp.bomb = true;
   return inp;

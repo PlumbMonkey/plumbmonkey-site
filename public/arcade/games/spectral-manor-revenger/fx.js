@@ -80,6 +80,8 @@ const sfx = {
   extraLife() { [784, 988, 1175, 1568].forEach((f, i) => playTone(f, 0.1, 'square', 0.05, 0, 0, i * 0.07)); },
   enemyShot(pan) { playTone(700, 0.1, 'square', 0.03, 260, pan); },
   mine(pan) { playTone(180, 0.08, 'triangle', 0.03, 120, pan); },
+  gust() { playNoise(1.4, 0.05, 'bandpass', 300, 1400); },
+  thunder() { playNoise(0.7, 0.1, 'lowpass', 2400, 80); playTone(70, 0.6, 'sawtooth', 0.07, 30); },
   blaster() { playTone(1500, 0.08, 'square', 0.05, 380); playNoise(0.05, 0.04, 'highpass', 2500); playTone(160, 0.07, 'sine', 0.06, 60); },
   jump() { playTone(330, 0.12, 'triangle', 0.05, 660); },
   slide() { playNoise(0.25, 0.05, 'bandpass', 900, 300); },

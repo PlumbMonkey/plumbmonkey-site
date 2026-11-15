@@ -20,12 +20,12 @@ function newShip() {
 }
 
 function shipCeil() { return HUD_H + 16; }
-function shipFloor(x) { return groundY(x) - 20; }
+function shipFloor(x) { return Math.min(surfaceY(x - 18), surfaceY(x), surfaceY(x + 18)) - 20; }
 
 let beamId = 0;
 function makeBeam(x, y, dir, kind, pierce, hue) {
   return { id: ++beamId, x0: wrapX(x), y, dir, head: 0, tail: 0, age: 0, kind,
-    h: kind === 'wave' ? 26 : 6, pierce, hits: [], dead: false, hue };
+    h: kind === 'wave' ? 26 : 6, pierce, hits: [], dead: false, hue, range: beamRange(x, y, dir) };
 }
 
 // inp: { left, right, up, down, fire (a fresh press), bomb, warp }
@@ -35,6 +35,9 @@ function stepShip(s, inp) {
   else s.vx *= SHIP_DRAG;
   s.vx = Math.max(-SHIP_MAX, Math.min(SHIP_MAX, s.vx));
   const vy = (inp.down ? SHIP_VY : 0) - (inp.up ? SHIP_VY : 0);
+  // a tower's side stops the ship dead; it does no harm
+  const nose = Math.sign(s.vx) * 20;
+  if (nose && insideTower(s.x + s.vx + nose, s.y + 18) && !insideTower(s.x + nose, s.y + 18)) s.vx = 0;
   s.x = wrapX(s.x + s.vx);
   s.y = Math.max(shipCeil(), Math.min(shipFloor(s.x), s.y + vy));
   s.bank += (vy * 0.05 - s.bank) * 0.2;
@@ -78,9 +81,13 @@ function fireShip(s) {
 function stepBeams() {
   beams.forEach(b => {
     b.age++;
-    b.head = Math.min(BEAM_RANGE, b.head + BEAM_SPEED);
+    const lim = b.range === undefined ? BEAM_RANGE : b.range;     // a tower cuts a shot short
+    b.head = Math.min(lim, b.head + BEAM_SPEED);
     b.tail = Math.max(b.tail, b.head - BEAM_LEN);
-    if (b.head >= BEAM_RANGE) b.tail += BEAM_SPEED;
+    if (b.head >= lim) {
+      b.tail += BEAM_SPEED;
+      if (lim < BEAM_RANGE && !b.walled) { b.walled = true; FX.spark(wrapX(b.x0 + b.dir * lim), b.y, `hsl(${b.hue % 360},100%,70%)`); }
+    }
     if (b.tail >= b.head) b.dead = true;
   });
   beams = beams.filter(b => !b.dead);
@@ -122,7 +129,7 @@ function stepCatch(s) {
   s.carried.forEach((f, i) => { f.x = wrapX(s.x - s.facing * (i * 6)); f.y = s.y + 18 + i * 3; });
   if (s.carried.length && s.y >= shipFloor(s.x) - 6) {
     s.carried.forEach(f => {
-      f.state = 'ground'; f.y = groundY(f.x); f.vy = 0;
+      f.state = 'ground'; f.y = surfaceY(f.x); f.vy = 0;
       addScore(500, f.x, f.y - 20, 'SAFE');
       rescuedCount++;
       if (rescuedCount % 3 === 0) dropPickup(f.x, f.y - 60);
