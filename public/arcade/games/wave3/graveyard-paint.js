@@ -16,7 +16,11 @@
     foyer:    { sky: ["#2c1b25", "#130b11"], far: "#3a2230", mid: "#4a2c36", ground: "#3a2418", top: "#8a5a36", topHi: "#d9a066", stone: "#5a4034", stoneHi: "#b98a5e", accent: "#f0c674", fog: "240,198,116" },
     gallery:  { sky: ["#1f2233", "#0c0d16"], far: "#262a3f", mid: "#30344d", ground: "#2d2530", top: "#b08d57", topHi: "#f1d59a", stone: "#3b3550", stoneHi: "#8f86b0", accent: "#c4a7ff", fog: "196,167,255" },
     other:    { sky: ["#062421", "#010a09"], far: "#0b2e2a", mid: "#0f3934", ground: "#0c2622", top: "#3fd4b8", topHi: "#b6fff0", stone: "#134a43", stoneHi: "#5be3c9", accent: "#5eead4", fog: "94,234,212" },
-    music:    { sky: ["#1e0f2c", "#08040e"], far: "#241536", mid: "#2f1c44", ground: "#231a2e", top: "#cc9cea", topHi: "#f3dcff", stone: "#3a2d4a", stoneHi: "#9b84b8", accent: "#cc9cea", fog: "204,156,234" }
+    music:    { sky: ["#1e0f2c", "#08040e"], far: "#241536", mid: "#2f1c44", ground: "#231a2e", top: "#cc9cea", topHi: "#f3dcff", stone: "#3a2d4a", stoneHi: "#9b84b8", accent: "#cc9cea", fog: "204,156,234" },
+    // World 3 · The Upper Floors
+    library:  { sky: ["#21160f", "#0a0604"], far: "#2c1e14", mid: "#3a2719", ground: "#3a2418", top: "#7a5232", topHi: "#c99a5e", stone: "#4f3420", stoneHi: "#a0703f", accent: "#e8c27a", fog: "232,194,122", books: true },
+    clocktower: { sky: ["#141a24", "#05070b"], far: "#1b2331", mid: "#243043", ground: "#2b2b35", top: "#8a7a52", topHi: "#d8c27a", stone: "#474857", stoneHi: "#a8a2b8", accent: "#e2c76a", fog: "226,199,106" },
+    rooftops: { sky: ["#141a30", "#04050b"], far: "#181d31", mid: "#20273d", ground: "#2a2d3c", top: "#4c5470", topHi: "#a3acc9", stone: "#3c4055", stoneHi: "#8a90a8", accent: "#a5b4fc", fog: "165,180,252", outdoor: true, storm: true, roof: true }
   };
 
   // ---------- helpers ----------
@@ -56,7 +60,17 @@
     const gr = g.createLinearGradient(0, 0, 0, h);
     gr.addColorStop(0, T.sky[0]); gr.addColorStop(1, T.sky[1]);
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
-    if (T.outdoor) {
+    if (T.storm) {
+      // a storm: low rolling cloud banks, a few stars through the gaps
+      for (let i = 0; i < 30; i++) { g.globalAlpha = 0.2 + hash(i, 3) * 0.4; g.fillStyle = "#fff"; g.fillRect(hash(i, 1) * w, hash(i, 2) * h * 0.3, 1.5, 1.5); }
+      g.globalAlpha = 1;
+      for (let k = 0; k < 3; k++) for (let i = 0; i < 9; i++) {
+        const x = hash(i, k + 40) * w, y = 60 + k * 70 + hash(i, k + 50) * 40, r = 90 + hash(i, k + 60) * 90;
+        const cg = g.createRadialGradient(x, y, r * 0.2, x, y, r);
+        cg.addColorStop(0, `rgba(${46 + k * 10},${52 + k * 10},${82 + k * 10},0.75)`); cg.addColorStop(1, "rgba(30,34,60,0)");
+        g.fillStyle = cg; g.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+    } else if (T.outdoor) {
       for (let i = 0; i < 90; i++) { g.globalAlpha = 0.25 + hash(i, 3) * 0.6; g.fillStyle = "#fff"; g.fillRect(hash(i, 1) * w, hash(i, 2) * h * 0.55, 1.6, 1.6); }
       g.globalAlpha = 1;
       const mx = w * 0.78, my = 130, mg = g.createRadialGradient(mx, my, 10, mx, my, 150);
@@ -96,7 +110,46 @@
       }
     } else if (name === "music") {
       for (let x = 0; x < w; x += 220) { R(g, x + 30, 280, 110, 280, T.far); for (let k = 0; k < 3; k++) O(g, x + 85, 330 + k * 80, 30, 30, T.mid); }
+    } else if (name === "library") {
+      // tall bookcases fading up into the dark, with a reading-lamp glow
+      for (let x = 0; x < w; x += 170) {
+        R(g, x + 10, 60, 150, h - 60, T.far);
+        for (let y = 90; y < h; y += 64) for (let b = 0; b < 12; b++) {
+          const bw = 8 + hash(x + b, y) * 5, bx = x + 18 + b * 11.5;
+          g.fillStyle = ["#3b2416", "#2c2a1c", "#3a1c1c", "#22283a"][Math.floor(hash(b, x + y) * 4)]; g.fillRect(bx, y + 52 - (38 + hash(b, y) * 12), bw, 38 + hash(b, y) * 12);
+        }
+      }
+      for (let x = 120; x < w; x += 340) { const lg = g.createRadialGradient(x, 300, 4, x, 300, 120); lg.addColorStop(0, "rgba(160,220,140,0.16)"); lg.addColorStop(1, "rgba(160,220,140,0)"); g.fillStyle = lg; g.fillRect(x - 120, 180, 240, 240); }
+    } else if (name === "clocktower") {
+      // the back of the great clock face, its hands, and slow gears
+      const cx = w * 0.5, cy = 300, r = 230;
+      const fg = g.createRadialGradient(cx, cy, 30, cx, cy, r);
+      fg.addColorStop(0, "rgba(226,199,106,0.22)"); fg.addColorStop(0.85, "rgba(226,199,106,0.1)"); fg.addColorStop(1, "rgba(226,199,106,0)");
+      g.fillStyle = fg; g.fillRect(cx - r, cy - r, r * 2, r * 2);
+      O(g, cx, cy, r * 0.9, r * 0.9, null, 6, "rgba(20,26,38,0.9)");
+      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; R(g, cx + Math.cos(a) * r * 0.78 - 6, cy + Math.sin(a) * r * 0.78 - 12, 12, 24, "rgba(20,26,38,0.9)"); }
+      g.strokeStyle = "rgba(20,26,38,0.95)"; g.lineCap = "round";
+      g.lineWidth = 12; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + 110, cy - 70); g.stroke();
+      g.lineWidth = 8; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx - 40, cy - 170); g.stroke();
+      for (const [x, y, rr] of [[w * 0.12, h - 120, 90], [w * 0.86, 140, 70]]) gear(g, x, y, rr, 12, T.far);
+    } else if (name === "rooftops") {
+      // the manor's roofline: spires, gables and the clock tower against the storm
+      g.beginPath(); g.moveTo(0, h);
+      const pts = [[0, 460], [80, 420], [160, 460], [200, 330], [240, 460], [330, 400], [420, 460], [470, 250], [520, 460], [610, 420], [700, 470], [760, 380], [820, 470], [900, 300], [940, 470], [1040, 420], [1120, 460], [1180, 340], [1220, 460], [1280, 430]];
+      pts.forEach(([x, y]) => g.lineTo(x * w / 1280, y));
+      g.lineTo(w, h); g.closePath(); g.fillStyle = T.far; g.fill();
+      for (let i = 0; i < 14; i++) { const x = hash(i, 70) * w, y = 470 + hash(i, 71) * 120; g.fillStyle = hash(i, 72) > 0.5 ? "rgba(255,210,120,0.45)" : "rgba(130,140,190,0.25)"; g.fillRect(x, y, 10, 16); }
     }
+  }
+  function gear(g, x, y, r, teeth, fill, rot = 0) {      // a cog silhouette
+    g.beginPath();
+    for (let i = 0; i < teeth * 2; i++) {
+      const a = rot + i / (teeth * 2) * Math.PI * 2, rr = i % 2 ? r : r * 0.84;
+      const a2 = rot + (i + 1) / (teeth * 2) * Math.PI * 2;
+      g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); g.lineTo(x + Math.cos(a2) * rr, y + Math.sin(a2) * rr);
+    }
+    g.closePath(); g.fillStyle = fill; g.fill();
+    O(g, x, y, r * 0.35, r * 0.35, shade(fill, -0.3));
   }
   function paintMid(g, T, name, w, h) {
     if (name === "cemetery") {
@@ -124,6 +177,25 @@
       for (let x = 0; x < w; x += 260) { R(g, x + 40, 150, 150, 190, T.mid); R(g, x + 54, 164, 122, 162, shade(T.mid, -0.35)); }
     } else if (name === "music") {
       for (let x = 0; x < w; x += 180) { R(g, x + 20, h - 200, 120, 200, T.mid); R(g, x + 30, h - 190, 100, 40, shade(T.mid, -0.3)); O(g, x + 80, h - 90, 34, 34, shade(T.mid, -0.3)); }
+    } else if (name === "library") {
+      // rolling ladders and reading desks with green lamps
+      for (let x = 60; x < w; x += 300) {
+        g.strokeStyle = T.mid; g.lineWidth = 6; g.beginPath(); g.moveTo(x, h - 40); g.lineTo(x + 50, 120); g.moveTo(x + 40, h - 40); g.lineTo(x + 90, 120); g.stroke();
+        g.lineWidth = 4; for (let k = 0; k < 10; k++) { const t = k / 10; g.beginPath(); g.moveTo(x + t * 50, h - 40 - t * (h - 160)); g.lineTo(x + 40 + t * 50, h - 40 - t * (h - 160)); g.stroke(); }
+        R(g, x + 140, h - 110, 110, 14, T.mid); R(g, x + 150, h - 96, 10, 56, T.mid); R(g, x + 230, h - 96, 10, 56, T.mid);
+        glow(g, "#a3e3a0", 14, () => { P(g, [[x + 178, h - 132], [x + 212, h - 132], [x + 204, h - 146], [x + 186, h - 146]], "#4f8a4a", 0); });
+      }
+    } else if (name === "clocktower") {
+      for (let k = 0; k < 6; k++) gear(g, hash(k, 80) * w, 80 + hash(k, 81) * (h - 160), 40 + hash(k, 82) * 50, 10, T.mid, k);
+      g.fillStyle = T.mid; for (let x = 0; x < w; x += 220) g.fillRect(x + 100, 0, 14, h);       // drive shafts
+    } else if (name === "rooftops") {
+      for (let x = 0; x < w; x += 230) {
+        R(g, x + 30, h - 230 - hash(x, 2) * 60, 46, 300, T.mid);
+        R(g, x + 24, h - 236 - hash(x, 2) * 60, 58, 12, shade(T.mid, 0.1));
+      }
+      // a weathervane
+      g.strokeStyle = T.mid; g.lineWidth = 4; g.beginPath(); g.moveTo(w * 0.62, h - 260); g.lineTo(w * 0.62, h - 360); g.stroke();
+      P(g, [[w * 0.62 - 40, h - 345], [w * 0.62 + 30, h - 345], [w * 0.62 + 44, h - 352], [w * 0.62 + 30, h - 359], [w * 0.62 - 30, h - 352]], T.mid, 0);
     }
   }
 
@@ -138,12 +210,24 @@
         if (edge) {
           const eg = g.createLinearGradient(0, 0, 0, 14); eg.addColorStop(0, T.topHi); eg.addColorStop(0.35, T.top); eg.addColorStop(1, shade(T.ground, 0.05));
           g.fillStyle = eg; g.fillRect(0, 0, TILE, 14);
-          if (T.outdoor) for (let i = 0; i < 5; i++) { const x = hash(v, i + 30) * 44; P(g, [[x, 2], [x + 2, -5 - hash(v, i) * 4], [x + 4, 2]], T.topHi, 0); }
+          if (T.roof) { g.fillStyle = shade(T.ground, -0.3); for (let k = 0; k < 3; k++) for (let i = 0; i < 4; i++) g.fillRect(i * 12 + (k % 2) * 6, 16 + k * 10, 1.5, 9); }
+          else if (T.outdoor) for (let i = 0; i < 5; i++) { const x = hash(v, i + 30) * 44; P(g, [[x, 2], [x + 2, -5 - hash(v, i) * 4], [x + 4, 2]], T.topHi, 0); }
           g.fillStyle = INK; g.fillRect(0, 0, TILE, 1.5);
         }
         break;
       }
       case "B": case "S": {
+        if (ch === "B" && T.books) {               // a bookcase cell: a shelf of spines
+          R(g, 0, 0, TILE, TILE, T.stone);
+          for (let b = 0, x = 3; x < 44; b++) {
+            const bw = 5 + hash(v, b) * 4, bh = 30 + hash(v, b + 9) * 10;
+            g.fillStyle = ["#7c2d2d", "#2d4a7c", "#3f6b3a", "#8a6a2e", "#5b3a6e"][Math.floor(hash(v, b + 20) * 5)];
+            g.fillRect(x, 42 - bh, bw, bh); g.fillStyle = "rgba(255,230,170,0.35)"; g.fillRect(x + 1, 46 - bh, bw - 2, 2);
+            x += bw + 1;
+          }
+          R(g, 0, 42, TILE, 6, shade(T.stone, 0.15)); g.fillStyle = INK; g.fillRect(0, 47, TILE, 1);
+          break;
+        }
         const c = ch === "S" ? "#2d7b70" : T.stone, hi = ch === "S" ? "#7ff5de" : T.stoneHi;
         R(g, 1, 1, 46, 46, c, 2, 4);
         P(g, [[3, 3], [45, 3], [41, 8], [7, 8]], shade(hi, -0.1), 0);
@@ -366,6 +450,48 @@
       glow(g, "#ffb347", 10, () => P(g, [[x - 3, -21], [x, -31 - (t + i) % 3], [x + 3, -21]], "#ffd27a", 0));
     }
   }
+  function paintBookshelf(g, w) {              // a floating shelf of books (the Library's lifts)
+    R(g, 0, 0, w, 16, "#6b4428", 2, 2);
+    for (let b = 0, x = 6; x < w - 8; b++) {
+      const bw = 6 + hash(b, w) * 5, bh = 18 + hash(b, 3) * 12;
+      g.fillStyle = ["#7c2d2d", "#2d4a7c", "#3f6b3a", "#8a6a2e"][b % 4]; g.fillRect(x, -bh, bw, bh);
+      g.strokeStyle = INK; g.lineWidth = 1; g.strokeRect(x, -bh, bw, bh);
+      x += bw + (hash(b, 9) > 0.8 ? 6 : 1);
+    }
+    R(g, 3, 3, w - 6, 4, "#9a6a40");
+    glow(g, "#e8c27a", 8, () => { O(g, 8, 8, 2, 2, "#ffe7b0"); O(g, w - 8, 8, 2, 2, "#ffe7b0"); });
+  }
+  function paintPendulum(g, t) {               // the clock tower's pendulum: a broad brass bob you can stand on
+    P(g, [[-72, 0], [72, 0], [58, 18], [0, 30], [-58, 18]], "#b8923a", 2.5);
+    P(g, [[-72, 0], [72, 0], [66, 6], [-66, 6]], "#f0d58a", 0);
+    P(g, [[0, 30], [58, 18], [72, 0], [30, 0]], "#8e6f2a", 0);
+    glow(g, "#ffe08a", 10, () => O(g, 0, 12, 7, 7, "#fff1c4", 1.5));
+  }
+  function paintCog(g, r, rot) {                // a gear on a spinning arm (the clock tower's fire bars)
+    g.save(); g.rotate(rot);
+    gear(g, 0, 0, r, 8, "#c99a3a");
+    O(g, 0, 0, r * 0.35, r * 0.35, "#5a4320", 1.5);
+    g.restore();
+    glow(g, "#ffb347", 10, () => O(g, 0, 0, 2.5, 2.5, "#fff1c4"));
+  }
+  function paintDumbwaiter(g, t) {             // a serving hatch in the wall with its rope
+    R(g, -26, -70, 52, 70, "#4f3420", 3, 3);
+    R(g, -20, -62, 40, 54, "#120b0a", 2);
+    g.strokeStyle = "#c9a24a"; g.lineWidth = 2; g.beginPath(); g.moveTo(14, -62); g.lineTo(14, -8); g.stroke();
+    R(g, -18, -30 + Math.sin(t * 0.05) * 2, 26, 4, "#8a6340");
+    glow(g, "#e8c27a", 8, () => { g.fillStyle = "#ffe7b0"; g.font = "700 14px Georgia"; g.textAlign = "center"; g.fillText("↕", -4, -40); });
+  }
+  function paintCuckoo(g, t, face) {            // a wooden cuckoo with a brass beak
+    g.save(); g.scale(face, 1);
+    const flap = Math.sin(t * 0.6) * 6;
+    P(g, [[-4, -2], [-14, -8 - flap], [-8, 2]], "#8a5a32", 1.5);
+    O(g, 0, 0, 12, 8, "#a8703c", 2);
+    O(g, 8, -5, 6, 6, "#c88a4a", 2);
+    P(g, [[13, -6], [20, -4], [13, -2]], "#f0c060", 1.2);
+    glow(g, "#ff6b3d", 6, () => O(g, 9, -6, 1.6, 1.6, "#ffd0a0"));
+    R(g, -16, -1, 6, 3, "#5a3a20");
+    g.restore();
+  }
   function paintPlatform(g, w) {
     R(g, 0, 0, w, 16, "#6b4a30", 2, 3);
     R(g, 3, 3, w - 6, 4, "#8a6340");
@@ -402,7 +528,8 @@
 
   const exports = { THEMES, INK, hash, shade, P, O, R, glow, note, paintSky, paintFar, paintMid, paintTile, paintLantern, paintDoor, paintPortal,
     paintTombDoor, paintGreatLantern, paintPedestal, paintSkull, paintArmourShell, paintBat, paintFlower, paintCloud, paintPumpkin, paintGargoyle,
-    paintChandelier, paintPlatform, paintAmp, paintEncore, paintBarrel, paintPotion };
+    paintChandelier, paintPlatform, paintAmp, paintEncore, paintBarrel, paintPotion,
+    gear, paintBookshelf, paintPendulum, paintCog, paintDumbwaiter, paintCuckoo };
   if (typeof module !== "undefined" && module.exports) module.exports = exports;
   else root.GraveyardPaint = exports;
 })(typeof window !== "undefined" ? window : globalThis);

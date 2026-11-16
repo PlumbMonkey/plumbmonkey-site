@@ -153,6 +153,20 @@ Built pieces that are barely used (counted from the level data):
 **Done when:** `LEVELS` has 9 entries with the Music Room last, the bot clears all 9, and the test covers the
 new boss and the first use of `c` and `v`.
 
+**Built 2026-11-15 (uncommitted at time of writing):** Gregg okayed going ahead; the boss is THE CLOCKMAKER.
+The hero is "Ace the space wizard" to Gregg, but the game names him only where it's relevant.
+- 3-1 THE LIBRARY (theme `library`): bookshelf lift (`v`) up a tall bookcase, a sliding shelf (`h`) over a
+  pit, a ghost-block bridge, witches, a `dumbwaiter` link to a READING room (one-way exit past the stacks).
+- 3-2 THE CLOCK TOWER (`clocktower`): one 30x46 room; pendulums are `m` drawn as brass bobs, gears are `f`/`F`
+  drawn as cog arms, crumbling ledges, a gargoyle; door exit (`doorText`).
+- 3-3 THE ROOFTOPS (`rooftops`, storm with cosmetic lightning): cloud ghost `c` (now leaves when a boss
+  arena locks), gargoyles, crumbling slates, `*` box in the arena, THE CLOCKMAKER (`clockmaker` in
+  `graveyard-foes.js`, constants `CM`): an aimed pendulum (arc telegraphed through the wind-up, swings twice
+  when angry), cuckoo bolts (notes shoot them down), notes hurt only while his chest clock is open, stomps
+  any time. The Music Room is now 3-4.
+- Autopilot: `ROUTES` for 3-1 and 3-2, and a waypoint can be `ride` (reached while riding a mover).
+  Bot: all 9 levels clear with 0 deaths.
+
 ---
 
 ## 3. Infestation — two new grounds

@@ -99,6 +99,9 @@
           case "stageDown": api.toast(e.stage === 3 ? "ONE MORE CHORD!" : "HE'S ROCKED — KEEP GOING"); break;
           case "bossDefeat": api.chord([392, 523, 659, 784, 1047]); break;
           case "victory": api.toast("THE MUSIC ROOM IS YOURS"); break;
+          case "swing": api.sweep(90, 420, 0.5, "sawtooth", 0.05); shake = Math.max(shake, 4); break;
+          case "cuckoo": api.beep(1046, 0.08, "triangle", 0.04); api.beep(784, 0.1, "triangle", 0.04); break;
+          case "clockOpen": api.toast("HIS CLOCK IS OPEN — HIT IT!"); api.chord([523, 659, 784], 0.15, 0.03); break;
           case "lose": case "gameover": api.lose(); return;
           case "next": api.next(); return;
           case "win": api.end(true); return;
@@ -210,20 +213,39 @@
         if (end.room !== name || end.solid) continue;
         const kind = (s.level.links[n] || {}).kind;
         c.save(); c.translate(end.x * TILE + 24, (end.y + 1) * TILE);
-        if (kind === "portal") { c.translate(0, -24); PT.paintPortal(c, s.t, room.other); } else PT.paintTombDoor(c);
+        if (kind === "portal") { c.translate(0, -24); PT.paintPortal(c, s.t, room.other); }
+        else if (kind === "dumbwaiter") PT.paintDumbwaiter(c, s.t);
+        else PT.paintTombDoor(c);
         c.restore();
       }
       for (const m of s.movers) {
         if (m.room !== name) continue;
-        if (m.kind === "chandelier") {
+        const th = s.level.theme;
+        if (m.kind === "chandelier" && th === "clocktower") {     // a pendulum: a brass rod and a broad bob to stand on
+          const cxm = m.x + m.w / 2;
+          c.strokeStyle = PT.INK; c.lineWidth = 7; c.beginPath(); c.moveTo(m.px, m.py); c.lineTo(cxm, m.y); c.stroke();
+          c.strokeStyle = "#c99a3a"; c.lineWidth = 4; c.stroke();
+          PT.O(c, m.px, m.py, 9, 9, "#8e6f2a", 2);
+          c.save(); c.translate(cxm, m.y); PT.paintPendulum(c, s.t); c.restore();
+        } else if (m.kind === "chandelier") {
           const cxm = m.x + m.w / 2;
           c.strokeStyle = "#1a1422"; c.lineWidth = 3; c.beginPath(); c.moveTo(m.px, m.py); c.lineTo(cxm, m.y); c.stroke();
           c.save(); c.translate(cxm, m.y + 6); PT.paintChandelier(c, s.t >> 4); c.restore();
         } else if (m.kind === "gargoyle") {
           c.save(); c.translate(m.x + m.w / 2 + (m.st === "shake" ? Math.sin(s.t * 2) * 2 : 0), m.y); PT.paintGargoyle(c, m.st !== "wait"); c.restore();
-        } else blit(sprite("plat" + m.w, m.w + 8, 24, 4, 4, g => PT.paintPlatform(g, m.w)), m.x, m.y);
+        } else if (th === "library") blit(sprite("shelf" + m.w, m.w + 8, 60, 4, 40, g => PT.paintBookshelf(g, m.w)), m.x, m.y);
+        else blit(sprite("plat" + m.w, m.w + 8, 24, 4, 4, g => PT.paintPlatform(g, m.w)), m.x, m.y);
       }
-      for (const b of s.bars) if (b.room === name) {
+      for (const b of s.bars) if (b.room === name && s.level.theme === "clocktower") {
+        // a spinning arm of hot cogs: the arm is drawn short and thick, the cogs are what hurt
+        const ex = b.cx + Math.cos(b.a) * (14 + (b.n - 1) * 22), ey = b.cy + Math.sin(b.a) * (14 + (b.n - 1) * 22);
+        c.strokeStyle = PT.INK; c.lineWidth = 8; c.beginPath(); c.moveTo(b.cx, b.cy); c.lineTo(ex, ey); c.stroke();
+        c.strokeStyle = "#6b5a3a"; c.lineWidth = 5; c.stroke();
+        for (let i = 0; i < b.n; i++) {
+          const r = 14 + i * 22;
+          c.save(); c.translate(b.cx + Math.cos(b.a) * r, b.cy + Math.sin(b.a) * r); PT.paintCog(c, 13, s.t * 0.12 * (i % 2 ? -1 : 1)); c.restore();
+        }
+      } else if (b.room === name) {
         for (let i = 0; i < b.n; i++) {
           const r = 14 + i * 22, fx = b.cx + Math.cos(b.a) * r, fy = b.cy + Math.sin(b.a) * r;
           const fg = c.createRadialGradient(fx, fy, 1, fx, fy, 14);
@@ -293,6 +315,7 @@
         if (b.st === "dazed") for (let i = 0; i < 3; i++) { const a = s.t * 0.12 + i * 2.1; PT.note(c, cx + Math.cos(a) * 40, b.y - 10 + Math.sin(a) * 10, 0.9, "#fde047"); }
         return;
       }
+      if (b.type === "clockmaker") { c.restore(); drawClockmaker(b, cx, feet); return; }
       const pose = { idle: "idle", wake: "horns", throw: "throw", command: "command", stomp: "stomp", taunt: "taunt", dizzy: "dizzy", recover: "idle", hit: "hit", chord: "hit", defeat: "defeat" }[b.st] || "idle";
       let ph = b.anim * 0.12;
       if (b.st === "throw") ph = (1 - Math.max(0, b.t) / 50) * Math.PI * 2;
@@ -312,6 +335,108 @@
       }
     }
 
+    /* The Clockmaker: a tall, thin tinkerer in a teal tailcoat and a gear-banded
+       top hat, a glowing monocle, and a clock for a chest. The clock's doors
+       stand open (gears glowing) when he can be hurt. */
+    function drawClockmaker(b, cx, feet) {
+      const CM = F.CM, sw = b.swing, P = PT.P, O = PT.O, R = PT.R, ink = PT.INK;
+      // the pendulum: the rod lowers from the rafters, the arc lights up, then the blade sweeps
+      if (sw) {
+        const winding = b.st === "wind", k = winding ? 1 - b.t / (b.hp <= b.maxHp / 2 ? CM.WIND_ANGRY : CM.WIND) : 1;
+        R(c, sw.px - 30, sw.py - 18, 60, 14, "#3a2c1c", 2, 3);                    // the bracket in the rafters
+        O(c, sw.px, sw.py, 8, 8, "#c99a3a", 2);
+        if (winding) {
+          const bob = F.pendulumBob(sw, sw.a0), lk = Math.min(1, k * 2.2);
+          c.save(); c.globalAlpha = 0.55;
+          c.strokeStyle = "#c99a3a"; c.lineWidth = 3; c.beginPath(); c.moveTo(sw.px, sw.py); c.lineTo(sw.px + (bob.x - sw.px) * lk, sw.py + (bob.y - sw.py) * lk); c.stroke();
+          c.restore();
+          const n = 16, upto = Math.max(0, (k - 0.35) / 0.65) * n;
+          for (let i = 0; i <= upto; i++) {
+            const m = F.pendulumBob(sw, sw.a0 + (sw.a1 - sw.a0) * i / n), pulse = 0.5 + 0.5 * Math.sin(s.t * 0.3 + i);
+            c.save(); c.shadowColor = "#fb7185"; c.shadowBlur = 8; O(c, m.x, m.y, 3.2, 3.2, `rgba(254,205,211,${0.45 + 0.4 * pulse})`); c.restore();
+          }
+        } else {
+          const m = F.pendulumBob(sw, sw.a);
+          for (let i = 1; i <= 4; i++) {                                         // a fading wake behind the blade
+            const q = F.pendulumBob(sw, sw.a - Math.sign(sw.a1 - sw.a0) * i * 0.07), r = 30 - i * 5;
+            const gg = c.createRadialGradient(q.x, q.y, 0, q.x, q.y, r);
+            gg.addColorStop(0, `rgba(240,213,138,${0.4 - i * 0.08})`); gg.addColorStop(1, "rgba(240,213,138,0)");
+            c.fillStyle = gg; c.fillRect(q.x - r, q.y - r, r * 2, r * 2);
+          }
+          c.strokeStyle = ink; c.lineWidth = 9; c.beginPath(); c.moveTo(sw.px, sw.py); c.lineTo(m.x, m.y); c.stroke();
+          c.strokeStyle = "#c99a3a"; c.lineWidth = 5; c.stroke();
+          c.save(); c.translate(m.x, m.y); c.rotate(-sw.a);
+          P(c, [[-34, -6], [34, -6], [26, 14], [0, 24], [-26, 14]], "#d6dbe4", 2.5);        // the blade
+          P(c, [[-34, -6], [34, -6], [28, 0], [-28, 0]], "#f5f7fa", 0);
+          O(c, 0, 2, 9, 9, "#c99a3a", 2);
+          c.restore();
+        }
+      }
+      if (b.flash % 2) c.globalAlpha = 0.6;
+      c.save(); c.translate(cx, feet); c.scale(b.face < 0 ? -1 : 1, 1);
+      const walk = b.st === "walk" ? Math.sin(b.anim * 0.14) : 0, sc = 1;
+      // legs and buckled shoes
+      for (const [d, lift] of [[-8, Math.max(0, walk)], [8, Math.max(0, -walk)]]) {
+        c.strokeStyle = ink; c.lineWidth = 9; c.beginPath(); c.moveTo(d * 0.6, -44); c.lineTo(d, -6 - lift * 6); c.stroke();
+        c.strokeStyle = "#1d2433"; c.lineWidth = 6; c.stroke();
+        P(c, [[d - 6, -6 - lift * 6], [d + 10, -6 - lift * 6], [d + 12, 0 - lift * 6], [d - 6, 0 - lift * 6]], "#120f14", 1.5);
+        R(c, d + 1, -6 - lift * 6, 4, 3, "#c9a24a");
+      }
+      // tailcoat
+      P(c, [[-20, -112], [20, -112], [26, -44], [30, -24], [12, -36], [-12, -36], [-30, -24], [-26, -44]], "#1f5a5a", 2.5);
+      P(c, [[4, -112], [20, -112], [26, -44], [30, -24], [12, -36]], "#174646", 0);
+      R(c, -22, -50, 44, 6, "#2a1d14", 1.5);                                                 // belt
+      // the clock in his chest
+      const hy = -82, open = b.st === "open", door = b.st === "door";
+      O(c, 0, hy, 20, 20, "#7a5a26", 2.5);
+      if (open) {
+        const gg = c.createRadialGradient(0, hy, 2, 0, hy, 24); gg.addColorStop(0, "rgba(255,226,140,0.95)"); gg.addColorStop(1, "rgba(255,170,60,0.2)");
+        O(c, 0, hy, 16, 16, gg);
+        c.save(); c.translate(-5, hy - 3); PT.gear(c, 0, 0, 8, 8, "#c99a3a", s.t * 0.1); c.restore();
+        c.save(); c.translate(6, hy + 5); PT.gear(c, 0, 0, 6, 7, "#e0b44a", -s.t * 0.14); c.restore();
+        P(c, [[-16, hy - 14], [-26, hy - 10], [-26, hy + 10], [-16, hy + 14]], "#5a4320", 1.5);   // doors swung wide
+        P(c, [[16, hy - 14], [26, hy - 10], [26, hy + 10], [16, hy + 14]], "#5a4320", 1.5);
+      } else {
+        O(c, 0, hy, 16, 16, "#f3ead6", 1.5);
+        for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; R(c, Math.cos(a) * 13 - 1, hy + Math.sin(a) * 13 - 1, 2, 2, ink); }
+        const ha = s.t * 0.02, ma = s.t * 0.12;
+        c.strokeStyle = ink; c.lineWidth = 2.5; c.beginPath(); c.moveTo(0, hy); c.lineTo(Math.sin(ha) * 8, hy - Math.cos(ha) * 8); c.stroke();
+        c.lineWidth = 1.6; c.beginPath(); c.moveTo(0, hy); c.lineTo(Math.sin(ma) * 12, hy - Math.cos(ma) * 12); c.stroke();
+      }
+      if (door) {                                                                             // the cuckoo door over the clock
+        const k = 1 - b.t / CM.DOOR;
+        R(c, -8, hy - 36, 16, 14, "#120b0a", 1.5);
+        P(c, [[-8, hy - 36], [-8 - 10 * k, hy - 34], [-8 - 10 * k, hy - 24], [-8, hy - 22]], "#6b4428", 1.2);
+        if (k > 0.5) { c.save(); c.translate(0, hy - 29); c.scale(0.7, 0.7); PT.paintCuckoo(c, s.t, 1); c.restore(); }
+      }
+      // arms: the right winds a great key while he winds the pendulum
+      const wind = b.st === "wind" ? s.t * 0.25 : 0;
+      c.strokeStyle = ink; c.lineWidth = 8; c.beginPath(); c.moveTo(-18, -106); c.lineTo(-26, -78); c.lineTo(-24, -54); c.stroke();
+      c.strokeStyle = "#174646"; c.lineWidth = 5; c.stroke();
+      const hx = b.st === "wind" ? 30 : b.st === "door" ? 26 : 24, hyA = b.st === "wind" ? -128 : b.st === "door" ? -96 : -60;
+      c.strokeStyle = ink; c.lineWidth = 8; c.beginPath(); c.moveTo(18, -106); c.lineTo(30, -90); c.lineTo(hx, hyA); c.stroke();
+      c.strokeStyle = "#1f5a5a"; c.lineWidth = 5; c.stroke();
+      O(c, hx, hyA, 5, 5, "#e8e0d0", 1.5);
+      if (b.st === "wind") {
+        c.save(); c.translate(hx, hyA - 10); c.rotate(wind);
+        R(c, -2, -14, 4, 22, "#c99a3a", 1.5); O(c, -8, -16, 6, 4, "#c99a3a", 1.5); O(c, 8, -16, 6, 4, "#c99a3a", 1.5);
+        c.restore();
+      }
+      // head: long pale face, white tufts, monocle, top hat with a gear band
+      O(c, 2, -124, 11, 14, "#e8dccb", 2);
+      P(c, [[-10, -128], [-18, -122], [-12, -118]], "#f5f5f5", 1); P(c, [[12, -130], [20, -124], [13, -120]], "#f5f5f5", 1);
+      P(c, [[6, -120], [14, -116], [6, -114]], "#cdbfa8", 0);                                   // nose
+      c.save(); c.shadowColor = "#fde68a"; c.shadowBlur = 10; O(c, 7, -127, 4.5, 4.5, "rgba(253,230,138,0.85)", 1.5, "#c9a24a"); c.restore();
+      O(c, -3, -127, 1.6, 1.6, ink);
+      R(c, -16, -140, 34, 5, "#120f14", 1.5);
+      R(c, -10, -170, 22, 30, "#1a1520", 2);
+      R(c, -10, -150, 22, 5, "#c9a24a");
+      c.save(); c.translate(1, -147); PT.gear(c, 0, 0, 5, 6, "#e0b44a", s.t * 0.05); c.restore();
+      c.restore();
+      c.globalAlpha = 1;
+      if (b.st === "open") { const tg = c.createRadialGradient(cx, feet - 82, 6, cx, feet - 82, 70); tg.addColorStop(0, "rgba(253,224,71,0.25)"); tg.addColorStop(1, "rgba(253,224,71,0)"); c.fillStyle = tg; c.fillRect(cx - 70, feet - 152, 140, 140); }
+    }
+
     function drawShotsAndBolts(room) {
       for (const q of s.shots) {
         if (q.room !== room.name) continue;
@@ -329,6 +454,7 @@
           wg.addColorStop(0, "rgba(255,237,213,0.95)"); wg.addColorStop(0.4, "rgba(251,146,60,0.7)"); wg.addColorStop(1, "rgba(251,146,60,0)");
           c.fillStyle = wg; c.fillRect(q.x - 14, q.y - 6, q.w + 28, q.h + 6);
         } else if (q.kind === "barrel") { c.translate(q.x + q.w / 2, q.y + q.h / 2); PT.paintBarrel(c, q.spin || 0); }
+        else if (q.kind === "cuckoo") { c.translate(q.x + q.w / 2, q.y + q.h / 2); PT.paintCuckoo(c, s.t, q.vx < 0 ? -1 : 1); }
         else { c.translate(q.x + q.w / 2, q.y + q.h / 2); PT.paintPotion(c, s.t); }
         c.restore();
       }
@@ -410,7 +536,7 @@
         const w = 380, x = 480 - w / 2, y = 14;
         c.fillStyle = "rgba(7,4,15,0.75)"; c.fillRect(x - 6, y - 4, w + 12, 32);
         c.fillStyle = "#2e1065"; c.fillRect(x, y + 16, w, 8);
-        c.fillStyle = b.type === "plumbmonkey" ? "#c084fc" : "#fb923c"; c.fillRect(x, y + 16, w * Math.max(0, b.hp / b.maxHp), 8);
+        c.fillStyle = b.type === "plumbmonkey" ? "#c084fc" : b.type === "clockmaker" ? "#e2c76a" : "#fb923c"; c.fillRect(x, y + 16, w * Math.max(0, b.hp / b.maxHp), 8);
         const extra = b.type === "plumbmonkey" ? ` · CHORD ${Math.min(b.stage, b.stages)} OF ${b.stages}` : "";
         label(b.name + extra, 480, y + 11, 11, "#f5f3ff");
       }
@@ -437,6 +563,17 @@
       c.save();
       if (shake > 0.5 && !api.reduced) c.translate(Math.sin(s.t * 1.7) * shake * 0.6, Math.cos(s.t * 2.3) * shake * 0.5);
       drawBackdrop(room);
+      const TH = PT.THEMES[themeName(room)];
+      if (TH.storm && !api.reduced) {                       // lightning in the clouds, far behind the rooftops
+        const k = s.t % 420, n = Math.floor(s.t / 420);
+        if (k < 16 && (k < 4 || (k > 8 && k < 12))) {
+          c.fillStyle = "rgba(190,200,255,0.12)"; c.fillRect(-PAD, 0, VIEW_W, H);
+          let x = -PAD + 200 + PT.hash(n, 1) * (VIEW_W - 400), y = 0;
+          c.save(); c.shadowColor = "#c7d2fe"; c.shadowBlur = 16; c.strokeStyle = "rgba(230,235,255,0.8)"; c.lineWidth = 2.5; c.beginPath(); c.moveTo(x, y);
+          for (let i = 1; i <= 8; i++) { x += (PT.hash(n, i + 3) - 0.5) * 70; y = i * 34; c.lineTo(x, y); }
+          c.stroke(); c.restore();
+        }
+      }
       c.save();
       c.translate(-Math.round(s.cam.x), -Math.round(s.cam.y));
       drawObjects(room);
@@ -463,7 +600,7 @@
         const f = s.finish;
         if (f && f.kind === "lantern") {
           if (f.t >= G.LIGHT) banner("LANTERN LIT", `NOTES ${f.notes} × 50  ·  TIME ${f.secs} × 20  ·  GHOSTS ${f.ghosts} × 100  =  ${f.points.toLocaleString()}`, Math.min(1, (f.t - G.LIGHT) / 20, s.phaseT / 20), "#ffd27a");
-        } else banner(f && f.kind === "door" ? "INTO THE MANSION" : "COURSE CLEAR", s.last ? "" : "On to the next floor", Math.min(1, (G.CLEAR - s.phaseT) / 20), "#fde68a");
+        } else banner(f && f.kind === "door" ? L.doorText || "INTO THE MANSION" : "COURSE CLEAR", s.last ? "" : "On to the next floor", Math.min(1, (G.CLEAR - s.phaseT) / 20), "#fde68a");
       }
       else if (s.phase === "ending" || s.phase === "over") banner("GAME OVER", "", Math.min(1, (G.ENDING - s.phaseT) / 30), "#fb7185");
       else if (s.phase === "victory") banner("PLUMBMONKEY DEFEATED", "The Music Room is yours. Ghost Circuit plays on.", Math.min(1, (G.VICTORY - s.phaseT) / 40), "#f0abfc");

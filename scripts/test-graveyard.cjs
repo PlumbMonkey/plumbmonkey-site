@@ -16,14 +16,18 @@ function stand(s, col, feetRow, room = 'main') { Object.assign(s.p, { room, x: c
 const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 const ghostAt = (room, x, y) => room.ghost[y * room.w + x];
 
-// --- levels: two worlds of three, the Music Room last, every link paired ---
+// --- levels: three worlds, the Music Room last (as 3-4), every link paired ---
 {
   const L = G.levels();
-  assert.equal(L.length, 6);
-  assert.deepEqual(L.map(l => l.id), ['1-1', '1-2', '1-3', '2-1', '2-2', '2-3']);
+  assert.equal(L.length, 9);
+  assert.deepEqual(L.map(l => l.id), ['1-1', '1-2', '1-3', '2-1', '2-2', '3-1', '3-2', '3-3', '3-4']);
   assert.equal(L.at(-1).name, 'THE MUSIC ROOM');
   assert.equal(L.at(-1).boss.type, 'plumbmonkey');
   assert.equal(L[2].boss.type, 'gatekeeper');
+  assert.equal(L[7].boss.type, 'clockmaker');
+  const used = ch => L.some(l => Object.values(l.rooms).some(r => r.rows.some(row => row.includes(ch))));
+  assert.ok(used('c') && used('v'), 'cloud ghosts and up-and-down platforms are used');
+  for (const l of L) if (l.rooms.main.rows.some(r => r.includes('C')) === false && !l.boss) assert.fail(`${l.id} has no checkpoint`);
   for (const l of L) {
     const w = WD.createWorld(l);
     assert.ok(w.start, `${l.id} has a start`);
@@ -135,7 +139,7 @@ const ghostAt = (room, x, y) => room.ghost[y * room.w + x];
   assert.equal(s.phase, 'dying');
 
   // refill boxes come back
-  const r = quiet(6), rr = r.world.rooms.main;
+  const r = quiet(9), rr = r.world.rooms.main;
   stand(r, 49, 12);
   run(r, 20, i => ({ jump: i === 0, jumpHeld: true }));
   assert.equal(rr.grid[8 * rr.w + 49], 'u');
@@ -255,7 +259,7 @@ function jam(s, hitAll) {
   }
 }
 {
-  const s = quiet(6), b = s.boss;
+  const s = quiet(9), b = s.boss;
   stand(s, Math.floor(b.arena.left / TILE) + 8, 12);
   s.p.tier = 3; s.p.inv = 999;
   run(s, 2);
@@ -276,13 +280,112 @@ function jam(s, hitAll) {
   assert.equal(count(ev, 'win'), 1, 'the Music Room ends the game');
 
   // missing the beats lets him recover with half a bar
-  const f = quiet(6), fb = f.boss;
+  const f = quiet(9), fb = f.boss;
   stand(f, Math.floor(fb.arena.left / TILE) + 8, 12); f.p.tier = 3; f.p.inv = 999;
   run(f, 2);
   toDizzy(f);
   jam(f, false);
   assert.equal(fb.st, 'recover'); assert.equal(fb.jam, null);
   assert.equal(fb.hp, Math.ceil(fb.maxHp / 2)); assert.equal(f.p.state, 'play');
+}
+
+
+// --- World 3: the Library's bookshelf lift and dumbwaiter ---
+{
+  const s = play(6); s.foes = []; s.bars = []; s.bolts = [];
+  const lift = s.movers.find(m => m.kind === 'v');
+  assert.ok(lift, 'the Library has a bookshelf lift'); assert.equal(lift.range, 6 * TILE);
+  assert.ok(s.movers.some(m => m.kind === 'h'), 'and a sliding shelf');
+  Object.assign(s.p, { x: lift.x + 50, y: lift.y - s.p.h, vx: 0, vy: 0, on: true, inv: 0 });
+  const feet0 = s.p.y + s.p.h; let top = feet0;
+  for (let i = 0; i < 300; i++) { G.step(s, { lives: 3 }); top = Math.min(top, s.p.y + s.p.h); }
+  assert.ok(feet0 - top >= 5 * TILE, `the lift carries you up (${((feet0 - top) / TILE).toFixed(1)} tiles)`);
+  assert.equal(s.phase, 'play');
+
+  const d = quiet(6); stand(d, 103, 12);
+  run(d, 60, i => ({ down: i === 0 }));
+  assert.equal(d.p.room, 'reading', 'the dumbwaiter goes down to the reading room');
+  const out = quiet(6); stand(out, 26, 12, 'reading');
+  run(out, 60, i => ({ down: i === 0 }));
+  assert.equal(out.p.room, 'main'); assert.equal(Math.floor((out.p.x + out.p.w / 2) / TILE), 146, 'and its exit comes up past the stacks');
+  const no = quiet(6); stand(no, 146, 12);
+  assert.equal(count(run(no, 30, i => ({ down: i === 0 })), 'warp'), 0, 'that exit is one-way');
+}
+
+// --- World 3: the cloud ghost drops pumpkins, and leaves when a boss arena locks ---
+{
+  const s = play(8);
+  const cloud = s.foes.find(f => f.type === 'c');
+  assert.ok(cloud, 'the Rooftops have a cloud ghost');
+  s.foes = [cloud]; s.movers = []; s.bars = []; s.p.inv = 1e6;
+  stand(s, 25, 12); s.p.inv = 1e6;
+  run(s, 200);
+  assert.ok(s.foes.some(f => f.type === 'pumpkin'), 'it drops pumpkins');
+  s.foes = [cloud]; s.arena = { room: 'main', left: 0, right: 1e6 };
+  run(s, 200);
+  assert.ok(!s.foes.includes(cloud), 'it will not follow you into a boss fight');
+}
+
+// --- the Clockmaker: an aimed, telegraphed pendulum; cuckoos; a clock that must be open; the attic door ---
+function clockFight() { const s = quiet(8); stand(s, 160, 12); s.p.tier = 3; run(s, 2); assert.equal(s.boss.st, 'wake'); assert.ok(s.arena); return s; }
+{
+  const CM = F.CM;
+  const s = clockFight(), b = s.boss;
+  b.st = 'walk'; b.t = 1; b.next = 0; s.p.inv = 0;
+  run(s, 1);
+  assert.equal(b.st, 'wind');
+  assert.ok(Math.abs(b.swing.px - (s.p.x + s.p.w / 2)) < 1, 'the pendulum hangs right over you');
+  assert.ok(Math.abs(b.swing.py + CM.LEN - (b.floor - 28)) < 1, 'and skims the floor');
+  run(s, CM.WIND - 1);
+  assert.equal(s.p.tier, 3, 'the wind-up is only a warning');
+  run(s, CM.SWING + 2);
+  assert.equal(s.p.tier, 2, 'standing under the sweep costs a tier');
+  assert.equal(b.st, 'open');
+
+  const j = clockFight(), jb = j.boss;
+  jb.st = 'walk'; jb.t = 1; jb.next = 0; j.p.inv = 0;
+  run(j, 1); run(j, CM.WIND);
+  assert.equal(jb.st, 'swing');
+  run(j, CM.SWING + 2, i => ({ jump: i === 6, jumpHeld: i >= 6 && i < 30 }));
+  assert.equal(j.p.tier, 3, 'jumping clears the blade');
+
+  // notes clang off a shut clock and hurt an open one; a stomp hurts him any time
+  const n = clockFight(), nb = n.boss;
+  const note = () => n.shots.push({ room: 'main', x: nb.x - 12, y: nb.y + 60, w: 20, h: 16, vx: 9, life: 5, whistle: false, age: 0 });
+  nb.st = 'walk'; nb.t = 200; note();
+  assert.equal(count(run(n, 1), 'clang'), 1); assert.equal(nb.hp, 14);
+  nb.st = 'open'; nb.t = 200; note(); run(n, 1);
+  assert.equal(nb.hp, 13);
+  nb.st = 'walk'; nb.t = 200;
+  Object.assign(n.p, { x: nb.x + 20, y: nb.y - n.p.h - 2, vx: 0, vy: 6, on: false, inv: 0 });
+  run(n, 2);
+  assert.equal(nb.hp, 11, 'a stomp does two');
+
+  // the clock door lets out cuckoos that fly at you; a note shoots one down
+  const c = clockFight(), cb = c.boss;
+  cb.st = 'walk'; cb.t = 1; cb.next = 1; c.p.inv = 1e6;
+  run(c, 1);
+  assert.equal(cb.st, 'door');
+  assert.equal(count(run(c, CM.DOOR), 'cuckoo'), 1);
+  const birds = c.bolts.filter(q => q.kind === 'cuckoo');
+  assert.equal(birds.length, 2); assert.ok(birds.every(q => q.vx < 0), 'they fly toward you');
+  assert.equal(cb.st, 'open');
+  run(c, 30);
+  const bird = c.bolts.find(q => q.kind === 'cuckoo');
+  c.shots.push({ room: 'main', x: bird.x + 4, y: bird.y + 2, w: 20, h: 16, vx: 0, life: 5, whistle: false, age: 0 });
+  const shot = run(c, 1);
+  assert.ok(bird.dead, 'shot down'); assert.ok(shot.some(e => e.type === 'score' && e.n === 100));
+
+  // when he falls the attic door opens
+  const d = clockFight(), db = d.boss;
+  db.st = 'open'; db.t = 200; db.hp = 1;
+  d.shots.push({ room: 'main', x: db.x - 12, y: db.y + 60, w: 20, h: 16, vx: 9, life: 5, whistle: false, age: 0 });
+  assert.equal(count(run(d, 1), 'bossDown'), 1);
+  run(d, 100);
+  assert.equal(db.st, 'gone'); assert.equal(d.arena, null);
+  stand(d, 178, 12); d.p.inv = 0;
+  run(d, 2);
+  assert.equal(d.phase, 'clear'); assert.equal(d.finish.kind, 'door'); assert.equal(d.level.doorText, 'INTO THE ATTIC');
 }
 
 // --- GAME OVER beat: no prompt on the death frame ---
@@ -342,7 +445,7 @@ function jam(s, hitAll) {
 }
 
 // --- soak: the autopilot clears every level (respawning at checkpoints), positions stay finite ---
-for (let n = 1; n <= 6; n++) {
+for (let n = 1; n <= 9; n++) {
   let s = G.createState(n), deaths = 0, cleared = false, f = 0;
   const t0 = Date.now();
   for (; f < 30000 && !cleared; f++) {
@@ -355,4 +458,4 @@ for (let n = 1; n <= 6; n++) {
   console.log(`  ${G.levels()[n - 1].id} cleared in ${f} frames, ${deaths} deaths, ${Date.now() - t0} ms`);
 }
 
-console.log('Graveyard Shift: levels, jumps, ghost blocks, crumbles, tiers, foes, links, checkpoints, both bosses, the guitar finale, the GAME OVER beat and the soak passed.');
+console.log('Graveyard Shift: three worlds, bookshelf lift, dumbwaiter, cloud ghost, the Clockmaker, levels, jumps, ghost blocks, crumbles, tiers, foes, links, checkpoints, both bosses, the guitar finale, the GAME OVER beat and the soak passed.');

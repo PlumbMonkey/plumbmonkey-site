@@ -4,9 +4,10 @@
    Frankensteins (Koopa: stomp to stun, kick to slide), cursed urn flowers
    (Piranha), potion witches (Hammer Bros), cloud ghosts (Lakitu), bats,
    gargoyles (Thwomp) and candelabra fire bars. Also the things you ride:
-   swinging chandeliers and moving platforms. And both bosses: the Gatekeeper
-   at the manor door, and Plumbmonkey himself in the Music Room, who can only
-   be finished by PLAYING the legendary guitar.
+   swinging chandeliers and moving platforms. And the bosses: the Gatekeeper
+   at the manor door, the Clockmaker at the attic door, and Plumbmonkey
+   himself in the Music Room, who can only be finished by PLAYING the
+   legendary guitar.
 
    `C` is the core's callback table: { hurt(s, ev), rnd(s), W } — this file
    never decides what a hit costs the player. */
@@ -163,6 +164,7 @@
           break;
         }
         case "c": {
+          if (s.arena) { f.y -= 2.5; if (f.y < -120) f.gone = true; break; }   // he won't follow you into a boss fight
           const tx = p.x + (p.vx >= 0 ? 160 : -160);
           f.x += Math.max(-3, Math.min(3, (tx - f.x) * 0.02));
           f.y = 3 * TILE + Math.sin(f.t * 0.04) * 12;
@@ -272,7 +274,11 @@
       return true;
     }
     for (const m of s.movers) if (m.kind === "gargoyle" && m.room === n.room && overlap(n, m)) { ev.push({ type: "clang", x: n.x, y: n.y }); return true; }
-    for (const q of s.bolts) if (q.room === n.room && q.kind === "potion" && overlap(n, q)) { q.dead = true; ev.push({ type: "impact", x: n.x, y: n.y }); return true; }
+    for (const q of s.bolts) if (q.room === n.room && (q.kind === "potion" || q.kind === "cuckoo") && overlap(n, q)) {
+      q.dead = true; ev.push({ type: "impact", x: n.x, y: n.y });
+      if (q.kind === "cuckoo") ev.push({ type: "score", n: 100, x: q.x, y: q.y });
+      return true;
+    }
     return false;
   }
 
@@ -285,6 +291,9 @@
     if (def.type === "gatekeeper")
       return { type: "gatekeeper", name: def.name, room: b.room, arena, w: 70, h: 130, x: b.x * TILE, y: (b.y + 1) * TILE - 130,
         vx: 0, vy: 0, hp: 12, maxHp: 12, st: "sleep", t: 0, face: -1, flash: 0, anim: 0 };
+    if (def.type === "clockmaker")
+      return { type: "clockmaker", name: def.name, room: b.room, arena, w: 72, h: 132, x: b.x * TILE, y: (b.y + 1) * TILE - 132,
+        floor: (b.y + 1) * TILE, vx: 0, vy: 0, hp: 14, maxHp: 14, st: "sleep", t: 0, face: -1, flash: 0, anim: 0, next: 0, swing: null };
     return { type: "plumbmonkey", name: def.name, room: b.room, arena, w: 76, h: 110, x: b.x * TILE, y: (b.y + 1) * TILE - 110,
       homeX: b.x * TILE, hp: 10, maxHp: 10, stage: 1, stages: 3, st: "sleep", t: 0, face: -1, flash: 0, anim: 0, pedestal: null, jam: null };
   }
@@ -302,6 +311,7 @@
     }
     if (b.st === "dying") { if (b.t % 12 === 0) ev.push({ type: "boom", x: b.x + C.rnd(s) * b.w, y: b.y + C.rnd(s) * b.h }); if (--b.t <= 0) { b.st = "gone"; s.arena = null; ev.push({ type: "bossGone", boss: b.type }); } return; }
     if (b.type === "gatekeeper") gatekeeper(s, b, ev, C);
+    else if (b.type === "clockmaker") clockmaker(s, b, ev, C);
     else plumbmonkey(s, b, ev, C, input);
   }
 
@@ -349,6 +359,74 @@
       case "dazed":
         landBoss(s, b);
         if (b.t <= 0) { b.st = "walk"; b.t = enraged ? 70 : 100; }
+        break;
+    }
+  }
+
+  /* THE CLOCKMAKER. He walks toward you, then either winds the great pendulum
+     or opens his clock door. The pendulum hangs from the rafters right above
+     where you stood when he started winding; its arc is drawn through the wind-up,
+     then the blade sweeps it once (twice when he's angry), skimming the floor:
+     jump it or get out from under it. The clock door lets out cuckoos that fly
+     straight at you; notes shoot them down. After either attack his chest
+     clock stands open: notes only hurt him then. A stomp hurts him any time. */
+  const CM = { WIND: 54, WIND_ANGRY: 42, SWING: 36, DOOR: 40, OPEN: 90, LEN: 252, RISE: 280, A: 1.25, BOB: 26, CUCKOO: 4.2 };
+  function pendulumBob(sw, a) { return { x: sw.px + Math.sin(a) * CM.LEN, y: sw.py + Math.cos(a) * CM.LEN }; }
+  function clockmaker(s, b, ev, C) {
+    const p = s.p, angry = b.hp <= b.maxHp / 2;
+    b.face = p.x + p.w / 2 < b.x + b.w / 2 ? -1 : 1;
+    b.t--;
+    switch (b.st) {
+      case "wake": if (b.t <= 0) { b.st = "walk"; b.t = 70; } break;
+      case "walk":
+        b.vx = b.face * (angry ? 1.7 : 1.2); b.anim++;
+        landBoss(s, b);
+        if (b.t <= 0) {
+          b.vx = 0;
+          if (b.next++ % 2 === 0) {
+            const px = Math.max(b.arena.left + 3 * TILE, Math.min(b.arena.right - 3 * TILE, p.x + p.w / 2));
+            const from = px < b.x + b.w / 2 ? 1 : -1;                     // it swings from his side, out across you
+            b.swing = { px, py: b.floor - CM.RISE, a0: from * CM.A, a1: -from * CM.A, a: from * CM.A, passes: angry ? 2 : 1 };
+            b.st = "wind"; b.t = angry ? CM.WIND_ANGRY : CM.WIND;
+          } else { b.st = "door"; b.t = CM.DOOR; }
+          ev.push({ type: "warning" });
+        }
+        break;
+      case "wind":
+        landBoss(s, b);
+        if (b.t <= 0) { b.st = "swing"; b.t = CM.SWING; ev.push({ type: "swing" }); }
+        break;
+      case "swing": {
+        landBoss(s, b);
+        const sw = b.swing;
+        for (let k = 0; k < 2; k++) {                       // two sub-steps a frame so the blade can't skip past him
+          const u = 1 - (b.t + 1 - (k + 1) / 2) / CM.SWING, e = u * u * (3 - 2 * u);
+          sw.a = sw.a0 + (sw.a1 - sw.a0) * e;
+          const m = pendulumBob(sw, sw.a);
+          if (p.room === b.room && p.state === "play" && overlap(p, { x: m.x - CM.BOB, y: m.y - CM.BOB, w: CM.BOB * 2, h: CM.BOB * 2 })) { C.hurt(s, ev); break; }
+        }
+        if (b.t <= 0) {
+          if (--sw.passes > 0) { [sw.a0, sw.a1] = [sw.a1, sw.a0]; b.t = CM.SWING; ev.push({ type: "swing" }); }
+          else { b.swing = null; b.st = "open"; b.t = CM.OPEN; ev.push({ type: "clockOpen" }); }
+        }
+        break;
+      }
+      case "door":
+        landBoss(s, b);
+        if (b.t <= 0) {
+          const n = angry ? 3 : 2, ox = b.x + b.w / 2, oy = b.y + 44;
+          const base = Math.atan2(p.y + p.h / 2 - oy, p.x + p.w / 2 - ox);
+          for (let i = 0; i < n; i++) {
+            const a = base + (i - (n - 1) / 2) * 0.28;
+            s.bolts.push({ kind: "cuckoo", room: b.room, x: ox - 14, y: oy - 10, w: 28, h: 20, vx: Math.cos(a) * CM.CUCKOO, vy: Math.sin(a) * CM.CUCKOO, grav: 0 });
+          }
+          ev.push({ type: "cuckoo" });
+          b.st = "open"; b.t = CM.OPEN; ev.push({ type: "clockOpen" });
+        }
+        break;
+      case "open":
+        landBoss(s, b);
+        if (b.t <= 0) { b.st = "walk"; b.t = angry ? 45 : 70; }
         break;
     }
   }
@@ -454,10 +532,11 @@
   /* A note or a stomp reaching a boss. Returns true if the note is spent. */
   function damageBoss(s, n, ev, amount) {
     const b = s.boss;
-    if (b.type === "gatekeeper") {
-      if (b.st === "crouch" || b.st === "leap") { ev.push({ type: "clang", x: n.x, y: n.y }); return true; }
+    if (b.type === "gatekeeper" || b.type === "clockmaker") {
+      const shut = b.type === "gatekeeper" ? b.st === "crouch" || b.st === "leap" : amount < 2 && b.st !== "open";
+      if (shut) { ev.push({ type: "clang", x: n.x, y: n.y }); return true; }
       b.hp -= amount; b.flash = 8; ev.push({ type: "bossHit", x: n.x, y: n.y });
-      if (b.hp <= 0) { b.st = "dying"; b.t = 90; s.bolts = []; ev.push({ type: "bossDown" }, { type: "score", n: 5000, x: b.x + b.w / 2, y: b.y }); }
+      if (b.hp <= 0) { b.st = "dying"; b.t = 90; b.swing = null; s.bolts = []; ev.push({ type: "bossDown" }, { type: "score", n: 5000, x: b.x + b.w / 2, y: b.y }); }
       return true;
     }
     if (b.st !== "taunt" && b.st !== "throw" && b.st !== "command") {
@@ -497,7 +576,7 @@
   }
 
   const exports = { spawnFoes, placeMovers, stepMovers, stepFoes, playerVsFoes, noteVsFoes, kill, makeFoe,
-    createBoss, stepBoss, noteVsBoss, playerVsBoss, bossActive, POINTS, JAM_GAP, JAM_WINDOW, JAM_BEATS, JAM_NEED };
+    createBoss, stepBoss, noteVsBoss, playerVsBoss, bossActive, pendulumBob, POINTS, JAM_GAP, JAM_WINDOW, JAM_BEATS, JAM_NEED, CM };
   if (typeof module !== "undefined" && module.exports) module.exports = exports;
   else root.GraveyardFoes = exports;
 })(typeof window !== "undefined" ? window : globalThis);

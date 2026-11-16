@@ -398,7 +398,13 @@
       { room: "main", col: 62, row: 12, down: true },
       { room: "other", col: 79, row: 11, down: true },
       { exit: true }
-    ]
+    ],
+    // up the bookshelf lift, over the bookcase, across on the sliding shelf, then up the ledges to the ghost bridge
+    "3-1": [[34, 12], [37, 11, "ride"], [45, 5], [70, 12], [75, 12, "ride"], [86, 12], [93, 12, "cp"], [124, 10], [127, 8], [131, 6], [142, 6]]
+      .map(([col, row, tag]) => ({ room: "main", col, row, cp: tag === "cp", ride: tag === "ride", rewind: true })),
+    // ledge by ledge up the tower; the pendulum is a waypoint you reach by riding it
+    "3-2": [[10, 40], [21, 37], [8, 34], [2, 31, "cp"], [11, 30, "ride"], [22, 27], [11, 24], [20, 21], [8, 18], [21, 15], [9, 12], [18, 9], [9, 6], [22, 4]]
+      .map(([col, row, tag]) => ({ room: "main", col, row, cp: tag === "cp", ride: tag === "ride", rewind: true }))
   };
   function clone(s) {
     const L = s.level; s.level = null;
@@ -442,6 +448,7 @@
   }
   function reached(s, wp) {
     const p = s.p;
+    if (wp && wp.ride) return p.room === wp.room && !!p.ride && Math.abs(p.x + p.w / 2 - (wp.col * TILE + 24)) < 120;
     return wp && !wp.exit && p.room === wp.room && p.on && Math.abs(p.x + p.w / 2 - (wp.col * TILE + 24)) < 30 && Math.abs(p.y + p.h - (wp.row + 1) * TILE) < 6;
   }
   function vapourReady(s, wp) {
