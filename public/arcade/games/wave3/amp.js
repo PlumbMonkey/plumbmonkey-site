@@ -14,7 +14,7 @@
   const W = NODE ? require("./amp-world.js") : root.AmpWorld;
   const S = NODE ? require("./amp-stages.js") : root.AmpStages;
 
-  const INTRO = 150, DYING = 100, CLEAR = 160, COLLAPSE = 210, ENDING = 150, BONUS_TICK = 120;
+  const INTRO = 150, DYING = 100, CLEAR = 160, COLLAPSE = 210, ENDING = 150, BONUS_TICK = 120, LOADIN_TICK = 84;
   const clamp = W.clamp;
 
   function rnd(s) { s.rng = (Math.imul(s.rng, 1664525) + 1013904223) >>> 0; return s.rng / 4294967296; }
@@ -25,8 +25,9 @@
     const s = { n, def, kind: def.kind, cycle: info.cycle, index: info.index, t: 0, phase: "intro", phaseT: INTRO,
       rng: (n * 2654435761) >>> 0, geo: W.buildGeometry(def), holes: [],
       bonus: 5000 + 1000 * Math.min(info.cycle, 3), phaseLen: INTRO,
-      // the bonus counts down 100 a tick; building four rigs and the cable climb take longer than a DK screen
-      bonusTick: def.kind === "build" ? 200 : def.kind === "cables" ? 150 : BONUS_TICK };
+      // the bonus counts down 100 a tick; building four rigs and the cable climb take longer than a DK screen,
+      // and the Load-in climb is short, so its clock runs about 70 s
+      bonusTick: def.kind === "build" ? 200 : def.kind === "cables" ? 150 : def.kind === "loadin" ? LOADIN_TICK : BONUS_TICK };
     s.bonusT = s.bonusTick;
     let x, y, g;
     if (def.kind === "cables") { g = def.start.p; x = def.start.x; y = def.platforms[g].y; }
@@ -139,13 +140,33 @@
     return 0;
   }
   // standing inside a stack's lit crash zone costs far more than any detour
+  // so do a lit drumstick landing spot, the mic whip's drawn arc, and a ladder carrying a scream
   function danger(c) {
-    if (c.kind !== "loadin") return 0;
+    const p = c.p;
     let d = 0;
+    if (c.kind === "rivets") {
+      const sc = c.scream;
+      if (sc && p.state === "climb" && p.ladder === sc.ladder && (sc.state === "charge" || sc.y < p.y)) d += 1500;
+      return d;
+    }
+    if (c.kind !== "loadin") return 0;
+    const onLadder = i => {                // climbing ladder i, or standing at its foot
+      const L = c.geo.ladders[i];
+      return p.state === "climb" ? p.ladder === i : Math.abs(p.x - L.x) < 26 && L.stops.some((st, k) => k < L.stops.length - 1 && st.g === p.g);
+    };
     for (const k of c.stacks) {
-      if ((k.state !== "armed" && k.state !== "wobble") || c.p.g !== k.g) continue;
+      if (k.state !== "armed" && k.state !== "wobble") continue;
       const z = S.zone(k);
-      if (c.p.x > z.x0 - 20 && c.p.x < z.x1 + 20) d += 1500;
+      if (p.g === k.g && p.x > z.x0 - 20 && p.x < z.x1 + 20) d += 1500;
+      // a crash over a ladder top sends a cabinet down it
+      c.geo.ladders.forEach((L, i) => { if (!L.broken && L.stops[L.stops.length - 1].g === k.g && L.x >= z.x0 && L.x <= z.x1 && onLadder(i)) d += 1500; });
+    }
+    for (const cb of c.cabinets) if (onLadder(cb.ladder)) d += 1500;
+    for (const o of c.throws) if (o.type === "stick" && o.state === "fly" && p.g === o.g && Math.abs(p.x - o.tx) < 24) d += 1200;
+    const wh = c.whip;
+    if (wh && wh.t <= S.MIC_WIND + S.MIC_SWEEP) {
+      const dx = (p.x - wh.cx) * wh.face, dy = p.y - 24 - wh.cy, a = Math.atan2(dx, dy);
+      if (Math.abs(Math.hypot(dx, dy) - wh.R) < S.MIC_HIT + 24 && a > S.MIC_A0 - 0.2 && a < S.MIC_A1 + 0.2) d += 1500;
     }
     return d;
   }
@@ -212,7 +233,7 @@
   const pilotInfo = s => pilots.get(s);
 
   const exports = { createState, step, respawn, autopilot, pilotInfo, clone, die, rnd,
-    INTRO, DYING, CLEAR, COLLAPSE, ENDING, BONUS_TICK, CABLE_ROUTE, Data: D, World: W, Stages: S };
+    INTRO, DYING, CLEAR, COLLAPSE, ENDING, BONUS_TICK, LOADIN_TICK, CABLE_ROUTE, Data: D, World: W, Stages: S };
   if (NODE) module.exports = exports;
   else root.AmpGame = exports;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -103,6 +103,21 @@ Proposed arsenal:
 **Done when:** the climb reads as climbing in a screenshot strip of 6 phases; stage 1 bot result is in the
 target band; each new weapon has a test; `node scripts/test-amp.cjs` passes with the bot clearing 8 stages.
 
+**Built 2026-11-15 (uncommitted at time of writing), all as proposed and confirmed by Gregg:**
+- 1a: `HeroKit.spaceman` `pose: 'climb'` now draws a back view (`climbBack` in `hero-kit.js`); Amp passes the
+  ladder's rung spacing so hands and feet lock to rungs, one rung per reach, in diagonal pairs (left hand and
+  right foot). Rails stand 26 px above the top deck for the pull-up. The old profile rig stays behind
+  `view: 'side'`. Plumbmonkey's three-beat side-arm throw is a new pose, `fling` (Graveyard Shift's boss
+  still uses `throw`), with a `held` hook that draws the gear in his hand.
+- 1b: `kickEvery` 130, two stacks per stomp from truss 3 up, `WOBBLE` 45, a fire ghost from the start, and a
+  70 s Load-in clock (`LOADIN_TICK` 84). Bot: 0 deaths in about 28 s across 10 seeds. With inputs 8 frames
+  late it averages about 1 death; with 14 frames, about 4.
+- 1c: cymbals (loop 1), drumsticks (loop 2), mic whip aimed where you stood (loop 3) on Load-in; feedback
+  scream down a ladder and Frankenstein roadies on Rivets. The hammer smashes cymbals (300), sticks (200) and
+  roadies (500). The autopilot also learned to stay off a ladder a toppling stack is about to send a cabinet
+  down. Loop 4 Load-in (stage 13) was a 0-of-10 bot trap before this and now clears 10 of 10.
+- Soak extended to stage 9. Stage 7 (Stage Build) still costs the bot about 3 deaths a run, unchanged.
+
 ---
 
 ## 2. Graveyard Shift — World 3

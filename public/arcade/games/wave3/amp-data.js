@@ -41,7 +41,11 @@
     // speaker stacks [girder, x, the way it topples]. A stack whose fall covers the
     // top of a ladder sends a loose cabinet tumbling down that ladder.
     stacks: [[1, 420, 1], [1, 700, 1], [2, 110, 1], [2, 640, -1], [3, 300, 1], [3, 540, -1], [4, 300, -1], [4, 800, -1]],
-    kickEvery: 170
+    kickEvery: 130,
+    // a fire ghost is already roaming when the stage starts
+    fires: [{ x: 820, g: 2 }],
+    // what Plumbmonkey flings between stomps; loop 2 adds drumsticks, loop 3 the mic whip
+    throwEvery: 250
   };
 
   const CABLES = {
@@ -112,7 +116,9 @@
     start: { x: 60, g: 0 },
     boss: { x: 440, g: 5 },
     fan: { x: 620, g: 5 },
-    fires: [{ x: 700, g: 2 }, { x: 320, g: 3 }]
+    fires: [{ x: 700, g: 2 }, { x: 320, g: 3 }],
+    screamEvery: 330,       // a feedback scream down one ladder knocks a climber off
+    roadieEvery: 600        // he sends a Frankenstein roadie to walk a truss
   };
 
   const STAGES = [LOADIN, CABLES, BUILD, RIVETS];

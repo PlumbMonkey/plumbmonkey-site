@@ -9,7 +9,16 @@ function run(s, frames, input = {}, lives = 3) {
   for (let i = 0; i < frames; i++) ev.push(...G.step(s, Object.assign({ lives }, typeof input === 'function' ? input(i, s) : input)));
   return ev;
 }
-function play(n) { const s = G.createState(n); s.phase = 'play'; return s; }
+// play(n) quiets the round-3 hazards (thrown gear, the roaming fire ghost, scream, roadies) so older
+// tests see one rule at a time; live(n) leaves everything on.
+function live(n) { const s = G.createState(n); s.phase = 'play'; return s; }
+function play(n) {
+  const s = live(n);
+  if (s.kind === 'loadin') { s.boss.throwT = 1e9; s.fires = []; }
+  if (s.kind === 'rivets') { s.screamT = 1e9; s.roadieT = 1e9; }
+  return s;
+}
+const climbAt = (s, i, y) => { const L = s.geo.ladders[i]; Object.assign(s.p, { state: 'climb', ladder: i, x: L.x, y, g: L.stops[0].g, lastG: L.stops[0].g, vx: 0, vy: 0 }); };
 function standG(s, g, x) { Object.assign(s.p, { g, lastG: g, x, y: W.gy(s.geo, g, x), vx: 0, vy: 0, state: 'walk', ladder: -1 }); }
 const stackAt = (s, g, x) => s.stacks.find(q => q.g === g && q.x === x);
 function hang(s, cable, hands) { const c = s.def.cables[cable]; Object.assign(s.p, { state: 'hang', cable, partner: -1, grip: 1, x: c.x, y: hands + W.BODY_H, vx: 0, vy: 0, g: -1, lastMove: 0 }); }
@@ -217,6 +226,179 @@ function hang(s, cable, hands) { const c = s.def.cables[cable]; Object.assign(s.
   assert.ok(r.rivets[2].pulled); assert.equal(r.holes.length, 1, 'pulled bolts stay pulled after a death');
 }
 
+
+// --- round 3: stage 1 tuning ---
+{
+  const S = G.Stages, s = G.createState(1);
+  assert.equal(s.kickEvery, 130, 'he stomps every 130 frames on the first loop');
+  assert.equal(S.WOBBLE, 45);
+  const clock = (s.bonus / 100) * s.bonusTick / 60;
+  assert.ok(clock >= 65 && clock <= 75, `Load-in bonus clock is about 70 s (${clock.toFixed(1)})`);
+  assert.equal(s.fires.length, 1, 'a fire ghost roams from the start');
+  assert.deepEqual(s.arsenal, ['cymbal']);
+  assert.deepEqual(G.createState(5).arsenal, ['cymbal', 'sticks'], 'loop 2 adds drumsticks');
+  assert.deepEqual(G.createState(9).arsenal, ['cymbal', 'sticks', 'mic'], 'loop 3 adds the mic whip');
+
+  // from truss 3 up one stomp arms two stacks; below that, one
+  const two = play(1); standG(two, 3, 420); two.boss.kickT = 1;
+  assert.equal(count(run(two, 1), 'kick'), 2); assert.equal(two.stacks.filter(k => k.state === 'armed').length, 2);
+  const one = play(1); standG(one, 2, 420); one.boss.kickT = 1;
+  assert.equal(count(run(one, 1), 'kick'), 1);
+}
+
+// --- round 3: the fling is telegraphed from his hands ---
+function fling(n, weapon, g, x) {
+  const s = play(n); s.boss.kickT = 1e9; s.arsenal = [weapon]; s.boss.throwT = 0;
+  standG(s, g, x);
+  const wind = run(s, 1);
+  assert.equal(count(wind, 'windUp'), 1, `${weapon}: he winds up first`); assert.equal(s.boss.pose, 'fling'); assert.equal(s.boss.weapon, weapon);
+  return s;
+}
+{
+  const S = G.Stages;
+  // CYMBALS: nothing leaves his hand during the wind-up; it lands at his end of your truss and skims at shin height
+  const s = fling(1, 'cymbal', 1, 500);
+  assert.equal(s.throws.length, 0);
+  assert.equal(count(run(s, S.FLING_WIND), 'fling'), 1); assert.equal(s.throws.length, 1);
+  const cy = s.throws[0];
+  run(s, S.CYMBAL_FLY);
+  assert.equal(cy.state, 'skim'); assert.equal(cy.g, 1); assert.ok(cy.x < 60, 'it lands at the far end from you');
+  const deck = W.gy(s.geo, 1, cy.x);
+  assert.ok(deck - cy.y > 4 && deck - cy.y < 14, 'shin height');
+  run(s, 200);
+  assert.equal(s.phase, 'dying'); assert.equal(s.p.why, 'cymbal', 'standing still, it takes your legs');
+
+  // jump it as it comes
+  const j = fling(1, 'cymbal', 1, 500);
+  let jumped = 0, passed = false;
+  for (let i = 0; i < 400 && !passed; i++) {
+    const o = j.throws[0];
+    const go = o && o.state === 'skim' && j.p.state === 'walk' && Math.abs(o.x - j.p.x) < 34 && (o.x - j.p.x) * o.dir < 0;
+    if (go) jumped++;
+    run(j, 1, { jump: go });
+    if (o && o.bounced && o.dir < 0 && o.x < j.p.x - 30) passed = true;
+  }
+  assert.equal(j.phase, 'play', 'jumping clears a cymbal'); assert.equal(jumped, 2, 'once each way'); assert.ok(passed, 'it bounced once off the far end and came back');
+
+  // bounces once, then spins off the end it came from
+  const b = fling(1, 'cymbal', 0, 900); b.p.state = 'dead'; b.phase = 'play';
+  const be = run(b, 700);
+  assert.equal(count(be, 'clang'), 1); assert.equal(b.throws.length, 0, 'gone after the return pass');
+
+  // the mic-stand hammer smashes one for points
+  const h = fling(1, 'cymbal', 1, 400); h.p.hammer = 600; h.p.face = -1;
+  const he = run(h, 200);
+  assert.ok(he.some(e => e.type === 'smash' && e.what === 'cymbal')); assert.ok(he.some(e => e.type === 'score' && e.n === 300));
+  assert.equal(h.phase, 'play');
+}
+{
+  const S = G.Stages;
+  // DRUMSTICKS (loop 2): three, staggered, landing either side of you and on you
+  const s = fling(5, 'sticks', 1, 500);
+  run(s, S.FLING_WIND);
+  const st = s.throws.filter(o => o.type === 'stick');
+  assert.equal(st.length, 3); assert.deepEqual(st.map(o => o.tx), [500 - S.STICK_SPREAD, 500, 500 + S.STICK_SPREAD]);
+  assert.deepEqual(st.map(o => o.t - st[0].t), [0, -S.STICK_GAP, -2 * S.STICK_GAP], 'lobbed one after another');
+  run(s, S.STICK_FLY + 20);
+  assert.equal(s.phase, 'dying'); assert.equal(s.p.why, 'stick');
+
+  // stand between two landing spots and they miss
+  const m = fling(5, 'sticks', 1, 500);
+  run(m, S.FLING_WIND);
+  standG(m, 1, 500 + S.STICK_SPREAD / 2);
+  const me = run(m, S.STICK_FLY + 30);
+  assert.equal(count(me, 'thud'), 3); assert.equal(m.phase, 'play', 'the gap between landing spots is safe');
+
+  // the hammer smashes them for points
+  const h = fling(5, 'sticks', 1, 500); h.p.hammer = 600;
+  const he = run(h, S.FLING_WIND + S.STICK_FLY + 30);
+  assert.ok(he.some(e => e.type === 'smash' && e.what === 'stick')); assert.equal(h.phase, 'play');
+  assert.ok(he.filter(e => e.type === 'score' && e.n === 200).length >= 1);
+}
+{
+  const S = G.Stages;
+  // MIC WHIP (loop 3): aimed where you stood; the arc is telegraphed for the whole wind-up
+  const setBoss = s => { s.boss.x = 150; s.boss.y = W.gy(s.geo, 5, 150); };
+  const s = play(9); s.boss.kickT = 1e9; s.arsenal = ['mic']; setBoss(s); standG(s, 4, 330); s.boss.throwT = 0;
+  run(s, 1);
+  assert.equal(s.boss.weapon, 'mic'); assert.ok(s.whip, 'the whip is wound up');
+  const R = Math.hypot(330 - s.whip.cx, s.p.y - 24 - s.whip.cy);
+  assert.ok(Math.abs(s.whip.R - R) < 0.01, 'the arc passes through where you stood');
+  run(s, S.MIC_WIND - 2);
+  assert.equal(s.phase, 'play', 'nothing hurts during the wind-up');
+  run(s, S.MIC_SWEEP + 4);
+  assert.equal(s.phase, 'dying'); assert.equal(s.p.why, 'mic');
+
+  // walk out of the drawn arc and it misses
+  const d = play(9); d.boss.kickT = 1e9; d.arsenal = ['mic']; setBoss(d); standG(d, 4, 330); d.boss.throwT = 0;
+  run(d, 1); run(d, 40, { move: 1 });
+  const de = run(d, S.MIC_LEN);
+  assert.equal(count(de, 'whip'), 1); assert.equal(d.phase, 'play', 'stepping out of the arc dodges it');
+
+  // he only whips the top trusses; lower down he throws something else
+  const low = play(9); low.boss.kickT = 1e9; setBoss(low); standG(low, 2, 330);
+  for (let i = 0; i < 6; i++) { low.boss.throwT = 0; low.boss.pose = 'idle'; low.throws = []; run(low, 1); assert.notEqual(low.boss.weapon, 'mic'); }
+}
+
+// --- round 3, RIVETS: the feedback scream knocks a climber off its ladder ---
+{
+  const S = G.Stages;
+  const li = G.createState(4).geo.ladders.findIndex(L => L.x === 260 && L.gBot === 2);
+  const s = play(4); s.fires = []; s.screamT = 1;
+  climbAt(s, li, s.geo.ladders[li].yBot - 90);
+  const e = run(s, 1);
+  assert.equal(count(e, 'scream'), 1); assert.equal(s.scream.ladder, li, 'he screams down the ladder you are on');
+  run(s, S.SCREAM_CHARGE - 1);
+  assert.equal(s.p.state, 'climb', 'the charge at the top is the warning');
+  const k = run(s, 60);
+  assert.equal(count(k, 'knock'), 1); assert.equal(s.phase, 'dying'); assert.equal(s.p.why, 'fall', 'knocked off high up is a fatal fall');
+
+  const low = play(4); low.fires = []; low.screamT = 1;
+  climbAt(low, li, low.geo.ladders[li].yBot - 30);
+  run(low, S.SCREAM_CHARGE + 80);
+  assert.equal(low.phase, 'play'); assert.equal(low.p.state, 'walk'); assert.equal(low.p.g, 2, 'knocked off near the bottom you land on the truss');
+
+  const walk = play(4); walk.fires = []; walk.screamT = 1; standG(walk, 2, 400);
+  run(walk, S.SCREAM_CHARGE + 80);
+  assert.equal(walk.phase, 'play', 'it only hits climbers');
+}
+
+// --- round 3, RIVETS: roadies walk a truss, turn at gaps, die to the hammer and to a pulled bolt ---
+{
+  const S = G.Stages;
+  const s = play(4); s.fires = []; standG(s, 0, 900);
+  s.rng = 1; S.spawnRoadie(s, [], { rnd: () => 0.1, score: () => {} });
+  assert.equal(s.roadies.length, 1); assert.equal(s.boss.pose, 'command', 'he points the roadie in');
+  const r = s.roadies[0], x0 = r.x;
+  run(s, S.ROADIE_ARRIVE);
+  assert.equal(r.x, x0, 'he arrives before he walks');
+  run(s, 30); assert.notEqual(r.x, x0);
+
+  // contact kills
+  const c = play(4); c.fires = []; S.spawnRoadie(c, [], { rnd: () => 0.1 });
+  const cr = c.roadies[0]; cr.arrive = 0; standG(c, cr.g, cr.x + cr.dir * 30);
+  run(c, 30);
+  assert.equal(c.phase, 'dying'); assert.equal(c.p.why, 'monster');
+
+  // turns at an open gap instead of walking into it
+  const t = play(4); t.fires = []; standG(t, 0, 900); S.spawnRoadie(t, [], { rnd: () => 0.1 });
+  const tr = t.roadies[0]; tr.arrive = 0; t.holes.push({ g: tr.g, x: tr.x + tr.dir * 60 });
+  const d0 = tr.dir; run(t, 40);
+  assert.equal(tr.dir, -d0, 'he turns back at the gap');
+
+  // a bolt pulled under his boots drops him
+  const f = play(4); f.fires = []; standG(f, 0, 900); S.spawnRoadie(f, [], { rnd: () => 0.1 });
+  const fr = f.roadies[0]; fr.arrive = 0; f.holes.push({ g: fr.g, x: fr.x });
+  const fe = run(f, 1);
+  assert.equal(count(fe, 'roadieFall'), 1); assert.equal(f.roadies.length, 0);
+
+  // the hammer smashes him for 500
+  const h = play(4); h.fires = []; S.spawnRoadie(h, [], { rnd: () => 0.1 });
+  const hr = h.roadies[0]; hr.arrive = 0; standG(h, hr.g, hr.x + hr.dir * 50); h.p.hammer = 600; h.p.face = -hr.dir;
+  const he = run(h, 30);
+  assert.ok(he.some(e => e.type === 'smash' && e.what === 'roadie')); assert.equal(h.phase, 'play');
+}
+
 // --- GAME OVER beat: no prompt on the death frame ---
 {
   const s = play(1); G.die(s, [], 'barrel');
@@ -227,8 +409,8 @@ function hang(s, cable, hands) { const c = s.def.cables[cable]; Object.assign(s.
   assert.equal(count(run(l, G.DYING + 20, {}, 3), 'lose'), 1);
 }
 
-// --- soak: the autopilot clears two full loops (respawning), positions stay finite ---
-for (let n = 1; n <= 8; n++) {
+// --- soak: the autopilot clears two full loops plus loop 3's Load-in (the mic whip), respawning; positions stay finite ---
+for (let n = 1; n <= 9; n++) {
   let s = G.createState(n), deaths = 0, cleared = false, f = 0;
   const t0 = Date.now();
   for (; f < 25000 && !cleared; f++) {
@@ -241,4 +423,4 @@ for (let n = 1; n <= 8; n++) {
   console.log(`  stage ${n} ${s.kind} cleared in ${f} frames, ${deaths} deaths, ${Date.now() - t0} ms`);
 }
 
-console.log('Amp Rampage: stage map, title freeze, stomp → pulse → wobble → topple, close calls, tumbling cabinets, hot stacks, rebuilds, hammer, falls, bonus clock, cable grips, cymbals, leads + sockets, build cascade + crush + riders + feedback, rivet gaps + collapse, respawn progress, GAME OVER beat and the soak passed.');
+console.log('Amp Rampage: round 3 tuning, cymbals, drumsticks, mic whip, scream, roadies, stage map, title freeze, stomp → pulse → wobble → topple, close calls, tumbling cabinets, hot stacks, rebuilds, hammer, falls, bonus clock, cable grips, cymbals, leads + sockets, build cascade + crush + riders + feedback, rivet gaps + collapse, respawn progress, GAME OVER beat and the soak passed.');

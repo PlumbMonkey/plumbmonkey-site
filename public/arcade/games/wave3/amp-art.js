@@ -13,7 +13,7 @@
   function create(api) {
     const c = api.ctx, { H, PAD, VIEW_W } = api;
     const K = root.HeroKit, SK = root.SpriteKit;
-    let s = null, acc = 0, shake = 0, flash = 0, popups = [], tally = 0, nextLife = 20000, kickFx = 0;
+    let s = null, acc = 0, shake = 0, flash = 0, popups = [], tally = 0, nextLife = 20000, kickFx = 0, told = {};
     const cache = {};
 
     // ---------- helpers ----------
@@ -25,11 +25,15 @@
     const hash = (a, b) => { let h = Math.imul(a * 374761393 + b * 668265263, 1274126177); h ^= h >>> 13; return ((h >>> 0) % 1000) / 1000; };
 
     // ---------- glue ----------
-    function reset() { s = G.createState(api.level()); acc = 0; popups = []; tally = 0; nextLife = 20000; }
-    function next() { s = G.createState(api.level()); popups = []; }
+    function reset() { s = G.createState(api.level()); acc = 0; popups = []; tally = 0; nextLife = 20000; told = {}; }
+    function next() { s = G.createState(api.level()); popups = []; told = {}; }
     function respawn() { s = G.respawn(s); popups = []; }
     const TOASTS = { hammer: "MIC STAND — SMASH THE STACKS!", ignite: "A HOT STACK SPARKS A FIRE GHOST", lead: "LEAD IN HAND — FIND A SOCKET", hurry: "HURRY!",
       rigDone: "RIG COMPLETE!", bossFall: "PLUMBMONKEY TUMBLES!", collapse: "THE RIG IS COMING DOWN!" };
+    // said the first time each new piece of the arsenal turns up on a stage
+    const FIRST = { cymbal: "CYMBAL! JUMP IT AS IT SKIMS PAST", sticks: "DRUMSTICKS: STAY OFF THE LIT SPOTS", mic: "MIC WHIP: GET OUT OF THE ARC",
+      scream: "FEEDBACK SCREAM: GET OFF THAT LADDER", roadie: "A ROADIE IS ON THE RIG" };
+    const once = key => { if (!told[key]) { told[key] = true; api.toast(FIRST[key]); } };
     function handle(events) {
       for (const e of events) {
         if (TOASTS[e.type]) api.toast(TOASTS[e.type]);
@@ -72,6 +76,16 @@
           case "bossFall": api.sweep(900, 60, 1.0, "square", 0.06); break;
           case "clear": api.chord([392, 523, 659, 784]); break;
           case "die": api.sweep(520, 55, 0.8, "sawtooth", 0.08); shake = 10; api.burst(e.x, e.y, "#67e8f9", 24); break;
+          case "windUp": once(e.weapon); api.beep(e.weapon === "mic" ? 160 : 240, 0.1, "triangle", 0.03); break;
+          case "fling": api.sweep(300, 900, 0.18, "triangle", 0.04); break;
+          case "cymbalLand": api.sweep(2600, 700, 0.3, "triangle", 0.03); break;
+          case "clang": api.beep(1760, 0.12, "triangle", 0.045); api.beep(2350, 0.18, "sine", 0.025); api.burst(e.x, e.y, "#fde68a", 10); break;
+          case "thud": api.beep(140, 0.07, "square", 0.04); api.burst(e.x, e.y - 4, "#e9d5b7", 6); shake = Math.max(shake, 2); break;
+          case "whip": api.sweep(1200, 180, 0.4, "sawtooth", 0.05); break;
+          case "scream": once("scream"); api.sweep(200, 1400, 0.7, "sawtooth", 0.05); break;
+          case "knock": api.sweep(900, 120, 0.3, "square", 0.05); api.burst(e.x, e.y, "#f0abfc", 14); shake = Math.max(shake, 5); break;
+          case "roadie": once("roadie"); api.chord([98, 147]); api.burst(e.x, e.y - 24, "#86efac", 14); break;
+          case "roadieFall": api.sweep(500, 50, 0.6, "square", 0.05); api.toast("ROADIE DOWN THE GAP!"); break;
           case "lose": case "gameover": api.lose(); return;
           case "next": api.next(); return;
         }
@@ -170,8 +184,10 @@
         c.fillStyle = "#fb7185"; c.fillRect(h.x - W.HOLE - 2, hy - 3, 3, 8); c.fillRect(h.x + W.HOLE - 1, hy - 3, 3, 8);
       }
     }
+    const RAIL_TOP = 26;
+    const rungsOf = L => Math.max(3, Math.round((L.yBot - L.yTop) / 15));
     function ladder(L) {
-      const x = L.x, y1 = L.yBot, y0 = L.yTop, span = y1 - y0, rungs = Math.max(3, Math.round(span / 15));
+      const x = L.x, y1 = L.yBot, y0 = L.yTop, span = y1 - y0, rungs = rungsOf(L);
       c.save();
       for (let k = 0; k <= rungs; k++) {
         if (L.broken && k > 1 && k < rungs - 1) continue;
@@ -180,7 +196,10 @@
       }
       for (const sx of [-15, 15]) {
         if (L.broken) { R(x + sx - 2, y0 - 2, 4, span * 0.25, "#5d6b80"); R(x + sx - 2, y1 - span * 0.25, 4, span * 0.25 + 2, "#5d6b80"); }
-        else R(x + sx - 2, y0 - 4, 4, span + 6, "#5d6b80");
+        else {                                   // the rails stand above the deck, so there is something to pull up on
+          R(x + sx - 2, y0 - RAIL_TOP, 4, span + RAIL_TOP + 2, "#5d6b80");
+          R(x + sx - 3, y0 - RAIL_TOP - 2, 6, 4, "#9aa3b2", 1);
+        }
       }
       c.restore();
     }
@@ -348,7 +367,131 @@
         for (const k of s.stacks) speakerStack(k);
         for (const cb of s.cabinets) looseCabinet(cb);
       }
+      if (s.throws) drawThrows();
       for (const f of s.fires) if (!f.gone) fireGhost(f.x, f.y, s.t + f.x);
+      if (s.roadies) for (const r of s.roadies) roadie(r);
+      if (s.scream) screamPulse(s.scream);
+    }
+    // ---------- round 3: Plumbmonkey's arsenal ----------
+    function cymbalAt(x, y, flat, rot) {
+      c.save(); c.translate(x, y); c.rotate(rot || 0);
+      glow("#fde68a", 10, () => O(0, 0, 15, Math.max(2.5, 15 * flat), "#e5b94a", 2));
+      O(0, 0, 4, Math.max(1, 4 * flat), "#8e6f2a");
+      c.restore();
+    }
+    function stickAt(x, y, a) {
+      c.save(); c.translate(x, y); c.rotate(a);
+      c.lineCap = "round"; c.strokeStyle = INK; c.lineWidth = 6; c.beginPath(); c.moveTo(0, -12); c.lineTo(0, 12); c.stroke();
+      c.strokeStyle = "#e9d5b7"; c.lineWidth = 3.5; c.stroke();
+      O(0, -12, 2.6, 2.6, "#f5e9d6", 1.2);
+      c.restore();
+    }
+    function drawThrows() {
+      for (const o of s.throws) {
+        if (o.type === "cymbal") {
+          if (o.state === "fly") cymbalAt(o.x, o.y, 0.35 + 0.35 * Math.abs(Math.sin(o.t * 0.4)), o.t * 0.5);
+          else if (o.state === "off") { c.save(); c.globalAlpha = Math.max(0, 1 - o.t / 60); cymbalAt(o.x, o.y, 0.3, o.t * 0.3); c.restore(); }
+          else {
+            // a soft wake behind it along the deck
+            const g = c.createLinearGradient(o.x, 0, o.x - o.dir * 60, 0);
+            g.addColorStop(0, "rgba(253,230,138,0.45)"); g.addColorStop(1, "rgba(253,230,138,0)");
+            c.fillStyle = g; c.fillRect(Math.min(o.x, o.x - o.dir * 60), o.y - 4, 60, 8);
+            cymbalAt(o.x, o.y, 0.28 + 0.06 * Math.sin(o.t * 0.9), 0);
+          }
+          continue;
+        }
+        // drumsticks: a shadow grows on the deck where each will land, then it sticks there and quivers
+        if (o.state === "fly") {
+          if (o.t >= -S.STICK_GAP * 2) {
+            const u = Math.max(0, Math.min(1, (o.t + S.STICK_GAP * 2) / (o.T + S.STICK_GAP * 2))), r = 6 + u * 12;
+            c.save(); c.translate(o.tx, o.ty); c.scale(1, 0.32);
+            const g = c.createRadialGradient(0, 0, 0, 0, 0, r * 1.4);
+            g.addColorStop(0, `rgba(251,113,133,${0.25 + 0.45 * u})`); g.addColorStop(1, "rgba(251,113,133,0)");
+            c.fillStyle = g; c.fillRect(-r * 1.4, -r * 1.4, r * 2.8, r * 2.8);
+            c.restore();
+          }
+          if (o.t >= 0) stickAt(o.x, o.y, o.t * 0.45);
+        } else {
+          c.save(); c.globalAlpha = Math.min(1, (45 - o.t) / 15);
+          stickAt(o.x, o.y - 9, 0.35 + Math.sin(o.t * 1.2) * 0.25 * Math.max(0, 1 - o.t / 20));
+          c.restore();
+        }
+      }
+      const wh = s.whip;
+      if (!wh) return;
+      const t = wh.t || 0, arcAt = a => S.micHead(wh, a);
+      if (t <= S.MIC_WIND) {
+        // the telegraph: the lead pays out from his hand, then the arc it will sweep lights up from that end
+        const grow = t / S.MIC_WIND, a0 = arcAt(S.MIC_A0), lead = Math.min(1, grow * 2.5);
+        c.save(); c.globalAlpha = 0.5;
+        c.strokeStyle = "#475569"; c.lineWidth = 2.5; c.beginPath(); c.moveTo(wh.cx, wh.cy); c.lineTo(lerp(wh.cx, a0.x, lead), lerp(wh.cy, a0.y, lead)); c.stroke();
+        c.restore();
+        const n = 18, upto = Math.max(0, (grow - 0.3) / 0.7) * n;
+        for (let i = 0; i <= upto; i++) {
+          const m = arcAt(S.MIC_A0 + (S.MIC_A1 - S.MIC_A0) * i / n), pulse = 0.55 + 0.45 * Math.sin(s.t * 0.3 + i);
+          glow("#fb7185", 8, () => O(m.x, m.y, 3, 3, `rgba(254,205,211,${0.45 + 0.4 * pulse})`));
+        }
+      } else if (t <= S.MIC_WIND + S.MIC_SWEEP) {
+        const m = arcAt(wh.a);
+        for (let i = 1; i <= 5; i++) {                // a fading trail behind the head
+          const q = arcAt(Math.max(S.MIC_A0, wh.a - i * 0.09)), r = 14 - i * 2;
+          const g = c.createRadialGradient(q.x, q.y, 0, q.x, q.y, r);
+          g.addColorStop(0, `rgba(217,255,99,${0.45 - i * 0.07})`); g.addColorStop(1, "rgba(217,255,99,0)");
+          c.fillStyle = g; c.fillRect(q.x - r, q.y - r, r * 2, r * 2);
+        }
+        c.strokeStyle = INK; c.lineWidth = 5; c.beginPath(); c.moveTo(wh.cx, wh.cy); c.lineTo(m.x, m.y); c.stroke();
+        c.strokeStyle = "#475569"; c.lineWidth = 2.5; c.stroke();
+        micHeadAt(m.x, m.y);
+      }
+    }
+    const lerp = (a, b, k) => a + (b - a) * k;
+    function micHeadAt(x, y) {
+      glow("#d9ff63", 12, () => O(x, y, 9, 9, "#e2e8f0", 2));
+      c.strokeStyle = "#64748b"; c.lineWidth = 1.2; c.beginPath(); c.moveTo(x - 6, y); c.lineTo(x + 6, y); c.moveTo(x, y - 6); c.lineTo(x, y + 6); c.stroke();
+    }
+    // what he holds through the wind-up, drawn in his hand by the Hero Kit
+    function heldGear(b) {
+      if (b.pose !== "fling" || !b.weapon || (b.weapon !== "mic" && b.fling >= b.flingWind)) return undefined;
+      if (b.weapon === "mic" && b.fling > b.flingWind) return undefined;
+      return (g, hx, hy) => {
+        if (b.weapon === "cymbal") { g.fillStyle = "#e5b94a"; g.strokeStyle = INK; g.lineWidth = 2; g.beginPath(); g.ellipse(hx, hy - 2, 15, 5, -0.3, 0, 7); g.fill(); g.stroke(); }
+        else if (b.weapon === "sticks") for (let i = -1; i <= 1; i++) {
+          g.save(); g.translate(hx, hy); g.rotate(-0.4 + i * 0.25); g.lineCap = "round";
+          g.strokeStyle = INK; g.lineWidth = 5; g.beginPath(); g.moveTo(0, 4); g.lineTo(0, -20); g.stroke();
+          g.strokeStyle = "#e9d5b7"; g.lineWidth = 3; g.stroke(); g.restore();
+        }
+        else { g.fillStyle = "#e2e8f0"; g.strokeStyle = INK; g.lineWidth = 2; g.beginPath(); g.arc(hx, hy - 8, 7, 0, 7); g.fill(); g.stroke(); }
+      };
+    }
+    function screamPulse(sc) {
+      const L = s.geo.ladders[sc.ladder];
+      if (sc.state === "charge") {
+        // a ring of feedback builds at the ladder top
+        const u = 1 - sc.t / S.SCREAM_CHARGE, r = 10 + u * 22;
+        const g = c.createRadialGradient(L.x, L.yTop, r * 0.3, L.x, L.yTop, r);
+        g.addColorStop(0, `rgba(240,171,252,${0.2 + 0.4 * u})`); g.addColorStop(1, "rgba(240,171,252,0)");
+        c.fillStyle = g; c.fillRect(L.x - r, L.yTop - r, r * 2, r * 2);
+        for (let i = 0; i < 3; i++) {
+          const k = ((s.t * 0.05 + i / 3) % 1), rr = 8 + k * 26;
+          c.save(); c.globalAlpha = (1 - k) * 0.7 * u; c.strokeStyle = "#f0abfc"; c.lineWidth = 2;
+          c.beginPath(); c.ellipse(L.x, L.yTop, rr, rr * 0.45, 0, 0, 7); c.stroke(); c.restore();
+        }
+        return;
+      }
+      for (let i = 0; i < 4; i++) {                    // the pulse riding down the rails
+        const y = sc.y - i * 9, r = 22 - i * 4;
+        const g = c.createRadialGradient(L.x, y, 0, L.x, y, r);
+        g.addColorStop(0, `rgba(245,208,254,${0.75 - i * 0.16})`); g.addColorStop(1, "rgba(240,171,252,0)");
+        c.fillStyle = g; c.fillRect(L.x - r, y - r, r * 2, r * 2);
+      }
+    }
+    function roadie(r) {
+      c.save();
+      if (r.arrive > 0) c.globalAlpha = 1 - r.arrive / S.ROADIE_ARRIVE;
+      c.translate(r.x, r.y - 22); c.scale(r.dir < 0 ? -1 : 1, 1);
+      SK.draw(c, "frank", 0, 0, { t: s.t / 60, scale: 0.56, stomp: r.arrive > 0 ? 0 : Math.sin(r.t * 0.15), prop: false });
+      c.restore();
+      if (r.arrive > 0) for (let i = 0; i < 4; i++) { const a = s.t * 0.2 + i * 1.6; glow("#86efac", 8, () => O(r.x + Math.cos(a) * 18, r.y - 20 + Math.sin(a) * 18, 2, 2, "#dcfce7")); }
     }
     function drawCables() {
       const D = s.def;
@@ -392,13 +535,19 @@
       if (!b) return;
       let pose = b.pose || "idle", phase = s.t * 0.12, x = b.x, y = b.y;
       if (pose === "stomp") phase = Math.PI * Math.min(1, (S.KICK_WIND + 14 - b.poseT) / S.KICK_WIND);   // knee up, then down on the kick
+      if (pose === "fling") {           // wind-up, then the arm whips through in 5 frames so it is out front as the gear leaves
+        const w = b.flingWind, f = b.fling, snap = 5;
+        const k = f < w - snap ? 0.45 * f / (w - snap) : f < w ? 0.45 + 0.15 * (f - (w - snap)) / snap
+          : 0.6 + 0.4 * (f - w) / Math.max(1, b.flingLen - w);
+        phase = k * Math.PI * 2;
+      }
       if (s.kind === "rivets" && s.phase === "collapse") {
         const k = G.COLLAPSE - s.phaseT;
         pose = k < 90 ? "hit" : "defeat"; phase = Math.min(Math.PI, (k - 90) / 20);
         if (k > 90) y += Math.pow((k - 90) / 12, 2);
       }
       if (s.phase === "clear") { pose = s.kind === "rivets" ? "dizzy" : "horns"; phase = s.t * 0.15; if (s.kind === "rivets") y = 690; }
-      K.plumbmonkey(c, x, y, { pose, phase, face: b.face || 1, scale: 0.82, rage: s.cycle > 0 });
+      K.plumbmonkey(c, x, y, { pose, phase, face: b.face || 1, scale: 0.82, rage: s.cycle > 0, held: s.phase === "play" ? heldGear(b) : undefined });
       if (s.kind === "loadin" && kickFx > 0) {            // the stomp's shock ring spreading at his feet
         const u = 1 - kickFx / 24, r = 20 + u * 90;
         c.save(); c.globalAlpha = 1 - u; c.translate(x, y); c.scale(1, 0.3);
@@ -426,7 +575,12 @@
       else if (Math.abs(p.vx) > 0.1) { pose = p.lead >= 0 ? "carry" : "run"; phase = p.dist * 0.1; }
       c.save();
       if (p.hammer > 0 && p.hammer < 120 && (s.t >> 3) % 2) c.globalAlpha = 0.75;
-      K.spaceman(c, p.x, p.y, { pose, phase, face: p.face, scale: 0.85, hammer: p.hammer > 0 && p.state !== "dead" });
+      const o = { pose, phase, face: p.face, scale: 0.85, hammer: p.hammer > 0 && p.state !== "dead" };
+      if (pose === "climb") {             // seen from behind, hands and feet on this ladder's rungs
+        const L = s.geo.ladders[p.ladder], n = rungsOf(L), sp = (L.yBot - L.yTop) / n;
+        Object.assign(o, { rung: sp, rungU: (L.yBot - p.y) / sp, rungs: n, railTop: RAIL_TOP, gripX: 9, railX: 15 });
+      }
+      K.spaceman(c, p.x, p.y, o);
       c.restore();
       if (p.lead >= 0 && p.state !== "dead") { c.save(); c.translate(p.x + 10 * p.face, p.y - 6); c.scale(0.7, 0.7); plugLead(0, 0, 0); c.restore(); }
       if (p.hammer > 0 && p.state !== "dead") { R(p.x - 18, p.y - 70, 36, 4, "rgba(7,4,15,0.7)"); R(p.x - 18, p.y - 70, 36 * p.hammer / 600, 4, "#d9ff63"); }

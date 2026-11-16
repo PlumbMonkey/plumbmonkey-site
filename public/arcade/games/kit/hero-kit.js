@@ -21,7 +21,16 @@
    draw either below 0.8x.
 
      HeroKit.spaceman(ctx, x, feetY, { pose, phase, face, scale, alpha, amp, guitar })
-     HeroKit.plumbmonkey(ctx, x, feetY, { pose, phase, face, scale, alpha, rage })
+       pose "climb" is drawn from BEHIND (a ladder faces the camera). Pass the
+       ladder so the hands and feet lock to its rungs:
+         { rung: spacing px, rungU: rungs climbed above the bottom rung,
+           rungs: index of the top rung (the deck), railTop: px the rails stand
+           above the top deck, gripX / railX: px from centre to grip / rail }
+       Without them it falls back to 15 px rungs and phase / PI rungs climbed.
+     HeroKit.plumbmonkey(ctx, x, feetY, { pose, phase, face, scale, alpha, rage, held })
+       pose "fling" is the three-beat side-arm throw: phase 0..2PI runs wind-up
+       (to 0.45), release (to 0.6) and follow-through. held(ctx, handX, handY)
+       draws what he holds, in his local (mirrored, scaled) space.
      HeroKit.guitar(ctx, x, y, angle, scale)
      HeroKit.frames(name, pose, count, opts) -> cached canvases (anchor .ox/.oy)
    ============================================================ */
@@ -56,6 +65,20 @@
   // Angle 0 points straight down; positive swings toward +x (forward).
   const bone = (x, y, len, a) => [x + Math.sin(a) * len, y + Math.cos(a) * len];
   const lerp = (a, b, k) => a + (b - a) * k;
+  const ease = k => k * k * (3 - 2 * k);
+  const TAU = Math.PI * 2;
+  /* Two-bone reach from a to b: returns the middle joint, bent away from the
+     body's centre line (outward). Out of reach, the limb straightens. */
+  function reachJoint(a, b, l1, l2) {
+    const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.max(0.001, Math.hypot(dx, dy));
+    const k = Math.max(1, d / (l1 + l2));
+    l1 *= k; l2 *= k;
+    const base = Math.atan2(dy, dx), cosA = Math.max(-1, Math.min(1, (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d)));
+    const off = Math.acos(cosA), j1 = [a[0] + Math.cos(base + off) * l1, a[1] + Math.sin(base + off) * l1];
+    const j2 = [a[0] + Math.cos(base - off) * l1, a[1] + Math.sin(base - off) * l1];
+    const side = Math.sign(a[0]) || 1;
+    return j1[0] * side > j2[0] * side ? j1 : j2;
+  }
 
   // ---------- the guitar (pickups, the strum pose, the finale) ----------
   function guitar(c, x, y, angle = 0, scale = 1) {
@@ -194,8 +217,91 @@
     return r;
   }
 
+
+  /* The Spaceman on a ladder, seen from behind. Hands and feet hold rungs: each
+     limb waits on its rung while the body rises, then reaches two rungs on.
+     The left hand and right foot go together, then the right hand and left
+     foot. Everything is driven by how far up the ladder he is, never the clock. */
+  function climbBack(c, x, feetY, o) {
+    const sc = o.scale || 1, rung = (o.rung || 15) / sc;
+    const u = o.rungU != null ? o.rungU : (o.phase || 0) / Math.PI;
+    const top = o.rungs != null ? o.rungs : Infinity, railTop = (o.railTop || 26) / sc;
+    const gripX = (o.gripX || 9) / sc, railX = (o.railX || 15) / sc;
+    const yOf = k => -(k - u) * rung;                                   // rung k, in local space (feet at 0)
+    // a limb's rung: it moves up one rung during its half of each rung climbed, and holds through the other half
+    const hold = (shift, base) => { const v = u - shift, n = Math.floor(v), f = v - n; return (f < 0.5 ? n - 1 + ease(f * 2) : n) + base; };
+    const moving = shift => { const v = u - shift, f = v - Math.floor(v); return f < 0.5 ? Math.sin(Math.PI * f * 2) : 0; };
+    const foot = (shift, side) => {
+      const k = Math.max(0, Math.min(top, hold(shift, 1)));            // below rung 0 is the deck; above the top, the deck
+      return [side * 5.5, yOf(k) - moving(shift) * 5 * (k > 0 && k < top ? 1 : 0)];
+    };
+    // diagonal pairs: left hand with right foot, then right hand with left foot
+    const fl = foot(0.5, -1), fr = foot(0, 1);
+    const sway = Math.sin(u * Math.PI * 2) * 1.4;
+    const hipY = (fl[1] + fr[1]) / 2 - 25.5, shY = hipY - 18;          // knees a little bent
+    const Hi = Math.max(2, Math.round((-shY + 14) / rung + 0.75));
+    const hand = (shift, side) => {
+      const k = hold(shift, Hi), lift = moving(shift);
+      if (k > top) {                                                    // past the top rung: grip the rail ends
+        const over = Math.min(1, k - top);
+        return [side * lerp(gripX, railX, over), yOf(top) - railTop * over + lift * 2];
+      }
+      return [side * (gripX + lift * 2), yOf(k) - 3 - lift * 4];       // the hand wraps over the rung
+    };
+    const hl = hand(0, -1), hr = hand(0.5, 1);
+
+    c.save();
+    c.translate(x, feetY);
+    if (o.alpha !== undefined) c.globalAlpha *= o.alpha;
+    c.scale(sc, sc);
+    c.lineJoin = "round"; c.lineCap = "round";
+
+    // legs: thighs, white boots seen from the heel, dark soles on the rung
+    for (const [side, f] of [[-1, fl], [1, fr]]) {
+      // from behind a raised knee comes toward the ladder, so the leg foreshortens rather than splaying
+      const hip = [side * 4 + sway, hipY], bend = Math.max(0, 1 - Math.hypot(f[0] - hip[0], f[1] - hip[1]) / 28.5);
+      const knee = [lerp(hip[0], f[0], 0.5) + side * bend * 4, lerp(hip[1], f[1], 0.5) - bend * 3];
+      limb(c, [hip, knee], 6.5, side < 0 ? SP.shade : SP.suit);
+      const bootTop = [lerp(knee[0], f[0], 0.1), lerp(knee[1], f[1], 0.1)];
+      limb(c, [bootTop, f], 6.8, side < 0 ? "#d4d8de" : "#f6f7f9");
+      const band = [lerp(knee[0], f[0], 0.22), lerp(knee[1], f[1], 0.22)];
+      ell(c, band[0], band[1], 3.8, 1.4, SP.navy, null);
+      poly(c, [[f[0] - 3.6, f[1] - 2.5], [f[0] + 3.6, f[1] - 2.5], [f[0] + 3.4, f[1] + 1.2], [f[0] - 3.4, f[1] + 1.2]], SP.sole, INK, 1.1);
+    }
+    // the suit's back and the navy vest's back panel
+    c.save(); c.translate(sway, 0);
+    poly(c, [[-7.5, shY - 1], [7.5, shY - 1], [7, hipY + 2], [-7, hipY + 2]], SP.suit, INK, 2);
+    poly(c, [[-7.5, shY - 1], [-3, shY - 1], [-3, hipY + 2], [-7, hipY + 2]], SP.shade, null);
+    poly(c, [[-7.6, shY], [7.6, shY], [7.4, hipY - 8], [-7.4, hipY - 8]], SP.navy, INK, 1.4);
+    ell(c, -3.5, shY + 4, 1.6, 1.6, SP.print[0], null); ell(c, 3.8, shY + 6.5, 1.2, 1.2, SP.print[1], null);
+    ell(c, 0.5, shY + 9, 0.9, 0.9, SP.print[2], null); ell(c, -5, shY + 8.5, 0.9, 0.9, SP.print[1], null);
+    stroke(c, [[-6.6, hipY - 8], [-6.6, hipY - 2]], SP.navy, 1.6); stroke(c, [[6.6, hipY - 8], [6.6, hipY - 2]], SP.navy, 1.6);
+    stroke(c, [[0, hipY - 7], [0, hipY + 1]], "#b9bec6", 0.9);             // back seam
+    // head from behind: neck ring, the back of his head, long hair down the vest, the aviators' gold arms
+    const hy = shY - 9;
+    ell(c, 0, shY - 1.5, 5.8, 2.4, SP.suit, INK, 1.6);
+    ell(c, -5.2, hy + 0.5, 1.4, 2.2, SP.skin, INK, 1); ell(c, 5.2, hy + 0.5, 1.4, 2.2, SP.skin, INK, 1);
+    const swing = Math.sin(u * Math.PI) * 1.2;
+    poly(c, [[-5.4, hy - 4], [-3, hy - 7.2], [3, hy - 7.2], [5.4, hy - 4], [5.6, hy + 2], [4.4, shY + 4], [2.5 + swing, shY + 10],
+             [0 + swing, shY + 12], [-2.5 + swing, shY + 10], [-4.4, shY + 4], [-5.6, hy + 2]], SP.hair, INK, 1.6);
+    stroke(c, [[-1.5, hy - 5], [-1 + swing * 0.6, shY + 7]], "#43352c", 1); stroke(c, [[2, hy - 4], [1.6 + swing * 0.6, shY + 8]], "#43352c", 1);
+    stroke(c, [[-5.6, hy - 0.5], [-4.2, hy - 0.3]], SP.frame, 1); stroke(c, [[5.6, hy - 0.5], [4.2, hy - 0.3]], SP.frame, 1);
+    c.restore();
+    // arms reach up to the rungs; cuffs and gloved hands over the rung
+    for (const [side, h] of [[-1, hl], [1, hr]]) {
+      const sp = [side * 7 + sway, shY + 1.5], el = reachJoint(sp, h, 12.5, 11.5);
+      limb(c, [sp, el, h], 5, side < 0 ? SP.shade : SP.suit);
+      const cuff = [lerp(el[0], h[0], 0.78), lerp(el[1], h[1], 0.78)];
+      stroke(c, [cuff, [lerp(el[0], h[0], 0.9), lerp(el[1], h[1], 0.9)]], SP.navy, 5);
+      ell(c, h[0], h[1], 2.8, 2.4, side < 0 ? SP.skinShade : SP.skin, INK, 1.2);
+    }
+    c.restore();
+    return null;
+  }
+
   function spaceman(c, x, feetY, o = {}) {
     const pose = o.pose || "idle", ph = o.phase || 0, face = o.face < 0 ? -1 : 1, sc = o.scale || 1;
+    if (pose === "climb" && o.view !== "side") return climbBack(c, x, feetY, o);
     const r = spacemanRig(pose, ph);
     const arms = o.arms || "both";       // "back" leaves the front arm to the caller, "none" leaves both
     c.save();
@@ -321,6 +427,28 @@
         r.lean = k > 0.55 ? 0.22 : -0.15 * up;
         break;
       }
+      case "fling": {   // side-arm fling: wind-up (arm cocked back, weight back), release (whips through flat), follow-through
+        const k = (((ph % TAU) + TAU) % TAU) / TAU;
+        let u, f, bu, bf, lean, step;
+        if (k < 0.45) {
+          const e = ease(k / 0.45);
+          u = lerp(0.35, -1.75, e); f = lerp(0.2, -2.45, e); bu = lerp(-0.3, 1.1, e); bf = lerp(-0.15, 1.4, e); lean = -0.2 * e; step = -e;
+        } else if (k < 0.6) {
+          const e = (k - 0.45) / 0.15;
+          u = lerp(-1.75, 1.62, e); f = lerp(-2.45, 1.6, e); bu = lerp(1.1, -0.7, e); bf = lerp(1.4, -0.5, e); lean = lerp(-0.2, 0.22, e); step = lerp(-1, 1, e);
+          r.mouth = 1.5;
+        } else {
+          const e = ease((k - 0.6) / 0.4);
+          u = lerp(1.62, 0.55, e); f = lerp(1.6, 0.35, e); bu = lerp(-0.7, -0.35, e); bf = lerp(-0.5, -0.2, e); lean = lerp(0.22, 0.04, e); step = 1 - e;
+          r.mouth = lerp(1.5, 1, e);
+        }
+        r.arms = [[u, f], [bu, bf]];
+        r.lean = lean;
+        r.legs = [[0.14 + Math.max(0, step) * 0.45, 0.14 - Math.max(0, step) * 0.2], [-0.14 - Math.max(0, -step) * 0.4, -0.14 + Math.max(0, -step) * 0.15]];
+        r.drop = Math.abs(step) * 2;
+        r.hairSwing = -step * 0.5;
+        break;
+      }
       case "command":
         r.arms = [[1.62, 1.55], [-0.35, 0.4]];
         r.lean = 0.08; r.nod = -0.08; r.mouth = 1.3;
@@ -427,6 +555,7 @@
     c.restore();
 
     const hand = drawArm(r.arms[0], false);
+    if (o.held) { c.save(); o.held(c, hand[0], hand[1]); c.restore(); }
     c.restore();
     return hand;
   }

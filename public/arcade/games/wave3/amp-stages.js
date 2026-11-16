@@ -11,18 +11,25 @@
               over a ladder top sends a cabinet tumbling down that ladder, and a
               hot stack sparks a fire ghost. The crew stacks it back up later.
               Mic stands hang above the deck: jump into one to smash for ten seconds.
+              Between stomps he flings gear with a side-arm throw: cymbals that skim
+              one truss at shin height and bounce once off the end (jump them),
+              from loop 2 drumsticks lobbed in threes onto lit landing spots, and
+              from loop 3 the mic on its lead, whipped in an arc aimed where you
+              stood when he wound up. A fire ghost roams from the start.
      CABLES   snap-jack amps crawl down the cables, bats patrol, cymbals hang
               on cables and fall when touched, taking out whatever is below. Carry
               the three loose leads to their sockets; the last one powers the stage.
      BUILD    four rigs of four parts. Walking the whole length of a part drops
               it a floor; a part that lands on another knocks that one down too.
               Monsters riding a dropping part go down with it. Feedback stuns.
-     RIVETS   walk over all eight bolts; each leaves a gap you must jump. */
+     RIVETS   walk over all eight bolts; each leaves a gap you must jump. He
+              screams feedback down a ladder (it knocks a climber off) and sends
+              Frankenstein roadies to walk the trusses. */
 (function (root) {
   "use strict";
   const NODE = typeof module !== "undefined" && module.exports;
   const W = NODE ? require("./amp-world.js") : root.AmpWorld;
-  const { gy, supported, body, overlap, clamp } = W;
+  const { gy, supported, holeAt, body, overlap, clamp } = W;
 
   const hitbox = p => ({ x: p.x - 8, y: p.y - 46, w: 16, h: 43 });
   function smashBox(p) {
@@ -82,7 +89,11 @@
 
   // ============================================================ LOAD-IN
   // Frames: stomp wind-up, pulse travel, wobble telegraph, lying wrecked, gone, rising back.
-  const KICK_WIND = 42, ORB = 20, WOBBLE = 60, DOWN = 150, REBUILD = 240, RISE = 40, STACK_H = 96;
+  const KICK_WIND = 42, ORB = 20, WOBBLE = 45, DOWN = 150, REBUILD = 240, RISE = 40, STACK_H = 96;
+  // the fling: wind-up (the gear shows in his hand), release, follow-through
+  const FLING_WIND = 34, FLING = 58, MIC_WIND = 56, MIC_SWEEP = 24, MIC_LEN = MIC_WIND + MIC_SWEEP + 16;
+  const MIC_A0 = -0.3, MIC_A1 = 2.1, MIC_HIT = 22;
+  const CYMBAL_FLY = 34, CYMBAL_LIFT = 9, STICK_FLY = 52, STICK_GAP = 7, STICK_SPREAD = 64;
   // the walkway a toppling stack covers: a little behind its base, its full height in front
   function zone(k) {
     const a = k.x - k.dir * 20, b = k.x + k.dir * STACK_H;
@@ -91,15 +102,19 @@
   function setupLoadin(s) {
     const G = s.geo, D = s.def;
     setupHammers(s);
-    s.fires = []; s.cabinets = [];
+    s.cabinets = []; s.throws = []; s.whip = null;
+    s.fires = (D.fires || []).map((f, i) => makeFire(s, f.x, f.g, i % 2 ? 1 : -1));
     s.stacks = D.stacks.map(([g, x, dir], i) => ({ i, g, x, dir, y: gy(G, g, x), state: "stand", t: 0, hot: false, ox: 0, oy: 0 }));
-    s.boss = { x: D.boss.x, y: gy(G, D.boss.g, D.boss.x), pose: "idle", poseT: 0, face: 1, dir: 1, kickT: 120, count: 0 };
+    s.boss = { x: D.boss.x, y: gy(G, D.boss.g, D.boss.x), pose: "idle", poseT: 0, face: 1, dir: 1, kickT: 120, count: 0,
+      throwT: 200, fling: 0, flingLen: 0, flingWind: 0, weapon: null };
     s.fan = { x: D.fan.x, y: gy(G, D.fan.g, D.fan.x), g: D.fan.g };
     s.kickEvery = Math.max(90, D.kickEvery - 14 * s.cycle);
+    s.throwEvery = Math.max(150, (D.throwEvery || 250) - 25 * s.cycle);
+    s.arsenal = ["cymbal"].concat(s.cycle >= 1 ? ["sticks"] : [], s.cycle >= 2 ? ["mic"] : []);
   }
   // the standing stack whose crash zone is nearest the Spaceman, on his truss or the one above
-  function pickStack(s, C) {
-    const p = s.p, pg = p.g >= 0 ? p.g : (p.lastG ?? 0), ready = s.stacks.filter(k => k.state === "stand");
+  function pickStack(s, C, skip) {
+    const p = s.p, pg = p.g >= 0 ? p.g : (p.lastG ?? 0), ready = s.stacks.filter(k => k.state === "stand" && k !== skip);
     let best = null, bestD = Infinity;
     for (const k of ready) {
       if (k.g !== pg && k.g !== pg + 1) continue;
@@ -127,22 +142,131 @@
       ev.push({ type: "ignite", x: mid, y: y - 20 });
     }
   }
+  // ---------- Plumbmonkey's arsenal ----------
+  const targetTruss = p => p.g >= 0 ? p.g : (p.lastG ?? 0);
+  // the mic whip's pivot (his hand, held high) and the reach to the Spaceman's chest
+  function whipAim(s) {
+    const b = s.boss, p = s.p, face = p.x >= b.x ? 1 : -1, cx = b.x + face * 10, cy = b.y - 66;
+    return { face, cx, cy, d: Math.hypot(p.x - cx, p.y - 24 - cy) };
+  }
+  function startFling(s, ev, C) {
+    const b = s.boss, p = s.p, tg = targetTruss(p);
+    if (tg > 5 || p.state === "dead") { b.throwT = 30; return; }
+    const aim = whipAim(s);
+    const opts = s.arsenal.filter(w => w === "mic" ? tg >= 4 && aim.d < 300
+      : w === "cymbal" ? s.throws.filter(o => o.type === "cymbal").length < 2 : true);
+    if (!opts.length) { b.throwT = 30; return; }
+    // the newest weapon in the set comes up half the time
+    const w = opts.length > 1 && C.rnd(s) < 0.5 ? opts[opts.length - 1] : opts[Math.floor(C.rnd(s) * opts.length)];
+    b.pose = "fling"; b.fling = 0; b.weapon = w; b.face = aim.face;
+    b.flingWind = w === "mic" ? MIC_WIND : FLING_WIND; b.flingLen = w === "mic" ? MIC_LEN : FLING;
+    if (w === "mic") s.whip = { t: 0, face: aim.face, cx: aim.cx, cy: aim.cy, R: clamp(aim.d, 120, 280), a: MIC_A0 };
+    ev.push({ type: "windUp", weapon: w, x: b.x, y: b.y - 70 });
+  }
+  const releasePoint = b => ({ x: b.x + b.face * 26, y: b.y - 74 });
+  function stepFling(s, ev, C) {
+    const b = s.boss, p = s.p, G = s.geo;
+    b.fling++;
+    if (b.weapon === "mic") stepWhip(s, ev, C);
+    else if (b.fling === b.flingWind) {
+      const tg = Math.min(5, targetTruss(p)), gd = G.girders[tg], h = releasePoint(b);
+      if (b.weapon === "cymbal") {
+        // it lands at his end of the truss (on his own truss, just in front of him) and skims away
+        const dir = tg === 5 ? b.face : 1, tx = tg === 5 ? clamp(b.x + dir * 40, gd.x0 + 10, gd.x1 - 10) : gd.x0 + 24;
+        s.throws.push({ type: "cymbal", state: "fly", t: 0, T: CYMBAL_FLY, x0: h.x, y0: h.y, tx, ty: gy(G, tg, tx) - CYMBAL_LIFT,
+          g: tg, dir, x: h.x, y: h.y, bounced: false, vy: 0 });
+      } else {
+        for (let i = 0; i < 3; i++) {
+          const tx = clamp(p.x + (i - 1) * STICK_SPREAD, gd.x0 + 8, gd.x1 - 8);
+          s.throws.push({ type: "stick", state: "fly", t: -i * STICK_GAP, T: STICK_FLY, x0: h.x, y0: h.y, tx, ty: gy(G, tg, tx), g: tg, x: h.x, y: h.y });
+        }
+      }
+      ev.push({ type: "fling", weapon: b.weapon, x: h.x, y: h.y });
+    }
+    if (b.fling >= b.flingLen) { b.pose = "idle"; b.fling = 0; b.weapon = null; s.whip = null; b.throwT = s.throwEvery; }
+  }
+  const micHead = (wh, a) => ({ x: wh.cx + wh.face * Math.sin(a) * wh.R, y: wh.cy + Math.cos(a) * wh.R });
+  function stepWhip(s, ev, C) {
+    const wh = s.whip, p = s.p, b = s.boss;
+    if (!wh) return;
+    wh.t = b.fling;
+    if (wh.t === MIC_WIND) ev.push({ type: "whip", x: wh.cx, y: wh.cy });
+    if (wh.t <= MIC_WIND || wh.t > MIC_WIND + MIC_SWEEP) return;
+    // three sub-steps a frame so the head can't skip past him
+    for (let k = 0; k < 3; k++) {
+      const u = (wh.t - MIC_WIND - 1 + (k + 1) / 3) / MIC_SWEEP;
+      wh.a = MIC_A0 + (MIC_A1 - MIC_A0) * u;
+      const m = micHead(wh, wh.a);
+      if (s.phase === "play" && p.state !== "dead" && Math.hypot(m.x - p.x, m.y - (p.y - 24)) < MIC_HIT + 10) { C.die(s, ev, "mic"); return; }
+    }
+  }
+  function flyPos(o) {
+    const u = clamp(o.t / o.T, 0, 1), arc = 60 + Math.max(0, o.ty - o.y0) * 0.12;
+    o.x = o.x0 + (o.tx - o.x0) * u;
+    o.y = o.y0 + (o.ty - o.y0) * u - arc * 4 * u * (1 - u);
+  }
+  function stepThrows(s, ev, C) {
+    const G = s.geo, p = s.p, live = s.phase === "play" && p.state !== "dead";
+    for (const o of s.throws) {
+      o.t++;
+      if (o.type === "cymbal") {
+        if (o.state === "fly") { flyPos(o); if (o.t >= o.T) { o.state = "skim"; o.x = o.tx; o.y = o.ty; ev.push({ type: "cymbalLand", x: o.x, y: o.y }); } continue; }
+        if (o.state === "off") { o.x += o.dir * 2; o.vy += 0.35; o.y += o.vy; if (o.t > 60) o.gone = true; continue; }
+        const gd = G.girders[o.g];
+        o.x += o.dir * (4.2 + 0.3 * Math.min(s.cycle, 3));
+        if (o.dir > 0 ? o.x >= gd.x1 - 8 : o.x <= gd.x0 + 8) {
+          if (!o.bounced) { o.dir = -o.dir; o.bounced = true; ev.push({ type: "clang", x: o.x, y: o.y }); }
+          else { o.state = "off"; o.t = 0; o.vy = -2; continue; }
+        }
+        o.y = gy(G, o.g, clamp(o.x, gd.x0, gd.x1)) - CYMBAL_LIFT;
+        const box = { x: o.x - 14, y: o.y - 5, w: 28, h: 10 };
+        if (hammerHits(p, box)) { o.gone = true; ev.push({ type: "smash", x: o.x, y: o.y, what: "cymbal" }); C.score(s, ev, 300, o.x, o.y - 30); continue; }
+        if (live && overlap(hitbox(p), box)) C.die(s, ev, "cymbal");
+      } else {
+        if (o.t < 0) continue;                              // not thrown yet
+        if (o.state === "fly") {
+          flyPos(o);
+          if (o.t >= o.T) { o.state = "stuck"; o.t = 0; o.x = o.tx; o.y = o.ty; ev.push({ type: "thud", x: o.x, y: o.y }); }
+          else if (o.t > o.T * 0.6 && hammerHits(p, { x: o.x - 10, y: o.y - 10, w: 20, h: 20 })) { o.gone = true; ev.push({ type: "smash", x: o.x, y: o.y, what: "stick" }); C.score(s, ev, 200, o.x, o.y - 20); }
+          if (o.state === "fly" || o.gone) continue;
+        }
+        // it hits as it lands, then quivers in the deck and fades
+        if (o.t > 45) { o.gone = true; continue; }
+        if (o.t > 4) continue;
+        const box = { x: o.x - 11, y: o.y - 34, w: 22, h: 34 };
+        if (hammerHits(p, box)) { o.gone = true; ev.push({ type: "smash", x: o.x, y: o.y - 14, what: "stick" }); C.score(s, ev, 200, o.x, o.y - 30); continue; }
+        if (live && overlap(hitbox(p), box)) C.die(s, ev, "stick");
+      }
+    }
+    s.throws = s.throws.filter(o => !o.gone);
+  }
+
   function stepLoadin(s, input, ev, C) {
     const G = s.geo, p = s.p, b = s.boss;
-    // Plumbmonkey paces his end of the truss, and stands still to stomp
-    if (b.pose !== "stomp") { b.x += b.dir * 0.6; if (b.x < 60 || b.x > 260) b.dir = -b.dir; b.face = b.dir; b.y = gy(G, 5, b.x); }
-    if (--b.kickT === KICK_WIND) { b.pose = "stomp"; b.poseT = KICK_WIND + 14; ev.push({ type: "warning" }); }
-    if (b.kickT <= 0) {
-      b.kickT = s.kickEvery;
-      const k = pickStack(s, C);
-      if (k) {
-        k.state = "armed"; k.t = ORB; k.ox = b.x; k.oy = b.y;
-        k.hot = b.count % 5 === 4 || C.rnd(s) < 0.06 * s.cycle;
-        ev.push({ type: "kick", x: b.x, y: b.y, tx: k.x, ty: k.y });
+    // Plumbmonkey paces his end of the truss, and stands still to stomp or fling
+    if (b.pose !== "stomp" && b.pose !== "fling") { b.x += b.dir * 0.6; if (b.x < 60 || b.x > 260) b.dir = -b.dir; b.face = b.dir; b.y = gy(G, 5, b.x); }
+    if (b.pose === "fling") stepFling(s, ev, C);          // the stomp clock waits while he throws
+    else {
+      if (--b.kickT === KICK_WIND) { b.pose = "stomp"; b.poseT = KICK_WIND + 14; ev.push({ type: "warning" }); }
+      if (b.kickT <= 0) {
+        b.kickT = s.kickEvery;
+        // from truss 3 up, one stomp arms two stacks
+        const pg = p.g >= 0 ? p.g : (p.lastG ?? 0), k = pickStack(s, C), k2 = k && pg >= 3 ? pickStack(s, C, k) : null;
+        for (const q of [k, k2]) {
+          if (!q) continue;
+          q.state = "armed"; q.t = ORB; q.ox = b.x; q.oy = b.y;
+          q.hot = (q === k && b.count % 5 === 4) || C.rnd(s) < 0.06 * s.cycle;
+          ev.push({ type: "kick", x: b.x, y: b.y, tx: q.x, ty: q.y });
+        }
+        b.count++;
       }
-      b.count++;
+      if (b.poseT > 0 && --b.poseT === 0) b.pose = b.count && b.count % 6 === 0 ? "taunt" : "idle";
+      if (b.pose !== "stomp") {
+        if (b.throwT > 0) b.throwT--;
+        else if (b.kickT > KICK_WIND + 20) startFling(s, ev, C);
+      }
     }
-    if (b.poseT > 0 && --b.poseT === 0) b.pose = b.count && b.count % 6 === 0 ? "taunt" : "idle";
+    stepThrows(s, ev, C);
 
     for (const k of s.stacks) {
       const box = { x: k.x - 22, y: k.y - STACK_H, w: 44, h: STACK_H };
@@ -391,6 +515,65 @@
     for (let i = 0; i < Math.min(s.cycle, 2); i++) s.fires.push(makeFire(s, 500, 1 + i, 1));
     s.boss = { x: D.boss.x, y: gy(G, D.boss.g, D.boss.x), pose: "taunt", poseT: 0, face: 1, dir: 1 };
     s.fan = { x: D.fan.x, y: gy(G, D.fan.g, D.fan.x), g: D.fan.g };
+    s.scream = null; s.screamT = 240; s.screamEvery = Math.max(200, (D.screamEvery || 330) - 30 * s.cycle);
+    s.roadies = []; s.roadieT = 420; s.roadieEvery = Math.max(380, (D.roadieEvery || 600) - 60 * s.cycle);
+  }
+  // ---------- RIVETS: the feedback scream and the roadies ----------
+  const SCREAM_CHARGE = 40, SCREAM_SPEED = 3.2, ROADIE_ARRIVE = 40;
+  function startScream(s, ev) {
+    const G = s.geo, p = s.p;
+    let li = p.state === "climb" ? p.ladder : -1;
+    if (li < 0) {                       // the ladder he'd climb next: the nearest one going up from his truss
+      let best = Infinity;
+      G.ladders.forEach((L, i) => {
+        const k = L.broken ? -1 : L.stops.findIndex(st => st.g === p.g);
+        if (k < 0 || k === L.stops.length - 1) return;
+        if (Math.abs(L.x - p.x) < best) { best = Math.abs(L.x - p.x); li = i; }
+      });
+    }
+    if (li < 0) { s.screamT = 60; return; }
+    s.scream = { ladder: li, state: "charge", t: SCREAM_CHARGE, y: G.ladders[li].yTop };
+    s.boss.pose = "horns"; s.boss.poseT = SCREAM_CHARGE + 20;
+    ev.push({ type: "scream", x: G.ladders[li].x, y: G.ladders[li].yTop });
+  }
+  function stepScream(s, ev) {
+    const sc = s.scream, L = s.geo.ladders[sc.ladder], p = s.p;
+    if (sc.state === "charge") { if (--sc.t <= 0) sc.state = "travel"; return; }
+    sc.y += SCREAM_SPEED;
+    if (s.phase === "play" && p.state === "climb" && p.ladder === sc.ladder && sc.y >= p.y - W.BODY_H && sc.y <= p.y + 4) {
+      Object.assign(p, { state: "air", vy: 0.5, vx: 0, jumpY: p.y, lastG: p.g, g: -1, ladder: -1 });
+      ev.push({ type: "knock", x: p.x, y: p.y - 30 });
+    }
+    if (sc.y > L.yBot + 8) { s.scream = null; s.screamT = s.screamEvery; }
+  }
+  function spawnRoadie(s, ev, C) {
+    const G = s.geo, p = s.p, g = 1 + Math.floor(C.rnd(s) * 4), gd = G.girders[g];
+    // he arrives just inside the bolts, at the end away from the Spaceman
+    const ends = [gd.x0 + 70, gd.x1 - 70];
+    let e = C.rnd(s) < 0.5 ? 0 : 1;
+    if (p.g === g && Math.abs(p.x - ends[e]) < 200) e = 1 - e;
+    if (p.g === g && Math.abs(p.x - ends[e]) < 120) { s.roadieT = 60; return; }
+    s.roadies.push({ x: ends[e], g, y: gy(G, g, ends[e]), dir: e ? -1 : 1, t: 0, arrive: ROADIE_ARRIVE });
+    s.boss.pose = "command"; s.boss.poseT = 50;
+    ev.push({ type: "roadie", x: ends[e], y: gy(G, g, ends[e]) });
+  }
+  function stepRoadies(s, ev, C) {
+    const G = s.geo, p = s.p, speed = 0.9 + 0.1 * Math.min(s.cycle, 3);
+    for (const r of s.roadies) {
+      r.t++;
+      if (r.arrive > 0) { r.arrive--; continue; }
+      if (holeAt(s, r.g, r.x)) {                           // a bolt pulled under his boots
+        r.gone = true; ev.push({ type: "roadieFall", x: r.x, y: r.y }); C.score(s, ev, 800, r.x, r.y - 50); continue;
+      }
+      const gd = G.girders[r.g], nx = r.x + r.dir * speed;
+      if (nx < gd.x0 + 14 || nx > gd.x1 - 14 || holeAt(s, r.g, nx + r.dir * 12)) r.dir = -r.dir;
+      else r.x = nx;
+      r.y = gy(G, r.g, r.x);
+      const box = { x: r.x - 12, y: r.y - 40, w: 24, h: 40 };
+      if (hammerHits(p, box)) { r.gone = true; ev.push({ type: "smash", x: r.x, y: r.y - 20, what: "roadie" }); C.score(s, ev, 500, r.x, r.y - 50); continue; }
+      if (s.phase === "play" && p.state !== "dead" && overlap(hitbox(p), box)) C.die(s, ev, "monster");
+    }
+    s.roadies = s.roadies.filter(r => !r.gone);
   }
   function stepRivets(s, input, ev, C) {
     const p = s.p, b = s.boss;
@@ -408,8 +591,16 @@
       // the gap opens once the Spaceman has stepped clear of it
       if (r.pending && (p.g !== r.g || Math.abs(p.x - r.x) > W.HOLE + 12)) { r.pending = false; s.holes.push({ g: r.g, x: r.x }); }
     }
-    b.x += b.dir * 0.8; if (b.x < s.geo.girders[5].x0 + 40 || b.x > s.fan.x - 60) b.dir = -b.dir;
-    b.face = b.dir; b.y = gy(s.geo, 5, b.x);
+    if (!(s.scream && s.scream.state === "charge")) { b.x += b.dir * 0.8; if (b.x < s.geo.girders[5].x0 + 40 || b.x > s.fan.x - 60) b.dir = -b.dir; b.face = b.dir; }
+    b.y = gy(s.geo, 5, b.x);
+    if (b.poseT > 0 && --b.poseT === 0) b.pose = "taunt";
+    if (s.scream) stepScream(s, ev);
+    else if (--s.screamT <= 0) startScream(s, ev);
+    if (--s.roadieT <= 0) {
+      s.roadieT = s.roadieEvery;
+      if (s.roadies.length < 1 + Math.min(s.cycle, 2)) spawnRoadie(s, ev, C);
+    }
+    stepRoadies(s, ev, C);
     stepHammers(s, ev);
     stepFires(s, ev, C);
     if (s.phase === "play" && s.rivets.every(r => r.pulled) && !s.rivets.some(r => r.pending)) C.collapse(s, ev);
@@ -426,8 +617,10 @@
     return null;
   }
 
-  const exports = { setup, step, carryOf, hitbox, smashBox, makeFire, makeFoe, startDrop, zone, PART_W, SLICE,
-    KICK_WIND, ORB, WOBBLE, DOWN, REBUILD, RISE, STACK_H };
+  const exports = { setup, step, carryOf, hitbox, smashBox, makeFire, makeFoe, startDrop, zone, micHead, startFling, startScream, spawnRoadie,
+    PART_W, SLICE, KICK_WIND, ORB, WOBBLE, DOWN, REBUILD, RISE, STACK_H,
+    FLING_WIND, FLING, MIC_WIND, MIC_SWEEP, MIC_LEN, MIC_A0, MIC_A1, MIC_HIT, CYMBAL_FLY, CYMBAL_LIFT, STICK_FLY, STICK_GAP, STICK_SPREAD,
+    SCREAM_CHARGE, SCREAM_SPEED, ROADIE_ARRIVE };
   if (NODE) module.exports = exports;
   else root.AmpStages = exports;
 })(typeof window !== "undefined" ? window : globalThis);
