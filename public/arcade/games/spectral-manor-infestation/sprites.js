@@ -62,11 +62,74 @@ function drawBlock(c, r, b) {
   else if (b.type === 'pumpkin') drawPumpkin(b.hp, false);
   else if (b.type === 'lantern') drawPumpkin(b.hp, true);
   else if (b.type === 'trap') drawTrap(b);
+  else if (b.type === 'hedge') drawHedge(b, c, r);
+  else if (b.type === 'gate') drawGate(b);
+  else if (b.type === 'root') drawRoot(c, r);
   ctx.restore();
+}
+
+// a cell of clipped hedge; cut leaves gaps as it takes hits, and fresh growth swells in
+function drawHedge(b, c, r) {
+  const g = b.grow > 0 ? 1 - b.grow / 30 : 1;
+  ctx.scale(g, g);
+  ctx.fillStyle = '#14532d'; ctx.fillRect(-12, -13, 24, 24);
+  const clumps = [[-6, -7, 7], [6, -7, 7], [-6, 4, 7], [6, 4, 7], [0, -2, 6]];
+  clumps.forEach(([x, y, rr], i) => {
+    if (i >= b.hp + 1) return;                       // each hit takes a clump
+    ctx.fillStyle = (c + r + i) % 2 ? '#166534' : '#15803d'; ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(134,239,172,0.35)'; ctx.beginPath(); ctx.arc(x - 2, y - 2, rr * 0.4, 0, Math.PI * 2); ctx.fill();
+  });
+}
+// an iron gate in the hedge: bars when shut, swung back when open; the leaves around it rustle before it moves
+function drawGate(b) {
+  const open = gateOpen(b), rustle = gateRustle(b), jig = rustle ? Math.sin(playT * 1.1) * 1.6 : 0;
+  ctx.fillStyle = '#14532d'; ctx.fillRect(-12, -13, 4, 24); ctx.fillRect(8, -13, 4, 24);
+  ctx.fillStyle = rustle ? '#4ade80' : '#166534';
+  for (const x of [-10, 10]) for (const y of [-8, 0, 8]) { ctx.beginPath(); ctx.arc(x + jig, y, 4, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.6;
+  if (open) {                                        // swung back flat against the hedge
+    ctx.beginPath(); ctx.moveTo(-8, -11); ctx.lineTo(-5, -9); ctx.lineTo(-5, 9); ctx.lineTo(-8, 11); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(8, -11); ctx.lineTo(5, -9); ctx.lineTo(5, 9); ctx.lineTo(8, 11); ctx.stroke();
+  } else {
+    ctx.strokeRect(-8, -11, 16, 22);
+    for (let x = -4; x <= 4; x += 4) { ctx.beginPath(); ctx.moveTo(x, -11); ctx.lineTo(x, 11); ctx.stroke(); }
+    ctx.fillStyle = '#cbd5e1'; ctx.beginPath(); ctx.arc(0, -11, 2.2, 0, Math.PI * 2); ctx.fill();
+  }
+  if (rustle) {                                      // a leaf or two shaken loose
+    ctx.fillStyle = 'rgba(134,239,172,0.8)';
+    for (let i = 0; i < 2; i++) { const t = (playT * 0.05 + i * 0.5) % 1; ctx.fillRect(-8 + i * 14 + Math.sin(t * 9) * 3, -14 + t * 26, 3, 2); }
+  }
+}
+// a tangle of root hanging from the cellar ceiling
+function drawRoot(c, r) {
+  ctx.strokeStyle = '#3f2a1a'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  const w = Math.sin(c * 1.7 + r) * 4;
+  ctx.beginPath(); ctx.moveTo(-2, -14); ctx.quadraticCurveTo(6 + w, -2, -1, 12); ctx.stroke();
+  ctx.strokeStyle = '#6b4423'; ctx.lineWidth = 3.5; ctx.stroke();
+  ctx.strokeStyle = '#6b4423'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(1, -4); ctx.quadraticCurveTo(-8, 0, -10, 8 + w); ctx.moveTo(2, 4); ctx.quadraticCurveTo(10, 6, 9, 13); ctx.stroke();
 }
 
 function drawStone(v) {
   const gid = ground().id;
+  if (v === 6) {                                   // a clipped topiary ball in a stone urn
+    ctx.fillStyle = '#57534e'; ctx.beginPath(); ctx.moveTo(-7, 4); ctx.lineTo(7, 4); ctx.lineTo(5, 11); ctx.lineTo(-5, 11); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#166534'; ctx.beginPath(); ctx.arc(0, -4, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#22c55e'; ctx.beginPath(); ctx.arc(-3, -7, 4, 0, Math.PI * 2); ctx.fill();
+    return;
+  }
+  if (v === 7) {                                   // a cellar barrel
+    ctx.fillStyle = '#5b3a1e'; ctx.beginPath(); ctx.ellipse(0, 0, 10, 12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-10, -5); ctx.lineTo(10, -5); ctx.moveTo(-10, 5); ctx.lineTo(10, 5); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,220,170,0.15)'; ctx.fillRect(-6, -10, 3, 20);
+    return;
+  }
+  if (v === 8) {                                   // a crate
+    ctx.fillStyle = '#7c5a32'; ctx.fillRect(-10, -11, 20, 21);
+    ctx.strokeStyle = '#3f2a1a'; ctx.lineWidth = 1.5; ctx.strokeRect(-10, -11, 20, 21);
+    ctx.beginPath(); ctx.moveTo(-10, -11); ctx.lineTo(10, 10); ctx.moveTo(10, -11); ctx.lineTo(-10, 10); ctx.stroke();
+    return;
+  }
   if (v === 5) {                                   // conservatory planter
     ctx.fillStyle = '#9a3412'; ctx.strokeStyle = '#431407'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(-10, -2); ctx.lineTo(10, -2); ctx.lineTo(7, 10); ctx.lineTo(-7, 10); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -416,6 +479,19 @@ function drawAmbient() {
         ctx.beginPath(); ctx.ellipse(x, y + 8 + hash(i, r + 61) * 8, 10 + Math.sin(t * 0.002 + i) * 3, 2, 0, 0, Math.PI * 2); ctx.stroke();
       }
     });
+  } else if (G.id === 'topiary') {
+    for (let i = 0; i < 12; i++) {                  // drifting leaves
+      const x = (hash(i, 61) * W + t * 0.02 * (0.5 + hash(i, 62))) % W;
+      const y = (hash(i, 63) * (ZONE_Y - 40) + t * 0.01 * (0.4 + hash(i, 64))) % ZONE_Y;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.002 + i);
+      ctx.fillStyle = 'rgba(74,222,128,0.35)'; ctx.beginPath(); ctx.ellipse(0, 0, 3, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  } else if (G.id === 'cellar') {
+    for (let i = 0; i < 18; i++) {                  // dust in the air
+      const x = (hash(i, 65) * W + Math.sin(t * 0.0005 + i) * 30 + W) % W, y = (hash(i, 66) * H + t * 0.004) % H;
+      ctx.fillStyle = 'rgba(253,230,190,0.18)'; ctx.fillRect(x, y, 1.4, 1.4);
+    }
   } else {
     ctx.globalAlpha = 0.5 + Math.sin(t * 0.0012) * 0.5;
     const beam = ctx.createLinearGradient(300, 0, 420, H);
@@ -446,6 +522,54 @@ function drawFog() {
     ctx.fillStyle = fg; ctx.fillRect(-56, -56, 112, 112);
     ctx.restore();
   }
+}
+
+
+// ---------- The Root Cellar's darkness ----------
+// Black over everything, cut away by the player's lantern (a pool plus a soft
+// beam up the column), the glowing caps, and every shot in flight. Then the
+// things you need to see in the dark are drawn back on top as glints: eyes,
+// the Hauntipede's lamps, the Burrower's turned earth.
+let darkCanvas = null;
+function drawDarkness() {
+  if (!darkCanvas) { darkCanvas = document.createElement('canvas'); darkCanvas.width = W; darkCanvas.height = H; }
+  const g = darkCanvas.getContext('2d');
+  if (!g) return;
+  g.globalCompositeOperation = 'source-over';
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = 'rgba(3,2,6,0.94)'; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = 'destination-out';
+  const hole = (x, y, r, a) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); };
+  if (gameRunning && !dying) {
+    hole(player.x, player.y, 150, 1);
+    const beam = g.createLinearGradient(0, 0, 0, player.y);           // the lantern's beam up the column you shoot
+    beam.addColorStop(0, 'rgba(0,0,0,0)'); beam.addColorStop(1, 'rgba(0,0,0,0.55)');
+    g.fillStyle = beam; g.beginPath(); g.moveTo(player.x - 18, player.y); g.lineTo(player.x - 46, 0); g.lineTo(player.x + 46, 0); g.lineTo(player.x + 18, player.y); g.closePath(); g.fill();
+  }
+  for (const k in mushrooms) { const [c, r] = k.split(',').map(Number); hole(cellX(c), cellY(r), 30, 0.8); }
+  bullets.forEach(b => hole(b.x, b.y, 34, 0.7));
+  if (boss && boss.type === 'burrower' && (boss.state === 'up' || boss.state === 'erupt' || boss.state === 'rumble' || boss.state === 'dive')) {
+    hole(boss.x, boss.y, 70, 0.8);
+    if (boss.state !== 'up' && boss.state !== 'dive') { g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(boss.x - 22, boss.y, 44, H - boss.y); }   // the warned column shows
+  }
+  ctx.drawImage(darkCanvas, 0, 0);
+  // glints over the dark
+  ctx.save();
+  segments.forEach(s => {
+    if (s.dead) return;
+    ctx.fillStyle = s.head ? 'rgba(251,146,60,0.95)' : 'rgba(251,191,36,0.35)'; ctx.shadowColor = '#fb923c'; ctx.shadowBlur = s.head ? 8 : 4;
+    if (s.head) { ctx.beginPath(); ctx.arc(s.x + s.dir * 5 - 3, s.y - 3, 1.8, 0, Math.PI * 2); ctx.arc(s.x + s.dir * 5 + 3, s.y - 3, 1.8, 0, Math.PI * 2); ctx.fill(); }
+    else { ctx.beginPath(); ctx.arc(s.x, s.y, 2, 0, Math.PI * 2); ctx.fill(); }
+  });
+  critters.forEach(e => {
+    if (e.kind === 'moth') { ctx.fillStyle = 'rgba(253,230,138,0.6)'; ctx.shadowColor = '#fde68a'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, Math.PI * 2); ctx.fill(); return; }
+    ctx.fillStyle = 'rgba(248,113,113,0.9)'; ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.arc(e.x - 3, e.y - 2, 1.6, 0, Math.PI * 2); ctx.arc(e.x + 3, e.y - 2, 1.6, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.shadowBlur = 0;
+  eggs.forEach(e => { ctx.fillStyle = 'rgba(245,245,244,0.4)'; ctx.beginPath(); ctx.arc(e.x, e.y, 5, 0, Math.PI * 2); ctx.fill(); });
+  ctx.restore();
+  if (boss && boss.type === 'burrower' && !boss.dying) drawBurrowerTrace(boss);
 }
 
 // ---------- Player: the crystal wand turret ----------

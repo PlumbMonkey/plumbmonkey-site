@@ -1,6 +1,6 @@
 // ============================================================
 // SPECTRAL MANOR INFESTATION — rules
-// Four haunted grounds · Splitting Hauntipede · Four bosses
+// Six haunted grounds · Splitting Hauntipede · Six bosses
 // Ghost Circuit / Plumbmonkey Media
 // Load order: grounds.js → sprites.js → bosses.js → game.js
 // ============================================================
@@ -64,7 +64,7 @@ const sfx = {
 // ---------- Music: a creeping bass line, transposed per ground; the boss doubles it ----------
 let musicTimer = null, musicStep = 0;
 const BASS = [110, 0, 130.81, 0, 146.83, 0, 130.81, 0, 110, 0, 164.81, 0, 146.83, 0, 130.81, 123.47];
-const GROUND_KEY = [1, 1.189, 0.891, 1.122];
+const GROUND_KEY = [1, 1.189, 0.891, 1.06, 0.84, 1.122];
 function musicTick() {
   if (!gameRunning || paused || dying || ending || !audioCtx) return;
   const fast = !!boss;
@@ -85,7 +85,7 @@ let keys = {};
 let mushrooms = {};   // "c,r" -> hp (4..1)
 let poisoned = {};    // "c,r" -> true: a scorpion walked over it
 let puffs = {};       // "c,r" -> true: a puffball (pops in one hit, releases spores)
-let blocks = {};      // "c,r" -> { type: 'stone'|'pumpkin'|'lantern'|'trap', ... }
+let blocks = {};      // "c,r" -> { type: 'stone'|'pumpkin'|'lantern'|'trap'|'hedge'|'gate'|'root', ... }
 let waterRows = [], lilies = [];
 let segments = [], hauntipedeLen = 12;
 let bullets = [], critters = [], eggs = [], spores = [], webs = [], acids = [], pickups = [], blasts = [];
@@ -260,7 +260,8 @@ function segmentUpdate(s) {
   const nextC = Math.floor((s.x + s.dir * (CELL / 2 + 2)) / CELL);
   const k = key(nextC, r);
   const edge = nextC < 0 || nextC >= COLS;
-  const blk = edge ? null : blocks[k];
+  let blk = edge ? null : blocks[k];
+  if (blk && blk.type === 'gate' && gateOpen(blk)) blk = null;          // an open gate is a gap in the hedge
   if (blk && blk.type === 'trap' && trapOpen(blk)) { s.eaten = true; blk.gulp = 12; return; }
   if (edge || mushrooms[k] || blk || lilyAt(nextC, r)) {
     // touching a POISONED toadstool sends it plunging at the player
@@ -545,6 +546,7 @@ function fire(want) {
   const y = player.y - 16;
   bullets.push({ x: player.x, y, vx: 0, vy: -11 });
   if (power === 'spread') bullets.push({ x: player.x, y, vx: -1.7, vy: -10.6 }, { x: player.x, y, vx: 1.7, vy: -10.6 });
+  if (boss && boss.type === 'burrower') boss.noise = { x: player.x, y: player.y };
   muzzle = 5;
   sfx.shoot();
 }
@@ -571,9 +573,14 @@ function hitBullet(b) {
     if (!e.gone && Math.hypot(b.x - e.x, b.y - e.y) < e.r) { killCritter(e); return true; }
   }
   const c = Math.floor(b.x / CELL), r = Math.floor(b.y / CELL), k = key(c, r);
-  const blk = blocks[k];
+  const blk = blocks[k] && !(blocks[k].type === 'gate' && gateOpen(blocks[k])) ? blocks[k] : null;
   if (blk) {
-    if (blk.type === 'stone') { sfx.clang(); explode(b.x, b.y, '#94a3b8', 3); }
+    if (blk.type === 'stone' || blk.type === 'root') { sfx.clang(); explode(b.x, b.y, blk.type === 'root' ? '#a16207' : '#94a3b8', 3); }
+    else if (blk.type === 'gate') { sfx.clang(); explode(b.x, b.y, '#94a3b8', 3); }
+    else if (blk.type === 'hedge') {
+      explode(b.x, b.y, '#4ade80', 4); sfx.mushroom(); addScore(2);
+      if (--blk.hp <= 0) { delete blocks[k]; addScore(15); explode(cellX(c), cellY(r), '#22c55e', 12); sfx.crack(); }
+    }
     else if (blk.type === 'trap') {
       if (trapOpen(blk)) { sfx.gulp(); blk.gulp = 10; }
       else { sfx.clang(); explode(b.x, b.y, '#86efac', 3); }
@@ -700,6 +707,16 @@ function autopilot() {
     if (Math.abs(d) < 44) mx = other ? (Math.sign(player.x - other.cx) || 1) : (d < 0 ? -1 : 1);
     else if (Math.abs(d) < 66 && mx && Math.sign(mx) !== Math.sign(d)) mx = 0;
   }
+  // the Hedge Beast's marked pounce column, and the spot where the Burrower is about to erupt
+  if (boss && !boss.dying && boss.type === 'beast' && (boss.state === 'aim' || boss.state === 'pounce') && Math.abs(player.x - boss.x) < 58)
+    mx = player.x < boss.x ? -1 : 1;
+  if (boss && !boss.dying && boss.type === 'burrower' && (boss.state === 'rumble' || boss.state === 'erupt') && Math.abs(player.x - boss.x) < 44)
+    mx = player.x < boss.x ? -1 : 1;
+  // a boss down in the zone (the Widow, the Beast after a pounce): hug the floor under it, never touch it
+  if (boss && !boss.dying && boss.y > ZONE_Y - 20) {
+    my = 1;
+    if (Math.abs(player.x - boss.x) < 40 && player.y - boss.y < 42) mx = player.x < boss.x ? -1 : 1;
+  }
   if ((player.x < 30 && mx < 0) || (player.x > W - 30 && mx > 0)) mx = -mx;
   return { mx, my, fire: true };
 }
@@ -755,7 +772,7 @@ function update() {
   checkClear();
 }
 function blocksTick() {
-  for (const k in blocks) if (blocks[k].gulp > 0) blocks[k].gulp--;
+  for (const k in blocks) { if (blocks[k].gulp > 0) blocks[k].gulp--; if (blocks[k].grow > 0) blocks[k].grow--; }
 }
 
 // ---------- Draw ----------
@@ -776,6 +793,7 @@ function draw() {
   critters.forEach(drawCritter);
   spores.forEach(drawSpore);
   drawFog();
+  if (ground().dark) drawDarkness();
 
   ctx.fillStyle = '#00ffaa'; ctx.shadowColor = '#00ffaa'; ctx.shadowBlur = 8;
   bullets.forEach(b => ctx.fillRect(b.x - 2, b.y - 7, 4, 12));

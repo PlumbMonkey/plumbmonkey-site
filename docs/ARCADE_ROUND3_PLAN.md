@@ -193,6 +193,25 @@ Proposals (avoid "Hedge Maze" and "Catacombs": Soul Circuit uses those names):
 
 **Done when:** six grounds, the soak sees 24 levels, both new bosses have tests, and nothing softlocks.
 
+**Built 2026-11-15 (uncommitted at time of writing):** Gregg chose the Topiary and the Root Cellar, placed
+before the Conservatory (which stays last and hardest: its speed/spawn multipliers are the highest; a test
+checks that). Order: Graveyard, Pumpkin Patch, Bog, Topiary, Root Cellar, Conservatory.
+- THE TOPIARY: hedge columns (`hedge`, 4 hits) cut the field into lanes; iron `gate`s shut 200 frames / open
+  130, rustling for 45 frames before each change; open gates let shots and the Hauntipede through.
+  Boss THE HEDGE BEAST (`beast`): leaf armour, marks your column and pounces, can be hurt only while it
+  roars, regrows the hedges you cut; enraged it pounces back to back and roars out burr clouds.
+- THE ROOT CELLAR (`dark: true`): darkness cut by the player's lantern pool and beam, glowing caps and shots
+  in flight; eyes and the Hauntipede's lamps glint through. Roots (`root`) stop shots.
+  Boss THE BURROWER (`burrower`): every shot sets `boss.noise`; it digs along just above your zone to that
+  column, the floor cracks and the column glows, then rubble crashes down it; afterwards it stays up to be
+  shot from below and flings clods (acid puddles). With no noise it wanders.
+- Autopilot: avoids the beast's column and the burrower's warned column, and hugs the floor under a boss
+  that is down in the zone (this also fixed the Harvest Widow: 3.3 → 0 bot deaths).
+- Unassisted bot (6 seeds): Topiary levels 0–0.2 deaths, Hedge Beast 0.5 deaths / 38 s; Cellar levels
+  0–0.3, Burrower 6 deaths / 33 s (mostly clod puddles, which the bot ignores, as at the Bog Wyrm);
+  Conservatory 6-3 3.0 and boss 3.8 deaths / 156 s (was 1.7 and 2.0 at 4-3/4-4: its levels now
+  number 21–24, so the speed scaling that uses the level number runs a little higher).
+
 ---
 
 ## 4. Cruise — two new tracks (largest job)

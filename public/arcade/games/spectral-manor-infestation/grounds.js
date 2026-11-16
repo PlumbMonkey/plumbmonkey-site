@@ -1,7 +1,7 @@
 // ============================================================
 // INFESTATION — grounds, field layouts and scenery
-// Four haunted grounds of the manor estate, each three levels and a boss.
-// After the Conservatory the run loops back to the Graveyard as the next
+// Six haunted grounds of the manor estate, each three levels and a boss.
+// After the Conservatory (always last, always hardest) the run loops back to the Graveyard as the next
 // CYCLE: same fields, faster and busier. Layouts are SEEDED per level, so
 // level 2-3 is always the same field — a set design, not a fresh scatter.
 // This file loads first and owns the canvas + grid constants.
@@ -17,6 +17,11 @@ const PLAYER_ZONE_ROW = ROWS - 5;    // 17 — the player is confined below this
 const ZONE_Y = PLAYER_ZONE_ROW * CELL;
 const LEVELS_PER_GROUND = 4;         // three levels + the boss
 const FIELD_TOP = 2, FIELD_BOTTOM = PLAYER_ZONE_ROW - 2; // rows terrain may use
+const GATE_CYCLE = 330, GATE_SHUT = 200, GATE_RUSTLE = 45; // topiary gates: shut 200 frames, open 130, rustle first
+function gateT(b) { return ((playT + b.phase) % GATE_CYCLE + GATE_CYCLE) % GATE_CYCLE; }
+function gateOpen(b) { return gateT(b) >= GATE_SHUT; }
+// rustling: the last GATE_RUSTLE frames before a gate changes, either way
+function gateRustle(b) { const t = gateT(b); return (t >= GATE_SHUT - GATE_RUSTLE && t < GATE_SHUT) || t >= GATE_CYCLE - GATE_RUSTLE; }
 
 function key(c, r) { return c + ',' + r; }
 function cellX(c) { return c * CELL + CELL / 2; }
@@ -76,6 +81,35 @@ const GROUNDS = [
     ],
     boss: { type: 'wyrm', name: 'THE BOG WYRM', sub: 'Shoot its head when it comes up',
             toadstools: 26, water: [7, 12], lilies: 2, escort: 6, roster: { bug: 2, moth: 1, scorpion: 1 } }
+  },
+  {
+    id: 'topiary', name: 'THE TOPIARY', sub: 'Hedge gates swing open and shut. Watch them rustle',
+    source: { x: 150, y: 74 },          // the arch in the hedge
+    // hedge walls make lanes the Hauntipede has to wind down; gates let it through
+    speedMult: 1.05, spawnMult: 1.15,
+    pal: { cap: ['#16a34a', '#14532d'], spot: '#dcfce7', stem: '#f0fdf4', glow: '#4ade80',
+           body: '#86efac', head: '#facc15', legs: '#166534', accent: '#4ade80', mist: '187,247,208' },
+    levels: [
+      { len: 13, toadstools: 34, walls: 2, balls: 3, roster: { ghost: 2, bug: 3, moth: 1, spider: 1, beetle: 1 } },
+      { len: 14, toadstools: 38, walls: 3, balls: 3, roster: { ghost: 2, bug: 3, moth: 1, spider: 2, beetle: 1, scorpion: 1 } },
+      { len: 15, toadstools: 42, walls: 4, balls: 4, roster: { ghost: 3, bug: 3, moth: 1, spider: 2, beetle: 1, scorpion: 1 } }
+    ],
+    boss: { type: 'beast', name: 'THE HEDGE BEAST', sub: 'Its leaves are armour. Shoot it while it roars',
+            toadstools: 26, walls: 2, balls: 2, escort: 0, roster: { bug: 2, moth: 1, spider: 1 } }
+  },
+  {
+    id: 'cellar', name: 'THE ROOT CELLAR', sub: 'Your lantern and the glowing caps are the only light',
+    source: { x: W - 120, y: 44 },      // the cellar stairs
+    speedMult: 1.1, spawnMult: 1.3, dark: true,
+    pal: { cap: ['#0891b2', '#155e75'], spot: '#a5f3fc', stem: '#e0f2fe', glow: '#22d3ee',
+           body: '#fbbf24', head: '#fb923c', legs: '#78350f', accent: '#22d3ee', mist: '125,211,252' },
+    levels: [
+      { len: 14, toadstools: 40, roots: 5, barrels: 4, roster: { ghost: 2, bug: 3, moth: 1, spider: 2, beetle: 1, scorpion: 1 } },
+      { len: 15, toadstools: 44, roots: 6, barrels: 5, roster: { ghost: 3, bug: 3, moth: 1, spider: 2, beetle: 2, scorpion: 1 } },
+      { len: 15, toadstools: 48, roots: 7, barrels: 6, roster: { ghost: 3, bug: 4, moth: 1, spider: 2, beetle: 2, scorpion: 2 } }
+    ],
+    boss: { type: 'burrower', name: 'THE BURROWER', sub: 'It hunts by sound. Every shot tells it where you are',
+            toadstools: 30, roots: 4, barrels: 3, escort: 0, roster: { bug: 2, moth: 1, spider: 1 } }
   },
   {
     id: 'conservatory', name: 'THE CONSERVATORY', sub: 'Open flytraps eat your shots and the Hauntipede alike',
@@ -142,6 +176,28 @@ function buildField(gi, li) {
         f.lilies.push({ row: r, x: (i + 0.3 + rng() * 0.4) * (W / n), vx: (wi % 2 ? 1 : -1) * (0.45 + li * 0.08), spin: rng() * 6, bump: 0 });
       }
     });
+  } else if (G.id === 'topiary') {
+    // Hedge walls run down the field as columns, cutting it into lanes; each wall has two iron gates
+    const n = def.walls;
+    for (let w = 0; w < n; w++) {
+      const c = Math.round((w + 1) * COLS / (n + 1)) + Math.floor(rng() * 3) - 1;
+      const r0 = FIELD_TOP + 1 + Math.floor(rng() * 2), r1 = FIELD_BOTTOM - Math.floor(rng() * 3);
+      const gates = [r0 + 2 + Math.floor(rng() * 3), r1 - 1 - Math.floor(rng() * 2)];
+      const phase = Math.floor(rng() * GATE_CYCLE);
+      for (let r = r0; r <= r1; r++) {
+        if (!isFree(c, r)) continue;
+        const g = gates.indexOf(r);
+        f.blocks[key(c, r)] = g >= 0 ? { type: 'gate', phase: phase + g * (GATE_CYCLE / 2) } : { type: 'hedge', hp: 4 };
+      }
+    }
+    for (let i = 0; i < def.balls; i++) stone(2 + Math.floor(rng() * (COLS - 4)), FIELD_TOP + 1 + Math.floor(rng() * (FIELD_BOTTOM - FIELD_TOP)), 6);
+  } else if (G.id === 'cellar') {
+    // Root tangles hang from the ceiling beams; barrels and crates stand on the floor
+    for (let i = 0; i < def.roots; i++) {
+      const c = 2 + Math.floor(rng() * (COLS - 4)), len = 2 + Math.floor(rng() * 3);
+      for (let r = FIELD_TOP; r < FIELD_TOP + len; r++) if (isFree(c, r)) f.blocks[key(c, r)] = { type: 'root' };
+    }
+    for (let i = 0; i < def.barrels; i++) stone(2 + Math.floor(rng() * (COLS - 4)), FIELD_TOP + 3 + Math.floor(rng() * (FIELD_BOTTOM - FIELD_TOP - 3)), 7 + (i % 2));
   } else if (G.id === 'conservatory') {
     // Mirror-symmetric beds: planters and flytraps, placed as pairs
     for (let i = 0; i < 3; i++) {
@@ -180,7 +236,7 @@ function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width 
 function buildBackdrop(gi, f) {
   const c = makeCanvas(W, H), g = c.getContext('2d');
   if (!g) return c;
-  [paintGraveyard, paintPumpkin, paintBog, paintConservatory][gi](g, f);
+  ({ graveyard: paintGraveyard, pumpkin: paintPumpkin, bog: paintBog, topiary: paintTopiary, cellar: paintCellar, conservatory: paintConservatory })[GROUNDS[gi].id](g, f);
   // the player zone: a slightly lit band that fades in, no hard boundary
   const z = g.createLinearGradient(0, ZONE_Y - 40, 0, H);
   z.addColorStop(0, 'rgba(255,255,255,0)');
@@ -362,6 +418,80 @@ function paintBog(g, f) {
   });
 }
 
+
+function paintTopiary(g) {
+  // dusk over the formal garden: a hedge maze stepping back to the manor
+  g.fillStyle = vGrad(g, 0, H, [[0, '#0d1a2b'], [0.22, '#132a2a'], [0.3, '#0c1c16'], [1, '#07110d']]);
+  g.fillRect(0, 0, W, H);
+  stars(g, 50, 90, '#e0f2fe');
+  glow(g, W - 200, 60, 120, '220,252,231', 0.12);
+  g.fillStyle = 'rgba(230,252,240,0.3)'; g.beginPath(); g.arc(W - 200, 60, 22, 0, Math.PI * 2); g.fill();
+  // the manor far behind, its windows lit
+  g.fillStyle = '#0b1622';
+  g.fillRect(W / 2 - 120, 70, 240, 70); g.beginPath(); g.moveTo(W / 2 - 130, 72); g.lineTo(W / 2, 30); g.lineTo(W / 2 + 130, 72); g.closePath(); g.fill();
+  for (let i = 0; i < 10; i++) { g.fillStyle = hash(i, 81) > 0.45 ? 'rgba(253,224,140,0.5)' : 'rgba(120,140,170,0.2)'; g.fillRect(W / 2 - 104 + i * 22, 92 + (i % 2) * 20, 8, 12); }
+  // rows of maze hedges receding
+  for (let k = 0; k < 3; k++) {
+    const y = 130 + k * 14;
+    g.fillStyle = ['#0e2219', '#11281d', '#143022'][k];
+    for (let x = -20; x < W; x += 60 + k * 10) {
+      const w = 40 + hash(x, k) * 50;
+      g.beginPath(); g.moveTo(x, y + 16); g.lineTo(x, y + 4); g.quadraticCurveTo(x + w / 2, y - 6, x + w, y + 4); g.lineTo(x + w, y + 16); g.closePath(); g.fill();
+    }
+  }
+  // topiary silhouettes: spiral cones and a peacock
+  const cone = (x, y, h) => { g.fillStyle = '#0f241a'; for (let i = 0; i < 3; i++) { const w = (3 - i) * h * 0.14; g.beginPath(); g.ellipse(x, y - i * h * 0.28, w, h * 0.16, 0, 0, Math.PI * 2); g.fill(); } g.fillRect(x - 2, y + h * 0.1, 4, h * 0.2); };
+  cone(60, 160, 70); cone(W - 50, 170, 80); cone(330, 158, 46);
+  g.fillStyle = '#0f241a';
+  g.beginPath(); g.ellipse(W - 330, 150, 26, 18, 0, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(W - 312, 122, 8, 18, 0.3, 0, Math.PI * 2); g.fill();
+  for (let i = 0; i < 7; i++) { const a = Math.PI + 0.3 + i * 0.32; g.beginPath(); g.ellipse(W - 340 + Math.cos(a) * 34, 148 + Math.sin(a) * 34, 6, 14, a + Math.PI / 2, 0, Math.PI * 2); g.fill(); }
+  // the arch the monsters come through
+  const s = GROUNDS.find(G => G.id === 'topiary').source;
+  g.fillStyle = '#123021';
+  g.beginPath(); g.ellipse(s.x, s.y, 46, 40, 0, Math.PI, 0); g.lineTo(s.x + 46, s.y + 30); g.lineTo(s.x - 46, s.y + 30); g.closePath(); g.fill();
+  g.fillStyle = '#050c09'; g.beginPath(); g.ellipse(s.x, s.y + 6, 26, 26, 0, Math.PI, 0); g.lineTo(s.x + 26, s.y + 30); g.lineTo(s.x - 26, s.y + 30); g.closePath(); g.fill();
+  // raked gravel: faint arcs and pebbles, no long lines
+  for (let i = 0; i < 80; i++) {
+    const x = hash(i, 82) * W, y = 175 + hash(i, 83) * (H - 185);
+    g.fillStyle = `rgba(${180 + hash(i, 84) * 40},${190 + hash(i, 85) * 30},170,0.08)`;
+    g.beginPath(); g.ellipse(x, y, 2 + hash(i, 86) * 3, 1.4, 0, 0, Math.PI * 2); g.fill();
+  }
+}
+
+function paintCellar(g) {
+  // brick vaults under the manor; most of this is only seen by lantern light
+  g.fillStyle = vGrad(g, 0, H, [[0, '#120c0a'], [0.4, '#0e0907'], [1, '#080504']]);
+  g.fillRect(0, 0, W, H);
+  for (let y = 0; y < H; y += 18) for (let x = (y / 18) % 2 ? -18 : 0; x < W; x += 36) {
+    g.fillStyle = hash(x, y) > 0.5 ? 'rgba(92,52,36,0.22)' : 'rgba(70,40,30,0.18)';
+    g.fillRect(x + 1, y + 1, 34, 16);
+  }
+  // vaulted arches
+  for (let i = 0; i < 4; i++) {
+    const cx = (i + 0.5) * W / 4;
+    g.fillStyle = 'rgba(8,5,4,0.6)'; g.beginPath(); g.ellipse(cx, 150, 90, 110, 0, Math.PI, 0); g.lineTo(cx + 90, 160); g.lineTo(cx - 90, 160); g.closePath(); g.fill();
+  }
+  // wine racks along the back wall
+  for (let x = 30; x < W - 200; x += 170) {
+    g.fillStyle = '#1c120c'; g.fillRect(x, 70, 110, 80);
+    for (let r = 0; r < 4; r++) for (let k = 0; k < 6; k++) { g.fillStyle = hash(r + x, k) > 0.3 ? '#2a1d14' : '#3b2316'; g.beginPath(); g.arc(x + 10 + k * 18, 82 + r * 19, 6, 0, Math.PI * 2); g.fill(); }
+  }
+  // the stairs down, with a line of light under the door at the top
+  const s = GROUNDS.find(G => G.id === 'cellar').source;
+  for (let k = 0; k < 6; k++) { g.fillStyle = `rgba(60,40,30,${0.5 - k * 0.05})`; g.fillRect(s.x - 50 + k * 8, s.y - 30 + k * 14, 100 - k * 16, 10); }
+  glow(g, s.x, s.y - 34, 70, '253,186,116', 0.18);
+  // beams across the ceiling with roots pushing through
+  for (let i = 0; i < 3; i++) { g.fillStyle = '#1a100a'; g.fillRect(0, 22 + i * 18, W, 6); }
+  g.strokeStyle = 'rgba(80,50,30,0.6)'; g.lineCap = 'round';
+  for (let i = 0; i < 18; i++) {
+    const x = hash(i, 90) * W; g.lineWidth = 2 + hash(i, 91) * 2;
+    g.beginPath(); g.moveTo(x, 20); g.quadraticCurveTo(x + (hash(i, 92) - 0.5) * 30, 50, x + (hash(i, 93) - 0.5) * 20, 60 + hash(i, 94) * 40); g.stroke();
+  }
+  // packed earth floor
+  for (let i = 0; i < 70; i++) { g.fillStyle = 'rgba(90,60,40,0.14)'; g.beginPath(); g.ellipse(hash(i, 95) * W, 170 + hash(i, 96) * (H - 180), 3 + hash(i, 97) * 5, 1.6, 0, 0, Math.PI * 2); g.fill(); }
+}
+
 function paintConservatory(g) {
   g.fillStyle = vGrad(g, 0, H, [[0, '#0b1d17'], [0.25, '#0a1914'], [1, '#06100c']]);
   g.fillRect(0, 0, W, H);
@@ -396,7 +526,7 @@ function paintConservatory(g) {
   };
   palm(34, 170, 1.1); palm(W - 34, 176, 1.2); palm(26, 470, 0.9); palm(W - 26, 460, 0.9);
   // the cracked mandrake bed under the dome
-  const s = GROUNDS[3].source;
+  const s = GROUNDS.find(G => G.id === 'conservatory').source;
   g.fillStyle = '#3a1d14';
   g.beginPath(); g.ellipse(s.x, s.y + 26, 70, 18, 0, 0, Math.PI * 2); g.fill();
   g.fillStyle = '#1b0f0b';

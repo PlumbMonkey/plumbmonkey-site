@@ -1,5 +1,5 @@
 // ============================================================
-// INFESTATION — the four ground bosses
+// INFESTATION — the six ground bosses
 //   createBoss(def)          → boss object
 //   updateBoss(b)            one fixed step
 //   bossBulletHit(b, shot)   → -1 blocked · 0 missed · n damage
@@ -24,6 +24,12 @@ function createBoss(def) {
     for (let i = 0; i < 9; i++) b.nodes.push({ x: -100, y: 0, sub: true });
   } else if (def.type === 'mandrake') {
     Object.assign(b, { hp: Math.round(28 * scale), x: W / 2, y: 80, state: 'idle', wait: 90, atk: 0, vines: [], shots: [], volley: 0 });
+  } else if (def.type === 'beast') {
+    // it remembers where every hedge stood, and grows them back
+    const home = Object.keys(blocks).filter(k => blocks[k].type === 'hedge' || blocks[k].type === 'gate').map(k => ({ k, b: Object.assign({}, blocks[k]) }));
+    Object.assign(b, { hp: Math.round(38 * scale), x: W / 2, y: -50, vx: 2.0, state: 'enter', wait: 0, atk: 0, shots: [], home, stride: 0 });
+  } else if (def.type === 'burrower') {
+    Object.assign(b, { hp: Math.round(44 * scale), x: W / 2, y: ZONE_Y - 50, state: 'dig', wait: 0, noise: null, roam: null, roamT: 0, shots: [], trail: [] });
   }
   b.maxHp = b.hp;
   return b;
@@ -61,6 +67,8 @@ function updateBoss(b) {
   else if (b.type === 'widow') updateWidow(b);
   else if (b.type === 'wyrm') updateWyrm(b);
   else if (b.type === 'mandrake') updateMandrake(b);
+  else if (b.type === 'beast') updateBeast(b);
+  else if (b.type === 'burrower') updateBurrower(b);
   // lobbed projectiles (webs, acid, seeds)
   if (b.shots) {
     for (let i = b.shots.length - 1; i >= 0; i--) {
@@ -97,6 +105,14 @@ function bossBulletHit(b, s) {
     if (Math.hypot(s.x - b.x, s.y - b.y) < 34) return b.state === 'open' ? 1 : -1;
     return 0;
   }
+  if (b.type === 'beast') {
+    if (Math.hypot(s.x - b.x, s.y - b.y) < 30) return b.state === 'roar' ? 1 : -1;   // leaves are armour until it roars
+    return 0;
+  }
+  if (b.type === 'burrower') {
+    if (b.state !== 'up') return 0;                     // underground, shots pass over it
+    return Math.hypot(s.x - b.x, s.y - b.y) < 24 ? 1 : 0;
+  }
   return 0;
 }
 
@@ -110,6 +126,12 @@ function bossTouches(b, x, y, r) {
     if (b.state === 'under' || b.state === 'rumble') return false;
     if (Math.hypot(x - b.x, y - b.y) < 16 + r) return true;
     return b.nodes.some(n => !n.sub && Math.hypot(x - n.x, y - n.y) < 11 + r);
+  }
+  if (b.type === 'beast') return Math.hypot(x - b.x, y - b.y) < 24 + r;
+  if (b.type === 'burrower') {
+    if (b.state === 'erupt') return (Math.abs(x - b.x) < 22 + r * 0.3 && y > b.y - 20) || Math.hypot(x - b.x, y - b.y) < 36 + r;   // rubble down the column
+    if (b.state === 'up') return Math.hypot(x - b.x, y - b.y) < 18 + r;
+    return false;
   }
   if (b.type === 'mandrake') return b.vines.some(v => v.phase === 'slam' && v.t > 4 && v.t < 30 && Math.abs(x - v.cx) < 18 + r * 0.3 && y > ZONE_Y - 30);
   return false;
@@ -125,6 +147,8 @@ function bossRetreat(b) {
   else if (b.type === 'widow') { b.state = b.y > 72 ? 'climb' : 'patrol'; b.wait = 120; }
   else if (b.type === 'wyrm') { b.state = 'under'; b.wait = 120; b.x = -200; b.nodes.forEach(n => { n.sub = true; n.x = -200; }); }
   else if (b.type === 'mandrake') { b.vines = []; b.state = 'idle'; b.wait = 100; }
+  else if (b.type === 'beast') { b.state = 'climb'; b.wait = 0; }
+  else if (b.type === 'burrower') { b.state = 'dig'; b.noise = null; b.roam = null; b.x = W / 2; b.y = BURROW_Y; b.wait = 0; }
 }
 
 // ============================================================
@@ -598,10 +622,233 @@ function drawMandrake(b) {
   ctx.restore();
 }
 
+
+// ============================================================
+// THE HEDGE BEAST — a topiary lion. It prowls along the top of the garden,
+// marks your column with its shadow and pounces into your zone. Its leaves
+// stop shots; only when it ROARS after a pounce can it be hurt.
+// Between pounces it regrows the hedges you have cut. Enraged, it pounces
+// twice in a row and roars out burrs that drift down as thorny clouds.
+// ============================================================
+const BEAST_TOP = 74, BEAST_FLOOR = H - 66, BURROW_Y = ZONE_Y - 50;
+function updateBeast(b) {
+  const sp = cycleMult * (b.enraged ? 1.35 : 1);
+  b.stride += b.state === 'prowl' ? 0.2 : 0.05;
+  switch (b.state) {
+    case 'enter':
+      b.y += 2.5; if (b.y >= BEAST_TOP) { b.y = BEAST_TOP; b.state = 'prowl'; b.wait = 80; }
+      break;
+    case 'prowl':
+      b.x += b.vx * sp;
+      if (b.x < 80 || b.x > W - 80) { b.vx *= -1; b.x = Math.max(80, Math.min(W - 80, b.x)); }
+      b.y = BEAST_TOP + Math.abs(Math.sin(b.stride)) * -4;
+      if (--b.wait <= 0) {
+        const pattern = b.enraged ? ['pounce', 'pounce', 'regrow'] : ['pounce', 'regrow', 'pounce'];
+        const a = pattern[b.atk++ % pattern.length];
+        b.state = a === 'pounce' ? 'aim' : a;
+        b.wait = a === 'pounce' ? (b.enraged ? 40 : 52) : 40;
+        sfx.hiss();
+      }
+      break;
+    case 'aim':                                        // its shadow falls on your column
+      b.x += Math.max(-6, Math.min(6, (player.x - b.x) * 0.1));
+      if (--b.wait <= 0) b.state = 'pounce';
+      break;
+    case 'pounce':
+      b.y += 10;
+      for (let dx = -1; dx <= 1; dx++) {
+        const k = key(Math.floor((b.x + dx * 18) / CELL), Math.floor(b.y / CELL));
+        if (mushrooms[k]) { delete mushrooms[k]; delete poisoned[k]; delete puffs[k]; }
+      }
+      if (b.y >= BEAST_FLOOR) { b.y = BEAST_FLOOR; b.state = 'roar'; b.wait = b.enraged ? 64 : 76; shake(7); sfx.thud(); sfx.scream(); }
+      break;
+    case 'roar':
+      if (b.enraged && b.wait === 30) {                // burrs scatter and drift down as thorny clouds
+        for (let i = 0; i < 3; i++) spores.push(makeSpore(b.x + (i - 1) * 60, ZONE_Y - 60, (i - 1) * 0.3, 0.5));
+      }
+      if (--b.wait <= 0) b.state = 'climb';
+      break;
+    case 'climb':
+      b.y -= 4;
+      if (b.y <= BEAST_TOP) {
+        b.y = BEAST_TOP;
+        b.state = 'prowl'; b.wait = b.enraged ? 24 + Math.random() * 20 : 60 + Math.random() * 50;   // enraged: barely a pause between pounces
+      }
+      break;
+    case 'regrow':
+      if (b.wait === 20) {
+        let n = 0;
+        for (const h of b.home) {
+          if (n >= (b.enraged ? 8 : 5)) break;
+          if (blocks[h.k] || mushrooms[h.k]) continue;
+          blocks[h.k] = Object.assign({}, h.b, { grow: 30 });
+          if (blocks[h.k].type === 'hedge') blocks[h.k].hp = 4;
+          const [c, r] = h.k.split(',').map(Number);
+          explode(cellX(c), cellY(r), '#4ade80', 6);
+          n++;
+        }
+        if (n) sfx.open();
+      }
+      if (--b.wait <= 0) { b.state = 'prowl'; b.wait = 70; }
+      break;
+  }
+}
+function drawBeast(b) {
+  if (b.state === 'aim') {                          // the shadow it will land in
+    const p = 0.4 + Math.sin(b.t * 0.5) * 0.25;
+    const col = ctx.createLinearGradient(0, ZONE_Y, 0, H);
+    col.addColorStop(0, 'rgba(74,222,128,0)'); col.addColorStop(1, `rgba(74,222,128,${p * 0.28})`);
+    ctx.fillStyle = col; ctx.fillRect(b.x - 30, ZONE_Y, 60, H - ZONE_Y);
+    ctx.fillStyle = `rgba(5,30,15,${p * 0.6})`;
+    ctx.beginPath(); ctx.ellipse(b.x, H - 38, 32, 9, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  const roar = b.state === 'roar', leap = b.state === 'pounce';
+  ctx.save(); ctx.translate(b.x, b.y);
+  if (leap) ctx.scale(0.9, 1.15);
+  const leaf = (x, y, r, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); };
+  const dark = b.flash ? '#ffffff' : '#14532d', mid = b.flash ? '#ffffff' : '#166534', lite = b.flash ? '#ffffff' : '#22c55e';
+  // legs: four clipped columns, striding
+  for (let i = 0; i < 4; i++) {
+    const lx = -22 + i * 14, swing = Math.sin(b.stride + i * 1.6) * 4;
+    ctx.fillStyle = dark; ctx.fillRect(lx - 5 + swing, 6, 10, 18);
+    leaf(lx + swing, 24, 6, mid);
+  }
+  // body and tail tuft
+  for (let i = 0; i < 7; i++) leaf(-20 + i * 7, -2 + Math.sin(i * 1.7) * 3, 12, i % 2 ? mid : dark);
+  ctx.strokeStyle = dark; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-26, -4); ctx.quadraticCurveTo(-42, -16, -36, -28 + Math.sin(b.t * 0.1) * 3); ctx.stroke();
+  leaf(-36, -30 + Math.sin(b.t * 0.1) * 3, 6, lite);
+  // the mane: a ring of leaf clumps that flares when it roars
+  const mane = roar ? 26 : 20;
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2 + b.t * 0.01; leaf(18 + Math.cos(a) * mane * 0.6, -14 + Math.sin(a) * mane * 0.6, roar ? 9 : 8, i % 2 ? dark : mid); }
+  leaf(18, -14, 13, lite);
+  // face: amber eyes, and a mouth that glows when it roars
+  ctx.fillStyle = b.enraged ? '#f43f5e' : '#fbbf24'; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10;
+  ctx.beginPath(); ctx.arc(13, -19, 2.6, 0, Math.PI * 2); ctx.arc(23, -19, 2.6, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  if (roar) {
+    const gl = ctx.createRadialGradient(18, -6, 1, 18, -6, 14);
+    gl.addColorStop(0, '#fef08a'); gl.addColorStop(0.5, '#f97316'); gl.addColorStop(1, 'rgba(249,115,22,0)');
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.ellipse(18, -6, 8, 8 + Math.sin(b.t * 0.6) * 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fef3c7'; for (let k = -1; k <= 1; k += 2) { ctx.beginPath(); ctx.moveTo(18 + k * 5, -12); ctx.lineTo(18 + k * 3, -6); ctx.lineTo(18 + k * 7, -11); ctx.fill(); }
+  } else { ctx.fillStyle = '#052e16'; ctx.fillRect(14, -8, 8, 2); }
+  ctx.restore();
+}
+
+// ============================================================
+// THE BURROWER — a blind mole-thing under the cellar floor. It hunts by
+// sound: every shot you fire tells it which column you're in, and it digs
+// along just above your zone to that column. The floor cracks and the column
+// glows (the warning), then it erupts and rubble crashes down the column.
+// Step aside, then get under it and shoot while it stays up, sniffing.
+// Stop firing and it loses you and wanders. It flings clods at you while it's
+// up (three when enraged) that sour the ground where they land.
+// ============================================================
+function updateBurrower(b) {
+  const sp = 2.5 * cycleMult * (b.enraged ? 1.35 : 1);
+  switch (b.state) {
+    case 'dig': {
+      let tgt = b.noise ? { x: b.noise.x, y: BURROW_Y } : null;
+      if (!tgt) {                                       // lost you: wander along under the floor
+        if (!b.roam || --b.roamT <= 0) { b.roam = { x: 60 + Math.random() * (W - 120), y: BURROW_Y }; b.roamT = 160; }
+        tgt = b.roam;
+      }
+      const dx = tgt.x - b.x, dy = tgt.y - b.y, d = Math.hypot(dx, dy);
+      if (d < sp + 1) {
+        b.x = tgt.x; b.y = tgt.y;
+        if (b.noise) { b.noise = null; b.state = 'rumble'; b.wait = b.enraged ? 34 : 44; sfx.thud(); }
+        else b.roamT = 0;
+      } else { b.x += dx / d * sp; b.y += dy / d * sp; }
+      b.trail.push({ x: b.x, y: b.y, t: 40 });
+      break;
+    }
+    case 'rumble':                                      // the floor cracks where it will come up
+      if (--b.wait <= 0) { b.state = 'erupt'; b.wait = 14; shake(8); sfx.blast(); explode(b.x, b.y, '#a16207', 22); }
+      break;
+    case 'erupt':
+      if (--b.wait <= 0) {
+        b.state = 'up'; b.wait = b.enraged ? 70 : 84; b.noise = null;
+        {
+          sfx.spit();
+          (b.enraged ? [-80, 0, 80] : [-60, 60]).forEach(dx => b.shots.push({ x0: b.x, y0: b.y - 10, x1: Math.max(30, Math.min(W - 30, player.x + dx)),
+            y1: Math.max(ZONE_Y + 24, Math.min(H - 20, player.y)), t: 0, T: 50, color: '#a16207',
+            land: s => { acids.push({ x: s.x1, y: s.y1, r: 28, life: 170, age: 0, warm: 24 }); } }));
+        }
+      }
+      break;
+    case 'up':
+      b.noise = null;                                   // it can't hear over its own sniffing
+      if (--b.wait <= 0) { b.state = 'dive'; b.wait = 20; }
+      break;
+    case 'dive':
+      if (--b.wait <= 0) { b.state = 'dig'; b.noise = null; }
+      break;
+  }
+  b.trail.forEach(q => q.t--);
+  b.trail = b.trail.filter(q => q.t > 0);
+}
+function drawBurrower(b) {
+  // underground: a ridge of turned earth follows it (drawn again over the dark, so you can track it)
+  if (b.state === 'dig') return;
+  if (b.state === 'rumble' || b.state === 'erupt') {      // the column the rubble will come down
+    const p = 0.35 + Math.sin(b.t * 0.7) * 0.2, hot = b.state === 'erupt';
+    const col = ctx.createLinearGradient(0, b.y, 0, H);
+    col.addColorStop(0, `rgba(251,146,60,${hot ? 0.5 : p * 0.5})`); col.addColorStop(1, 'rgba(251,146,60,0)');
+    ctx.fillStyle = col; ctx.fillRect(b.x - 22, b.y, 44, H - b.y);
+    if (hot) for (let i = 0; i < 6; i++) { const y = b.y + ((b.t * 9 + i * 40) % (H - b.y)); ctx.fillStyle = '#78350f'; ctx.fillRect(b.x - 14 + (i * 7) % 28, y, 5, 5); }
+  }
+  if (b.state === 'rumble') {
+    const k = 1 - b.wait / 44, p = 0.4 + Math.sin(b.t * 0.8) * 0.2;
+    const gl = ctx.createRadialGradient(b.x, b.y, 2, b.x, b.y, 44);
+    gl.addColorStop(0, `rgba(251,146,60,${0.35 + k * 0.3})`); gl.addColorStop(1, 'rgba(251,146,60,0)');
+    ctx.fillStyle = gl; ctx.fillRect(b.x - 44, b.y - 44, 88, 88);
+    ctx.strokeStyle = `rgba(253,186,116,${p + 0.3})`; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI * 2 + 0.4, r = 8 + k * 26;
+      ctx.beginPath(); ctx.moveTo(b.x + Math.cos(a) * 4, b.y + Math.sin(a) * 3); ctx.lineTo(b.x + Math.cos(a + 0.2) * r * 0.6, b.y + Math.sin(a + 0.2) * r * 0.45); ctx.lineTo(b.x + Math.cos(a) * r, b.y + Math.sin(a) * r * 0.7); ctx.stroke();
+    }
+    return;
+  }
+  const rise = b.state === 'erupt' ? 1 - b.wait / 14 : b.state === 'dive' ? b.wait / 20 : 1;
+  ctx.save(); ctx.translate(b.x, b.y);
+  ctx.fillStyle = '#3f2a1a'; ctx.beginPath(); ctx.ellipse(0, 12, 34, 10, 0, 0, Math.PI * 2); ctx.fill();   // the hole's rim
+  ctx.fillStyle = '#0b0705'; ctx.beginPath(); ctx.ellipse(0, 10, 24, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.rect(-40, -60, 80, 70); ctx.clip();
+  ctx.translate(0, (1 - rise) * 44);
+  // claws
+  ctx.fillStyle = '#e7d3b0';
+  for (const sd of [-1, 1]) for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(sd * (16 + k * 4), 2); ctx.lineTo(sd * (22 + k * 5), -6 - k); ctx.lineTo(sd * (19 + k * 4), 4); ctx.fill(); }
+  // body: velvet-dark with a pale snout
+  ctx.fillStyle = b.flash ? '#ffffff' : '#2b1d16'; ctx.shadowColor = '#22d3ee'; ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.ellipse(0, -8, 20, 22, 0, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+  ctx.fillStyle = b.flash ? '#ffffff' : '#f0a6b8';
+  ctx.beginPath(); ctx.ellipse(0, -2, 9, 7, 0, 0, Math.PI * 2); ctx.fill();
+  // the star-shaped nose it hunts with, twitching
+  ctx.fillStyle = '#fb7185';
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + Math.sin(b.t * 0.3) * 0.2; ctx.beginPath(); ctx.ellipse(Math.cos(a) * 5, -2 + Math.sin(a) * 4, 2.2, 1.2, a, 0, Math.PI * 2); ctx.fill(); }
+  // blind, milky eyes
+  ctx.fillStyle = b.enraged ? 'rgba(244,63,94,0.8)' : 'rgba(207,250,254,0.7)';
+  ctx.beginPath(); ctx.arc(-8, -16, 2.4, 0, Math.PI * 2); ctx.arc(8, -16, 2.4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+// over the darkness: the dirt it turns up as it digs, faintly lit, so you can follow it
+function drawBurrowerTrace(b) {
+  if (b.state !== 'dig') return;
+  for (const q of b.trail) {
+    const a = q.t / 40;
+    ctx.fillStyle = `rgba(161,98,7,${0.25 * a})`;
+    ctx.beginPath(); ctx.ellipse(q.x, q.y, 9 * a + 3, 3 * a + 1, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(251,191,36,0.35)';
+  ctx.beginPath(); ctx.ellipse(b.x, b.y, 12, 4, 0, 0, Math.PI * 2); ctx.fill();
+}
+
 function drawBoss(b) {
   if (b.shots) b.shots.forEach(s => drawArc(s, s.color));
   if (b.type === 'mother') drawMother(b);
   else if (b.type === 'widow') drawWidow(b);
   else if (b.type === 'wyrm') drawWyrm(b);
   else if (b.type === 'mandrake') drawMandrake(b);
+  else if (b.type === 'beast') drawBeast(b);
+  else if (b.type === 'burrower') drawBurrower(b);
 }

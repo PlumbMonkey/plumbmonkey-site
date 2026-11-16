@@ -55,7 +55,7 @@ run('var realCheckClear = checkClear; checkClear = function () {};');
 
 // --- layouts are set designs: same level → same field; every level differs ---
 const fields = [];
-for (let g = 0; g < 4; g++) for (let l = 0; l < 4; l++) {
+for (let g = 0; g < 6; g++) for (let l = 0; l < 4; l++) {
   const a = run(`JSON.stringify(buildField(${g}, ${l}))`);
   assert.equal(a, run(`JSON.stringify(buildField(${g}, ${l}))`), `field ${g}-${l} is deterministic`);
   fields.push(a);
@@ -64,9 +64,12 @@ for (let g = 0; g < 4; g++) for (let l = 0; l < 4; l++) {
   assert.equal(clash, 0, `no toadstool on a block or in water (${g}-${l})`);
   assert.ok(run(`Object.values(buildField(${g}, ${l}).blocks).every(b => b && typeof b === 'object')`), 'blocks are objects, never a falsy variant');
 }
-assert.equal(new Set(fields).size, 16, 'all sixteen fields are distinct');
+assert.equal(run('GROUNDS.map(G => G.id).join()'), 'graveyard,pumpkin,bog,topiary,cellar,conservatory', 'six grounds, the conservatory last');
+assert.equal(new Set(fields).size, 24, 'all twenty-four fields are distinct');
+assert.ok(run('Object.values(buildField(3, 1).blocks).filter(b => b.type === "gate").length >= 4'), 'the topiary has gates in its hedges');
+assert.ok(run('Object.values(buildField(4, 0).blocks).some(b => b.type === "root")'), 'the cellar has roots');
 assert.ok(run('Object.values(buildField(1, 0).blocks).some(b => b.type === "lantern")'), 'the pumpkin patch has lanterns');
-assert.ok(run('Object.values(buildField(3, 2).blocks).filter(b => b.type === "trap").length >= 4'), 'the conservatory has flytraps');
+assert.ok(run('Object.values(buildField(5, 2).blocks).filter(b => b.type === "trap").length >= 4'), 'the conservatory has flytraps');
 assert.equal(run('JSON.stringify(buildField(2, 2).water)'), '[5,9,13]');
 
 // --- one shot kills exactly one segment, and the one behind becomes a head ---
@@ -152,14 +155,15 @@ run('lives = 2; score = 24990; nextLife = FIRST_EXTRA_LIFE; addScore(20);');
 assert.equal(run('lives'), 3); assert.equal(run('nextLife'), 75000);
 run('lives = 5; score = 74990; addScore(20);');
 assert.equal(run('lives'), 5, 'never more than five lives in hand'); assert.equal(run('nextLife'), 125000);
-assert.ok(run('GROUNDS[3].speedMult > 1 && GROUNDS[3].spawnMult > 1 && GROUNDS[3].spores === 3'), 'the conservatory is the hardest ground');
+assert.ok(run(`(() => { const C = GROUNDS.at(-1);
+  return C.id === 'conservatory' && C.spores === 3 && GROUNDS.slice(0, -1).every(G => (G.speedMult || 1) < C.speedMult && (G.spawnMult || 1) < C.spawnMult); })()`), 'the conservatory is the last and hardest ground');
 
 // --- progression: 1-1 → 1-2 → 1-3 → boss → pumpkin patch; the loop is a new cycle ---
 run(`startGame(); groundIdx = 0; levelIdx = 2; advance();`);
 assert.equal(run('isBossLevel() && levelDef().type'), 'mother');
 run('advance();');
 assert.equal(run('ground().id + " " + levelIdx'), 'pumpkin 0');
-run('groundIdx = 3; levelIdx = 3; advance();');
+run('groundIdx = 5; levelIdx = 3; advance();');
 assert.equal(run('groundIdx + " " + cycle'), '0 1');
 assert.ok(run('cycleMult > 1'));
 
@@ -215,7 +219,7 @@ assert.equal(run('bossBulletHit(boss, { x: boss.x, y: boss.y })'), 1);
 assert.ok(run('Number.isFinite(boss.x) && boss.nodes.every(n => Number.isFinite(n.x) && Number.isFinite(n.y))'));
 
 // --- Mandrake: armored when closed, hurt when open; the vine lashes the marked column ---
-enterBoss(3); steps(160);
+enterBoss(5); steps(160);
 assert.equal(run('boss.type'), 'mandrake');
 assert.equal(run('bossBulletHit(boss, { x: boss.x, y: boss.y })'), -1);
 run('boss.state = "open"; boss.wait = 50;');
@@ -225,6 +229,64 @@ assert.equal(run('boss.state'), 'lash');
 for (let i = 0; i < 56; i++) run('updateBoss(boss);');
 assert.ok(run('bossTouches(boss, boss.vines[0].cx, 500, 10)'), 'the slam is lethal in its column');
 assert.ok(!run('bossTouches(boss, boss.vines[0].cx + 120, 500, 10)'), 'and only there');
+
+
+// --- the Topiary: hedges chew away, gates rustle before they move; an open gate lets shots and the Hauntipede through ---
+run(`${calm} blocks[key(6, 6)] = { type: 'hedge', hp: 4 };`);
+for (let i = 0; i < 3; i++) run('hitBullet({ x: cellX(6), y: cellY(6), vx: 0, vy: -11 });');
+assert.ok(run('!!blocks[key(6, 6)]'), 'a hedge takes four hits');
+run('hitBullet({ x: cellX(6), y: cellY(6), vx: 0, vy: -11 });');
+assert.ok(run('!blocks[key(6, 6)]'));
+run(`${calm} playT = 0; blocks[key(8, 6)] = { type: 'gate', phase: 0 };`);
+assert.equal(run('gateOpen(blocks[key(8, 6)])'), false);
+assert.equal(run('hitBullet({ x: cellX(8), y: cellY(6), vx: 0, vy: -11 })'), true, 'a shut gate stops a shot');
+run('playT = GATE_SHUT - 10;'); assert.ok(run('gateRustle(blocks[key(8, 6)])'), 'it rustles before it opens');
+run('playT = 20;'); assert.ok(!run('gateRustle(blocks[key(8, 6)])'));
+run('playT = GATE_SHUT + 5;'); assert.ok(run('gateOpen(blocks[key(8, 6)])'));
+assert.equal(run('hitBullet({ x: cellX(8), y: cellY(6), vx: 0, vy: -11 })'), false, 'an open gate lets a shot through');
+run(`segments = [${seg(7, 6, ', head: true')}]; segments[0].speed = 3; for (let i = 0; i < 12; i++) segmentUpdate(segments[0]);`);
+assert.ok(run('segments[0].x > cellX(8) && segments[0].drop === 0'), 'and the Hauntipede walks through it');
+run(`playT = 0; segments = [${seg(7, 6, ', head: true')}]; segments[0].speed = 3; for (let i = 0; i < 12; i++) segmentUpdate(segments[0]);`);
+assert.ok(run('segments[0].dir === -1'), 'a shut gate turns it back');
+
+// --- the Hedge Beast: leaves are armour; it pounces on your column; it roars and can be hurt; it regrows hedges ---
+enterBoss(3); steps(160);
+assert.equal(run('boss.type'), 'beast');
+run('boss.state = "prowl"; boss.y = 74; boss.x = 400;');
+assert.equal(run('bossBulletHit(boss, { x: boss.x, y: boss.y })'), -1, 'leaves stop shots');
+run('player.x = 300; player.y = 500; boss.state = "aim"; boss.wait = 60; for (let i = 0; i < 59; i++) updateBoss(boss);');
+assert.ok(run('Math.abs(boss.x - 300) < 20'), 'it lines up on your column');
+run('for (let i = 0; i < 80 && boss.state !== "roar"; i++) updateBoss(boss);');
+assert.equal(run('boss.state'), 'roar');
+assert.ok(run('bossTouches(boss, boss.x, boss.y + 10, 10)'), 'it lands in your zone');
+assert.ok(!run('bossTouches(boss, boss.x, H - 14, 10)'), 'but you can stand under it at the floor');
+run('var b0 = boss.hp;'); assert.equal(run('bossBulletHit(boss, { x: boss.x, y: boss.y + 10 })'), 1, 'roaring, it can be hurt');
+const cut = run('boss.home.length');
+assert.ok(cut > 0, 'it remembers the hedges');
+run('boss.home.forEach(h => delete blocks[h.k]); boss.home.forEach(h => delete mushrooms[h.k]); boss.state = "regrow"; boss.wait = 20; updateBoss(boss);');
+assert.ok(run('boss.home.filter(h => blocks[h.k]).length') >= Math.min(5, cut), 'and grows them back');
+
+// --- the Root Cellar: dark; roots stop shots; the Burrower hunts the sound of your shots ---
+assert.ok(run('GROUNDS[4].dark === true'));
+run(`${calm} blocks[key(9, 3)] = { type: 'root' };`);
+assert.equal(run('hitBullet({ x: cellX(9), y: cellY(3), vx: 0, vy: -11 })'), true); assert.ok(run('!!blocks[key(9, 3)]'), 'roots cannot be shot away');
+enterBoss(4); steps(160);
+assert.equal(run('boss.type'), 'burrower');
+assert.equal(run('bossBulletHit(boss, { x: boss.x, y: boss.y })'), 0, 'underground, shots pass over it');
+run('boss.x = 200; boss.state = "dig"; player.x = 700; player.y = 500; fireCd = 0; fire(true);');
+assert.equal(run('boss.noise.x'), 700, 'a shot is a noise');
+run('for (let i = 0; i < 400 && boss.state === "dig"; i++) updateBoss(boss);');
+assert.equal(run('boss.state'), 'rumble'); assert.ok(run('Math.abs(boss.x - 700) < 1'), 'it digs to the column you fired from');
+assert.ok(!run('bossTouches(boss, 700, 500, 10)'), 'the rumble is only a warning');
+run('for (let i = 0; i < 60 && boss.state !== "erupt"; i++) updateBoss(boss);');
+assert.ok(run('bossTouches(boss, 700, 500, 10)'), 'the eruption crashes down the column');
+assert.ok(!run('bossTouches(boss, 760, 500, 10)'), 'and only that column');
+run('for (let i = 0; i < 20 && boss.state !== "up"; i++) updateBoss(boss);');
+assert.equal(run('boss.state'), 'up');
+assert.equal(run('bossBulletHit(boss, { x: boss.x, y: boss.y })'), 1, 'up, it can be shot from below');
+assert.ok(!run('bossTouches(boss, 700, ZONE_Y + 10, 10)'), 'and standing under it is safe');
+run('boss.state = "dig"; boss.noise = null; var bx = boss.x; for (let i = 0; i < 30; i++) updateBoss(boss);');
+assert.ok(run('boss.state === "dig"'), 'with no noise it just wanders');
 
 // --- killing a boss clears the ground ---
 enterBoss(1); steps(160);
@@ -249,7 +311,7 @@ assert.notEqual(submitted, null);
 sandbox.Arcade.attract = true;
 run('startGame();');
 const seen = new Set();
-for (let i = 0; i < 60000; i++) {
+for (let i = 0; i < 90000; i++) {
   run('lives = 3; update();');
   if (i % 50 === 0) {
     seen.add(run('levelLabel()'));
@@ -261,6 +323,7 @@ for (let i = 0; i < 60000; i++) {
   }
 }
 sandbox.Arcade.attract = false;
-['1-4', '2-4', '3-4', '4-4'].forEach(l => assert.ok(seen.has(l), `soak reached boss ${l}`));
+['1-4', '2-4', '3-4', '4-4', '5-4', '6-4'].forEach(l => assert.ok(seen.has(l), `soak reached boss ${l}`));
+assert.ok(seen.size >= 24, `the soak saw all 24 levels (${seen.size})`);
 
 console.log(`infestation rules ok (soak saw ${seen.size} levels)`);
