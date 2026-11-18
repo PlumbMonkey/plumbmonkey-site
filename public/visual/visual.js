@@ -401,7 +401,15 @@ class VisualEngine {
       lCtx.globalCompositeOperation = 'source-over';
     }
 
-    this.drawBaseLayer();
+    // Flux owns the screen: drop the mirrored web/cloud layers outright. Their
+    // slow destination-out fade never quite reaches zero (8-bit alpha rounding),
+    // so a previous mode would otherwise linger as a ghost pattern.
+    if (this.mode === 'flux') {
+      this.layerWebCtx.clearRect(0, 0, bsz, bsz);
+      this.layerCloudCtx.clearRect(0, 0, bsz, bsz);
+    }
+
+    if (this.mode !== 'flux') this.drawBaseLayer();   // Flux keeps its dark negative space
 
     switch (this.mode) {
       case 'neural-strings':  this.renderNeuralStrings(bass, mid, treble, speedMult); break;
@@ -440,6 +448,7 @@ class VisualEngine {
     // Screen-space pass — must land after the kaleidoscope stamp but before
     // bloom, so the comet picks up the same glow as everything else.
     if (this.mode === 'neon-comet') this.renderNeonComet(W, H, bass, mid, treble, beat);
+    if (this.mode === 'flux') this.renderFlux(W, H, bass, mid, treble, beat);
     if (effectState.bloom) this.applyBloom(W, H, treble);
     this.applyTone(W, H);
     if (performance.now() < this.transitionUntil) {
@@ -624,6 +633,159 @@ class VisualEngine {
         ci: Math.floor(Math.random() * this.palette.colors.length)
       });
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // FLUX — thousands of light particles riding a curl-noise flow field around
+  // a slow vortex. Like Neon Comet it draws in SCREEN space (a mirrored flow
+  // field just looks like noise). Its own trail buffer is fed back through a
+  // tiny zoom + twist every frame, so trails stream outward like a tunnel of
+  // current. Bass = speed and stroke weight, mids = swirl and colour drift,
+  // treble = brightness; beats fire shockwave rings and blow the field open.
+  // Time advances per FRAME (not wall clock) so offline renders are exact.
+  // ---------------------------------------------------------------------------
+  initFlux(W, H) {
+    const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+    const canvas = mk(), tmp = mk();
+    const count = Math.round(clamp(W * H / 650, 900, 3400) * this.config.particleDensity);
+    this.flux = { canvas, ctx: canvas.getContext('2d'), tmp, tmpCtx: tmp.getContext('2d'),
+      w: W, h: H, t: Math.random() * 50, twist: 0, energy: 0, rings: [], parts: [] };
+    for (let i = 0; i < count; i++) {
+      const p = { x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, age: 0, life: 1, ci: i % 6, w: 0.6 + Math.random() * 1.1 };
+      this.spawnFluxParticle(p, W, H, true);
+      p.age = Math.random() * p.life;
+      this.flux.parts.push(p);
+    }
+  }
+
+  spawnFluxParticle(p, W, H, anywhere) {
+    const m = Math.min(W, H);
+    if (anywhere || Math.random() < 0.45) {
+      p.x = Math.random() * W; p.y = Math.random() * H;
+    } else {
+      // Born in a ring around the core, so the centre keeps "emitting"
+      const a = Math.random() * Math.PI * 2, r = m * (0.04 + Math.random() * 0.22);
+      p.x = W / 2 + Math.cos(a) * r; p.y = H / 2 + Math.sin(a) * r;
+    }
+    p.px = p.x; p.py = p.y; p.vx = 0; p.vy = 0; p.age = 0;
+    p.life = 80 + Math.random() * 220;
+  }
+
+  renderFlux(W, H, bass, mid, treble, beat) {
+    if (!this.flux || this.flux.w !== W || this.flux.h !== H) this.initFlux(W, H);
+    const f = this.flux, fctx = f.ctx;
+    const sens = this.config.audioSensitivity;
+    const k = H / 1080;                       // resolution-independent sizes
+    const cx = W / 2, cy = H / 2;
+    f.energy = f.energy * 0.9 + bass * 0.1;   // slow loudness for the core
+
+    // 1. Feedback warp: zoom + twist the old trails about the centre, slightly
+    //    faded. Old light streams outward instead of just fading in place.
+    const zoom = 1.0025 + bass * sens * 0.006;
+    f.twist = 0.0006 + mid * 0.0026;
+    f.tmpCtx.clearRect(0, 0, W, H);
+    f.tmpCtx.drawImage(f.canvas, 0, 0);
+    fctx.save();
+    fctx.clearRect(0, 0, W, H);
+    fctx.globalAlpha = 0.9 - treble * 0.04;
+    fctx.translate(cx, cy); fctx.rotate(f.twist); fctx.scale(zoom, zoom); fctx.translate(-cx, -cy);
+    fctx.drawImage(f.tmp, 0, 0);
+    fctx.restore();
+
+    // 2. Beat: shockwave ring + outward kick
+    if (beat) {
+      f.rings.push({ r: Math.min(W, H) * 0.05, a: 0.55 + bass * 0.45, ci: Math.floor(Math.random() * 6) });
+      if (f.rings.length > 8) f.rings.shift();
+    }
+    const kick = beat ? (4 + bass * 10) * sens * k : 0;
+
+    // 3. Move particles through the curl of a drifting noise field
+    f.t += 0.0022 + mid * 0.006;
+    const sc = 2.1 / H, e = 0.6;
+    const swirl = 0.25 + mid * 0.55;
+    const speed = (2.0 + bass * sens * 5.0 + treble * 1.6) * k;
+    const perlin = this.perlin;
+    const cols = this.palette.colors.length;
+    const paths = [];
+    for (let c = 0; c < cols; c++) paths.push([]);
+    for (const p of f.parts) {
+      const nx = p.x * sc + f.t * 0.7, ny = p.y * sc - f.t * 0.45;
+      const dndy = perlin.noise2D(nx, ny + e * sc * 60) - perlin.noise2D(nx, ny - e * sc * 60);
+      const dndx = perlin.noise2D(nx + e * sc * 60, ny) - perlin.noise2D(nx - e * sc * 60, ny);
+      let fx = dndy * 2.2, fy = -dndx * 2.2;
+      const dx = p.x - cx, dy = p.y - cy;
+      const d = Math.hypot(dx, dy) + 1e-3;
+      fx += (-dy / d) * swirl; fy += (dx / d) * swirl;          // vortex
+      fx -= (dx / d) * 0.06; fy -= (dy / d) * 0.06;             // gentle pull home
+      p.vx = p.vx * 0.84 + fx * speed * 0.16;
+      p.vy = p.vy * 0.84 + fy * speed * 0.16;
+      if (kick) { p.vx += (dx / d) * kick * (0.4 + Math.random() * 0.6); p.vy += (dy / d) * kick * (0.4 + Math.random() * 0.6); }
+      p.px = p.x; p.py = p.y;
+      p.x += p.vx; p.y += p.vy;
+      p.age++;
+      if (p.age > p.life || p.x < -40 || p.x > W + 40 || p.y < -40 || p.y > H + 40) {
+        this.spawnFluxParticle(p, W, H, false);
+        continue;
+      }
+      paths[p.ci % cols].push(p);
+    }
+
+    // 4. Draw: one batched path per palette colour (fast even at 3k particles)
+    fctx.save();
+    fctx.globalCompositeOperation = 'lighter';
+    fctx.lineCap = 'round';
+    const lift = 0.35 + treble * 0.5;
+    for (let c = 0; c < cols; c++) {
+      const list = paths[c];
+      if (!list.length) continue;
+      const [r, g, b] = this.paletteColor(c);
+      const R = Math.round(r + (255 - r) * lift * 0.45), G = Math.round(g + (255 - g) * lift * 0.45), B = Math.round(b + (255 - b) * lift * 0.45);
+      // Trails are fed back ~10x, so each stroke is faint on its own
+      for (const [wMul, aMul] of [[2.6, 0.04], [1, 0.21]]) {
+        fctx.beginPath();
+        for (const p of list) {
+          fctx.moveTo(p.px, p.py); fctx.lineTo(p.x, p.y);
+        }
+        fctx.strokeStyle = 'rgba(' + R + ',' + G + ',' + B + ',' + (aMul * (0.7 + treble * 0.6 + bass * 0.4)).toFixed(3) + ')';
+        fctx.lineWidth = Math.max(1, (1.2 + bass * sens * 1.8) * k) * wMul;
+        fctx.stroke();
+      }
+    }
+    // Shockwave rings (drawn into the trail buffer, so they smear outward)
+    for (const ring of f.rings) {
+      const [r, g, b] = this.paletteColor(ring.ci);
+      fctx.beginPath();
+      fctx.arc(cx, cy, ring.r, 0, Math.PI * 2);
+      fctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + ring.a.toFixed(3) + ')';
+      fctx.lineWidth = (2 + ring.a * 5) * k;
+      fctx.stroke();
+      ring.r += (16 + bass * 26) * k;
+      ring.a *= 0.9;
+    }
+    f.rings = f.rings.filter(ring => ring.a > 0.02 && ring.r < Math.hypot(W, H));
+    fctx.restore();
+
+    // 5. Composite trails + a breathing core onto the frame
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(f.canvas, 0, 0);
+    const [r0, g0, b0] = this.paletteColor(0);
+    const coreR = Math.min(W, H) * (0.07 + f.energy * 0.12);
+    const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+    core.addColorStop(0, 'rgba(255,255,255,' + (0.18 + f.energy * 0.3).toFixed(3) + ')');
+    core.addColorStop(0.35, 'rgba(' + r0 + ',' + g0 + ',' + b0 + ',' + (0.1 + f.energy * 0.2).toFixed(3) + ')');
+    core.addColorStop(1, 'rgba(' + r0 + ',' + g0 + ',' + b0 + ',0)');
+    ctx.fillStyle = core;
+    ctx.fillRect(cx - coreR, cy - coreR, coreR * 2, coreR * 2);
+    // Edge falloff keeps the frame from flattening out when the song is loud
+    ctx.globalCompositeOperation = 'source-over';
+    const vig = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.25, cx, cy, Math.hypot(W, H) * 0.55);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
   }
 
   drawOverlay(W, H) {
@@ -1396,14 +1558,14 @@ let sceneAdvanceHook = null, lastBeatSceneAt = 0, sceneFlashUntil = 0;
 // engine's soft no-clear transitions so it feels alive with no input
 const MODE_ORDER = ['firefly-nebula', 'neural-strings', 'geometric-pulse', 'fractal-warp',
   'spectrum-ring', 'wave-mirror', 'particle-galaxy', 'laser-grid',
-  'liquid-ribbons', 'aurora-curtains', 'tunnel-flight', 'starfield-pulse', 'neon-comet'];
+  'liquid-ribbons', 'aurora-curtains', 'tunnel-flight', 'starfield-pulse', 'neon-comet', 'flux'];
 const MODE_LABEL = { 'firefly-nebula': 'Firefly Nebula', 'neural-strings': 'Neural Strings',
   'geometric-pulse': 'Geometric Pulse', 'fractal-warp': 'Fractal Warp',
   'spectrum-ring': 'Spectrum Ring', 'wave-mirror': 'Wave Mirror',
   'particle-galaxy': 'Particle Galaxy', 'laser-grid': 'Laser Grid',
   'liquid-ribbons': 'Liquid Ribbons', 'aurora-curtains': 'Aurora Curtains',
   'tunnel-flight': 'Tunnel Flight', 'starfield-pulse': 'Starfield Pulse',
-  'neon-comet': 'Neon Comet' };
+  'neon-comet': 'Neon Comet', 'flux': 'Flux' };
 let autoMode = false;
 let autoIdx = 0;
 let lastModeSwitch = 0;
