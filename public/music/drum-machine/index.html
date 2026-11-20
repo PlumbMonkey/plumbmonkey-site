@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DM-1 Rhythm Machine | Stave</title>
+  <link rel="stylesheet" href="../shared/sound-stage.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: radial-gradient(ellipse at top, #10182e 0%, #07040f 70%);
+      color: #dbeafe; font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+      padding: 2.5rem 1rem 3rem; user-select: none;
+    }
+    h1 { font-size: 1.6rem; letter-spacing: 2px; color: #67e8f9; text-shadow: 0 0 18px #22d3ee; margin-bottom: .2rem; }
+    .subtitle { color: #7dd3fc; font-size: .82rem; margin-bottom: 1.4rem; }
+    /* .nav base lives in shared/sound-stage.css — colours only here */
+    .nav a { color: #67e8f9; text-decoration: none; background: rgba(16,24,46,.8); border: 1px solid #164e63; }
+    .nav a:hover { color: #fff; border-color: #22d3ee; box-shadow: 0 0 12px rgba(34,211,238,.5); }
+
+    .transport { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 1.2rem;
+      background: rgba(16,24,46,.6); border: 1px solid #164e63; border-radius: 12px; padding: .8rem 1.2rem; }
+    button { font-family: inherit; font-weight: 600; cursor: pointer; border: none; border-radius: 8px;
+      padding: .5rem 1rem; background: #155e75; color: #e0f2fe; transition: all .15s; }
+    button:hover { background: #0e7490; box-shadow: 0 0 14px rgba(34,211,238,.4); }
+    #playBtn { background: #22d3ee; color: #06121f; min-width: 96px; font-size: 1rem; }
+    #playBtn:hover { background: #67e8f9; }
+    .ctl { display: flex; flex-direction: column; align-items: center; font-size: .7rem; color: #7dd3fc; gap: .2rem; }
+    input[type=range] { width: 130px; accent-color: #22d3ee; }
+
+    .machine { background: rgba(16,24,46,.5); border: 1px solid #164e63; border-radius: 14px;
+      padding: 1rem; box-shadow: 0 0 50px rgba(34,211,238,.12); overflow-x: auto; max-width: 100%; }
+    #grid { display: grid; grid-template-columns: 120px repeat(16, 1fr); gap: 5px; min-width: 720px; }
+    .track-label { display: flex; align-items: center; justify-content: flex-end; gap: .4rem; padding-right: .5rem;
+      font-size: .8rem; color: #bae6fd; cursor: pointer; border-radius: 6px; }
+    .track-label:hover { color: #fff; }
+    .track-label.muted { color: #475569; text-decoration: line-through; }
+    .sample-dl { font-size: .85rem; opacity: .55; padding: .1rem .2rem; border-radius: 4px; text-decoration: none; }
+    .sample-dl:hover { opacity: 1; color: #67e8f9; background: rgba(34,211,238,.15); }
+    .cell { aspect-ratio: 1; min-width: 30px; border-radius: 6px; background: #0f1e38;
+      border: 1px solid #1e3a5f; cursor: pointer; transition: background .08s, box-shadow .08s; }
+    .cell.beat { background: #13284a; }
+    .cell:hover { border-color: #22d3ee; }
+    .cell.on { background: #22d3ee; box-shadow: 0 0 10px rgba(34,211,238,.6); }
+    .cell.playing { outline: 2px solid #f0abfc; outline-offset: -2px; }
+    .cell.on.playing { background: #f0abfc; box-shadow: 0 0 14px rgba(240,171,252,.8); }
+
+    .flash { margin-top: 1rem; min-height: 1.2rem; color: #67e8f9; font-size: .85rem; opacity: 0; transition: opacity .2s; }
+    .flash.show { opacity: 1; }
+    .footer { margin-top: 1.6rem; text-align: center; font-size: .8rem; color: #64748b; line-height: 1.6; }
+    .footer a { color: #22d3ee; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+    .hint { margin-top: .6rem; font-size: .72rem; color: #475569; }
+
+    /* Stave / Spectral Manor instrument skin */
+    body { background: radial-gradient(ellipse at 18% 90%, #9fcf9a20, transparent 38%), radial-gradient(ellipse at 78% 0%, #8a68aa32, transparent 36%), #0b0910; color: #eee7d8; }
+    h1 { font-family: Georgia, 'Times New Roman', serif; color: #d6a35b; text-shadow: 0 0 22px #d6a35b44; }
+    .subtitle, .ctl, .flash { color: #9fcf9a; }
+    .nav a { color: #d9c8aa; background: #15121add; border-color: #3c3243; }
+    .nav a:hover { color: #9fcf9a; border-color: #9fcf9a; box-shadow: 0 0 12px #9fcf9a55; }
+    .transport, .machine { background: linear-gradient(145deg, #302839cc, #15121aee); border-color: #3c3243; box-shadow: 0 24px 70px #0009, 0 0 40px #8a68aa20; }
+    button { background: #302839; color: #eee7d8; }
+    button:hover { background: #44374e; box-shadow: 0 0 14px #9fcf9a44; }
+    #playBtn { background: #d6a35b; color: #171119; }
+    #playBtn:hover { background: #ebc47f; }
+    input[type=range] { accent-color: #9fcf9a; }
+    .track-label { color: #c9bdca; }
+    .cell { background: #15121a; border-color: #3c3243; }
+    .cell.beat { background: #201b26; border-left-color: #d6a35b88; }
+    .cell:hover { border-color: #9fcf9a; }
+    .cell.on { background: #78936f; box-shadow: 0 0 10px #9fcf9a77; }
+    .cell.playing { outline-color: #ebc47f; }
+    .cell.on.playing { background: #c3dfb8; box-shadow: 0 0 18px #9fcf9acc; animation: spectral-hit .11s ease-out; }
+    @keyframes spectral-hit { from { transform: translateY(2px) scale(.88); filter: brightness(1.8); } to { transform: none; filter: none; } }
+    .footer { color: #675d6c; }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="/music">← Sound Stage</a>
+    <a href="../synth/index.html">SY-1</a>
+    <a href="../song/index.html">Song</a>
+    <a href="/visual/index.html">Light Lab</a>
+    <span class="nav-sep"></span>
+    <a href="/arcade">Arcade</a>
+    <a href="/" data-short="Home"><span class="nav-long">Plumbmonkey Home</span></a>
+  </div>
+
+  <h1>DM-1 RHYTHM MACHINE</h1>
+  <div class="subtitle">8 spectral voices · 16-step sequencer · forged for Stave</div>
+
+  <div class="transport">
+    <button id="playBtn">▶ Play</button>
+    <button id="demoBtn">Demo Beat</button>
+    <button id="clearBtn">Clear</button>
+    <button id="saveBtn">Save</button>
+    <button id="loadBtn">Load</button>
+    <div class="ctl">
+      <label>Tempo · <span id="tempoVal">120</span> BPM</label>
+      <input type="range" id="tempo" min="60" max="200" value="120" />
+    </div>
+    <div class="ctl">
+      <label>Swing</label>
+      <input type="range" id="swing" min="0" max="50" value="0" />
+    </div>
+    <button id="exportWavBtn" title="Render the loop to a WAV file">Export WAV</button>
+    <button id="exportMidiBtn" title="Export the loop as a MIDI file (GM drum map)">Export MIDI</button>
+    <button id="toSongBtn" title="Save this beat as a clip for the Song view" style="background:#7c3aed">→ Song</button>
+  </div>
+
+  <div class="machine">
+    <div id="grid"></div>
+  </div>
+
+  <div id="flash" class="flash"></div>
+  <div class="hint">Click steps to build a beat · click a track name to mute (or preview) · Spacebar plays/stops · ⭳ next to a track name downloads that sample</div>
+
+  <div class="footer">
+    <strong style="color:#d6a35b">DM-1</strong> · an instrument from Stave and the Spectral Manor<br>
+    Want the full desktop version with deeper sequencing and MIDI control?
+    <a href="https://plumbmonkey.gumroad.com/" target="_blank" rel="noopener noreferrer">Get the Drum Machine on Gumroad →</a>
+  </div>
+
+  <script src="/shared/creative-handoff.js"></script>
+  <script src="../shared/export-utils.js"></script>
+  <script src="../shared/drum-engine.js"></script>
+  <script src="../shared/song-store.js"></script>
+  <script src="drum.js"></script>
+</body>
+</html>

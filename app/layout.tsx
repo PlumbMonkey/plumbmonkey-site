@@ -1,121 +1,111 @@
 import "../styles/globals.css";
-import NavBar from "./components/NavBar";
+import { Inter, Playfair_Display } from "next/font/google";
 import type { Metadata } from "next";
+import Footer from "./components/Footer";
+import NavBar from "./components/NavBar";
+
+const display = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const body = Inter({
+  subsets: ["latin"],
+  variable: "--font-body",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "Plumbmonkey | Video Editing & Production Services",
-  description: "Professional video editing, motion graphics, and audio production. Transparent pricing, fast turnaround, and cinematic quality.",
-  keywords: "video editing, video production, motion graphics, audio production, YouTube editing, promo videos",
+  metadataBase: new URL("https://plumbmonkey.online"),
+  title: {
+    default: "Plumbmonkey | Spectral Manor",
+    template: "%s | Plumbmonkey",
+  },
+  description:
+    "Enter Spectral Manor, an evolving creative world of original music, characters, stories, games, animation, and browser-based creative tools.",
+  keywords: [
+    "Spectral Manor",
+    "Ghost Circuit",
+    "independent creative studio",
+    "browser games",
+    "music tools",
+    "animation",
+    "3D art",
+  ],
   authors: [{ name: "Plumbmonkey" }],
   openGraph: {
     type: "website",
-    locale: "en_US",
-    url: "https://plumbmonkey.online",
+    locale: "en_CA",
+    url: "/",
     siteName: "Plumbmonkey",
-    title: "Plumbmonkey | Video Editing & Production Services",
-    description: "Professional video editing, motion graphics, and audio production. Transparent pricing, fast turnaround, and cinematic quality.",
+    title: "Enter Spectral Manor",
+    description:
+      "An evolving creative world of original music, characters, stories, games, animation, and tools.",
     images: [
       {
-        url: "https://plumbmonkey.online/og-image.jpg",
+        url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "Plumbmonkey Video Production",
+        alt: "Enter Spectral Manor — a world of music, stories, games, and creative tools",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Plumbmonkey | Video Editing & Production",
-    description: "Professional video editing and production services with transparent pricing.",
-    images: ["https://plumbmonkey.online/og-image.jpg"],
+    title: "Enter Spectral Manor",
+    description:
+      "An evolving creative world of original music, characters, stories, games, animation, and tools.",
+    images: ["/og.png"],
   },
   robots: {
     index: true,
     follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-    },
-  },
-  other: {
-    "google-site-verification": "your-google-verification-code-here",
   },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const schemaData = {
     "@context": "https://schema.org",
-    "@type": "LocalBusiness",
-    name: "Plumbmonkey",
-    image: "https://plumbmonkey.online/og-image.jpg",
-    description: "Professional video editing and production services with transparent pricing and fast turnaround.",
-    url: "https://plumbmonkey.online",
-    telephone: "",
-    email: "plumbmonkey@proton.me",
-    address: {
-      "@type": "PostalAddress",
-      streetAddress: "",
-      addressLocality: "Calgary",
-      addressRegion: "AB",
-      postalCode: "",
-      addressCountry: "CA",
+    "@type": "CreativeWorkSeries",
+    name: "Spectral Manor",
+    creator: {
+      "@type": "Organization",
+      name: "Plumbmonkey",
+      url: "https://plumbmonkey.online",
     },
-    sameAs: ["https://plumbmonkey.gumroad.com/"],
-    offers: [
-      {
-        "@type": "Offer",
-        name: "Clean Cut Video Editing",
-        description: "Fast, clean edits for social media and simple projects",
-        url: "https://plumbmonkey.online/pricing-scope.html",
-      },
-      {
-        "@type": "Offer",
-        name: "Impact Cut Video Editing",
-        description: "Color grading, VFX, and motion graphics included",
-        url: "https://plumbmonkey.online/pricing-scope.html",
-      },
-      {
-        "@type": "Offer",
-        name: "Signature Video Production",
-        description: "Full cinematic production with custom music and VFX",
-        url: "https://plumbmonkey.online/pricing-scope.html",
-      },
-    ],
+    description:
+      "An evolving creative world of music, characters, stories, games, animation, and browser-based creative tools.",
+    url: "https://plumbmonkey.online",
   };
 
   return (
-    <html lang="en" className="h-full bg-zinc-950 text-zinc-50">
+    <html
+      lang="en"
+      className={`h-full bg-moonlit-950 text-moonlit-50 ${display.variable} ${body.variable}`}
+    >
       <head>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
         />
-        {/* Google Analytics */}
-        <script
-          async
-          src="https://www.googletagmanager.com/gtag/js?id=G-512918665"
-        />
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-512918665" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
-              gtag('config', 'G-512918665', {
-                page_path: window.location.pathname,
-              });
+              gtag('config', 'G-512918665');
             `,
           }}
         />
       </head>
-      <body className="min-h-screen antialiased">
+      <body className="min-h-screen font-body antialiased">
         <NavBar />
         {children}
+        <Footer />
       </body>
     </html>
   );
 }
-
